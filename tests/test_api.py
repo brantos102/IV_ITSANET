@@ -1,10 +1,15 @@
 """Pruebas de la API HTTP: autenticacion, roles y flujo completo."""
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.conftest import ARCHIVO_REAL
+
+requiere_archivo_real = pytest.mark.skipif(
+    not ARCHIVO_REAL.exists(), reason="archivo real no disponible en este entorno"
+)
 
 
 def _login(c: TestClient, usuario: str, pin: str):
@@ -34,6 +39,7 @@ def test_operador_no_puede_cerrar_ni_crear_usuarios(db, operadores):
                   json={"codigo": "ABC123"}).status_code == 200
 
 
+@requiere_archivo_real
 def test_flujo_http_completo(db, operadores, tmp_path):
     c = TestClient(app)
     _login(c, "sup", "1111")

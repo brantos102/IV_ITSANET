@@ -18,10 +18,24 @@ from app.main import app  # noqa: E402
 from app.models import Operador, Rol  # noqa: E402
 from app.security import hash_pin  # noqa: E402
 
-ARCHIVO_REAL = Path(
-    "/tmp/claude-0/-home-user/78ba3ba8-45b7-57d8-830f-e1e30fcd622a/scratchpad/data/"
-    "9edbb300-29-06-2026_VW.xlsx"
-)
+def _buscar_archivo_real() -> Path:
+    """Packing list real usado por las pruebas end-to-end.
+
+    No se versiona (lleva datos del cliente). Para ejecutarlas, copie el
+    archivo en tests/fixtures/ o apunte VAL_TEST_XLSX a su ubicacion.
+    Si no esta, esas pruebas se omiten; el resto corre igual.
+    """
+    env = os.getenv("VAL_TEST_XLSX")
+    if env:
+        return Path(env)
+    aqui = Path(__file__).parent / "fixtures"
+    if aqui.is_dir():
+        for cand in sorted(aqui.glob("*.xlsx")):
+            return cand
+    return aqui / "packing_list_real.xlsx"
+
+
+ARCHIVO_REAL = _buscar_archivo_real()
 
 
 @pytest.fixture()

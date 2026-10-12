@@ -161,7 +161,10 @@ que pueda quedar desactualizado.
 ## Pruebas
 
 ```bash
-python -m pytest -q          # 27 pruebas
+python -m pytest -q          # 21 pruebas + 6 end-to-end
+
+# Las end-to-end necesitan el packing list real (no se versiona):
+VAL_TEST_XLSX=/ruta/al/packing_list.xlsx python -m pytest -q   # 27
 ```
 
 Incluyen un end-to-end contra el packing list real de la recepción VW del
