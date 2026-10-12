@@ -1,0 +1,111 @@
+rules_version = '2';
+
+/**
+ * Reglas de seguridad de Firestore.
+ *
+ * Principio: el cliente NUNCA decide quien es. La identidad sale del token
+ * verificado por el servidor (request.auth), no de un campo que el dispositivo
+ * pueda rellenar. Eso es lo que impide que un operario firme conteos con el
+ * nombre de otro.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ //
+    // Helpers
+    // ------------------------------------------------------------------ //
+    function autenticado() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function rol() {
+      return request.auth.token.rol;
+    }
+    function esSupervisor() {
+      return autenticado() && (rol() == 'SUPERVISOR' || rol() == 'ADMIN');
+    }
+    function esAdmin() {
+      return autenticado() && rol() == 'ADMIN';
+    }
+    function activo() {
+      return autenticado() && request.auth.token.activo == true;
+    }
+    function soyYo(campo) {
+      return request.resource.data[campo] == request.auth.uid;
+    }
+    function sinCambiar(campos) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(campos);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Usuarios: lectura del propio perfil; alta y baja solo por administracion
+    // ------------------------------------------------------------------ //
+    match /usuarios/{uid} {
+      allow read: if autenticado() && (request.auth.uid == uid || esSupervisor());
+      allow write: if esAdmin();
+    }
+
+    // ------------------------------------------------------------------ //
+    // Catalogo: lo escriben solo las Cloud Functions (admin SDK salta reglas)
+    // ------------------------------------------------------------------ //
+    match /productos/{sku}   { allow read: if activo(); allow write: if false; }
+    match /codigos/{codigo}  { allow read: if activo(); allow write: if false; }
+
+    // Credenciales de Depot: ilegibles desde cualquier cliente, siempre.
+    match /config/{doc} {
+      allow read: if esAdmin() && doc != 'depot_secreto';
+      allow write: if false;   // solo por Cloud Function
+    }
+
+    // ------------------------------------------------------------------ //
+    // Recepciones
+    // ------------------------------------------------------------------ //
+    match /recepciones/{recepcionId} {
+      allow read: if activo();
+      allow create: if esSupervisor();
+      // Cerrar y reabrir pasan por Cloud Function: escriben el xlsx y envian
+      // el informe, cosas que el cliente no debe poder disparar a medias.
+      allow update: if esSupervisor() && sinCambiar(['estado', 'totales', 'cerradoEn']);
+      allow delete: if false;
+
+      // ---- Lineas del packing list: inmutables ---- //
+      function recepcionAbierta() {
+        return get(/databases/$(database)/documents/recepciones/$(recepcionId)).data.estado
+               in ['ABIERTA', 'EN_VALIDACION'];
+      }
+
+      match /lineas/{lineaId} {
+        allow read: if activo();
+        allow write: if false;   // las escribe el importador
+      }
+
+      // ---- Agregado por SKU: lo mantienen las Functions con increment() ---- //
+      match /skus/{sku} {
+        allow read: if activo();
+        allow write: if false;
+      }
+
+      // ---- Libro mayor: append-only, firmado por quien esta autenticado ---- //
+      match /eventos/{eventoId} {
+        allow read: if activo();
+        allow create: if activo()
+                   && recepcionAbierta()
+                   && soyYo('operadorUid')
+                   && request.resource.data.operadorEmail == request.auth.token.email
+                   && request.resource.data.cantidad is number
+                   && request.resource.data.cantidad != 0
+                   && request.resource.data.sku is string
+                   && request.resource.data.pallet is string
+                   // La hora la pone el servidor: el dispositivo no la decide.
+                   && request.resource.data.creadoEn == request.time;
+        // Nada se modifica ni se borra: corregir es registrar una reversa.
+        allow update, delete: if false;
+      }
+
+      // ---- Adicionales: SKU fuera del packing list, pestana aparte ---- //
+      match /adicionales/{sku} {
+        allow read: if activo();
+        allow write: if false;   // los crea la Function junto con el evento
+      }
+    }
+  }
+}
