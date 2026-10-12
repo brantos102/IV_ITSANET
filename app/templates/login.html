@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Ingreso · {{ APP_NAME }}{% endblock %}
+{% block contenido %}
+<div class="login">
+  <h1 class="centro">📦 {{ APP_NAME }}</h1>
+  <p class="centro mini">Validación física de recepciones</p>
+  <div class="panel" id="caja">
+    <div class="campo">
+      <label for="usuario">Usuario</label>
+      <input id="usuario" autocomplete="username" autocapitalize="none" autofocus>
+    </div>
+    <div class="campo" style="margin-top:.7rem">
+      <label for="pin">PIN</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password">
+    </div>
+    <button style="width:100%;margin-top:1rem" onclick="entrar()">Ingresar</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const caja = $('#caja');
+async function entrar(){
+  limpiarAvisos(caja);
+  try{
+    await API.post('/api/auth/login',{usuario:$('#usuario').value.trim(),pin:$('#pin').value});
+    location.href='/';
+  }catch(e){ aviso(caja, e.message, 'err'); bipError(); }
+}
+$('#pin').addEventListener('keydown', e => { if(e.key==='Enter') entrar(); });
+$('#usuario').addEventListener('keydown', e => { if(e.key==='Enter') $('#pin').focus(); });
+</script>
+{% endblock %}
