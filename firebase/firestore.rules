@@ -45,10 +45,19 @@ service cloud.firestore {
     function esAdmin() {
       return activo() && rol() == 'ADMIN';
     }
-    /** El dominio corporativo es la frontera: nadie de fuera entra. */
+    /**
+     * El dominio corporativo es la frontera: nadie de fuera entra.
+     *
+     * Si cambia el dominio, se cambia AQUI y en `DOMINIO` de
+     * public/js/config.js y en DOMINIO_PERMITIDO del Apps Script.
+     * El punto va escapado: en una expresion regular, `.` casa con cualquier
+     * caracter, asi que sin escapar `itsanet.com` tambien aceptaria
+     * `itsanetXcom`.
+     */
     function dominioCorporativo() {
       return request.auth != null
-          && request.auth.token.email.matches('.*@itsanet[.]com');
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.matches('(?i).*@itsanet[.]com');
     }
 
     // ------------------------------------------------------------------ //

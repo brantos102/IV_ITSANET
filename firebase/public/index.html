@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>VAL VENTURA — Acceso</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📦</text></svg>">
+<style>
+  :root {
+    --primary:#0f172a; --secondary:#64748b; --accent:#2563eb;
+    --bg:#f4f7f9; --surface:#fff; --border:#e2e8f0;
+    --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+    --font-ui:'Plus Jakarta Sans',system-ui,sans-serif;
+    --font-data:'JetBrains Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --primary:#f8fafc; --secondary:#94a3b8; --accent:#3b82f6;
+      --bg:#0f172a; --surface:#1e293b; --border:#334155;
+    }
+  }
+  :root[data-theme="dark"] {
+    --primary:#f8fafc; --secondary:#94a3b8; --accent:#3b82f6;
+    --bg:#0f172a; --surface:#1e293b; --border:#334155;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--font-ui); background:var(--bg); color:var(--primary);
+         min-height:100vh; display:flex; align-items:center; justify-content:center;
+         padding:16px; -webkit-text-size-adjust:100%; }
+  .caja { background:var(--surface); border:1px solid var(--border); border-radius:24px;
+          box-shadow:0 20px 50px rgba(0,0,0,.08); width:100%; max-width:480px; padding:40px 32px; }
+  .marca { font-size:24px; font-weight:900; letter-spacing:-.5px; }
+  .marca span { color:var(--accent); }
+  .sub { font-size:11px; color:var(--secondary); letter-spacing:2px; text-transform:uppercase;
+         font-weight:800; margin-top:2px; }
+  h1 { font-size:19px; margin:28px 0 6px; }
+  p.lead { color:var(--secondary); font-size:14px; font-weight:600; margin:0 0 24px; line-height:1.55; }
+
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px;
+           font-weight:800; transition:.2s; }
+  .btn-google { width:100%; padding:16px; background:var(--surface); color:var(--primary);
+                border:1px solid var(--border); font-size:15px; display:flex; align-items:center;
+                justify-content:center; gap:12px; }
+  .btn-google:hover:not(:disabled) { border-color:var(--accent); transform:translateY(-2px);
+                                     box-shadow:0 8px 20px rgba(37,99,235,.15); }
+  .btn-google:disabled { opacity:.6; cursor:not-allowed; }
+  .btn-sec { width:100%; padding:13px; background:transparent; color:var(--secondary);
+             border:1px solid var(--border); font-size:13px; margin-top:10px; }
+  .btn-sec:hover { color:var(--primary); }
+
+  .msg { padding:14px 16px; border-radius:12px; font-size:13px; font-weight:600;
+         border-left:5px solid var(--secondary); background:var(--bg); margin-bottom:14px;
+         line-height:1.5; }
+  .msg b { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+           margin-bottom:5px; font-weight:900; }
+  .msg.ok { border-color:var(--success); } .msg.err { border-color:var(--danger); }
+  .msg.warn { border-color:var(--warning); } .msg.info { border-color:var(--accent); }
+
+  .perfil { display:flex; align-items:center; gap:14px; padding:16px; background:var(--bg);
+            border-radius:16px; border:1px solid var(--border); margin-bottom:20px; }
+  .perfil img { width:48px; height:48px; border-radius:50%; border:2px solid var(--border); }
+  .perfil .n { font-weight:900; font-size:15px; }
+  .perfil .e { font-size:12px; color:var(--secondary); font-weight:600; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 11px; border-radius:50px; font-size:10px;
+          font-weight:900; letter-spacing:.5px; margin-top:5px; }
+  .c-admin { background:rgba(37,99,235,.15); color:var(--accent); }
+  .c-sup { background:rgba(16,185,129,.15); color:var(--success); }
+  .c-op { background:rgba(100,116,139,.15); color:var(--secondary); }
+
+  table.diag { width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+  table.diag td { padding:9px 4px; border-bottom:1px solid var(--border); }
+  table.diag td:first-child { color:var(--secondary); font-weight:700; }
+  table.diag td:last-child { text-align:right; font-family:var(--font-data); font-weight:800; }
+  .ok-txt { color:var(--success); } .err-txt { color:var(--danger); }
+  .mini { font-size:11px; color:var(--secondary); font-weight:600; }
+  .oculto { display:none !important; }
+  h2.sec { font-size:11px; color:var(--secondary); text-transform:uppercase; letter-spacing:1px;
+           margin:26px 0 8px; font-weight:900; }
+  code { font-family:var(--font-data); font-size:12px; background:var(--bg);
+         padding:2px 6px; border-radius:5px; word-break:break-all; }
+</style>
+</head>
+<body>
+<div class="caja">
+  <div class="marca">ITSANET <span>IMS</span></div>
+  <div class="sub">Validación física</div>
+
+  <!-- Sin sesión -->
+  <div id="vista-login">
+    <h1>Acceso</h1>
+    <p class="lead">Entra con tu cuenta corporativa de Google. Cada conteo queda
+       firmado con tu correo, así que no hace falta escribir tu nombre.</p>
+    <div id="avisos-login"></div>
+    <button class="btn-google" id="btnEntrar">
+      <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.600v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z"/>
+        <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.7-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z"/>
+        <path fill="#FBBC05" d="M11.6 28.1c-.4-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z"/>
+        <path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.2 30 2 24 2 15.4 2 7.9 6.9 4.3 14.2l7.3 5.7c1.7-5.2 6.6-9.1 12.4-9.1z"/>
+      </svg>
+      <span id="txtEntrar">Entrar con Google</span>
+    </button>
+    <p class="mini" style="text-align:center;margin-top:16px;">
+      Solo cuentas <code id="dominioTxt">@itsanet.com</code>
+    </p>
+  </div>
+
+  <!-- Con sesión -->
+  <div id="vista-sesion" class="oculto">
+    <h1>Sesión iniciada</h1>
+    <div class="perfil">
+      <img id="pFoto" alt="" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>">
+      <div>
+        <div class="n" id="pNombre"></div>
+        <div class="e" id="pEmail"></div>
+        <span class="chip" id="pRol"></span>
+      </div>
+    </div>
+    <div id="avisos-sesion"></div>
+
+    <h2 class="sec">Comprobación de la instalación</h2>
+    <table class="diag"><tbody id="tDiag"></tbody></table>
+
+    <button class="btn-sec" id="btnSalir">Cerrar sesión</button>
+  </div>
+</div>
+
+<script type="module">
+import { DOMINIO, SDK } from './js/config.js';
+import { entrar, salir, observarSesion, recogerRedirect, traducirError, db, auth }
+  from './js/auth.js';
+import { doc, getDoc, collection, getDocs, limit, query }
+  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+
+const $ = (id) => document.getElementById(id);
+$('dominioTxt').textContent = '@' + DOMINIO;
+
+function aviso(donde, texto, tipo = 'info', titulo = '') {
+  const d = document.createElement('div');
+  d.className = 'msg ' + tipo;
+  d.innerHTML = (titulo ? '<b>' + titulo + '</b>' : '') +
+                String(texto).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  $(donde).appendChild(d);
+}
+const limpiar = (id) => { $(id).innerHTML = ''; };
+
+function fila(etiqueta, valor, bien) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + etiqueta + '</td><td class="' +
+    (bien === true ? 'ok-txt' : bien === false ? 'err-txt' : '') + '">' + valor + '</td>';
+  $('tDiag').appendChild(tr);
+}
+
+$('btnEntrar').addEventListener('click', async () => {
+  limpiar('avisos-login');
+  $('btnEntrar').disabled = true;
+  $('txtEntrar').textContent = 'Abriendo Google...';
+  try {
+    await entrar();
+  } catch (e) {
+    aviso('avisos-login', traducirError(e), 'err', 'No se pudo entrar');
+  } finally {
+    $('btnEntrar').disabled = false;
+    $('txtEntrar').textContent = 'Entrar con Google';
+  }
+});
+
+$('btnSalir').addEventListener('click', () => salir());
+
+// En móvil el login vuelve por redirect, no por popup.
+recogerRedirect().catch((e) => aviso('avisos-login', traducirError(e), 'err', 'Error al volver'));
+
+observarSesion(async ({ usuario, perfil, error }) => {
+  limpiar('avisos-login');
+  limpiar('avisos-sesion');
+  $('tDiag').innerHTML = '';
+
+  if (error) aviso('avisos-login', error, 'err', 'Atención');
+
+  if (!usuario) {
+    $('vista-login').classList.remove('oculto');
+    $('vista-sesion').classList.add('oculto');
+    return;
+  }
+
+  $('vista-login').classList.add('oculto');
+  $('vista-sesion').classList.remove('oculto');
+
+  $('pNombre').textContent = usuario.displayName || usuario.email;
+  $('pEmail').textContent = usuario.email;
+  if (usuario.photoURL) $('pFoto').src = usuario.photoURL;
+
+  const rol = (perfil && perfil.rol) || '—';
+  const chip = $('pRol');
+  chip.textContent = rol;
+  chip.className = 'chip ' + (rol === 'ADMIN' ? 'c-admin' : rol === 'SUPERVISOR' ? 'c-sup' : 'c-op');
+
+  if (perfil && perfil.nuevo) {
+    aviso('avisos-sesion',
+      'Se creó tu perfil como OPERADOR. Si eres el primero, cambia el campo ' +
+      '"rol" a ADMIN en Firestore → usuarios → tu documento, y recarga.',
+      'warn', 'Primera vez');
+  }
+
+  // --- Comprobación de la instalación ---
+  fila('SDK de Firebase', SDK, true);
+  fila('Proyecto', auth.app.options.projectId, true);
+  fila('Acceso con Google', 'activo', true);
+  fila('Dominio corporativo', '@' + DOMINIO, true);
+  fila('Perfil en Firestore', perfil ? 'creado' : 'falta', !!perfil);
+  fila('Rol asignado', rol, rol !== '—');
+
+  // Lectura: confirma que las reglas están desplegadas y dejan leer.
+  try {
+    const s = await getDoc(doc(db, 'usuarios', usuario.uid));
+    fila('Leer Firestore', s.exists() ? 'correcto' : 'sin documento', s.exists());
+  } catch (e) {
+    fila('Leer Firestore', 'bloqueado', false);
+    aviso('avisos-sesion', traducirError(e), 'err', 'Las reglas rechazan la lectura');
+  }
+
+  // Configuración del proxy: paso 5, puede faltar todavía.
+  try {
+    const p = await getDoc(doc(db, 'config', 'proxy'));
+    if (p.exists() && p.get('url')) {
+      fila('Proxy de Depot', 'configurado', true);
+    } else {
+      fila('Proxy de Depot', 'pendiente (paso 5)', null);
+    }
+  } catch {
+    fila('Proxy de Depot', 'pendiente (paso 5)', null);
+  }
+
+  // Recepciones: confirma que la colección es accesible.
+  try {
+    const r = await getDocs(query(collection(db, 'recepciones'), limit(1)));
+    fila('Recepciones', r.size ? r.size + ' encontrada(s)' : 'ninguna todavía', null);
+  } catch (e) {
+    fila('Recepciones', 'bloqueado', false);
+  }
+
+  if (perfil && perfil.rol === 'ADMIN') {
+    aviso('avisos-sesion',
+      'Eres administrador. Continúa con el paso 5: el proxy de Depot en Apps Script.',
+      'ok', 'Todo listo');
+  }
+});
+</script>
+</body>
+</html>

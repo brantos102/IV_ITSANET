@@ -133,33 +133,152 @@ const firebaseConfig = {
 
 ## 3. Autenticación con Google corporativo
 
-1. **Compilación** → **Authentication** → **Comenzar**
-2. **Sign-in method** → **Google**
-3. Actívalo
-4. Correo de asistencia del proyecto: el tuyo corporativo
-5. **Guardar**
+### 3.1 Antes: confirma que el correo corporativo es de Google
 
-### Restringir al dominio de la empresa
+Esto decide si el paso funciona o no.
 
-La restricción está en tres capas, porque una sola no basta:
+Entra a `https://toolbox.googleapps.com/apps/checkmx/check?domain=itsanet.com`.
+Si en los registros MX aparece **`google.com`** o **`googlemail.com`**, el
+dominio está en Google Workspace y el acceso con Google funciona tal cual.
 
-| Capa | Qué hace |
+> **Si los MX apuntan a Microsoft (`outlook.com`, `protection.outlook.com`)**, el
+> acceso con Google no servirá para las cuentas corporativas. Dímelo antes de
+> seguir: hay que cambiar a Microsoft como proveedor, y es un cambio de
+> configuración, no de arquitectura.
+
+### 3.2 Activar el acceso con Google
+
+1. Consola de Firebase → **Compilación** → **Authentication**
+2. **Comenzar** (si es la primera vez)
+3. Pestaña **Sign-in method**
+4. Clic en **Google**
+5. Activa el interruptor **Habilitar**
+6. **Nombre público del proyecto:** `VAL VENTURA — Itsanet`
+   > Es lo que verá el operario en la pantalla de Google. Que se reconozca.
+7. **Correo de asistencia del proyecto:** elige el tuyo del desplegable
+8. **Guardar**
+
+Debe quedar **Google · Habilitado** en la lista.
+
+### 3.3 Autorizar los dominios
+
+Sin esto el login falla con `auth/unauthorized-domain`, que es el error más
+común de este paso.
+
+1. Misma pantalla → pestaña **Settings** → **Authorized domains**
+2. Comprueba que estén:
+
+   - `localhost`
+   - `iv-itsanet.firebaseapp.com`
+   - `iv-itsanet.web.app`
+
+3. Si falta alguno: **Add domain** y escríbelo
+
+### 3.4 Restringir al dominio corporativo
+
+La restricción va en tres capas, porque una sola no basta:
+
+| Capa | Dónde | Qué hace | ¿Protege? |
+|---|---|---|---|
+| Pista `hd` | `public/js/config.js` | El selector de Google solo ofrece cuentas `@itsanet.com` | **No.** Es comodidad: se puede saltar |
+| Cierre de sesión | `public/js/auth.js` | Si el correo no es del dominio, cierra la sesión y avisa | Parcialmente |
+| Reglas de Firestore | `firestore.rules` | Rechaza toda lectura y escritura | **Sí.** Esta es la real |
+
+Un usuario de Gmail puede completar el login de Google. Lo que no puede es leer
+ni escribir **nada**: las reglas lo rechazan.
+
+> **Si tu dominio no es `itsanet.com`**, cámbialo en tres sitios:
+> `firebase/firestore.rules` (busca `itsanet[.]com`), `DOMINIO` en
+> `firebase/public/js/config.js`, y `DOMINIO_PERMITIDO` en las propiedades del
+> Apps Script (paso 5).
+>
+> En las reglas el punto va escapado como `[.]` a propósito: en una expresión
+> regular `.` casa con cualquier carácter, así que `itsanet.com` sin escapar
+> también aceptaría `itsanetXcom`.
+
+### 3.5 Tu configuración ya está puesta
+
+El archivo `firebase/public/js/config.js` del repositorio ya trae los valores de
+**IV ITSANET**. Compruébalo:
+
+```javascript
+apiKey: 'AIzaSyBCfPBE9YryYl8EX0vOVIgKQv2ZVro8ziM',
+projectId: 'iv-itsanet',
+```
+
+> Esos valores **no son secretos**. Identifican al proyecto y viajan dentro del
+> JavaScript que descarga cualquier visitante del sitio: no hay forma de
+> ocultarlos ni hace falta. Lo que protege los datos son las reglas de
+> Firestore. Lo que sí es secreto —las credenciales de Depot— vive en las
+> propiedades del Apps Script, del lado servidor.
+
+---
+
+### 3.6 Probarlo
+
+Aquí se verifica que los pasos 2 y 3 quedaron bien. Desde `VAL_VENTURA/firebase`:
+
+```bash
+firebase use --add            # elige IV ITSANET, alias: default
+firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only hosting
+```
+
+Abre la URL que te devuelve (`https://iv-itsanet.web.app`) y pulsa **Entrar con
+Google**.
+
+### Qué debe pasar
+
+1. Se abre Google ofreciendo solo cuentas `@itsanet.com`
+2. Entras
+3. Aparece tu foto, tu nombre y el rol **OPERADOR**
+4. Un aviso dice que se creó tu perfil
+5. Abajo, una tabla de comprobación:
+
+| | |
 |---|---|
-| Parámetro `hd` en el login | El selector de cuentas solo ofrece las de `itsanet.com` |
-| Reglas de Firestore | Rechazan escrituras cuyo correo no sea del dominio |
-| Proxy de Apps Script | Rechaza la llamada antes de tocar el WMS |
+| SDK de Firebase | 10.14.1 |
+| Proyecto | iv-itsanet |
+| Acceso con Google | activo |
+| Dominio corporativo | @itsanet.com |
+| Perfil en Firestore | creado |
+| Rol asignado | OPERADOR |
+| Leer Firestore | correcto |
+| Proxy de Depot | pendiente (paso 5) |
+| Recepciones | ninguna todavía |
 
-La primera es comodidad; las otras dos son la seguridad real. Un usuario de
-Gmail puede completar el login de Google, pero no podrá leer ni escribir nada.
+**"Proxy de Depot: pendiente" es lo correcto en este punto.** Se configura en el
+paso 5.
 
-> Si tu dominio no es `itsanet.com`, cámbialo en `firebase/firestore.rules`
-> (busca `itsanet[.]com`) y en la propiedad `DOMINIO_PERMITIDO` del paso 5.
+### Hazte administrador
 
-### Autorizar el dominio del hosting
+Mientras estás aquí, aprovecha:
 
-**Authentication** → **Settings** → **Authorized domains**. Deben aparecer
-`iv-itsanet.web.app` y `iv-itsanet.firebaseapp.com`. Si no, añádelos: sin eso el
-login falla con `auth/unauthorized-domain`.
+1. Consola de Firebase → **Firestore Database** → colección **`usuarios`**
+2. Abre el documento con tu uid
+3. Campo **`rol`**: cambia `OPERADOR` por `ADMIN`
+4. **Recarga la app**
+
+El chip debe pasar a **ADMIN** y aparecer *"Todo listo"*.
+
+> Con los roles en Firestore el cambio es inmediato: no hay que cerrar sesión.
+> Es la ventaja de haberlos movido ahí al perder las Cloud Functions.
+
+### Si algo falla
+
+| Lo que ves | Causa | Solución |
+|---|---|---|
+| `auth/unauthorized-domain` | Falta el dominio | Paso 3.3 |
+| `auth/operation-not-allowed` | Google sin habilitar | Paso 3.2 |
+| `auth/popup-blocked` | El navegador bloqueó la ventana | Permite ventanas emergentes, o pruébalo en el móvil (usa redirect) |
+| "Esta aplicación es solo para cuentas de itsanet.com" | Entraste con una cuenta personal | Usa la corporativa. **Que salga este mensaje significa que la restricción funciona** |
+| "Las reglas rechazan la lectura" | Reglas sin desplegar | `firebase deploy --only firestore:rules` |
+| `unavailable` al leer Firestore | La base no existe | Paso 2.1 |
+| Página en blanco | Error de carga | Abre la consola del navegador (F12) y mándame lo que diga |
+| Entra pero no crea el perfil | Las reglas rechazan el alta | Confirma que el dominio de `firestore.rules` coincide con tu correo |
+
+**No sigas al paso 4 hasta que la tabla salga completa.** Cada paso se apoya en
+el anterior, y un fallo aquí se manifiesta mucho más tarde y más confuso.
 
 ---
 
@@ -203,13 +322,16 @@ Debe terminar con `0 falladas` en todos los bloques. Si no, **no despliegues**.
 
 ### Desplegar
 
-Las reglas **primero**. Si despliegas la app antes, hay una ventana con la base
-sin proteger.
+Si ya lo hiciste en el paso 3.6, no hay nada más que hacer aquí. Para volver a
+desplegar tras un cambio:
 
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes
 firebase deploy --only hosting
 ```
+
+Las reglas **primero**. Si despliegas la app antes, hay una ventana con la base
+sin proteger.
 
 > **No despliegues `functions` ni `storage`.** Requieren Blaze y el comando
 > fallará. En Spark esas piezas las cubre Apps Script.
