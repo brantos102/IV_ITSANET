@@ -133,18 +133,42 @@ const firebaseConfig = {
 
 ## 3. Autenticación con Google corporativo
 
-### 3.1 Antes: confirma que el correo corporativo es de Google
+### 3.1 Sobre el tipo de cuenta corporativa
 
-Esto decide si el paso funciona o no.
+No hace falta averiguarlo por adelantado: **la app funciona con los dos tipos**,
+y la página de comprobación del paso 3.6 te dice cuál tienes.
 
-Entra a `https://toolbox.googleapps.com/apps/checkmx/check?domain=itsanet.com`.
-Si en los registros MX aparece **`google.com`** o **`googlemail.com`**, el
-dominio está en Google Workspace y el acceso con Google funciona tal cual.
+| Tipo | Qué es | ¿Funciona? |
+|---|---|---|
+| **Google Workspace** | El dominio está gestionado por Google | Sí |
+| **Cuenta de Google con correo corporativo** | Una cuenta normal creada con una dirección `@itsanet.com` | Sí |
+| **Sin cuenta de Google** | El correo es de Microsoft u otro, sin cuenta de Google asociada | No |
 
-> **Si los MX apuntan a Microsoft (`outlook.com`, `protection.outlook.com`)**, el
-> acceso con Google no servirá para las cuentas corporativas. Dímelo antes de
-> seguir: hay que cambiar a Microsoft como proveedor, y es un cambio de
-> configuración, no de arquitectura.
+Si tu correo aparece en el selector de cuentas de Google, estás en los dos
+primeros casos y todo funciona.
+
+> **No uses `admin.google.com` para comprobarlo.** Esa consola solo la abren los
+> *administradores* de Workspace, así que el mensaje "Accede con una cuenta de
+> administrador" no dice nada sobre si tu cuenta sirve para la app.
+>
+> Si quieres saberlo con certeza, entra a
+> [myaccount.google.com](https://myaccount.google.com) con la cuenta
+> corporativa: si arriba dice *"Esta cuenta la gestiona itsanet.com"*, es
+> Workspace.
+
+#### Por qué `hd` viene apagado
+
+`firebase/public/js/config.js` trae `USAR_PISTA_HD = false`, y conviene dejarlo
+así salvo que confirmes que el dominio está en Workspace.
+
+`hd` filtra el selector de Google a las cuentas **gestionadas por Workspace**,
+comparando el dominio con un campo que solo esas cuentas llevan. Si tu correo
+corporativo es en realidad una cuenta de Google normal, activarlo **esconde la
+cuenta del selector** y el operario no puede entrar, sin ningún error que
+explique por qué.
+
+Como `hd` solo es comodidad —se puede saltar, no protege nada— no compensa el
+riesgo. La protección real son las reglas de Firestore.
 
 ### 3.2 Activar el acceso con Google
 
@@ -241,6 +265,7 @@ Google**.
 | Proyecto | iv-itsanet |
 | Acceso con Google | activo |
 | Dominio corporativo | @itsanet.com |
+| Tipo de cuenta | Google Workspace *(o "Google con correo corporativo")* |
 | Perfil en Firestore | creado |
 | Rol asignado | OPERADOR |
 | Leer Firestore | correcto |
@@ -276,6 +301,8 @@ El chip debe pasar a **ADMIN** y aparecer *"Todo listo"*.
 | `unavailable` al leer Firestore | La base no existe | Paso 2.1 |
 | Página en blanco | Error de carga | Abre la consola del navegador (F12) y mándame lo que diga |
 | Entra pero no crea el perfil | Las reglas rechazan el alta | Confirma que el dominio de `firestore.rules` coincide con tu correo |
+| Tu cuenta no aparece en el selector de Google | `USAR_PISTA_HD` activado sin tener Workspace | Ponlo en `false` en `public/js/config.js` y vuelve a desplegar |
+| "No es una cuenta de Workspace" | Normal si el correo no está gestionado por Google | La app funciona igual. Afecta solo a la cuota de correo del paso 5: 100 al día en vez de 1500 |
 
 **No sigas al paso 4 hasta que la tabla salga completa.** Cada paso se apoya en
 el anterior, y un fallo aquí se manifiesta mucho más tarde y más confuso.

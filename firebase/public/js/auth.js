@@ -11,7 +11,7 @@ import {
   enableIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
-import { firebaseConfig, DOMINIO } from './config.js';
+import { firebaseConfig, DOMINIO, USAR_PISTA_HD } from './config.js';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -26,10 +26,11 @@ enableIndexedDbPersistence(db).catch((e) => {
 });
 
 const proveedor = new GoogleAuthProvider();
-proveedor.setCustomParameters({
-  hd: DOMINIO,              // el selector solo ofrece cuentas del dominio
-  prompt: 'select_account', // no reutiliza la última sesión en silencio
-});
+const parametros = { prompt: 'select_account' };  // no reutiliza la sesión anterior
+// Ver USAR_PISTA_HD en config.js: activarlo sin tener Workspace esconde la
+// cuenta del selector y deja al operario sin poder entrar.
+if (USAR_PISTA_HD) parametros.hd = DOMINIO;
+proveedor.setCustomParameters(parametros);
 
 /** En móvil el popup suele bloquearse; el redirect es más fiable. */
 function esMovil() {
@@ -62,6 +63,23 @@ export async function salir() {
 export function dominioValido(email) {
   return typeof email === 'string' &&
          email.toLowerCase().endsWith('@' + DOMINIO.toLowerCase());
+}
+
+/**
+ * Dice si la cuenta está gestionada por Google Workspace.
+ *
+ * El token de Google trae `hd` solo en las cuentas de Workspace. Una cuenta de
+ * Google creada con una dirección corporativa no lo trae. La app funciona en
+ * ambos casos; sirve para saber si conviene activar USAR_PISTA_HD, y para
+ * saber si el proxy de Apps Script tendrá cuota de Workspace o de consumidor.
+ */
+export async function esCuentaWorkspace(usuario) {
+  try {
+    const res = await usuario.getIdTokenResult();
+    return { workspace: !!res.claims.hd, dominioToken: res.claims.hd || null };
+  } catch {
+    return { workspace: null, dominioToken: null };
+  }
 }
 
 /**
