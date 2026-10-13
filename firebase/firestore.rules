@@ -1,65 +1,101 @@
 rules_version = '2';
 
 /**
- * Reglas de seguridad de Firestore.
+ * Reglas de seguridad de Firestore — plan Spark.
  *
- * Principio: el cliente NUNCA decide quien es. La identidad sale del token
- * verificado por el servidor (request.auth), no de un campo que el dispositivo
- * pueda rellenar. Eso es lo que impide que un operario firme conteos con el
- * nombre de otro.
+ * Principio: el cliente NUNCA decide quién es. La identidad sale del token
+ * verificado por Google (request.auth), no de un campo que el dispositivo
+ * pueda rellenar.
+ *
+ * DIFERENCIA CON LA VERSIÓN ANTERIOR
+ * ----------------------------------
+ * Antes el rol viajaba como custom claim del token. Asignar claims exige el
+ * Admin SDK, que necesita Cloud Functions, que necesita el plan Blaze. En
+ * Spark el rol vive en `usuarios/{uid}` y las reglas lo leen con get().
+ *
+ * Eso cuesta una lectura por operación, pero cabe de sobra: un escaneo hace
+ * 2 escrituras y 2 lecturas, y una recepción de 150 líneas con 3 operarios se
+ * queda muy por debajo de las 20.000 escrituras y 50.000 lecturas diarias.
+ *
+ * A cambio hay una ventaja: cambiar un rol surte efecto de inmediato, sin
+ * esperar a que caduque el token del operario.
  */
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ------------------------------------------------------------------ //
-    // Helpers
+    // Identidad
     // ------------------------------------------------------------------ //
-    function autenticado() {
-      return request.auth != null && request.auth.token.email_verified == true;
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
     }
-    function rol() {
-      return request.auth.token.rol;
-    }
-    function esSupervisor() {
-      return autenticado() && (rol() == 'SUPERVISOR' || rol() == 'ADMIN');
-    }
-    function esAdmin() {
-      return autenticado() && rol() == 'ADMIN';
+    function hayPerfil() {
+      return request.auth != null
+          && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
     }
     function activo() {
-      return autenticado() && request.auth.token.activo == true;
+      return hayPerfil() && perfil().activo == true;
     }
-    function soyYo(campo) {
-      return request.resource.data[campo] == request.auth.uid;
+    function rol() {
+      return perfil().rol;
     }
-    function sinCambiar(campos) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(campos);
+    function esSupervisor() {
+      return activo() && (rol() == 'SUPERVISOR' || rol() == 'ADMIN');
+    }
+    function esAdmin() {
+      return activo() && rol() == 'ADMIN';
+    }
+    /** El dominio corporativo es la frontera: nadie de fuera entra. */
+    function dominioCorporativo() {
+      return request.auth != null
+          && request.auth.token.email.matches('.*@itsanet[.]com');
     }
 
     // ------------------------------------------------------------------ //
-    // Usuarios: lectura del propio perfil; alta y baja solo por administracion
+    // Usuarios
     // ------------------------------------------------------------------ //
     match /usuarios/{uid} {
-      allow read: if autenticado() && (request.auth.uid == uid || esSupervisor());
+      allow read: if request.auth != null && (request.auth.uid == uid || esSupervisor());
+
+      // Alta automática al entrar por primera vez con la cuenta corporativa.
+      // Solo puede crearse a sí mismo, solo como OPERADOR, y con el correo
+      // verificado por Google: no puede nombrarse ADMIN.
+      allow create: if request.auth != null
+                 && request.auth.uid == uid
+                 && dominioCorporativo()
+                 && request.resource.data.rol == 'OPERADOR'
+                 && request.resource.data.activo == true
+                 && request.resource.data.uid == uid
+                 && request.resource.data.email == request.auth.token.email;
+
+      // Promover, degradar o desactivar: solo un administrador.
+      allow update: if esAdmin()
+                 // Nadie se quita a sí mismo el rol: evita quedarse sin ADMIN.
+                 && !(request.auth.uid == uid
+                      && request.resource.data.rol != resource.data.rol);
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------------ //
+    // Catálogo (lo escribe el precalentado desde el cliente supervisor)
+    // ------------------------------------------------------------------ //
+    match /productos/{sku} {
+      allow read: if activo();
+      allow write: if esSupervisor();
+    }
+    match /codigos/{codigo} {
+      allow read: if activo();
+      allow write: if esSupervisor();
+    }
+
+    // Configuración visible del proxy (URL del Apps Script). Sin secretos:
+    // las credenciales de Depot viven en las propiedades del Apps Script.
+    match /config/{doc} {
+      allow read: if activo();
       allow write: if esAdmin();
     }
 
-    // ------------------------------------------------------------------ //
-    // Catalogo: lo escriben solo las Cloud Functions (admin SDK salta reglas)
-    // ------------------------------------------------------------------ //
-    match /productos/{sku}   { allow read: if activo(); allow write: if false; }
-    match /codigos/{codigo}  { allow read: if activo(); allow write: if false; }
-
-    // Configuracion de Depot: el panel solo puede leer el documento publico
-    // (URL, cliente, mascara de la credencial). Lista blanca, no lista negra:
-    // con una lista negra, cada documento nuevo nace legible por descuido.
-    match /config/{doc} {
-      allow read: if esAdmin() && doc == 'depot';
-      allow write: if false;   // solo por Cloud Function
-    }
-
-    // Estado interno: token cacheado de Depot y similares. Ningun cliente lo
-    // lee, ni siquiera un ADMIN. El Admin SDK de las Functions salta reglas.
+    // Estado interno. Ningún cliente lo lee, ni siquiera un ADMIN.
     match /_internal/{doc} {
       allow read, write: if false;
     }
@@ -68,36 +104,45 @@ service cloud.firestore {
     // Recepciones
     // ------------------------------------------------------------------ //
     match /recepciones/{recepcionId} {
-      allow read: if activo();
-      allow create: if esSupervisor();
-      // Cerrar y reabrir pasan por Cloud Function: escriben el xlsx y envian
-      // el informe, cosas que el cliente no debe poder disparar a medias.
-      allow update: if esSupervisor() && sinCambiar(['estado', 'totales', 'cerradoEn']);
-      allow delete: if false;
-
-      // ---- Lineas del packing list: inmutables ---- //
       function recepcionAbierta() {
         return get(/databases/$(database)/documents/recepciones/$(recepcionId)).data.estado
                in ['ABIERTA', 'EN_VALIDACION'];
       }
 
+      allow read: if activo();
+      allow create: if esSupervisor()
+                 && request.resource.data.creadoPorUid == request.auth.uid;
+      allow update: if esSupervisor();
+      allow delete: if false;
+
+      // ---- Líneas del packing list ---- //
+      // Las escribe el supervisor al importar y nunca se modifican después:
+      // son la versión del sistema contra la que se compara.
       match /lineas/{lineaId} {
         allow read: if activo();
-        allow write: if false;   // las escribe el importador
+        allow create: if esSupervisor();
+        allow update, delete: if false;
       }
 
-      // ---- Agregado por SKU: lo mantienen las Functions con increment() ---- //
+      // ---- Agregado por SKU ---- //
       match /skus/{sku} {
         allow read: if activo();
-        allow write: if false;
+        // El supervisor lo crea al importar; cualquier operario activo lo
+        // incrementa al contar, pero NUNCA puede tocar la cantidad esperada.
+        allow create: if esSupervisor();
+        allow update: if activo()
+                   && recepcionAbierta()
+                   && request.resource.data.esperado == resource.data.esperado
+                   && request.resource.data.sku == resource.data.sku;
+        allow delete: if false;
       }
 
-      // ---- Libro mayor: append-only, firmado por quien esta autenticado ---- //
+      // ---- Libro mayor: append-only, firmado por quien está autenticado ---- //
       match /eventos/{eventoId} {
         allow read: if activo();
         allow create: if activo()
                    && recepcionAbierta()
-                   && soyYo('operadorUid')
+                   && request.resource.data.operadorUid == request.auth.uid
                    && request.resource.data.operadorEmail == request.auth.token.email
                    && request.resource.data.cantidad is number
                    && request.resource.data.cantidad != 0
@@ -109,10 +154,14 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // ---- Adicionales: SKU fuera del packing list, pestana aparte ---- //
+      // ---- Adicionales: SKU fuera del packing list ---- //
       match /adicionales/{sku} {
         allow read: if activo();
-        allow write: if false;   // los crea la Function junto con el evento
+        allow create: if activo()
+                   && recepcionAbierta()
+                   && request.resource.data.detectadoPorUid == request.auth.uid;
+        allow update: if esSupervisor();
+        allow delete: if false;
       }
     }
   }

@@ -10,6 +10,11 @@ Tercera arquitectura de la app de validación física.
 **Firebase es Google Cloud**, así que cumple la política de TI de no salir de
 Google, y además elimina el techo de rendimiento de Apps Script.
 
+> **Plan Spark (gratuito).** Sin Cloud Functions ni Cloud Storage: desde febrero
+> de 2026 Storage exige cuenta de facturación. El proxy de Depot, las fotos y el
+> correo los cubre [un Apps Script](../apps-script/proxy/), que es gratis y es
+> Google. El escaneo sigue siendo el navegador contra Firestore, 50-150 ms.
+
 ---
 
 ## Por qué existe esta versión
@@ -38,14 +43,17 @@ tiene índices.
 | Registro de conteos (transaccional, idempotente) | Listo · 21 pruebas |
 | Administración de operarios y credenciales | Listo · 15 pruebas |
 | Token de Depot: obtención y reutilización diaria | Listo · 17 pruebas |
-| Adaptador de Depot + resolución de códigos | Listo, contra mock |
+| Adaptador de Depot (contrato real: gettoken + getstock) | Listo · 24 pruebas |
+| Proxy de Apps Script (Spark) | Listo · 18 pruebas |
+| Adaptador genérico + resolución de códigos | Listo, contra mock |
 | Importador del packing list | Pendiente |
 | Cierre, informe por correo y exportación | Pendiente |
 | Cliente PWA | Pendiente |
-| Conexión a la API real de Depot | **Bloqueado**: faltan los endpoints |
+| Mapeo exacto de campos del WMS | Falta una respuesta real de `getstock` |
 
 ```bash
-cd functions && npm test      # 53 pruebas, sin desplegar nada
+cd functions && npm test                   # 77 pruebas
+node ../apps-script/test/proxy.test.js     # 18 pruebas del proxy
 ```
 
 Las pruebas corren sobre un simulador de Firestore que implementa transacciones

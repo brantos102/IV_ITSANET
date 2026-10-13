@@ -1,583 +1,546 @@
 # Guía de instalación — VAL VENTURA
 
-De cero a la app funcionando en los handheld, accediendo solo a un enlace.
+De cero a la app funcionando en los handheld, **sin tarjeta de crédito**.
 
-**Tiempo estimado:** 45–60 minutos la primera vez.
-**Lo que vas a obtener:** una URL tipo `https://val-ventura.web.app` que
-cualquier dispositivo abre sin instalar nada, y que se puede añadir a la
-pantalla de inicio como si fuera una app nativa.
+**Resultado:** una URL tipo `https://iv-itsanet.web.app` que cualquier
+dispositivo abre con la cuenta corporativa de Google. Sin instalador, sin
+tienda de aplicaciones.
+
+**Tiempo:** 50–70 minutos la primera vez.
+
+---
+
+## Lo que cambia por usar el plan Spark
+
+El plan gratuito **no incluye Cloud Functions ni Cloud Storage**. Desde el 3 de
+febrero de 2026, Cloud Storage exige una cuenta de facturación incluso con uso
+mínimo. Eso obliga a mover dos piezas, y el resultado es igual de bueno:
+
+| Pieza | Con Blaze | En Spark |
+|---|---|---|
+| Lectura y escritura de conteos | Firestore | **Firestore, igual** |
+| Tiempo real entre operarios | Firestore | **Firestore, igual** |
+| Proxy de la API de Depot | Cloud Function | **Apps Script** |
+| Fotos de producto no conforme | Cloud Storage | **Google Drive** |
+| Correo del informe final | Cloud Function | **Apps Script** |
+| Importar el packing list | Cloud Function | **El navegador** |
+| Roles de usuario | Custom claims | **Documento en Firestore** |
+
+**Lo que no cambia es lo que más importa:** el escaneo sigue siendo el navegador
+contra Firestore, 50–150 ms. Apps Script solo interviene en el precalentado
+(una vez por recepción), alguna consulta suelta y el cierre.
+
+### Por qué el proxy en Apps Script no es un parche
+
+Hace tres cosas que el navegador no puede hacer solo:
+
+1. **Guarda las credenciales de Depot** donde el dispositivo no las ve.
+2. **Esquiva CORS y el contenido mixto.** Tu API es `http://dominio.com/apidepot`
+   y la app será `https://`. Un navegador **bloquea** esa llamada; un servidor
+   no. Sin el proxy, la app no podría hablar con Depot aunque quisiera.
+3. **Sube las fotos a Drive** y **envía el correo**, que es justo lo que Spark
+   quitó.
 
 ---
 
 ## Índice
 
 1. [Antes de empezar](#1-antes-de-empezar)
-2. [Crear el proyecto en Firebase](#2-crear-el-proyecto-en-firebase)
-3. [Instalar las herramientas](#3-instalar-las-herramientas)
-4. [Conectar el repositorio con tu proyecto](#4-conectar-el-repositorio-con-tu-proyecto)
-5. [Desplegar](#5-desplegar)
-6. [Crear el primer administrador](#6-crear-el-primer-administrador)
-7. [Cargar el token de Depot](#7-cargar-el-token-de-depot)
-8. [Dar de alta a los operarios](#8-dar-de-alta-a-los-operarios)
+2. [El proyecto de Firebase](#2-el-proyecto-de-firebase)
+3. [Autenticación con Google corporativo](#3-autenticación-con-google-corporativo)
+4. [Herramientas y despliegue](#4-herramientas-y-despliegue)
+5. [El proxy de Depot en Apps Script](#5-el-proxy-de-depot-en-apps-script)
+6. [Cargar el token y las credenciales](#6-cargar-el-token-y-las-credenciales)
+7. [Probar la conexión con Depot](#7-probar-la-conexión-con-depot)
+8. [El primer administrador](#8-el-primer-administrador)
 9. [Instalar en los handheld](#9-instalar-en-los-handheld)
 10. [Errores frecuentes](#10-errores-frecuentes)
-11. [Mantenimiento](#11-mantenimiento)
+11. [Vigilar las cuotas](#11-vigilar-las-cuotas)
 
 ---
 
 ## 1. Antes de empezar
 
-### Lo que necesitas
-
 | Requisito | Detalle |
 |---|---|
-| Cuenta de Google | La corporativa de Itsanet. Debe poder crear proyectos en Firebase |
-| Tarjeta de crédito | Solo para activar el plan Blaze. **No se cobra** dentro del nivel gratuito |
-| Node.js 20 o superior | [nodejs.org](https://nodejs.org) — descarga la versión LTS |
+| Cuenta de Google Workspace | La corporativa `@itsanet.com` |
+| Node.js 20 o superior | [nodejs.org](https://nodejs.org), versión LTS |
 | Una terminal | PowerShell en Windows, Terminal en Mac |
-
-### Por qué hace falta el plan Blaze
-
-Las Cloud Functions **no funcionan en el plan gratuito Spark**. Blaze es "pago
-por uso" y tiene el mismo nivel gratuito mensual incluido:
-
-| Recurso | Gratis cada mes |
-|---|---|
-| Lecturas de Firestore | 50.000 por día |
-| Escrituras de Firestore | 20.000 por día |
-| Invocaciones de Functions | 2.000.000 |
-| Almacenamiento | 5 GB |
-| Hosting | 10 GB de transferencia |
-
-Una recepción de 150 líneas con 3 operarios consume del orden de **500
-escrituras**. Caben unas 40 recepciones diarias sin pagar nada.
-
-> **Pon un presupuesto de todos modos.** En el paso 2.4 se explica cómo. Es la
-> red de seguridad contra un bucle accidental que dispare el consumo.
-
-### Verifica Node.js
+| **Nada de tarjeta** | Todo lo de esta guía entra en el nivel gratuito |
 
 ```bash
 node --version
 ```
 
-Debe decir `v20.x.x` o superior. Si dice `v18` o da error, instala la versión LTS
-desde [nodejs.org](https://nodejs.org) y **cierra y vuelve a abrir la terminal**.
+Debe decir `v20` o superior. Si no, instala la LTS y **cierra y vuelve a abrir
+la terminal**.
+
+### Datos que necesitas a mano
+
+Antes de empezar, consigue esto de quien administra el WMS:
+
+- [ ] URL base de la API, p. ej. `http://dominio.com/apidepot`
+- [ ] Usuario y contraseña del cliente para `/gettoken/`, si los pide
+- [ ] Un código de producto que exista, para probar
+- [ ] **Confirmación de que la API responde desde fuera de la red interna**
+
+> Lo último es importante. Apps Script llama desde los servidores de Google, no
+> desde la red de Itsanet. Si el WMS solo acepta conexiones internas, hay que
+> pedirle a TI que autorice el rango de salida de Apps Script. Compruébalo con
+> `probarDepot()` en el paso 7 antes de seguir construyendo encima.
 
 ---
 
-## 2. Crear el proyecto en Firebase
+## 2. El proyecto de Firebase
 
-### 2.1 Crear el proyecto
+Ya tienes **IV ITSANET** en plan Spark. Solo falta activar Firestore.
 
-1. Entra a [console.firebase.google.com](https://console.firebase.google.com)
-2. **Crear un proyecto**
-3. Nombre: `val-ventura` (si está tomado, Firebase te sugiere `val-ventura-a1b2`)
-4. Google Analytics: **desactívalo**. No aporta nada aquí y pide configuración extra
-5. **Crear proyecto** y espera
+### 2.1 Firestore
 
-> Anota el **ID del proyecto** exacto que quedó. Aparece bajo el nombre y puede
-> no coincidir con lo que escribiste. Lo necesitarás varias veces.
+1. [console.firebase.google.com](https://console.firebase.google.com) → tu proyecto
+2. **Compilación** → **Firestore Database** → **Crear base de datos**
+3. **Modo de producción**
+   > No elijas modo de prueba: deja la base abierta a cualquiera 30 días. Las
+   > reglas se despliegan en el paso 4.
+4. Ubicación: **`us-central1`**, o `southamerica-east1` para menos latencia
+   desde Ecuador
+   > **No se puede cambiar después.** Cambiarla obliga a borrar el proyecto.
+5. **Habilitar**
 
-### 2.2 Activar Authentication
+### 2.2 Registrar la aplicación web
 
-1. Menú lateral → **Compilación** → **Authentication** → **Comenzar**
-2. Pestaña **Sign-in method**
-3. Clic en **Correo electrónico/contraseña**
-4. Activa **la primera opción**. Deja desactivado el "vínculo de correo"
+1. **Configuración del proyecto** (el engranaje) → **Tus apps** → icono **`</>`**
+2. Apodo: `val-ventura-pwa`
+3. Marca **"También configura Firebase Hosting"**
+4. **Registrar app**
+5. **Copia el bloque `firebaseConfig`** que te muestra. Lo necesitas en el paso 4
+
+```javascript
+const firebaseConfig = {
+  apiKey: "AIzaSy...",            // ← también la usarás en el paso 5
+  authDomain: "iv-itsanet.firebaseapp.com",
+  projectId: "iv-itsanet",
+  storageBucket: "iv-itsanet.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123:web:abc"
+};
+```
+
+> La `apiKey` **no es un secreto**. Identifica al proyecto, no da acceso. Lo que
+> protege los datos son las reglas de Firestore.
+
+---
+
+## 3. Autenticación con Google corporativo
+
+1. **Compilación** → **Authentication** → **Comenzar**
+2. **Sign-in method** → **Google**
+3. Actívalo
+4. Correo de asistencia del proyecto: el tuyo corporativo
 5. **Guardar**
 
-### 2.3 Activar Firestore
+### Restringir al dominio de la empresa
 
-1. **Compilación** → **Firestore Database** → **Crear base de datos**
-2. Elige **Modo de producción**
-   > No elijas modo de prueba: deja la base abierta a cualquiera durante 30 días.
-   > Las reglas del repositorio se despliegan en el paso 5.
-3. Ubicación: **`us-central1`** (o `southamerica-east1` si prefieres latencia
-   menor desde Ecuador)
-   > **La ubicación no se puede cambiar después.** Para cambiarla hay que borrar
-   > el proyecto y empezar de nuevo.
-4. **Habilitar**
+La restricción está en tres capas, porque una sola no basta:
 
-### 2.4 Activar Storage
+| Capa | Qué hace |
+|---|---|
+| Parámetro `hd` en el login | El selector de cuentas solo ofrece las de `itsanet.com` |
+| Reglas de Firestore | Rechazan escrituras cuyo correo no sea del dominio |
+| Proxy de Apps Script | Rechaza la llamada antes de tocar el WMS |
 
-1. **Compilación** → **Storage** → **Comenzar**
-2. **Modo de producción** → misma ubicación que Firestore → **Listo**
+La primera es comodidad; las otras dos son la seguridad real. Un usuario de
+Gmail puede completar el login de Google, pero no podrá leer ni escribir nada.
 
-### 2.5 Pasar a Blaze y poner un presupuesto
+> Si tu dominio no es `itsanet.com`, cámbialo en `firebase/firestore.rules`
+> (busca `itsanet[.]com`) y en la propiedad `DOMINIO_PERMITIDO` del paso 5.
 
-1. Abajo a la izquierda: **Spark** → **Actualizar** → **Blaze**
-2. Vincula una cuenta de facturación (o crea una)
-3. Cuando te ofrezca una **alerta de presupuesto**, pon **10 USD**
+### Autorizar el dominio del hosting
 
-Si te la saltaste:
-
-1. [console.cloud.google.com/billing](https://console.cloud.google.com/billing)
-2. Tu cuenta → **Presupuestos y alertas** → **Crear presupuesto**
-3. Importe 10 USD, alertas al 50 %, 90 % y 100 %
-
-> La alerta **avisa, no corta**. Es un aviso temprano, no un tope.
+**Authentication** → **Settings** → **Authorized domains**. Deben aparecer
+`iv-itsanet.web.app` y `iv-itsanet.firebaseapp.com`. Si no, añádelos: sin eso el
+login falla con `auth/unauthorized-domain`.
 
 ---
 
-## 3. Instalar las herramientas
+## 4. Herramientas y despliegue
 
 ```bash
 npm install -g firebase-tools
+firebase login
 ```
 
-Verifica:
-
-```bash
-firebase --version
-```
-
-**Si da "no se reconoce el comando" en Windows:** cierra PowerShell y ábrelo de
-nuevo. Si sigue, abre PowerShell **como administrador** y ejecuta:
+**Si Windows dice "no se reconoce el comando":** cierra PowerShell y ábrelo de
+nuevo. Si persiste, como administrador:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-**Si da error de permisos en Mac/Linux:** no uses `sudo`. Mejor:
+**Si Mac/Linux da error de permisos:** no uses `sudo`.
 
 ```bash
-mkdir -p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
-source ~/.zshrc
+mkdir -p ~/.npm-global && npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && source ~/.zshrc
 npm install -g firebase-tools
 ```
 
-### Iniciar sesión
-
-```bash
-firebase login
-```
-
-Se abre el navegador. Entra con la cuenta de Google del proyecto y acepta.
-
-> **Si estás en un servidor sin navegador:** usa `firebase login --no-localhost`
-> y pega el código que te da.
-
----
-
-## 4. Conectar el repositorio con tu proyecto
+### Clonar y vincular
 
 ```bash
 git clone https://github.com/brantos102/VAL_VENTURA.git
 cd VAL_VENTURA/firebase
+firebase use --add          # elige IV ITSANET, alias: default
 ```
 
-Vincula tu proyecto:
+### Comprobar antes de desplegar
 
 ```bash
-firebase use --add
+cd functions && npm install && npm test && cd ..
 ```
 
-Elige el proyecto de la lista y, cuando pida un alias, escribe `default`.
+Debe terminar con `0 falladas` en todos los bloques. Si no, **no despliegues**.
 
-Esto crea `.firebaserc`. Verifica:
+### Desplegar
 
-```bash
-firebase projects:list
-```
-
-Instala las dependencias de las Functions:
+Las reglas **primero**. Si despliegas la app antes, hay una ventana con la base
+sin proteger.
 
 ```bash
-cd functions
-npm install
-cd ..
-```
-
-Comprueba que la lógica pasa sus pruebas **antes** de desplegar:
-
-```bash
-cd functions && npm test && cd ..
-```
-
-Debe terminar con `0 falladas` en los tres bloques. Si no, no despliegues: avisa
-antes de seguir.
-
----
-
-## 5. Desplegar
-
-### 5.1 Reglas de seguridad primero
-
-```bash
-firebase deploy --only firestore:rules,firestore:indexes,storage:rules
-```
-
-> Siempre las reglas antes que nada. Si despliegas la app primero, hay una
-> ventana en la que la base está sin proteger.
-
-Los índices tardan unos minutos en construirse. Puedes seguir mientras tanto.
-
-### 5.2 Las Functions
-
-```bash
-firebase deploy --only functions
-```
-
-**La primera vez** Firebase pedirá activar varias APIs de Google Cloud. Responde
-que sí a todo. Puede tardar 3–5 minutos.
-
-**Si falla con `Cloud Functions requires the Blaze plan`:** vuelve al paso 2.5.
-
-**Si falla con `Billing account not configured`:** la facturación tarda unos
-minutos en propagarse. Espera 5 minutos y repite.
-
-**Si falla con `Permission denied on service account`:** tu cuenta no es
-propietaria del proyecto. Pide el rol **Propietario** en
-`console.cloud.google.com/iam-admin/iam`.
-
-### 5.3 La aplicación web
-
-```bash
+firebase deploy --only firestore:rules,firestore:indexes
 firebase deploy --only hosting
 ```
+
+> **No despliegues `functions` ni `storage`.** Requieren Blaze y el comando
+> fallará. En Spark esas piezas las cubre Apps Script.
 
 Al terminar te da la URL:
 
 ```
-Hosting URL: https://val-ventura.web.app
+Hosting URL: https://iv-itsanet.web.app
 ```
 
-**Esa es la URL que reparten a los operarios.** Ábrela en el navegador para
-confirmar que carga.
-
-### 5.4 Todo junto, de aquí en adelante
-
-```bash
-firebase deploy
-```
+**Esa es la que reparten a los operarios.**
 
 ---
 
-## 6. Crear el primer administrador
+## 5. El proxy de Depot en Apps Script
 
-Hay un huevo y una gallina: para crear usuarios desde el panel hace falta ser
-administrador, y todavía no hay ninguno. Se resuelve una sola vez a mano.
+### 5.1 Crear el proyecto
 
-### 6.1 Crear el usuario
+1. Entra a [script.google.com](https://script.google.com) **con la cuenta
+   corporativa**
+2. **Nuevo proyecto** → nómbralo `VAL VENTURA — Proxy Depot`
+3. Borra el contenido de `Código.gs`
+4. Pega entero el archivo `apps-script/proxy/Proxy.gs` del repositorio
+5. Guarda (Ctrl+S)
 
-1. Consola de Firebase → **Authentication** → **Users** → **Agregar usuario**
-2. Correo: el tuyo corporativo
-3. Contraseña: una fuerte
-4. **Agregar usuario**
-5. **Copia el UID** que aparece en la lista (una cadena larga)
+### 5.2 Carpeta de Drive para las fotos
 
-### 6.2 Darle el rol de administrador
+1. En Drive, crea una carpeta `VAL VENTURA — Evidencias`
+2. Ábrela y copia el id de la URL:
+   `https://drive.google.com/drive/folders/`**`1a2B3c4D5e6F7g8H`**
 
-Desde la carpeta `firebase/`:
+### 5.3 Las propiedades
 
-```bash
-node -e "
-const admin = require('firebase-admin');
-admin.initializeApp({ projectId: process.argv[1] });
-admin.auth().setCustomUserClaims(process.argv[2], { rol: 'ADMIN', activo: true })
-  .then(() => admin.firestore().collection('usuarios').doc(process.argv[2]).set({
-     uid: process.argv[2], email: process.argv[3], nombre: process.argv[4],
-     rol: 'ADMIN', activo: true, creadoEn: new Date(),
-  }))
-  .then(() => console.log('Administrador listo. Cierra sesión y vuelve a entrar.'))
-  .catch(e => { console.error('ERROR:', e.message); process.exit(1); });
-" TU_PROJECT_ID EL_UID tu@correo.com "Tu Nombre"
-```
+En el editor de Apps Script: **Configuración del proyecto** (engranaje) →
+**Propiedades de la secuencia de comandos** → **Agregar propiedad**.
 
-Sustituye los cuatro valores del final. Necesita credenciales de aplicación:
+| Propiedad | Valor | Obligatoria |
+|---|---|---|
+| `DEPOT_BASE_URL` | `http://dominio.com/apidepot` | Sí |
+| `FIREBASE_API_KEY` | La `apiKey` del paso 2.2 | Sí |
+| `DOMINIO_PERMITIDO` | `itsanet.com` | Sí |
+| `CARPETA_EVIDENCIAS` | El id del paso 5.2 | Para fotos |
+| `DEPOT_USUARIO` | Usuario del cliente | Si `/gettoken/` lo pide |
+| `DEPOT_CLAVE` | Contraseña del cliente | Si `/gettoken/` lo pide |
+| `DEPOT_CLIENTE` | `VENTURA` | Si el WMS separa por cliente |
+| `DEPOT_TTL_HORAS` | `12` | No (12 por defecto) |
 
-```bash
-gcloud auth application-default login
-```
+> **Aquí van las credenciales, y solo aquí.** No en el repositorio, no en el
+> chat, no en el código. Las propiedades del script solo las ve quien es dueño
+> del proyecto de Apps Script.
 
-**Si no tienes `gcloud`:** descarga una clave de cuenta de servicio desde
-**Configuración del proyecto → Cuentas de servicio → Generar nueva clave
-privada**, guárdala como `serviceAccount.json` dentro de `firebase/` y antes del
-comando ejecuta:
+Para los clientes que vas a ir agregando (BELIA, VENTURA…), lo que cambia es
+`DEPOT_USUARIO`, `DEPOT_CLAVE` y `DEPOT_CLIENTE`. Si cada cliente necesita
+credenciales distintas **al mismo tiempo**, dímelo: cambia el diseño a un mapa
+de credenciales por cliente, y prefiero construirlo bien desde el principio.
 
-```bash
-export GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json   # Mac/Linux
-$env:GOOGLE_APPLICATION_CREDENTIALS=".\serviceAccount.json"   # Windows
-```
+### 5.4 Publicar
 
-> **Borra `serviceAccount.json` en cuanto termines.** Es la llave maestra del
-> proyecto. Ya está en `.gitignore`, pero no lo dejes en el disco.
+1. **Implementar** → **Nueva implementación**
+2. Tipo: **Aplicación web**
+3. Descripción: `v1`
+4. **Ejecutar como:** `Yo`
+5. **Quién tiene acceso:** `Cualquier usuario`
+   > Suena abierto y no lo es: el script exige un token de sesión de Firebase
+   > válido y del dominio corporativo antes de hacer nada. Está probado
+   > (`apps-script/test/proxy.test.js`). Con `Solo yo` la app no podría llamarlo.
+6. **Implementar**
+7. Autoriza cuando lo pida: **Revisar permisos** → tu cuenta → **Avanzado** →
+   **Ir a (no seguro)** → **Permitir**
+   > La advertencia aparece porque el script no está verificado por Google. Es
+   > tuyo y está en tu dominio.
+8. **Copia la URL de la aplicación web** (`https://script.google.com/macros/s/.../exec`)
 
-### 6.3 Importante: volver a entrar
+### 5.5 Guardar la URL en Firestore
 
-El rol viaja dentro del token de sesión. **Cierra sesión en la app y vuelve a
-entrar**, o seguirás viendo la app como operario normal.
+Consola de Firebase → **Firestore** → **Iniciar colección**:
+
+- Colección: `config`
+- Id del documento: `proxy`
+- Campo: `url` (string) = la URL del paso 5.4
 
 ---
 
-## 7. Cargar el token de Depot
+## 6. Cargar el token y las credenciales
 
-Aquí va la credencial del WMS. **Nunca la escribas en un archivo del
-repositorio.** El panel la guarda en Secret Manager, cifrada, y ni siquiera un
-administrador puede volver a leerla: verá `to********90` y la fecha del cambio.
-
-### 7.1 Averigua qué tipo de autenticación usa tu WMS
-
-| Tipo | Cómo se reconoce | Qué llenas |
-|---|---|---|
-| **Login** | Hay un endpoint `/auth/login` que devuelve un token | Usuario, contraseña y ruta de login |
-| **Token fijo** | Te dieron un token largo que no caduca | Solo el token |
-| **Básica** | Usuario y contraseña en cada llamada | Usuario y contraseña |
-
-El más común en WMS es **Login**, y es el que mejor soporta la app: pide el token
-**una vez** y lo reutiliza toda la jornada.
-
-### 7.2 Llenar el panel
-
-En la app: **Administración → API de Depot**.
-
-| Campo | Ejemplo | Notas |
-|---|---|---|
-| URL base | `https://wms.itsanet.com/api` | **Tiene que ser https.** La app rechaza http |
-| Cliente | `VENTURA` | Si el WMS separa por cliente |
-| Ruta de login | `/auth/login` | Vacío si usas token fijo |
-| Campo usuario | `usuario` | El nombre que espera el WMS en el JSON |
-| Campo contraseña | `clave` | Idem |
-| Usuario / Contraseña | — | Lo que te dio el proveedor del WMS |
-| Prefijo del token | `Bearer` | Algunos WMS usan `Token` o `JWT` |
-| Horas de validez | `12` | Tope de reutilización |
-| Ruta de producto | `/productos/{codigo}` | `{codigo}` se sustituye solo |
-| Ruta de código de barras | `/productos/barcode/{codigo}` | Si es distinta |
-
-### 7.3 Probar antes de confiar
-
-Pulsa **Probar conexión** con un SKU que sepas que existe. Te responde:
+No hay que cargar ningún token a mano: **el proxy lo pide solo** a
+`/gettoken/` y lo reutiliza toda la jornada.
 
 ```
-Conexión correcta y producto encontrado.   312 ms
-SKU: 2H0525345 — WASHER
+Consulta → ¿token en caché del script?   → sí: se usa          (0 ms)
+              ↓ no (el caché dura 6 h)
+           ¿token en las propiedades?    → sí: se usa          (~10 ms)
+              ↓ vencido
+           GET /gettoken/                → se guarda y se usa  (~500 ms)
 ```
 
-Si algo falla, el mensaje dice qué revisar:
+- **Un solo `gettoken` al día.** Probado: 20 consultas seguidas → 1 `gettoken`.
+- **Sobrevive al caché.** El caché de Apps Script expira a las 6 horas; las
+  propiedades lo mantienen el resto de la jornada.
+- **Revocación.** Si el WMS invalida el token antes de tiempo, la llamada que
+  reciba un 401 lo renueva y reintenta sola.
+- **El token nunca sale.** `estadoToken` dice si está vigente y cuántos minutos
+  le quedan, nunca su valor.
 
-| Mensaje | Causa | Solución |
-|---|---|---|
-| `El WMS rechazó el usuario o la contraseña` | Credenciales malas | Confirma con el proveedor |
-| `respondió sin token reconocible` | El token viene en un campo raro | Mándame la respuesta de ejemplo y lo mapeo |
-| `No se pudo contactar al WMS` | Red, firewall o URL mal escrita | ¿El WMS acepta conexiones desde fuera de la red interna? |
-| `La URL debe ser https` | Pusiste `http://` | Pide el endpoint seguro |
+### El detalle que más confunde
 
-> **Si el WMS solo acepta conexiones desde la red interna de Itsanet**, las
-> Cloud Functions no llegarán: salen desde Google Cloud. Hay solución (Cloud
-> NAT con IP fija para que TI la autorice), pero cuéntamelo antes de seguir.
-
-### 7.4 Cómo se reutiliza el token
-
-Esto es lo que pediste, y así quedó implementado:
+Tu API usa una cabecera llamada **`token`**, no `Authorization: Bearer`:
 
 ```
-Escaneo → ¿token en memoria?     → sí: se usa          (0 ms)
-                ↓ no
-          ¿token en Firestore?   → sí: se usa          (~30 ms)
-                ↓ no
-          login contra el WMS    → se guarda y se usa  (~500 ms)
+GET http://dominio.com/apidepot/getstock/2H0525345
+token: TK-abc123
 ```
 
-- **Un solo login al día.** Probado: 50 consultas seguidas hacen 1 login.
-- **Entre instancias.** Cloud Functions escala a varias copias, y cada una
-  arranca sin memoria. La segunda toma el token de Firestore, sin login.
-- **Arranque en frío múltiple.** Si diez instancias necesitan el token a la vez,
-  se coordinan y hacen **un** login, no diez.
-- **Revocación.** Si el WMS invalida el token antes de tiempo, la primera
-  llamada que reciba un 401 renueva y reintenta sola. El operario no se entera.
-- **El token no se expone.** Vive en `_internal/`, que ninguna regla deja leer,
-  ni a un administrador. El panel solo muestra si está vigente y cuántos minutos
-  le quedan.
+Mandarlo como `Bearer` devuelve 401 sin explicar nada. El adaptador ya lo manda
+bien, y hay una prueba que lo vigila.
 
 ---
 
-## 8. Dar de alta a los operarios
+## 7. Probar la conexión con Depot
 
-**Administración → Operarios → Nuevo operario**
+**Antes de construir nada encima.** En el editor de Apps Script:
 
-| Campo | Regla |
-|---|---|
-| Correo | Real: es la identidad que firma cada conteo |
-| Nombre completo | Mínimo 3 caracteres |
-| Rol | `OPERADOR`, `SUPERVISOR` o `ADMIN` |
-| Contraseña | Mínimo 8 caracteres |
+1. Selecciona la función `verificarConfiguracion` → **Ejecutar**
+2. Mira **Registro de ejecución** (Ctrl+Enter)
 
-### Qué puede hacer cada rol
+```
+Configuración completa.
+URL base: http://dominio.com/apidepot
+Dominio permitido: itsanet.com
+```
+
+3. Ahora `probarDepot` → **Ejecutar**
+
+```
+gettoken OK. Token de 36 caracteres.
+getstock OK. 476 filas.
+Campos que devuelve: codigo_producto, descripcion, codigo_barra, stock
+Primera fila mapeada: {"sku":"2H0525345","descripcion":"WASHER",...}
+```
+
+**Esa línea de "Campos que devuelve" es la más valiosa de toda la instalación.**
+Mándamela: con ella ajusto el mapeo exacto en vez de adivinar entre variantes.
+
+### Si falla
+
+| Mensaje | Causa | Qué hacer |
+|---|---|---|
+| `Falta DEPOT_BASE_URL` | Propiedad sin guardar | Paso 5.3 |
+| `Depot rechazó las credenciales` | Usuario o clave mal | Confirma con quien administra el WMS |
+| `sin un token reconocible` | `/gettoken/` responde en otro formato | **Mándame lo que imprime el registro** y lo mapeo |
+| `Address unavailable` / timeout | El WMS no acepta conexiones externas | Pide a TI que autorice la salida de Apps Script |
+| `Depot respondió 404` | La ruta no es `/gettoken/` | Ajusta `DEPOT_RUTA_TOKEN` |
+
+> El error de timeout es el más probable y el que más tiempo ahorra detectar
+> ahora. Si el WMS es solo interno, hay que resolverlo con TI antes de seguir.
+
+---
+
+## 8. El primer administrador
+
+Con Google corporativo no hay que crear usuarios: **cada quien se da de alta al
+entrar por primera vez**, y queda como `OPERADOR`. El dominio es la puerta.
+
+Pero el primero tiene que ser `ADMIN`, y eso se hace una sola vez a mano.
+
+1. Entra a `https://iv-itsanet.web.app` con tu cuenta corporativa
+2. Eso crea tu documento en `usuarios`
+3. Consola de Firebase → **Firestore** → colección `usuarios` → tu documento
+4. Cambia el campo `rol` de `OPERADOR` a `ADMIN`
+5. **Recarga la app**
+
+> Con roles en Firestore el cambio es inmediato: no hay que cerrar sesión, a
+> diferencia de los custom claims. Es la ventaja de haber tenido que moverlos.
+
+### Los roles
 
 | | OPERADOR | SUPERVISOR | ADMIN |
 |---|---|---|---|
 | Escanear y contar | Sí | Sí | Sí |
 | Anular su propio conteo | Sí | Sí | Sí |
 | Anular el de otro | No | Sí | Sí |
-| Crear recepciones y subir packing list | No | Sí | Sí |
+| Crear recepciones, subir packing list | No | Sí | Sí |
 | Cerrar la validación | No | Sí | Sí |
-| Crear operarios | No | No | Sí |
-| Tocar las credenciales de Depot | No | No | Sí |
+| Cambiar roles | No | No | Sí |
 
-### Dar de baja a alguien
-
-**Operarios → Desactivar.** Los tokens se revocan **en el acto**: deja de poder
-escribir inmediatamente, no cuando venza su sesión. Sus conteos anteriores
-siguen en la bitácora: nada se borra.
+Un ADMIN **no puede quitarse el rol a sí mismo**: evita quedarse sin ningún
+administrador.
 
 ---
 
 ## 9. Instalar en los handheld
 
-No hay instalador ni tienda de aplicaciones. **Solo el enlace.**
+Solo el enlace. No hay instalador.
 
-### Android (handheld Zebra, Honeywell, o teléfono)
+### Android (Zebra, Honeywell o teléfono)
 
-1. Abre Chrome
-2. Entra a `https://val-ventura.web.app`
+1. Chrome → `https://iv-itsanet.web.app`
+2. Entrar con la cuenta corporativa
 3. Menú **⋮** → **Añadir a pantalla de inicio**
-4. Aparece el icono como si fuera una app nativa
 
 ### iPhone / iPad
 
-1. Abre **Safari** (en Chrome no aparece la opción)
-2. Entra a la URL
-3. Botón **Compartir** → **Añadir a pantalla de inicio**
+1. **Safari** — en Chrome no aparece la opción
+2. **Compartir** → **Añadir a pantalla de inicio**
 
-### Pistola de código de barras
+### La pistola
 
-Las pistolas USB y Bluetooth emulan un teclado: escriben el código y mandan
-Enter. **No hay nada que configurar.** Solo verifica dos cosas en el lector:
+Las pistolas USB y Bluetooth emulan un teclado. No hay nada que configurar, solo
+verificar en el lector:
 
-- Que el sufijo esté en **Enter (CR)**, no en Tab
-- Que no esté en modo "teclado numérico" si los códigos llevan letras
+- Sufijo en **Enter (CR)**, no en Tab
+- Sin modo "teclado numérico" si los códigos llevan letras
 
 ### Sin conexión
 
-El SDK de Firestore guarda los conteos en el dispositivo y los envía al
-reconectar. El operario ve un aviso, pero **sigue trabajando**. No hay que
-hacer nada manualmente.
+Firestore guarda los conteos en el dispositivo y los envía al reconectar. El
+operario ve un aviso y **sigue trabajando**.
 
-> Aviso real: si el operario cierra el navegador con conteos sin enviar y no
-> vuelve a abrirlo en ese dispositivo, esos conteos se quedan ahí. Antes de
-> cerrar una recepción, la app comprueba que no quede nada pendiente.
+> Si cierra el navegador con conteos sin enviar y no vuelve a abrirlo en ese
+> mismo dispositivo, esos conteos se quedan ahí. Antes de cerrar una recepción,
+> la app comprueba que no quede nada pendiente.
 
 ---
 
 ## 10. Errores frecuentes
 
-### Al desplegar
+### Despliegue
 
 | Error | Causa | Solución |
 |---|---|---|
-| `HTTP Error: 403, Unknown Error` | Sesión vencida | `firebase logout` y `firebase login` |
-| `Error: Failed to get Firebase project` | Proyecto mal vinculado | `firebase use --add` otra vez |
-| `functions: command not found` | Faltan dependencias | `cd functions && npm install` |
-| `Error: Cloud Functions requires Blaze` | Plan gratuito | Paso 2.5 |
-| `The query requires an index` | Índices sin construir | Espera 5 min; el error trae un enlace que lo crea |
-| `Deploy timed out` | Red lenta | Repite; el despliegue es idempotente |
+| `Cloud Functions requires Blaze` | Desplegaste `functions` | En Spark no se despliegan; usa Apps Script |
+| `HTTP Error: 403` | Sesión vencida | `firebase logout && firebase login` |
+| `Failed to get Firebase project` | Mal vinculado | `firebase use --add` |
+| `The query requires an index` | Índices construyéndose | Espera 5 min; el error trae un enlace que lo crea |
 
-### Al usar la app
+### Login
 
 | Síntoma | Causa | Solución |
 |---|---|---|
-| "Missing or insufficient permissions" | El usuario no tiene rol | Revisa sus claims; que cierre sesión y vuelva a entrar |
-| Entra pero no ve el menú de administración | El token todavía tiene el rol viejo | **Cerrar sesión y volver a entrar.** Es lo más común |
-| El escáner escribe en la pantalla pero no registra | El campo perdió el foco | Toca el campo de escaneo; se vuelve a enfocar solo |
-| Un SKU aparece como inexistente y sí existe | El precalentado no terminó | Espera a que la recepción diga "Lista" |
-| Todos los SKU salen como inexistentes | Depot mal configurado | **Probar conexión** en el panel |
-| El progreso no avanza | Sin conexión | Mira el aviso; se sincroniza solo al volver |
+| `auth/unauthorized-domain` | Dominio sin autorizar | Paso 3, "Autorizar el dominio" |
+| Entra pero no ve nada | Falta su documento en `usuarios` | Que recargue; si sigue, revisa las reglas |
+| No ve el menú de administración | Su rol es `OPERADOR` | Cámbialo en Firestore y recarga |
+| `auth/popup-blocked` | El navegador bloqueó la ventana | Permitir ventanas emergentes del sitio |
 
-### Si algo va muy mal
+### Depot
 
-Ver qué pasó en las Functions:
+| Síntoma | Causa | Solución |
+|---|---|---|
+| Todos los SKU salen inexistentes | Catálogo sin cargar | Ejecuta el precalentado desde el panel |
+| `Sesión no válida` desde la app | `FIREBASE_API_KEY` mal | Paso 5.3; tiene que ser la del paso 2.2 |
+| `Solo cuentas de itsanet.com` | Entró con cuenta personal | Que use la corporativa |
+| Funciona en el editor pero no desde la app | Publicado como "Solo yo" | Paso 5.4, punto 5 |
+| Cambié el código y sigue igual | Apps Script sirve la versión publicada | **Implementar → Administrar → editar → Nueva versión** |
 
-```bash
-firebase functions:log --only registrarConteo
-```
+> El último es el que más tiempo hace perder. Editar el código **no** actualiza
+> la app publicada: hay que crear una versión nueva.
 
-Volver a la versión anterior del hosting:
+### Ver qué pasó
+
+Apps Script: **Ejecuciones** en el menú lateral. Muestra cada llamada, su
+duración y el error si lo hubo.
+
+Hosting, volver atrás:
 
 ```bash
 firebase hosting:rollback
 ```
 
-Respaldo de la base:
+---
 
-```bash
-gcloud firestore export gs://TU_PROJECT_ID.appspot.com/respaldos/$(date +%F)
-```
+## 11. Vigilar las cuotas
+
+En Spark, pasarse de una cuota **apaga ese producto hasta el mes siguiente**. No
+se cobra nada, pero deja de funcionar. Conviene saber dónde estás.
+
+| Recurso | Límite diario | Lo que consume una recepción de 150 líneas |
+|---|---|---|
+| Lecturas de Firestore | 50.000 | ~1.500 |
+| Escrituras de Firestore | 20.000 | ~800 |
+| Almacenamiento | 1 GiB | Unos pocos MB al año |
+| `UrlFetchApp` (Apps Script) | 20.000 | ~5 |
+| `MailApp` (Apps Script) | 1.500 | 1 por cierre |
+
+Caben del orden de **20 recepciones diarias** con holgura. El límite que se toca
+primero son las escrituras de Firestore.
+
+**Dónde mirar:** consola de Firebase → **Uso y facturación**.
+
+### Si te quedas corto
+
+1. Baja la frecuencia del precalentado: el catálogo cambia poco.
+2. Archiva recepciones cerradas de más de un año.
+3. Si aun así no alcanza, **ahí sí** conviene Blaze: con este volumen seguiría
+   costando cero o casi, y recuperas Cloud Functions y Storage.
 
 ---
 
-## 11. Mantenimiento
-
-### Rutina
-
-| Cada | Qué |
-|---|---|
-| Semana | Revisar **SKU sin Depot** y crearlos en el WMS |
-| Mes | Revisar el consumo en la consola de facturación |
-| Mes | Dar de baja operarios que ya no están |
-| Trimestre | Rotar la contraseña del WMS y actualizarla en el panel |
-
-### Actualizar la app
-
-```bash
-cd VAL_VENTURA
-git pull
-cd firebase/functions && npm install && npm test && cd ..
-firebase deploy
-```
-
-Los operarios **no tienen que hacer nada**: la próxima vez que abran el enlace
-tienen la versión nueva.
-
-### Respaldo automático
-
-```bash
-gcloud firestore databases create-backup-schedule \
-  --database='(default)' --retention=7d --recurrence=daily
-```
-
----
-
-## Resumen de comandos
+## Resumen
 
 ```bash
 # Preparar
 npm install -g firebase-tools
 firebase login
+git clone https://github.com/brantos102/VAL_VENTURA.git
 cd VAL_VENTURA/firebase
 firebase use --add
 cd functions && npm install && npm test && cd ..
 
-# Desplegar
-firebase deploy --only firestore:rules,firestore:indexes,storage:rules
-firebase deploy --only functions
+# Desplegar (en Spark: NUNCA functions ni storage)
+firebase deploy --only firestore:rules,firestore:indexes
 firebase deploy --only hosting
 
-# Día a día
-firebase deploy
-firebase functions:log
-firebase hosting:rollback
+# Apps Script: pegar Proxy.gs, poner las propiedades, publicar,
+# y guardar la URL en config/proxy de Firestore.
 ```
 
 ---
 
-## Qué falta para estar en producción
+## Qué falta y qué necesito de ti
 
-La parte de datos está construida y probada (53 pruebas). Falta:
+**Construido y probado** (95 pruebas): modelo de datos, reglas de seguridad,
+registro de conteos, administración, adaptador de Depot contra tu contrato real,
+y el proxy de Apps Script.
 
-- Importador del packing list
-- Cliente web (las pantallas que ve el operario)
-- Cierre con informe por correo
+**Pendiente:** el cliente web (las pantallas que ve el operario), el importador
+del packing list en el navegador y el cierre con informe.
 
-Y para conectar el WMS de verdad necesito de ti:
+**Lo que destraba el resto**, y sale de ejecutar `probarDepot()` en el paso 7:
 
-1. **URL base** y si existe un entorno de pruebas
-2. **Cómo se autentica**: ¿hay endpoint de login? ¿qué nombre tienen los campos
-   de usuario y contraseña en el JSON?
-3. **Una respuesta de ejemplo** del endpoint de producto, con datos ficticios
-4. **Si existe consulta en lote**: cambia el precalentado de N llamadas a unas pocas
-
-Con eso el adaptador queda conectado el mismo día: está detrás de una interfaz,
-así que no hay que reescribir nada.
+1. La línea **"Campos que devuelve"** del registro. Con eso fijo el mapeo exacto
+   en lugar de aceptar diez variantes de nombre.
+2. Si `/gettoken/` pide usuario y contraseña, o responde sin más.
+3. **Si la API responde desde fuera de la red de Itsanet.** Es lo primero que
+   conviene comprobar.
