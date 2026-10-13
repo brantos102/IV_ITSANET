@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Recepciones — VAL VENTURA</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📦</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="envoltorio">
+
+<header>
+  <div>
+    <div class="marca">ITSANET <span>IMS</span></div>
+    <div class="sub">Recepciones</div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="/admin.html" id="lnkAdmin" class="oculto"><button class="b-sec">Administración</button></a>
+  <a href="/"><button class="b-sec">Inicio</button></a>
+</header>
+
+<div id="avisos"></div>
+
+<!-- Crear -->
+<div class="panel" id="panelCrear">
+  <h2>Nueva recepción</h2>
+  <p>Crea la recepción y sube el packing list. A partir de ahí los operarios
+     pueden empezar a validar desde sus dispositivos.</p>
+
+  <div class="rejilla">
+    <label class="campo"><span>Código de recepción *</span>
+      <input id="fCodigo" placeholder="VW-29-06-2026" autocapitalize="characters"></label>
+    <label class="campo"><span>Cliente</span>
+      <input id="fCliente" placeholder="VENTURA" autocapitalize="characters"></label>
+    <label class="campo"><span>N° de bultos</span>
+      <input id="fBultos" type="number" inputmode="numeric" min="0"></label>
+    <label class="campo" style="grid-column:1/-1"><span>Descripción</span>
+      <input id="fDescripcion" placeholder="Embarques RB48529 / RB48688"
+             style="font-family:var(--font-ui)"></label>
+  </div>
+  <div class="acciones">
+    <button class="b-primario" id="bCrear">Crear recepción</button>
+  </div>
+</div>
+
+<!-- Packing list -->
+<div class="panel oculto" id="panelArchivo">
+  <h2>Packing list de <span id="lblRecepcion"></span></h2>
+  <p>El archivo se analiza en este navegador y se guarda en la base. Las líneas
+     quedan inmutables: son la versión del sistema contra la que se compara.</p>
+
+  <div class="rejilla">
+    <label class="campo" style="grid-column:1/-1"><span>Archivo .xlsx</span>
+      <input type="file" id="fArchivo" accept=".xlsx,.xlsm,.xls"></label>
+  </div>
+  <div id="vistaPrevia"></div>
+  <div class="acciones">
+    <button class="b-primario" id="bSubir" disabled>Guardar packing list</button>
+    <button class="b-sec" id="bCancelar">Cancelar</button>
+  </div>
+</div>
+
+<!-- Catálogo -->
+<div class="panel" id="panelCatalogo">
+  <h2>Catálogo de Depot</h2>
+  <p>Descarga el stock de los clientes configurados y lo guarda localmente. Con
+     esto cada escaneo pasa a ser la lectura de un documento en vez de una
+     llamada al WMS. Hazlo una vez al día, o cuando entren productos nuevos.</p>
+  <div class="acciones">
+    <button class="b-primario" id="bCatalogo">Descargar catálogo</button>
+  </div>
+  <div id="resCatalogo"></div>
+</div>
+
+<!-- Listado -->
+<div class="panel" id="enCurso">
+  <h2>Recepciones</h2>
+  <div class="tabla-env">
+    <table>
+      <thead><tr>
+        <th>Código</th><th>Estado</th><th class="num">SKU</th>
+        <th class="num">Sistema</th><th class="num">Físico</th>
+        <th>Avance</th><th></th>
+      </tr></thead>
+      <tbody id="tRecepciones"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script type="module">
+import { observarSesion } from './js/auth.js';
+import {
+  crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
+  guardarCatalogo, escucharSkus,
+} from './js/datos.js';
+import { Proxy } from './js/proxy.js';
+import { resumir } from './js/conteo.js';
+
+const $ = (id) => document.getElementById(id);
+let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '') {
+  const d = document.createElement('div');
+  d.className = 'msg ' + tipo;
+  d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
+  $('avisos').appendChild(d);
+  d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return d;
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+
+observarSesion((e) => {
+  if (e.error) aviso(e.error, 'err');
+  if (!e.usuario) { location.href = '/'; return; }
+  usuario = e.usuario; perfil = e.perfil;
+
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  const puedeCrear = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
+  if (perfil?.rol === 'ADMIN') $('lnkAdmin').classList.remove('oculto');
+  if (!puedeCrear) {
+    $('panelCrear').classList.add('oculto');
+    $('panelCatalogo').classList.add('oculto');
+    aviso('Tu rol es OPERADOR: puedes validar, pero no crear recepciones ni ' +
+          'subir packing lists. Pídeselo a un supervisor.', 'info', 'Solo lectura');
+  }
+  cargarListado();
+});
+
+// --- Crear ---------------------------------------------------------------- //
+$('bCrear').addEventListener('click', async () => {
+  limpiarAvisos();
+  $('bCrear').disabled = true;
+  try {
+    const id = await crearRecepcion({
+      codigo: $('fCodigo').value,
+      cliente: $('fCliente').value,
+      descripcion: $('fDescripcion').value,
+      bultos: $('fBultos').value,
+    }, usuario);
+    recepcionActual = id;
+    $('lblRecepcion').textContent = id;
+    $('panelArchivo').classList.remove('oculto');
+    $('panelArchivo').scrollIntoView({ behavior: 'smooth' });
+    aviso(`Recepción ${id} creada. Ahora sube el packing list.`, 'ok');
+    cargarListado();
+  } catch (e) {
+    aviso(e.message, 'err', 'No se creó');
+  } finally {
+    $('bCrear').disabled = false;
+  }
+});
+
+// --- Leer el archivo ------------------------------------------------------ //
+$('fArchivo').addEventListener('change', async (ev) => {
+  const archivo = ev.target.files[0];
+  if (!archivo) return;
+  limpiarAvisos();
+  $('vistaPrevia').innerHTML = '<div class="msg info">Analizando el archivo…</div>';
+  $('bSubir').disabled = true;
+
+  try {
+    const buffer = await archivo.arrayBuffer();
+    resultadoArchivo = leerPackingList(buffer);
+
+    const muestra = resultadoArchivo.lineas.slice(0, 5).map((l) => `
+      <tr><td class="id">${esc(l.sku)}</td><td class="mini">${esc(l.descripcion)}</td>
+      <td class="num">${l.cantidad}</td><td class="mini">${esc(l.embarque)}</td></tr>`).join('');
+
+    $('vistaPrevia').innerHTML = `
+      <div class="msg ok"><b>Archivo leído</b>
+        Hoja "${esc(resultadoArchivo.hoja)}" ·
+        ${resultadoArchivo.lineas.length} líneas ·
+        ${resultadoArchivo.skusUnicos} SKU ·
+        ${resultadoArchivo.unidades} unidades
+        ${resultadoArchivo.embarques.length
+          ? ' · embarques: ' + esc(resultadoArchivo.embarques.join(', ')) : ''}
+      </div>
+      ${resultadoArchivo.descartadas
+        ? `<div class="msg warn">${resultadoArchivo.descartadas} fila(s) sin SKU se omitieron.</div>`
+        : ''}
+      <div class="tabla-env"><table>
+        <thead><tr><th>SKU</th><th>Descripción</th><th class="num">Cant.</th><th>Embarque</th></tr></thead>
+        <tbody>${muestra}</tbody></table></div>
+      <p class="mini" style="margin-top:8px">Primeras 5 líneas de ${resultadoArchivo.lineas.length}.</p>`;
+    $('bSubir').disabled = false;
+  } catch (e) {
+    resultadoArchivo = null;
+    $('vistaPrevia').innerHTML = '';
+    aviso(e.message, 'err', 'No se pudo leer');
+  }
+});
+
+$('bSubir').addEventListener('click', async () => {
+  if (!resultadoArchivo || !recepcionActual) return;
+  limpiarAvisos();
+  $('bSubir').disabled = true;
+  const prog = aviso('Guardando…', 'info', 'Un momento');
+
+  try {
+    await guardarPackingList(recepcionActual, resultadoArchivo, (hechas, total) => {
+      prog.innerHTML = `<b>Guardando</b>${hechas} de ${total} registros`;
+    });
+    limpiarAvisos();
+    aviso(`Packing list guardado: ${resultadoArchivo.lineas.length} líneas. ` +
+          'Los operarios ya pueden validar.', 'ok', 'Listo');
+    $('panelArchivo').classList.add('oculto');
+    $('fArchivo').value = '';
+    resultadoArchivo = null;
+    cargarListado();
+  } catch (e) {
+    limpiarAvisos();
+    aviso(e.message, 'err', 'No se guardó');
+  } finally {
+    $('bSubir').disabled = false;
+  }
+});
+
+$('bCancelar').addEventListener('click', () => {
+  $('panelArchivo').classList.add('oculto');
+  $('fArchivo').value = '';
+  resultadoArchivo = null;
+});
+
+// --- Catálogo ------------------------------------------------------------- //
+$('bCatalogo').addEventListener('click', async () => {
+  $('bCatalogo').disabled = true;
+  $('resCatalogo').innerHTML =
+    '<div class="msg info"><b>Descargando</b>Consultando el WMS. Puede tardar un minuto.</div>';
+  try {
+    const r = await Proxy.catalogo();
+    const productos = r.productos || [];
+    if (!productos.length) {
+      $('resCatalogo').innerHTML =
+        '<div class="msg warn"><b>Sin productos</b>El WMS respondió vacío. ' +
+        'Revisa las credenciales en Administración.</div>';
+      return;
+    }
+
+    const prog = document.createElement('div');
+    prog.className = 'msg info';
+    $('resCatalogo').innerHTML = '';
+    $('resCatalogo').appendChild(prog);
+
+    await guardarCatalogo(productos, (hechos, total) => {
+      prog.innerHTML = `<b>Guardando</b>${hechos} de ${total} productos`;
+    });
+
+    const detalle = Object.entries(r.porCliente || {})
+      .map(([c, d]) => `${esc(c)}: ${d.productos}`).join(' · ');
+    $('resCatalogo').innerHTML = `
+      <div class="msg ok"><b>Catálogo actualizado</b>
+        ${productos.length} productos guardados. ${detalle}</div>
+      ${r.ambiguos?.length
+        ? `<div class="msg warn"><b>${r.ambiguos.length} SKU en más de un cliente</b>
+           Se asignaron al primero: ${esc(r.ambiguos.slice(0, 5).map((a) => a.sku).join(', '))}</div>`
+        : ''}
+      ${r.errores?.length
+        ? `<div class="msg err"><b>Clientes que no respondieron</b>
+           ${esc(r.errores.map((e) => e.cliente + ': ' + e.mensaje).join(' · '))}</div>`
+        : ''}`;
+  } catch (e) {
+    $('resCatalogo').innerHTML = `<div class="msg err"><b>No se pudo descargar</b>${esc(e.message)}</div>`;
+  } finally {
+    $('bCatalogo').disabled = false;
+  }
+});
+
+// --- Listado -------------------------------------------------------------- //
+async function cargarListado() {
+  try {
+    const recs = await listarRecepciones();
+    if (!recs.length) {
+      $('tRecepciones').innerHTML =
+        '<tr><td colspan="7" class="mini">Todavía no hay recepciones.</td></tr>';
+      return;
+    }
+    $('tRecepciones').innerHTML = recs.map((r) => {
+      const t = r.totales || {};
+      const clase = { ABIERTA: 'p-warn', EN_VALIDACION: 'p-ok', CERRADA: 'p-off' }[r.estado] || 'p-off';
+      return `<tr>
+        <td class="id">${esc(r.codigo)}<br><span class="mini">${esc(r.cliente || '')}</span></td>
+        <td><span class="pastilla ${clase}">${esc(r.estado)}</span></td>
+        <td class="num">${t.skus ?? 0}</td>
+        <td class="num">${t.unidades ?? 0}</td>
+        <td class="num" id="fis_${esc(r.id)}">—</td>
+        <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}"></i></div></td>
+        <td><a href="/validar.html?r=${encodeURIComponent(r.id)}">
+          <button class="b-primario">Validar →</button></a></td></tr>`;
+    }).join('');
+
+    // Avance en vivo de las recepciones abiertas.
+    recs.filter((r) => r.estado !== 'CERRADA').forEach((r) => {
+      escucharSkus(r.id, (skus) => {
+        const res = resumir(skus);
+        const celda = $(`fis_${r.id}`);
+        const barra = $(`bar_${r.id}`);
+        if (celda) celda.textContent = res.unidadesFisicas;
+        if (barra) barra.style.width = res.avance + '%';
+      }, () => {});
+    });
+  } catch (e) {
+    $('tRecepciones').innerHTML =
+      `<tr><td colspan="7" class="mini">${esc(e.message)}</td></tr>`;
+  }
+}
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>

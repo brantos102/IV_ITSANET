@@ -92,9 +92,22 @@ service cloud.firestore {
       allow read: if activo();
       allow write: if esSupervisor();
     }
+    /**
+     * Equivalencias código escaneado → SKU.
+     *
+     * El operario puede CREAR una que no existía: es lo que devolvió el WMS al
+     * resolver un código que el catálogo no conocía, y guardarla evita repetir
+     * esa consulta lenta en cada escaneo. No puede SOBRESCRIBIR una existente:
+     * reapuntar un código a otro SKU cambiaría a dónde van los conteos.
+     */
     match /codigos/{codigo} {
       allow read: if activo();
-      allow write: if esSupervisor();
+      allow create: if esSupervisor()
+                 || (activo()
+                     && request.resource.data.sku is string
+                     && request.resource.data.sku != ''
+                     && request.resource.data.tipo == 'EAN');
+      allow update, delete: if esSupervisor();
     }
 
     // Configuración visible del proxy (URL del Apps Script). Sin secretos:
@@ -138,7 +151,17 @@ service cloud.firestore {
         allow read: if activo();
         // El supervisor lo crea al importar; cualquier operario activo lo
         // incrementa al contar, pero NUNCA puede tocar la cantidad esperada.
-        allow create: if esSupervisor();
+        //
+        // Un operario también puede crearlo cuando el producto llegó sin estar
+        // en el packing list: el agregado del adicional tiene que nacer en el
+        // mismo escaneo. Solo con esperado 0 y marcado fuera de la lista, así
+        // que no puede inventarse una cantidad de sistema.
+        allow create: if esSupervisor()
+                   || (activo()
+                       && recepcionAbierta()
+                       && request.resource.data.sku == sku
+                       && request.resource.data.esperado == 0
+                       && request.resource.data.enPackingList == false);
         allow update: if activo()
                    && recepcionAbierta()
                    && request.resource.data.esperado == resource.data.esperado
@@ -168,8 +191,14 @@ service cloud.firestore {
         allow read: if activo();
         allow create: if activo()
                    && recepcionAbierta()
+                   && request.resource.data.sku == sku
                    && request.resource.data.detectadoPorUid == request.auth.uid;
-        allow update: if esSupervisor();
+        // El mismo adicional escaneado otra vez reescribe el documento; lo que
+        // no puede cambiar es a qué SKU se refiere.
+        allow update: if esSupervisor()
+                   || (activo()
+                       && recepcionAbierta()
+                       && request.resource.data.sku == resource.data.sku);
         allow delete: if false;
       }
     }

@@ -54,9 +54,10 @@ Hace tres cosas que el navegador no puede hacer solo:
 6. [Cargar el token y las credenciales](#6-cargar-el-token-y-las-credenciales)
 7. [Probar la conexión con Depot](#7-probar-la-conexión-con-depot)
 8. [El primer administrador](#8-el-primer-administrador)
-9. [Instalar en los handheld](#9-instalar-en-los-handheld)
-10. [Errores frecuentes](#10-errores-frecuentes)
-11. [Vigilar las cuotas](#11-vigilar-las-cuotas)
+9. [Usar la app](#9-usar-la-app)
+10. [Instalar en los handheld](#10-instalar-en-los-handheld)
+11. [Errores frecuentes](#11-errores-frecuentes)
+12. [Vigilar las cuotas](#12-vigilar-las-cuotas)
 
 ---
 
@@ -703,7 +704,117 @@ administrador.
 
 ---
 
-## 9. Instalar en los handheld
+## 9. Usar la app
+
+Son tres pantallas. El enlace es el mismo para todos:
+`https://iv-itsanet.web.app`.
+
+| Pantalla | Quién | Para qué |
+|---|---|---|
+| `/` | todos | Entrar y comprobar la instalación |
+| `/recepciones.html` | supervisor | Crear la recepción, subir el packing list, bajar el catálogo |
+| `/validar.html?r=CODIGO` | operario | Escanear y contar |
+| `/admin.html` | admin | Credenciales de Depot por cliente |
+
+### 9.1 Abrir una recepción (supervisor)
+
+1. **Recepciones** → código (`VW-29-06-2026`), cliente, bultos → **Crear**.
+2. **Archivo .xlsx** → se muestran las primeras líneas para confirmar que leyó
+   la tabla correcta → **Guardar packing list**.
+
+   Busca la fila de encabezados en las primeras 25, así que tolera logos y
+   títulos encima. Necesita al menos las columnas **ITEM** (o SKU, CÓDIGO,
+   PRODUCTO) y **CANTIDAD**.
+
+3. **Descargar catálogo** — una sola vez por jornada.
+
+   Esto es lo que hace que el escaneo sea instantáneo. `getstock` sin código
+   devuelve el stock completo del cliente, así que es **una** llamada al WMS por
+   cliente, no una por SKU. Después, cada escaneo es la lectura de un documento
+   de Firestore en vez de una consulta a Depot.
+
+   Si se omite, la app sigue funcionando: consulta Depot en vivo la primera vez
+   que ve cada código y guarda la equivalencia. Solo es más lento.
+
+### 9.2 Contar (operario)
+
+En el listado, **Validar** abre la pantalla de escaneo. El flujo es el que
+pediste:
+
+1. **Escanear** — el cursor ya está en el campo; la pistola manda Enter sola.
+2. **Validación** — si el código existe sale la descripción, la unidad, el stock
+   y la posición que devuelve Depot. Si no existe, el paso 8.
+3. **Cantidad** — viene con lo que falta de ese SKU. Un escaneo suma 1.
+
+   > **Para contar varias de una vez:** escribe la cantidad en el campo
+   > **Cantidad** *antes* de escanear, y ese escaneo registra esa cantidad
+   > completa.
+
+4. **Pallet** — alfanumérico (`A1`, `B04`) con subpallets (`B04.1`). Si ese SKU
+   ya se guardó en algún pallet, salen botones con cada ubicación y su cantidad:
+   es la sugerencia de dónde ya está.
+5. **Observación** — opcional.
+6. **Estado** — BUENO o **PNC**. PNC exige observación y permite fotos, que se
+   suben a la carpeta de Drive.
+7. **Registrar** — y el cursor vuelve al campo de escaneo.
+
+Suena un pitido agudo si se registró y uno grave si algo falló, y el handheld
+vibra. El operario no tiene que mirar la pantalla para saber si contó.
+
+**Varios operarios a la vez:** cada uno ve en el acto lo que registran los
+demás. La tabla y los indicadores se actualizan sin recargar. Dos operarios
+contando el mismo SKU suman bien; no se pisan.
+
+**Un escaneo repetido no cuenta doble.** Si la pistola dispara dos veces o se
+pierde la red y el envío se reintenta, se escribe el mismo registro, no uno
+nuevo.
+
+### 9.3 Código que no existe (paso 8)
+
+Sale un modal con:
+
+- **Códigos parecidos** en el packing list (mismo arranque), por si llegó con
+  una variante.
+- **Buscador** por código o por descripción dentro del packing list.
+- **Registrar como adicional**, si de verdad llegó algo que no estaba.
+
+### 9.4 Cerrar y el informe
+
+**Finalizar** (solo supervisor) cierra la recepción, descarga el `.xlsx` y lo
+envía por correo a quien indiques.
+
+El archivo trae tres hojas:
+
+| Hoja | Contenido |
+|---|---|
+| `VALIDADA` | El packing list con las columnas de validación añadidas |
+| `ADICIONALES` | Lo que llegó sin estar en la lista |
+| `BITACORA` | Cada conteo con su autor, su hora y sus fotos |
+
+> **La regla de las filas se respeta.** Si el archivo que recibiste tiene 22
+> filas, `VALIDADA` entrega 22 filas, en el mismo orden. No se añade ninguna.
+> Por eso los adicionales van en su propia hoja.
+>
+> Cuando un mismo SKU viene en dos filas (distinta factura o embarque), el
+> conteo se reparte: se completa la primera y el resto baja a la siguiente. El
+> excedente, si lo hay, queda en la última fila de ese SKU. La suma por SKU
+> siempre coincide con lo contado.
+
+Después de cerrar, la recepción no admite más conteos. La pantalla queda en
+solo lectura.
+
+### 9.5 Corregir un conteo
+
+**Bitácora** lista los últimos conteos. **Anular** pide el motivo y registra una
+reversa: el conteo original **no se borra**, se compensa. Un operario solo puede
+anular los suyos; un supervisor, cualquiera.
+
+Es a propósito. Un almacén en el que se pueden borrar conteos no tiene
+trazabilidad, y los KPI que salgan de ahí no valen para reclamar nada.
+
+---
+
+## 10. Instalar en los handheld
 
 Solo el enlace. No hay instalador.
 
@@ -737,7 +848,7 @@ operario ve un aviso y **sigue trabajando**.
 
 ---
 
-## 10. Errores frecuentes
+## 11. Errores frecuentes
 
 ### Despliegue
 
@@ -786,7 +897,7 @@ firebase hosting:rollback
 
 ---
 
-## 11. Vigilar las cuotas
+## 12. Vigilar las cuotas
 
 En Spark, pasarse de una cuota **apaga ese producto hasta el mes siguiente**. No
 se cobra nada, pero deja de funcionar. Conviene saber dónde estás.
@@ -834,19 +945,81 @@ firebase deploy --only hosting
 
 ---
 
-## Qué falta y qué necesito de ti
+## Actualizar después de un cambio
 
-**Construido y probado** (95 pruebas): modelo de datos, reglas de seguridad,
-registro de conteos, administración, adaptador de Depot contra tu contrato real,
-y el proxy de Apps Script.
+Esto es lo que hay que correr cada vez que llega código nuevo:
 
-**Pendiente:** el cliente web (las pantallas que ve el operario), el importador
-del packing list en el navegador y el cierre con informe.
+```bash
+cd IV_ITSANET
+git pull origin pr_bep/serene-thompson-10qlxd
+cd firebase
+firebase deploy --only hosting,firestore:rules
+```
 
-**Lo que destraba el resto**, y sale de ejecutar `probarDepot()` en el paso 7:
+Si el cambio toca el proxy, además: abrir el Apps Script, pegar de nuevo
+`Proxy.gs` y `Clientes.gs`, y **publicar una versión nueva** (Implementar →
+Gestionar implementaciones → ✏️ → Versión: *Nueva versión*). Editar el código no
+cambia lo que sirve la URL; hace falta la versión nueva.
 
-1. La línea **"Campos que devuelve"** del registro. Con eso fijo el mapeo exacto
-   en lugar de aceptar diez variantes de nombre.
-2. Si `/gettoken/` pide usuario y contraseña, o responde sin más.
-3. **Si la API responde desde fuera de la red de Itsanet.** Es lo primero que
-   conviene comprobar.
+> **Si un handheld sigue viendo la pantalla vieja:** los `.html`, `.js` y `.css`
+> se sirven con `no-cache`, así que basta recargar. Si se instaló como app,
+> cerrarla del todo y volver a abrirla. El service worker se reemplaza solo en
+> la siguiente carga.
+
+---
+
+## Qué está construido
+
+**160 pruebas automáticas** en verde:
+
+```bash
+node apps-script/test/run-tests.js      # 25 — lógica del Apps Script
+node apps-script/test/clientes.test.js  # 32 — credenciales y token por cliente
+node apps-script/test/proxy.test.js     #  9 — mapeo del contrato de Depot
+node firebase/test/app.test.mjs         # 17 — normalización, resumen e informe
+cd firebase/functions && npm test       # 77 — referencia (código de Blaze)
+```
+
+Completo y conectado: acceso con Google corporativo, importación del packing
+list, catálogo precalentado desde Depot, pantalla de escaneo con el flujo de 9
+pasos, conteo concurrente con libro mayor, adicionales aparte, fotos a Drive,
+cierre con `.xlsx` de tres hojas por correo, y el panel de credenciales por
+cliente.
+
+---
+
+## Lo único que sigue abierto: el EAN
+
+`/getstock` **no devuelve código de barras**. Lo comprobé campo por campo contra
+lo que extrae tu Centro de Mando: trae `COD. PRODUCTO`, `DESCRIPCION`,
+`UNIDAD`, `CANTIDAD`, `NAVE/CALLE/COLUMNA/NIVEL`, lotes, series y familia. EAN,
+no.
+
+Entonces «registrar el código EAN para la subida al sistema» no se puede
+resolver leyendo Depot. Hay dos caminos:
+
+1. **Que exista otro endpoint** en el WMS que relacione EAN con SKU. Si lo hay,
+   dime la ruta y lo conecto; es media hora.
+2. **Mantener la equivalencia aquí.** Ya está construido: la primera vez que un
+   operario escanea un EAN que Depot no resuelve, elige el SKU en el buscador y
+   queda guardado. El segundo escaneo de ese EAN ya entra directo, y en cualquier
+   recepción. Se arma solo con el uso.
+
+Mientras no me confirmes el endpoint, la app funciona por el camino 2.
+
+---
+
+## Dos cosas que conviene resolver con el área correspondiente
+
+**La cuenta.** `bespinoza@itsanet.com` es una cuenta de Google con correo
+corporativo, no una cuenta gestionada por Google Workspace. El Apps Script, la
+carpeta de evidencias en Drive y las credenciales de Depot cuelgan de ella: si
+esa cuenta se pierde, la empresa no puede recuperarlos. Comparte el proyecto de
+Apps Script y la carpeta de Drive con un segundo responsable **hoy**. Tiene
+además un efecto práctico: la cuota de correo es de 100 al día en vez de 1.500.
+
+**Las 22 filas.** La regla que fijaste contradice el packing list de VW que
+entregaron: ese archivo trae el sobrante como fila 73 con Cantidad 0. La app
+sigue tu regla —22 filas entran, 22 filas salen, adicionales aparte—, pero
+conviene avisar al ejecutivo de cuenta antes de la primera entrega, para que no
+lo reciba como un formato distinto al que esperaba.

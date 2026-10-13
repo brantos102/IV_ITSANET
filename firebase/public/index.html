@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#2563eb">
 <title>VAL VENTURA — Acceso</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📦</text></svg>">
 <style>
   :root {
@@ -80,6 +82,16 @@
            margin:26px 0 8px; font-weight:900; }
   code { font-family:var(--font-data); font-size:12px; background:var(--bg);
          padding:2px 6px; border-radius:5px; word-break:break-all; }
+
+  .menu { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+          gap:11px; margin:22px 0 8px; }
+  .acceso { display:block; padding:16px; border:1px solid var(--border);
+            border-radius:14px; background:var(--bg); text-decoration:none;
+            color:var(--primary); transition:.2s; }
+  .acceso:hover { border-color:var(--accent); transform:translateY(-2px); }
+  .acceso b { display:block; font-size:15px; font-weight:900; margin-bottom:4px; }
+  .acceso span { font-size:11px; color:var(--secondary); font-weight:600; line-height:1.4;
+                 display:block; }
 </style>
 </head>
 <body>
@@ -119,6 +131,21 @@
       </div>
     </div>
     <div id="avisos-sesion"></div>
+
+    <div class="menu">
+      <a class="acceso" href="/recepciones.html">
+        <b>Recepciones</b>
+        <span>Subir el packing list y abrir una validación</span>
+      </a>
+      <a class="acceso" href="/recepciones.html#enCurso">
+        <b>Validar</b>
+        <span>Continuar una validación en curso</span>
+      </a>
+      <a class="acceso oculto" id="accesoAdmin" href="/admin.html">
+        <b>Administración</b>
+        <span>Credenciales de Depot por cliente</span>
+      </a>
+    </div>
 
     <h2 class="sec">Comprobación de la instalación</h2>
     <table class="diag"><tbody id="tDiag"></tbody></table>
@@ -260,16 +287,16 @@ observarSesion(async ({ usuario, perfil, error }) => {
   }
 
   if (perfil && perfil.rol === 'ADMIN') {
-    const d = aviso('avisos-sesion',
-      'Desde el panel se cargan las credenciales de cada cliente de Depot.',
-      'ok', 'Eres administrador');
-    const a = document.createElement('a');
-    a.href = '/admin.html';
-    a.textContent = 'Abrir panel de administración →';
-    a.style.cssText = 'display:inline-block;margin-top:10px;font-weight:800;font-size:13px;';
-    d.appendChild(a);
+    document.getElementById('accesoAdmin').classList.remove('oculto');
   }
 });
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
 </script>
 </body>
 </html>

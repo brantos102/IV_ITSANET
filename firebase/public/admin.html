@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#2563eb">
 <title>Administración — VAL VENTURA</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🔑</text></svg>">
 <style>
   :root {
@@ -416,6 +418,13 @@ function pintarPrueba(r) {
       'el mapeo exacto en lugar de aceptar variantes.</div>'
     : '';
   $('resultadoPrueba').innerHTML = pasos + nota;
+}
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 </script>
 </body>
