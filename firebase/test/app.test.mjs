@@ -117,6 +117,28 @@ await test('el avance no pasa de 100 aunque haya sobrantes', () => {
   eq(conteo.resumir([{ sku: 'A', esperado: 10, contado: 5 }]).avance, 50);
 });
 
+// Pasó de verdad: 221 declaradas, 385 contadas, 20 SKU faltantes, y la barra
+// marcaba 100%. Un sobrante en un producto tapaba lo que faltaba en otro.
+await test('un sobrante no puede tapar lo que falta en otro SKU', () => {
+  const r = conteo.resumir([
+    { sku: 'A', esperado: 100, contado: 300 },   // sobrante enorme
+    { sku: 'B', esperado: 100, contado: 0 },     // no llegó nada
+  ]);
+  eq(r.unidadesEsperadas, 200);
+  eq(r.unidadesFisicas, 300);
+  eq(r.unidadesCubiertas, 100, 'solo A cuenta, y solo hasta lo declarado');
+  eq(r.avance, 50, 'la mitad sigue sin verificarse');
+  eq(r.faltante, 1);
+  eq(r.sobrante, 1);
+});
+
+await test('el avance llega a 100 solo cuando todo está cubierto', () => {
+  eq(conteo.resumir([
+    { sku: 'A', esperado: 10, contado: 10 },
+    { sku: 'B', esperado: 30, contado: 30 },
+  ]).avance, 100);
+});
+
 // ===================== Reparto por línea (22 filas = 22 filas) ============ //
 // La regla del cliente es literal: el archivo entregado tiene las mismas filas
 // que el recibido. Con un SKU repetido hay que decidir en qué fila va cada

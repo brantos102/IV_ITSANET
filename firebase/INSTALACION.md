@@ -800,11 +800,31 @@ pierde, se genera otra.
 
 ### Roles
 
-| Rol | Puede |
-|---|---|
-| OPERADOR | escanear y contar |
-| SUPERVISOR | además crear recepciones, importar el packing list y cerrar |
-| ADMIN | además credenciales de Depot y usuarios |
+| | OPERADOR | SUPERVISOR | ADMIN |
+|---|:---:|:---:|:---:|
+| Escanear y contar | sí | sí | sí |
+| Registrar PNC con fotos | sí | sí | sí |
+| Anular sus propios conteos | sí | sí | sí |
+| Crear recepciones y subir el packing list | — | sí | sí |
+| Descargar el catálogo de Depot | — | sí | sí |
+| Anular el conteo de cualquiera | — | sí | sí |
+| Cerrar y enviar el informe | — | sí | sí |
+| Ver indicadores y trazabilidad | — | sí | sí |
+| Dar de alta operarios | — | sí | sí |
+| Credenciales de Depot por cliente | — | — | sí |
+| Cambiar roles y aprobar registros | — | — | sí |
+
+Esta misma tabla sale en la pantalla de inicio de cada persona, con lo que
+puede y lo que no. Así nadie descubre a mitad de turno que no puede cerrar, y
+un supervisor ve de un vistazo qué ve su gente.
+
+Que un operario valide una recepción que subió un supervisor es lo esperado: el
+supervisor prepara y cierra, el operario cuenta. Lo que no puede un operario es
+abrirla, cerrarla, ni tocar lo que declara el sistema.
+
+La **comprobación de la instalación** solo la ve un ADMIN. A un operario no le
+dice nada y le llenaba la pantalla de configuración que no puede ni debe
+tocar.
 
 Cambiar un rol surte efecto **de inmediato**, sin esperar a que caduque la
 sesión. Desactivar a alguien lo saca en la siguiente operación.
@@ -882,6 +902,7 @@ Son tres pantallas. El enlace es el mismo para todos:
 | `/` | todos | Entrar y comprobar la instalación |
 | `/recepciones.html` | supervisor | Crear la recepción, subir el packing list, bajar el catálogo |
 | `/validar.html?r=CODIGO` | operario | Escanear y contar |
+| `/kpis.html` | supervisor / admin | Indicadores y trazabilidad |
 | `/usuarios.html` | supervisor / admin | Dar de alta operarios y asignar roles |
 | `/admin.html` | admin | Credenciales de Depot por cliente |
 
@@ -997,6 +1018,48 @@ aviso muestra el antes y el después mientras sube.
 No hay nada que configurar. Si alguna vez vuelve a aparecer el mensaje, ya es
 el WiFi del almacén: acercarse a un punto con mejor señal. **El conteo no se
 pierde** — lo que falló fue la foto.
+
+---
+
+### 9.6 Indicadores y trazabilidad
+
+**KPIs**, en el menú de inicio, para supervisores y administradores.
+
+Todo sale del libro mayor y del agregado por SKU. No hay una segunda base con
+cifras precalculadas: un número que no se puede rastrear hasta el conteo que lo
+originó no sirve para discutir con nadie. Cada cifra de la pantalla se puede
+abrir hasta el SKU, la recepción, la fecha y el operario.
+
+Cinco vistas, con filtro por fechas, cliente y estado:
+
+| Vista | Para qué |
+|---|---|
+| **Recepciones** | Una fila por recepción, con exactitud y productividad |
+| **Referencias** | Qué productos fallan más, ordenados por **cuántas veces**, no por cuánto |
+| **Operarios** | Conteos, unidades, PNC y anulaciones de cada uno |
+| **Tendencia** | Unidades y exactitud por día |
+| **Trazabilidad** | Todo lo que le ha pasado a una referencia en el periodo |
+
+Cualquiera se exporta a CSV con el botón, y se abre en Excel con las tildes
+bien.
+
+#### Las dos cifras que hay que entender
+
+**Exactitud** es el porcentaje de referencias que cuadraron a la primera. Es lo
+que se reclama al proveedor.
+
+**Verificado** es qué parte de lo declarado ya se comprobó físicamente. El tope
+se aplica **por referencia**, no al total, y esto importa: comparando totales,
+contar de más en un producto tapaba lo que faltaba en otro. Con 221 unidades
+declaradas, 385 contadas y 20 referencias faltantes, la barra marcaba 100%
+cuando lo que quedaba por buscar era justo lo que había que ver.
+
+#### Por qué «Referencias» ordena por veces y no por unidades
+
+Una referencia que falló 40 unidades una vez es un incidente. Una que falla 2
+unidades en cinco recepciones seguidas es un problema del proveedor o del
+proceso. La segunda es la que hay que llevar a la reunión, y es la que sale
+arriba.
 
 ---
 
@@ -1165,7 +1228,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**187 pruebas automáticas** en verde, con un solo comando:
+**191 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto
@@ -1180,8 +1243,8 @@ estés. Y no necesita `npm install`: ninguna prueba usa dependencias externas.
 | `apps-script/test/run-tests.js` | 25 — lógica de la app anterior |
 | `apps-script/test/clientes.test.js` | 34 — credenciales y token por cliente |
 | `apps-script/test/proxy.test.js` | 9 — contrato real de Depot |
-| `firebase/test/app.test.mjs` | 27 — acceso, alias, imágenes, informe |
-| `firebase/test/paginas.test.mjs` | 11 — sintaxis, imports y referencias de cada página |
+| `firebase/test/app.test.mjs` | 29 — acceso, alias, imágenes, informe |
+| `firebase/test/paginas.test.mjs` | 14 — sintaxis, imports y referencias de cada página |
 | `firebase/functions/test/*` | 77 — motor de referencia |
 
 Completo y conectado: acceso con Google corporativo, importación del packing

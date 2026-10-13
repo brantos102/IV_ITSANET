@@ -670,8 +670,12 @@ $('bCerrar').addEventListener('click', async () => {
       aviso(`Archivado en Drive como ${g.nombre}, junto a las fotos de esta recepción.`,
             'ok', 'Copia guardada');
     } catch (e) {
-      aviso('No se pudo archivar en Drive: ' + e.message +
-            ' El archivo sí se descargó en este equipo.', 'warn');
+      // El detalle del proxy puede ser una URL larga de Google: no le dice nada
+      // a quien está cerrando una recepción, y tapa lo único que importa.
+      aviso('El informe se descargó en este equipo y se envió por correo, pero no ' +
+            'se pudo guardar la copia en Drive. La recepción sí quedó cerrada.',
+            'warn', 'Copia en Drive pendiente');
+      console.warn('guardarInforme:', e);
     }
 
     if (destinatarios.trim()) {

@@ -121,6 +121,13 @@
   .pestana.activa { background:var(--surface); color:var(--primary);
                     box-shadow:0 1px 3px rgba(0,0,0,.08); }
   .dos { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .cargando { display:flex; gap:7px; justify-content:center; padding:26px 0 4px; }
+  .cargando span { width:9px; height:9px; border-radius:50%; background:var(--accent);
+                   animation:latir 1.3s ease-in-out infinite; }
+  .cargando span:nth-child(2) { animation-delay:.18s; }
+  .cargando span:nth-child(3) { animation-delay:.36s; }
+  @keyframes latir { 0%,80%,100% { opacity:.25; transform:scale(.8); }
+                     40% { opacity:1; transform:scale(1); } }
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
                         text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
@@ -131,7 +138,16 @@
   <div class="sub">Validación física</div>
 
   <!-- Sin sesión -->
-  <div id="vista-login">
+  <!-- Lo primero que se ve mientras Firebase recupera la sesión guardada.
+       Antes se mostraba el formulario de acceso y, un par de segundos después,
+       saltaba a la pantalla del usuario: parecía que te echaba y te volvía a
+       dejar entrar. -->
+  <div id="vista-cargando">
+    <div class="cargando"><span></span><span></span><span></span></div>
+    <p class="lead" style="text-align:center">Entrando…</p>
+  </div>
+
+  <div id="vista-login" class="oculto">
     <h1>Acceso</h1>
     <p class="lead">Cada conteo queda firmado con tu usuario, así que no hace
        falta escribir tu nombre en ningún sitio.</p>
@@ -221,6 +237,10 @@
         <b>Validar</b>
         <span>Continuar una validación en curso</span>
       </a>
+      <a class="acceso oculto" id="accesoKpis" href="/kpis.html">
+        <b>KPIs</b>
+        <span>Indicadores y trazabilidad de las validaciones</span>
+      </a>
       <a class="acceso oculto" id="accesoUsuarios" href="/usuarios.html">
         <b>Usuarios</b>
         <span>Dar de alta operarios y asignar roles</span>
@@ -231,8 +251,13 @@
       </a>
     </div>
 
-    <h2 class="sec">Comprobación de la instalación</h2>
-    <table class="diag"><tbody id="tDiag"></tbody></table>
+    <h2 class="sec">Qué puedes hacer</h2>
+    <table class="diag"><tbody id="tPermisos"></tbody></table>
+
+    <div id="bloqueDiag" class="oculto">
+      <h2 class="sec">Comprobación de la instalación</h2>
+      <table class="diag"><tbody id="tDiag"></tbody></table>
+    </div>
 
     <button class="btn-sec" id="btnSalir">Cerrar sesión</button>
   </div>
@@ -356,6 +381,8 @@ observarSesion(async ({ usuario, perfil, error }) => {
 
   if (error) aviso('avisos-login', error, 'err', 'Atención');
 
+  $('vista-cargando').classList.add('oculto');
+
   if (!usuario) {
     $('vista-login').classList.remove('oculto');
     $('vista-sesion').classList.add('oculto');
@@ -381,7 +408,45 @@ observarSesion(async ({ usuario, perfil, error }) => {
       'warn', 'Primera vez');
   }
 
+  // --- Qué puede hacer este rol ---
+  // En pantalla y no solo en el manual: así nadie descubre a mitad de turno
+  // que no puede cerrar, y un supervisor ve de un vistazo qué ve su gente.
+  const ROL = perfil?.rol || 'OPERADOR';
+  const nivel = { OPERADOR: 1, SUPERVISOR: 2, ADMIN: 3 }[ROL] || 1;
+  for (const [desde, que] of [
+    [1, 'Escanear y contar'],
+    [1, 'Registrar PNC con fotos'],
+    [1, 'Anular sus propios conteos'],
+    [2, 'Crear recepciones y subir el packing list'],
+    [2, 'Descargar el catálogo de Depot'],
+    [2, 'Anular el conteo de cualquiera'],
+    [2, 'Cerrar la recepción y enviar el informe'],
+    [2, 'Ver los indicadores y la trazabilidad'],
+    [2, 'Dar de alta operarios'],
+    [3, 'Credenciales de Depot por cliente'],
+    [3, 'Cambiar roles y aprobar registros'],
+  ]) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + que + '</td><td class="' +
+      (nivel >= desde ? 'ok-txt">sí' : '">no') + '</td>';
+    $('tPermisos').appendChild(tr);
+  }
+
+  // --- Qué puede abrir cada quien ---
+  if (perfil && ['SUPERVISOR', 'ADMIN'].includes(perfil.rol)) {
+    $('accesoUsuarios').classList.remove('oculto');
+    $('accesoKpis').classList.remove('oculto');
+  }
+  if (perfil && perfil.rol === 'ADMIN') {
+    $('accesoAdmin').classList.remove('oculto');
+  }
+
   // --- Comprobación de la instalación ---
+  // Solo para el administrador: a un operario no le dice nada y le mete en la
+  // pantalla once filas de configuración que no puede ni debe tocar.
+  if (perfil?.rol !== 'ADMIN') return;
+  $('bloqueDiag').classList.remove('oculto');
+
   fila('SDK de Firebase', SDK, true);
   fila('Proyecto', auth.app.options.projectId, true);
   fila('Base de datos', DATABASE_ID, true);
@@ -422,12 +487,6 @@ observarSesion(async ({ usuario, perfil, error }) => {
     fila('Recepciones', 'bloqueado', false);
   }
 
-  if (perfil && ['SUPERVISOR', 'ADMIN'].includes(perfil.rol)) {
-    $('accesoUsuarios').classList.remove('oculto');
-  }
-  if (perfil && perfil.rol === 'ADMIN') {
-    $('accesoAdmin').classList.remove('oculto');
-  }
 });
 </script>
 <script>

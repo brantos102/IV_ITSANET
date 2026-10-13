@@ -281,6 +281,9 @@ export function ubicacionesDe(skuDoc) {
 export function resumir(skus) {
   let ok = 0, faltante = 0, sobrante = 0, pendiente = 0;
   let unidadesEsperadas = 0, unidadesFisicas = 0;
+  // Unidades que ya están verificadas: lo contado de cada SKU SIN pasarse de lo
+  // que declara el packing list.
+  let unidadesCubiertas = 0;
   const discrepancias = [];
 
   for (const s of skus) {
@@ -288,6 +291,7 @@ export function resumir(skus) {
     const f = aNumero(s.contado, 0);
     unidadesEsperadas += e;
     unidadesFisicas += f;
+    unidadesCubiertas += Math.min(f, e);
 
     // Al cerrar, lo no contado ya es faltante confirmado.
     const estado = f === e ? 'Ok' : (f < e ? 'Faltante' : 'Sobrante');
@@ -306,8 +310,17 @@ export function resumir(skus) {
     unidadesEsperadas, unidadesFisicas,
     diferencia: unidadesFisicas - unidadesEsperadas,
     exactitud: total ? Math.round((ok / total) * 1000) / 10 : 0,
+    unidadesCubiertas,
+    /**
+     * Avance = unidades verificadas sobre unidades declaradas.
+     *
+     * El tope se aplica POR SKU, no al total. Comparando los totales, contar de
+     * más en un producto tapaba lo que faltaba en otro: con 20 SKU faltantes y
+     * un sobrante grande la barra marcaba 100%, y lo que queda por buscar es
+     * justo lo que hay que ver.
+     */
     avance: unidadesEsperadas
-      ? Math.round((Math.min(unidadesFisicas, unidadesEsperadas) / unidadesEsperadas) * 100)
+      ? Math.round((unidadesCubiertas / unidadesEsperadas) * 100)
       : 0,
     discrepancias,
     adicionales: skus.filter((s) => s.enPackingList === false).length,

@@ -252,6 +252,25 @@ Con la recepción abierta en el handheld y en un PC, con **usuarios distintos**:
 
 ---
 
+## 5.8 Indicadores
+
+Como SUPERVISOR, abre **KPIs** desde el inicio:
+
+- [ ] Las cifras del periodo cuadran con lo que viste en la recepción
+- [ ] **Verificado** no dice 100% si quedan faltantes
+- [ ] **Referencias** lista los SKU con incidencia; pulsando una fila se abre su
+      historial
+- [ ] **Operarios** muestra a cada uno con sus conteos y unidades
+- [ ] El botón **CSV** descarga y Excel abre las tildes bien
+
+Como OPERADOR:
+
+- [ ] **No** ve la tarjeta de KPIs, ni Usuarios, ni Administración
+- [ ] **No** ve la comprobación de la instalación
+- [ ] Sí ve la tabla «Qué puedes hacer», con lo suyo en «sí» y el resto en «no»
+
+---
+
 ## 6. Pruebas automáticas
 
 Un solo comando. Si estás en `firebase`, usa la segunda línea; da igual, las
@@ -264,7 +283,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **187 pruebas, todas en verde**
+- [ ] Termina en **191 pruebas, todas en verde**
 
 ---
 
