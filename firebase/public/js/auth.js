@@ -10,24 +10,30 @@ import {
   updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, serverTimestamp,
-  enableIndexedDbPersistence,
+  initializeFirestore, doc, getDoc, setDoc, serverTimestamp,
+  persistentLocalCache, persistentMultipleTabManager,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-// Segundo argumento: el proyecto usa una base nombrada, no la `(default)`.
-export const db = getFirestore(app, DATABASE_ID);
 
-// Los handheld trabajan con WiFi irregular: sin esto, perder la señal detiene
-// el conteo. Con esto, Firestore encola y envía al reconectar.
-enableIndexedDbPersistence(db).catch((e) => {
-  // Falla si hay varias pestañas abiertas o el navegador no lo soporta.
-  // No es crítico: la app funciona igual, solo sin modo sin conexión.
-  console.warn('Modo sin conexión no disponible:', e.code);
-});
+/**
+ * Firestore con caché local, y con el ÚLTIMO argumento: la base es nombrada,
+ * no la `(default)`.
+ *
+ * Los handheld trabajan con WiFi irregular: sin caché, perder la señal detiene
+ * el conteo; con ella, Firestore encola y envía al reconectar.
+ *
+ * `persistentMultipleTabManager` en vez de la forma antigua: aquella fallaba en
+ * cuanto había una segunda pestaña abierta —el supervisor con el listado y la
+ * validación a la vez— y dejaba ese dispositivo sin modo sin conexión, con un
+ * aviso en la consola que nadie mira.
+ */
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+}, DATABASE_ID);
 
 const proveedor = new GoogleAuthProvider();
 const parametros = { prompt: 'select_account' };  // no reutiliza la sesión anterior
@@ -306,7 +312,10 @@ export function traducirError(e) {
     'permission-denied':
       'Las reglas de Firestore rechazaron la operación. ¿Se desplegaron las reglas?',
     'unavailable':
-      'No se pudo contactar a Firestore. ¿Está creada la base de datos?',
+      'No se pudo contactar a Firestore. Si en la consola del navegador aparece ' +
+      'ERR_BLOCKED_BY_CLIENT, lo está bloqueando una extensión (bloqueador de ' +
+      'anuncios o antivirus): desactívala para este sitio. Si no, revisa el WiFi ' +
+      'y que la base de datos esté creada.',
     'failed-precondition':
       'Falta un índice de Firestore, o hay varias pestañas abiertas.',
   };

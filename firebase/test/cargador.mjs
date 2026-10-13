@@ -35,6 +35,9 @@ export const runTransaction = async (db, fn) => fn({
 });
 export const increment = (n) => ({ __inc: n });
 export const getFirestore = () => ({});
+export const initializeFirestore = () => ({});
+export const persistentLocalCache = () => ({});
+export const persistentMultipleTabManager = () => ({});
 export const enableIndexedDbPersistence = async () => {};
 export const initializeApp = () => ({});
 export const deleteApp = async () => {};

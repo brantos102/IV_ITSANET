@@ -113,6 +113,20 @@ Vuelve a activarlo para seguir probando.
 
 ---
 
+## 2.4 El navegador, limpio
+
+Antes de probar nada más, abre **F12 → Console** en el equipo de prueba.
+
+- [ ] No aparece `ERR_BLOCKED_BY_CLIENT`
+
+Si aparece, hay una extensión (bloqueador de anuncios, privacidad o antivirus)
+cortando la conexión con la base de datos. Desactívala para este sitio. No es
+un fallo de la app y no se puede arreglar desde el código.
+
+- [ ] En los handheld, el navegador de trabajo **no tiene extensiones**
+
+---
+
 ## 3. El handheld
 
 Esta es la prueba que decide si se puede entregar. Hazla en el **equipo real**,

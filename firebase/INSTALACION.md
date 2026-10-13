@@ -798,6 +798,41 @@ sesión del operario. Desactivar a alguien lo saca en la siguiente operación.
 Un ADMIN no puede quitarse el rol a sí mismo, para que nunca quede el sistema
 sin administrador.
 
+### Si una extensión del navegador bloquea la app
+
+Síntoma: la app carga pero no muestra datos, y en la consola del navegador
+(**F12 → Console**) aparece
+
+```
+POST https://firestore.googleapis.com/... net::ERR_BLOCKED_BY_CLIENT
+```
+
+`ERR_BLOCKED_BY_CLIENT` significa que **una extensión del navegador** —un
+bloqueador de anuncios, una extensión de privacidad o un antivirus con módulo
+web— está cortando la conexión con la base de datos. No es un problema del
+WiFi ni de las reglas.
+
+Solución: desactivar la extensión **para este sitio** (en el icono del
+bloqueador, junto a la barra de direcciones), o añadir `iv-itsanet.web.app` a
+sus excepciones.
+
+> En los handheld conviene **no instalar extensiones** en el navegador de
+> trabajo. Si el equipo trae alguna de fábrica, compruébalo antes de repartir
+> los dispositivos.
+
+### Si la ventana de Google se queda abierta sin terminar
+
+Síntoma, en la consola: *«Cross-Origin-Opener-Policy policy would block the
+window.closed call»*, repetido.
+
+Ya está corregido. La app se sirve con la cabecera
+`Cross-Origin-Opener-Policy: same-origin-allow-popups`, que es lo que permite a
+la página seguir viendo la ventana de Google que abrió. Sin ella, el acceso se
+queda esperando una ventana que ya no puede observar.
+
+Si vuelve a aparecer, es que se desplegó sin esa cabecera: `firebase deploy
+--only hosting` la aplica.
+
 ### Si el acceso con Google se queda colgado en el handheld
 
 Era un fallo real y está corregido. El acceso por redirección deja un dato en
