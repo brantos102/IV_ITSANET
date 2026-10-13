@@ -45,6 +45,7 @@ Hace tres cosas que el navegador no puede hacer solo:
 
 ## Índice
 
+0. [Dónde se hace cada cosa](#0-dónde-se-hace-cada-cosa)
 1. [Antes de empezar](#1-antes-de-empezar)
 2. [El proyecto de Firebase](#2-el-proyecto-de-firebase)
 3. [Autenticación con Google corporativo](#3-autenticación-con-google-corporativo)
@@ -56,6 +57,80 @@ Hace tres cosas que el navegador no puede hacer solo:
 9. [Instalar en los handheld](#9-instalar-en-los-handheld)
 10. [Errores frecuentes](#10-errores-frecuentes)
 11. [Vigilar las cuotas](#11-vigilar-las-cuotas)
+
+---
+
+## 0. Dónde se hace cada cosa
+
+Hay dos lugares distintos y conviene tenerlo claro desde el principio:
+
+| Paso | Dónde | Qué es |
+|---|---|---|
+| 2 · Crear Firestore y registrar la app | **Navegador** | console.firebase.google.com |
+| 3.2 y 3.3 · Activar Google y autorizar dominios | **Navegador** | Misma consola |
+| 3.6 y 4 · Desplegar | **Terminal de tu PC** | PowerShell en Windows, Terminal en Mac |
+| 5 · El proxy | **Navegador** | script.google.com |
+| 6 y 7 · Token y pruebas | **Navegador** | Editor de Apps Script |
+| 8 · Primer administrador | **Navegador** | Consola de Firebase |
+
+Los comandos **se ejecutan en tu computador**, no en el servidor ni en la
+consola de Firebase. Lo que hacen es subir los archivos del proyecto a Firebase.
+
+### Abrir la terminal
+
+**Windows:** tecla Windows → escribe `powershell` → Enter.
+**Mac:** Cmd+Espacio → escribe `terminal` → Enter.
+
+Verás una ventana donde se escriben comandos y se pulsa Enter después de cada
+uno. Espera a que termine cada comando antes del siguiente.
+
+### Lo que hay que instalar una sola vez
+
+| Programa | Para qué | Dónde |
+|---|---|---|
+| **Node.js** (versión LTS) | Ejecuta las herramientas de Firebase | [nodejs.org](https://nodejs.org) |
+| **Git** | Descarga el proyecto | [git-scm.com](https://git-scm.com/downloads) |
+
+En ambos instaladores: **Siguiente** hasta el final, sin cambiar nada.
+
+> **Después de instalar, cierra la terminal y ábrela de nuevo.** Si no, no
+> reconocerá los comandos nuevos. Es el tropiezo más común.
+
+Comprueba que quedaron bien:
+
+```bash
+node --version
+git --version
+```
+
+Deben responder con un número de versión. Si alguno dice "no se reconoce el
+comando", no se instaló o no reabriste la terminal.
+
+### Si prefieres no instalar Git
+
+Puedes descargar el proyecto como archivo comprimido:
+
+1. Entra a [github.com/brantos102/IV_ITSANET](https://github.com/brantos102/IV_ITSANET)
+2. Botón verde **Code** → **Download ZIP**
+3. Descomprime donde quieras, por ejemplo en `Documentos`
+4. En la terminal, entra a esa carpeta con `cd` (ver abajo)
+
+Con Git es más cómodo para actualizar después, pero el ZIP funciona igual.
+
+### Moverse entre carpetas
+
+El comando `cd` cambia de carpeta. Si descargaste el proyecto en `Documentos`:
+
+```bash
+cd Documentos\IV_ITSANET\firebase      # Windows
+cd ~/Documentos/IV_ITSANET/firebase      # Mac
+```
+
+**Atajo en Windows:** abre la carpeta `firebase` en el Explorador, haz clic en
+la barra de direcciones, escribe `powershell` y pulsa Enter. Se abre una
+terminal ya situada ahí.
+
+Para saber dónde estás: `pwd` en Mac, `cd` sin nada en Windows.
 
 ---
 
@@ -240,7 +315,7 @@ projectId: 'iv-itsanet',
 
 ### 3.6 Probarlo
 
-Aquí se verifica que los pasos 2 y 3 quedaron bien. Desde `VAL_VENTURA/firebase`:
+Aquí se verifica que los pasos 2 y 3 quedaron bien. Desde `IV_ITSANET/firebase`:
 
 ```bash
 firebase use --add            # elige IV ITSANET, alias: default
@@ -334,8 +409,8 @@ npm install -g firebase-tools
 ### Clonar y vincular
 
 ```bash
-git clone https://github.com/brantos102/VAL_VENTURA.git
-cd VAL_VENTURA/firebase
+git clone https://github.com/brantos102/IV_ITSANET.git
+cd IV_ITSANET/firebase
 firebase use --add          # elige IV ITSANET, alias: default
 ```
 
@@ -662,8 +737,8 @@ primero son las escrituras de Firestore.
 # Preparar
 npm install -g firebase-tools
 firebase login
-git clone https://github.com/brantos102/VAL_VENTURA.git
-cd VAL_VENTURA/firebase
+git clone https://github.com/brantos102/IV_ITSANET.git
+cd IV_ITSANET/firebase
 firebase use --add
 cd functions && npm install && npm test && cd ..
 

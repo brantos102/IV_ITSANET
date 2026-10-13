@@ -51,7 +51,7 @@ mismo SKU: las 200 unidades quedan registradas, ninguna se pierde ni se duplica
 ## Instalación
 
 ```bash
-git clone <repo> && cd VAL_VENTURA
+git clone https://github.com/brantos102/IV_ITSANET.git && cd IV_ITSANET
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ./run.sh                      # http://0.0.0.0:8000
