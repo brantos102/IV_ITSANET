@@ -213,17 +213,17 @@ Con la recepción abierta en el handheld y en un PC, con **usuarios distintos**:
 
 ## 6. Pruebas automáticas
 
-Desde la carpeta del proyecto:
+Un solo comando. Si estás en `firebase`, usa la segunda línea; da igual, las
+rutas se resuelven solas:
 
-```bash
-node apps-script/test/run-tests.js      # lógica del Apps Script
-node apps-script/test/clientes.test.js  # credenciales y token por cliente
-node apps-script/test/proxy.test.js     # mapeo del contrato de Depot
-node firebase/test/app.test.mjs         # acceso, normalización e informe
-cd firebase/functions && npm test        # referencia
+```powershell
+node pruebas.js        # desde la raíz del proyecto
+node ..\pruebas.js     # desde la carpeta firebase
 ```
 
-- [ ] Las cinco terminan en **0 falladas**
+No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
+
+- [ ] Termina en **166 pruebas, todas en verde**
 
 ---
 

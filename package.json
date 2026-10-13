@@ -1,0 +1,9 @@
+{
+  "name": "iv-itsanet",
+  "version": "1.0.0",
+  "description": "Validación física de recepciones — Itsanet",
+  "private": true,
+  "scripts": {
+    "test": "node pruebas.js"
+  }
+}

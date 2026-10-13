@@ -464,11 +464,13 @@ firebase use --add          # elige IV ITSANET, alias: default
 
 ### Comprobar antes de desplegar
 
+Estás dentro de `firebase/`, así que el runner va un nivel arriba:
+
 ```bash
-cd functions && npm install && npm test && cd ..
+node ../pruebas.js
 ```
 
-Debe terminar con `0 falladas` en todos los bloques. Si no, **no despliegues**.
+Debe terminar con **«todas en verde»**. Si no, **no despliegues**.
 
 ### Desplegar
 
@@ -1041,7 +1043,7 @@ firebase login
 git clone -b pr_bep/serene-thompson-10qlxd https://github.com/brantos102/IV_ITSANET.git
 cd IV_ITSANET/firebase
 firebase use --add
-cd functions && npm install && npm test && cd ..
+node ../pruebas.js
 
 # Desplegar (en Spark: NUNCA functions ni storage)
 firebase deploy --only firestore:rules,firestore:indexes
@@ -1087,15 +1089,23 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**160 pruebas automáticas** en verde:
+**166 pruebas automáticas** en verde, con un solo comando:
 
-```bash
-node apps-script/test/run-tests.js      # 25 — lógica del Apps Script
-node apps-script/test/clientes.test.js  # 32 — credenciales y token por cliente
-node apps-script/test/proxy.test.js     #  9 — mapeo del contrato de Depot
-node firebase/test/app.test.mjs         # 17 — normalización, resumen e informe
-cd firebase/functions && npm test       # 77 — referencia (código de Blaze)
+```powershell
+node pruebas.js        # desde la raíz del proyecto
+node ..\pruebas.js     # desde la carpeta firebase
 ```
+
+Las rutas se resuelven desde el propio archivo, así que da igual en qué carpeta
+estés. Y no necesita `npm install`: ninguna prueba usa dependencias externas.
+
+| Suite | Qué cubre |
+|---|---|
+| `apps-script/test/run-tests.js` | 25 — lógica de la app anterior |
+| `apps-script/test/clientes.test.js` | 34 — credenciales y token por cliente |
+| `apps-script/test/proxy.test.js` | 9 — contrato real de Depot |
+| `firebase/test/app.test.mjs` | 21 — acceso, normalización e informe |
+| `firebase/functions/test/*` | 77 — motor de referencia |
 
 Completo y conectado: acceso con Google corporativo, importación del packing
 list, catálogo precalentado desde Depot, pantalla de escaneo con el flujo de 9
