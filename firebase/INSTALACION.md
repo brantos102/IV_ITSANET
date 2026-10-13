@@ -54,6 +54,7 @@ Hace tres cosas que el navegador no puede hacer solo:
 6. [Cargar el token y las credenciales](#6-cargar-el-token-y-las-credenciales)
 7. [Probar la conexión con Depot](#7-probar-la-conexión-con-depot)
 8. [El primer administrador](#8-el-primer-administrador)
+8.bis [Quién entra y cómo](#8bis-quién-entra-y-cómo)
 9. [Usar la app](#9-usar-la-app)
 10. [Instalar en los handheld](#10-instalar-en-los-handheld)
 11. [Errores frecuentes](#11-errores-frecuentes)
@@ -733,6 +734,83 @@ administrador.
 
 ---
 
+## 8.bis Quién entra y cómo
+
+Hay **dos caminos de acceso**, y la diferencia importa en el almacén.
+
+| | Usuario y contraseña | Cuenta de Google |
+|---|---|---|
+| Para quién | operarios | supervisores y administradores |
+| Cómo se crea | lo da de alta un administrador | automático al entrar la primera vez |
+| En el handheld | escribe dos campos | pasa por el selector de cuentas |
+| Verifica el correo | no | sí, Google |
+
+### Por qué el operario no entra con Google
+
+El handheld es compartido. En el navegador se acumulan las cuentas personales
+de todos los que lo usaron, y en cada relevo el operario tiene que acertar la
+suya en un selector lleno. Basta equivocarse una vez para quedarse fuera sin
+saber por qué.
+
+Con usuario y contraseña el relevo es escribir `jperez` y la clave. No hace
+falta ni teclear el `@itsanet.com`: la app lo completa.
+
+Hay además una razón de fondo, y es el requisito que pediste al principio: que
+un operario no pueda hacerse pasar por otro. Las cuentas las crea un
+administrador, nadie se registra solo, y cada conteo queda firmado con el
+usuario de quien lo hizo.
+
+### Activar el método (una sola vez)
+
+Consola de Firebase → **Authentication** → **Sign-in method** →
+**Correo electrónico/contraseña** → activar el primer interruptor. El segundo,
+«Vínculo del correo electrónico», se queda apagado.
+
+Sin esto, al crear un usuario sale *«Ese método de acceso no está activado»*.
+
+### Dar de alta a un operario
+
+Entra como ADMIN → **Usuarios** → rellena usuario, nombre y contraseña
+(el botón **Sugerir contraseña** genera una fácil de dictar: sin `O`/`0` ni
+`l`/`1`, que con guantes y poca luz se confunden).
+
+Al crear sale un recuadro con el enlace, el usuario y la contraseña: **es la
+única vez que se muestra**. Ni la app ni Firebase la guardan en claro. Si se
+pierde, se genera otra.
+
+> **No hace falta que el buzón exista.** `jperez@itsanet.com` sirve como
+> identificador aunque nadie tenga ese correo. Lo que la app exige es que sea
+> del dominio.
+
+### Roles
+
+| Rol | Puede |
+|---|---|
+| OPERADOR | escanear y contar |
+| SUPERVISOR | además crear recepciones, importar el packing list y cerrar |
+| ADMIN | además credenciales de Depot y usuarios |
+
+Cambiar un rol surte efecto **de inmediato**, sin esperar a que caduque la
+sesión del operario. Desactivar a alguien lo saca en la siguiente operación.
+
+Un ADMIN no puede quitarse el rol a sí mismo, para que nunca quede el sistema
+sin administrador.
+
+### Si el acceso con Google se queda colgado en el handheld
+
+Era un fallo real y está corregido. El acceso por redirección deja un dato en
+el dominio de `authDomain` y lo recoge al volver; como ese dominio era
+`iv-itsanet.firebaseapp.com` y la app vive en `iv-itsanet.web.app`, los
+navegadores móviles lo trataban como almacenamiento de terceros y lo aislaban.
+El síntoma era exactamente ese: eliges la cuenta, Google te devuelve, y la
+sesión no queda. Sin error y sin pista.
+
+Ahora `authDomain` apunta al mismo origen que sirve la app. Si aun así falla en
+algún equipo, usa el acceso con usuario y contraseña: ese camino no depende de
+nada de esto.
+
+---
+
 ## 9. Usar la app
 
 Son tres pantallas. El enlace es el mismo para todos:
@@ -743,6 +821,7 @@ Son tres pantallas. El enlace es el mismo para todos:
 | `/` | todos | Entrar y comprobar la instalación |
 | `/recepciones.html` | supervisor | Crear la recepción, subir el packing list, bajar el catálogo |
 | `/validar.html?r=CODIGO` | operario | Escanear y contar |
+| `/usuarios.html` | supervisor / admin | Dar de alta operarios y asignar roles |
 | `/admin.html` | admin | Credenciales de Depot por cliente |
 
 ### 9.1 Abrir una recepción (supervisor)
@@ -971,6 +1050,15 @@ firebase deploy --only hosting
 # Apps Script: pegar Proxy.gs, poner las propiedades, publicar,
 # y guardar la URL en config/proxy de Firestore.
 ```
+
+---
+
+## Validar antes de entregar
+
+El protocolo de pruebas está en **[ENTREGA.md](ENTREGA.md)**: lista de
+comprobación con el resultado esperado de cada punto, desde los tres
+interruptores de consola hasta una recepción completa con dos operarios a la
+vez. Imprímela y márcala.
 
 ---
 

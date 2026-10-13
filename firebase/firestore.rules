@@ -65,17 +65,29 @@ service cloud.firestore {
     // ------------------------------------------------------------------ //
     match /usuarios/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || esSupervisor());
+      allow list: if esSupervisor();
 
-      // Alta automática al entrar por primera vez con la cuenta corporativa.
-      // Solo puede crearse a sí mismo, solo como OPERADOR, y con el correo
-      // verificado por Google: no puede nombrarse ADMIN.
-      allow create: if request.auth != null
-                 && request.auth.uid == uid
-                 && dominioCorporativo()
-                 && request.resource.data.rol == 'OPERADOR'
-                 && request.resource.data.activo == true
-                 && request.resource.data.uid == uid
-                 && request.resource.data.email == request.auth.token.email;
+      // Dos formas de nacer, y ninguna deja elegirse el rol:
+      //
+      // 1. Alta automática al entrar con Google. Solo puede crearse a sí mismo,
+      //    solo como OPERADOR, y con el correo verificado por Google.
+      // 2. Alta hecha por un administrador, para los operarios que entran con
+      //    usuario y contraseña. Una contraseña no verifica el correo, así que
+      //    ese camino NO puede ser automático: alguien con acceso a la app
+      //    podría reclamar cualquier dirección del dominio. Lo decide una
+      //    persona, y esa persona ya es administrador.
+      allow create: if (request.auth != null
+                        && request.auth.uid == uid
+                        && dominioCorporativo()
+                        && request.resource.data.rol == 'OPERADOR'
+                        && request.resource.data.activo == true
+                        && request.resource.data.uid == uid
+                        && request.resource.data.email == request.auth.token.email)
+                 || (esAdmin()
+                     && request.resource.data.uid == uid
+                     && request.resource.data.rol in ['OPERADOR', 'SUPERVISOR', 'ADMIN']
+                     && request.resource.data.email is string
+                     && request.resource.data.email.matches('(?i).*@itsanet[.]com'));
 
       // Promover, degradar o desactivar: solo un administrador.
       allow update: if esAdmin()

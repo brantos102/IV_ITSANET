@@ -1,10 +1,13 @@
 /**
  * Autenticación con Google corporativo y alta automática del operario.
  */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { initializeApp, deleteApp }
+  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   getRedirectResult, signOut, onAuthStateChanged,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, serverTimestamp,
@@ -57,6 +60,110 @@ export async function recogerRedirect() {
   }
 }
 
+
+// =========================================================================== //
+// Acceso con usuario y contraseña
+// =========================================================================== //
+/**
+ * Por qué existe este camino además del de Google.
+ *
+ * Los handheld son compartidos: varios operarios por turno, en un navegador
+ * que ya arrastra las cuentas personales de quien lo usó antes. El selector de
+ * Google obliga a elegir entre esas cuentas en cada relevo, y basta equivocarse
+ * una vez para quedarse fuera sin saber por qué.
+ *
+ * Con usuario y contraseña el relevo es escribir dos campos. El administrador
+ * da de alta a cada operario; nadie se registra solo. Es además lo que se pidió
+ * desde el principio: que el operario no pueda hacerse pasar por otro.
+ *
+ * Google se queda para supervisores y administradores, que entran desde su
+ * propio equipo.
+ */
+
+/** Completa un usuario suelto a correo del dominio: «jperez» → jperez@itsanet.com */
+export function aCorreo(entrada) {
+  const v = String(entrada || '').trim().toLowerCase();
+  if (!v) return '';
+  return v.includes('@') ? v : `${v}@${DOMINIO.toLowerCase()}`;
+}
+
+export async function entrarConClave(usuarioOCorreo, clave) {
+  const correo = aCorreo(usuarioOCorreo);
+  if (!correo) throw new Error('Escribe tu usuario.');
+  if (!clave) throw new Error('Escribe tu contraseña.');
+  const cred = await signInWithEmailAndPassword(auth, correo, clave);
+  return cred.user;
+}
+
+/**
+ * Da de alta a un operario sin perder la sesión de quien lo crea.
+ *
+ * `createUserWithEmailAndPassword` deja la sesión abierta como el usuario
+ * recién creado. En el Admin SDK eso no pasa, pero el Admin SDK necesita Cloud
+ * Functions y el plan de pago. La salida en Spark es crear el usuario en una
+ * SEGUNDA instancia de la app: nace ahí, se cierra esa sesión y se desecha la
+ * instancia. La sesión del administrador ni se entera.
+ */
+export async function crearOperario({ usuario, clave, nombre, rol = 'OPERADOR' }) {
+  const correo = aCorreo(usuario);
+  if (!dominioValido(correo)) {
+    throw new Error(`El usuario debe ser del dominio @${DOMINIO}.`);
+  }
+  if (!clave || clave.length < 6) {
+    throw new Error('La contraseña necesita al menos 6 caracteres.');
+  }
+  if (!['OPERADOR', 'SUPERVISOR', 'ADMIN'].includes(rol)) {
+    throw new Error('Rol no válido.');
+  }
+
+  const secundaria = initializeApp(firebaseConfig, 'alta-' + Date.now());
+  try {
+    const authSec = getAuth(secundaria);
+    const cred = await createUserWithEmailAndPassword(authSec, correo, clave);
+    const nombreFinal = limpiarNombre(nombre) || correo.split('@')[0];
+    await updateProfile(cred.user, { displayName: nombreFinal });
+
+    // El perfil lo escribe el administrador con SU sesión: el operario recién
+    // creado todavía no tiene permiso para nada.
+    await setDoc(doc(db, 'usuarios', cred.user.uid), {
+      uid: cred.user.uid,
+      email: correo,
+      nombre: nombreFinal,
+      foto: null,
+      rol,
+      activo: true,
+      tipoAcceso: 'CLAVE',
+      creadoEn: serverTimestamp(),
+    });
+
+    await signOut(authSec);
+    return { uid: cred.user.uid, email: correo, nombre: nombreFinal, rol };
+  } finally {
+    await deleteApp(secundaria).catch(() => {});
+  }
+}
+
+const limpiarNombre = (v) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+/** Cambio de contraseña por el propio operario. Google exige la actual. */
+export async function cambiarClave(claveActual, claveNueva) {
+  const u = auth.currentUser;
+  if (!u) throw new Error('No hay sesión iniciada.');
+  if (!claveNueva || claveNueva.length < 6) {
+    throw new Error('La contraseña nueva necesita al menos 6 caracteres.');
+  }
+  await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, claveActual));
+  await updatePassword(u, claveNueva);
+}
+
+/** Dice si la sesión actual entró con contraseña o con Google. */
+export function tipoDeAcceso(usuario) {
+  const ids = (usuario?.providerData || []).map((p) => p.providerId);
+  if (ids.includes('google.com')) return 'GOOGLE';
+  if (ids.includes('password')) return 'CLAVE';
+  return 'DESCONOCIDO';
+}
+
 export async function salir() {
   await signOut(auth);
 }
@@ -99,6 +206,17 @@ export async function asegurarPerfil(usuario) {
     return { ...snap.data(), nuevo: false };
   }
 
+  // Quien entra con contraseña no puede darse de alta a sí mismo: las reglas
+  // exigen un correo verificado por Google para el alta automática, y una
+  // contraseña no verifica nada. Sin esto, el operario vería un error de
+  // permisos en bruto en vez de saber qué le falta.
+  if (tipoDeAcceso(usuario) === 'CLAVE') {
+    throw new Error(
+      `La cuenta ${usuario.email} existe pero no está dada de alta en la ` +
+      'aplicación. Pídele a un administrador que te registre en Usuarios.',
+    );
+  }
+
   const perfil = {
     uid: usuario.uid,
     email: usuario.email,
@@ -106,6 +224,7 @@ export async function asegurarPerfil(usuario) {
     foto: usuario.photoURL || null,
     rol: 'OPERADOR',
     activo: true,
+    tipoAcceso: 'GOOGLE',
     creadoEn: serverTimestamp(),
   };
   await setDoc(ref, perfil);
@@ -164,7 +283,26 @@ export function traducirError(e) {
     'auth/network-request-failed':
       'Sin conexión. Revisa el WiFi del dispositivo.',
     'auth/operation-not-allowed':
-      'El acceso con Google no está activado. Authentication → Sign-in method → Google.',
+      'Ese método de acceso no está activado en Firebase. ' +
+      'Authentication → Sign-in method → activa Google y Correo/contraseña.',
+    'auth/invalid-credential':
+      'Usuario o contraseña incorrectos.',
+    'auth/wrong-password':
+      'Contraseña incorrecta.',
+    'auth/user-not-found':
+      'Ese usuario no existe. Pídele a un administrador que te dé de alta.',
+    'auth/invalid-email':
+      'El usuario no tiene forma de correo válida.',
+    'auth/user-disabled':
+      'Esta cuenta está deshabilitada en Firebase.',
+    'auth/too-many-requests':
+      'Demasiados intentos fallidos. Espera unos minutos o pide que te cambien la contraseña.',
+    'auth/email-already-in-use':
+      'Ya existe un usuario con ese correo.',
+    'auth/weak-password':
+      'La contraseña es demasiado corta: mínimo 6 caracteres.',
+    'auth/requires-recent-login':
+      'Por seguridad, vuelve a entrar antes de cambiar la contraseña.',
     'permission-denied':
       'Las reglas de Firestore rechazaron la operación. ¿Se desplegaron las reglas?',
     'unavailable':

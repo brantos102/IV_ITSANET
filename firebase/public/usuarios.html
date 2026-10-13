@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Usuarios — ITSANET IMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>👤</text></svg>">
+</head>
+<body>
+<div class="envoltorio">
+
+<header>
+  <div>
+    <div class="marca">ITSANET <span>IMS</span></div>
+    <div class="sub">Usuarios</div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="/"><button class="b-sec">Volver</button></a>
+</header>
+
+<div id="avisos"></div>
+
+<div class="panel oculto" id="sinPermiso">
+  <h2>Sin permiso</h2>
+  <p>Solo un supervisor o un administrador puede ver esta página.</p>
+</div>
+
+<div id="panelUsuarios" class="oculto">
+
+  <!-- Alta -->
+  <div class="panel oculto" id="panelAlta">
+    <h2>Dar de alta un operario</h2>
+    <p>El operario entra con <b>usuario y contraseña</b>, sin pasar por el
+       selector de cuentas de Google. Es lo que necesita un handheld compartido:
+       en el relevo se escriben dos campos y listo.</p>
+
+    <div class="rejilla">
+      <label class="campo"><span>Usuario *</span>
+        <input id="fUsuario" placeholder="jperez" autocapitalize="none"
+               spellcheck="false">
+        <span class="mini">Se completa a <code id="ejemploCorreo">jperez@itsanet.com</code>.
+          No hace falta que exista el buzón.</span></label>
+      <label class="campo"><span>Nombre y apellido *</span>
+        <input id="fNombre" placeholder="Juan Pérez"
+               style="font-family:var(--font-ui)"></label>
+      <label class="campo"><span>Contraseña *</span>
+        <input id="fClave" type="text" autocomplete="off" placeholder="mínimo 6 caracteres">
+        <span class="mini">Visible a propósito: la entregas tú. El operario
+          puede cambiarla al entrar.</span></label>
+      <label class="campo"><span>Rol</span>
+        <select id="fRol">
+          <option value="OPERADOR">Operario — escanea y cuenta</option>
+          <option value="SUPERVISOR">Supervisor — además crea y cierra recepciones</option>
+          <option value="ADMIN">Administrador — además credenciales y usuarios</option>
+        </select></label>
+    </div>
+
+    <div class="acciones">
+      <button class="b-primario" id="bCrear">Crear usuario</button>
+      <button class="b-sec" id="bSugerir">Sugerir contraseña</button>
+    </div>
+    <div id="resAlta"></div>
+  </div>
+
+  <!-- Listado -->
+  <div class="panel">
+    <h2>Usuarios registrados</h2>
+    <p>Desactivar a alguien le corta el acceso en el acto, sin esperar a que
+       caduque su sesión. Nada de lo que contó se borra.</p>
+    <div class="tabla-env">
+      <table>
+        <thead><tr>
+          <th>Usuario</th><th>Nombre</th><th>Acceso</th><th>Rol</th>
+          <th>Estado</th><th></th>
+        </tr></thead>
+        <tbody id="tUsuarios"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cambio de contraseña propio -->
+  <div class="panel oculto" id="panelClave">
+    <h2>Cambiar mi contraseña</h2>
+    <p>Solo para quien entró con usuario y contraseña.</p>
+    <div class="rejilla">
+      <label class="campo"><span>Contraseña actual</span>
+        <input id="fClaveActual" type="password" autocomplete="current-password"></label>
+      <label class="campo"><span>Contraseña nueva</span>
+        <input id="fClaveNueva" type="password" autocomplete="new-password"></label>
+    </div>
+    <div class="acciones">
+      <button class="b-sec" id="bCambiarClave">Cambiar</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script type="module">
+import {
+  observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
+  aCorreo, db, auth,
+} from './js/auth.js';
+import { collection, getDocs, doc, updateDoc }
+  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { DOMINIO } from './js/config.js';
+
+const $ = (id) => document.getElementById(id);
+let perfil = null, usuario = null;
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '', donde = 'avisos') {
+  const d = document.createElement('div');
+  d.className = 'msg ' + tipo;
+  d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
+  $(donde).appendChild(d);
+  return d;
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+
+observarSesion(async (e) => {
+  if (e.error) aviso(e.error, 'err');
+  if (!e.usuario) { location.href = '/'; return; }
+  usuario = e.usuario; perfil = e.perfil;
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  if (!['SUPERVISOR', 'ADMIN'].includes(perfil?.rol)) {
+    $('sinPermiso').classList.remove('oculto');
+    return;
+  }
+  $('panelUsuarios').classList.remove('oculto');
+  if (perfil.rol === 'ADMIN') $('panelAlta').classList.remove('oculto');
+  if (tipoDeAcceso(usuario) === 'CLAVE') $('panelClave').classList.remove('oculto');
+
+  listar();
+});
+
+// --- Listado ------------------------------------------------------------- //
+async function listar() {
+  $('tUsuarios').innerHTML = '<tr><td colspan="6" class="mini">Cargando…</td></tr>';
+  try {
+    const snap = await getDocs(collection(db, 'usuarios'));
+    const filas = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+
+    const esAdmin = perfil.rol === 'ADMIN';
+    $('tUsuarios').innerHTML = filas.length ? filas.map((u) => {
+      const yo = u.uid === usuario.uid;
+      const clase = { ADMIN: 'p-err', SUPERVISOR: 'p-info', OPERADOR: 'p-off' };
+      return `<tr>
+        <td class="id" style="font-size:12px">${esc(u.email || '')}</td>
+        <td>${esc(u.nombre || '')}${yo ? ' <span class="mini">(tú)</span>' : ''}</td>
+        <td><span class="pastilla p-off">${u.tipoAcceso === 'CLAVE' ? 'CLAVE' : 'GOOGLE'}</span></td>
+        <td>${esAdmin && !yo ? `
+          <select data-rol="${esc(u.uid)}" style="padding:7px 9px;font-size:12px">
+            ${['OPERADOR', 'SUPERVISOR', 'ADMIN'].map((r) =>
+              `<option value="${r}"${u.rol === r ? ' selected' : ''}>${r}</option>`).join('')}
+          </select>` : `<span class="pastilla ${clase[u.rol] || 'p-off'}">${esc(u.rol || '')}</span>`}</td>
+        <td><span class="pastilla ${u.activo === false ? 'p-err' : 'p-ok'}">
+            ${u.activo === false ? 'INACTIVO' : 'ACTIVO'}</span></td>
+        <td>${esAdmin && !yo
+          ? `<button class="b-sec" data-activo="${esc(u.uid)}" data-valor="${u.activo === false}">
+               ${u.activo === false ? 'Activar' : 'Desactivar'}</button>`
+          : ''}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="mini">Ninguno todavía.</td></tr>';
+  } catch (e) {
+    $('tUsuarios').innerHTML =
+      `<tr><td colspan="6" class="mini">${esc(traducirError(e))}</td></tr>`;
+  }
+}
+
+// Cambiar rol y activar/desactivar, sin recargar la página entera.
+$('tUsuarios').addEventListener('change', async (ev) => {
+  const uid = ev.target.dataset.rol;
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'usuarios', uid), { rol: ev.target.value });
+    limpiarAvisos();
+    aviso(`Rol cambiado a ${ev.target.value}. Surte efecto de inmediato.`, 'ok');
+  } catch (e) { aviso(traducirError(e), 'err'); listar(); }
+});
+
+$('tUsuarios').addEventListener('click', async (ev) => {
+  const uid = ev.target.dataset.activo;
+  if (!uid) return;
+  const activar = ev.target.dataset.valor === 'true';
+  try {
+    await updateDoc(doc(db, 'usuarios', uid), { activo: activar });
+    limpiarAvisos();
+    aviso(activar ? 'Usuario activado.' : 'Usuario desactivado: ya no puede entrar.', 'ok');
+    listar();
+  } catch (e) { aviso(traducirError(e), 'err'); }
+});
+
+// --- Alta ---------------------------------------------------------------- //
+$('fUsuario').addEventListener('input', () => {
+  $('ejemploCorreo').textContent = aCorreo($('fUsuario').value) || `usuario@${DOMINIO}`;
+});
+
+// Contraseña fácil de dictar por radio y de teclear con guantes: sin
+// caracteres que se confundan (O/0, l/1) y sin símbolos.
+$('bSugerir').addEventListener('click', () => {
+  const letras = 'abcdefghjkmnpqrstuvwxyz';
+  const numeros = '23456789';
+  const al = (s) => s[Math.floor(Math.random() * s.length)];
+  $('fClave').value =
+    [...Array(4)].map(() => al(letras)).join('') +
+    [...Array(3)].map(() => al(numeros)).join('');
+});
+
+$('bCrear').addEventListener('click', async () => {
+  $('resAlta').innerHTML = '';
+  limpiarAvisos();
+  $('bCrear').disabled = true;
+  try {
+    const r = await crearOperario({
+      usuario: $('fUsuario').value,
+      clave: $('fClave').value,
+      nombre: $('fNombre').value,
+      rol: $('fRol').value,
+    });
+    // Se muestran los datos una sola vez: la contraseña no se guarda en ningún
+    // sitio legible, ni aquí ni en Firebase.
+    $('resAlta').innerHTML = `
+      <div class="msg ok" style="margin-top:16px">
+        <b>Creado — entrégale estos datos</b>
+        <div class="tabla-env" style="margin-top:8px"><table><tbody>
+          <tr><td>Enlace</td><td class="id">${location.origin}</td></tr>
+          <tr><td>Usuario</td><td class="id">${esc(r.email)}</td></tr>
+          <tr><td>Contraseña</td><td class="id">${esc($('fClave').value)}</td></tr>
+          <tr><td>Rol</td><td class="id">${esc(r.rol)}</td></tr>
+        </tbody></table></div>
+        Esta contraseña no se vuelve a mostrar. Si se pierde, crea otra desde
+        Firebase → Authentication.
+      </div>`;
+    $('fUsuario').value = ''; $('fNombre').value = ''; $('fClave').value = '';
+    listar();
+  } catch (e) {
+    aviso(traducirError(e), 'err', 'No se creó');
+  } finally {
+    $('bCrear').disabled = false;
+  }
+});
+
+// --- Mi contraseña -------------------------------------------------------- //
+$('bCambiarClave').addEventListener('click', async () => {
+  limpiarAvisos();
+  try {
+    await cambiarClave($('fClaveActual').value, $('fClaveNueva').value);
+    $('fClaveActual').value = ''; $('fClaveNueva').value = '';
+    aviso('Contraseña cambiada.', 'ok');
+  } catch (e) {
+    aviso(traducirError(e), 'err', 'No se cambió');
+  }
+});
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>

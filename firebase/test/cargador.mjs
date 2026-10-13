@@ -1,10 +1,9 @@
 /**
  * Carga los módulos del navegador en Node.
  *
- * Los módulos importan el SDK de Firebase desde gstatic y `db` desde auth.js,
- * que inicializa la app real. Aquí se reescriben esos imports a stubs locales,
- * así la lógica pura (normalización, reparto por línea, resumen) se prueba sin
- * red ni credenciales.
+ * Los módulos importan el SDK de Firebase desde gstatic, que no existe aquí.
+ * Se reescribe ese import a un doble local y todo lo demás —incluido auth.js—
+ * se carga tal cual, así la lógica pura se prueba sin red ni credenciales.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,12 +35,23 @@ export const runTransaction = async (db, fn) => fn({
 });
 export const increment = (n) => ({ __inc: n });
 export const getFirestore = () => ({});
+export const enableIndexedDbPersistence = async () => {};
 export const initializeApp = () => ({});
+export const deleteApp = async () => {};
 export const getAuth = () => ({ currentUser: null });
+export class GoogleAuthProvider { setCustomParameters() {} }
+export const signInWithPopup = async () => ({ user: null });
+export const signInWithRedirect = async () => {};
+export const getRedirectResult = async () => null;
+export const signOut = async () => {};
+export const onAuthStateChanged = () => () => {};
+export const signInWithEmailAndPassword = async () => ({ user: null });
+export const createUserWithEmailAndPassword = async () => ({ user: null });
+export const updatePassword = async () => {};
+export const updateProfile = async () => {};
+export const reauthenticateWithCredential = async () => {};
+export const EmailAuthProvider = { credential: () => ({}) };
 `;
-
-const STUB_AUTH = `export const db = {}; export const auth = { currentUser: null };
-export const app = {};`;
 
 let dir = null;
 
@@ -50,10 +60,12 @@ export function preparar() {
   if (dir) return dir;
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iv-'));
   fs.writeFileSync(path.join(dir, 'sdk-stub.mjs'), STUB_SDK);
-  fs.writeFileSync(path.join(dir, 'auth.js'), STUB_AUTH);
 
+  // auth.js se carga TAL CUAL, no con un doble: así se prueban de verdad
+  // `aCorreo`, `dominioValido` y la traducción de errores, que es donde el
+  // operario se queda plantado cuando algo falla.
   for (const f of fs.readdirSync(path.join(PUBLIC, 'js'))) {
-    if (!f.endsWith('.js') || f === 'auth.js') continue;
+    if (!f.endsWith('.js')) continue;
     const codigo = fs.readFileSync(path.join(PUBLIC, 'js', f), 'utf8')
       .replace(/'https:\/\/www\.gstatic\.com\/firebasejs\/[^']+'/g, "'./sdk-stub.mjs'");
     fs.writeFileSync(path.join(dir, f), codigo);

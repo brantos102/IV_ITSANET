@@ -9,6 +9,7 @@
  */
 import { cargar, test, eq, ok, resumen } from './cargador.mjs';
 
+const auth = await cargar('auth.js');
 const datos = await cargar('datos.js');
 const conteo = await cargar('conteo.js');
 const informe = await cargar('informe.js');
@@ -171,6 +172,45 @@ await test('la línea declarada en 0 admite lo que llegó físicamente', () => {
   const r = informe.repartirPorLinea(LINEAS_VW, { '5G0998225': 4 });
   eq(r[4].fisica, 4);
   eq(r[4].diferencia, 4);
+});
+
+// ============================== Acceso ==================================== //
+// El operario escribe su usuario, no su correo: con guantes, en un handheld y
+// en el relevo de turno, cada carácter de más es un intento fallido.
+await test('aCorreo completa el usuario suelto al dominio', () => {
+  eq(auth.aCorreo('jperez'), 'jperez@itsanet.com');
+  eq(auth.aCorreo('  JPerez  '), 'jperez@itsanet.com');
+  eq(auth.aCorreo('jperez@itsanet.com'), 'jperez@itsanet.com');
+  eq(auth.aCorreo('JPEREZ@ITSANET.COM'), 'jperez@itsanet.com', 'minúsculas');
+  eq(auth.aCorreo(''), '', 'vacío sigue vacío, no "@itsanet.com"');
+  eq(auth.aCorreo(null), '');
+});
+
+await test('aCorreo no toca un correo de otro dominio', () => {
+  // Que lo rechace es tarea de dominioValido, no de aquí: completar a ciegas
+  // convertiría «juan@gmail.com» en algo que parece corporativo.
+  eq(auth.aCorreo('juan@gmail.com'), 'juan@gmail.com');
+  ok(!auth.dominioValido('juan@gmail.com'));
+  ok(auth.dominioValido('jperez@itsanet.com'));
+  ok(!auth.dominioValido('jperez@itsanetXcom'), 'el punto no es un comodín');
+  ok(!auth.dominioValido(null));
+});
+
+await test('tipoDeAcceso distingue la contraseña de Google', () => {
+  eq(auth.tipoDeAcceso({ providerData: [{ providerId: 'password' }] }), 'CLAVE');
+  eq(auth.tipoDeAcceso({ providerData: [{ providerId: 'google.com' }] }), 'GOOGLE');
+  eq(auth.tipoDeAcceso({ providerData: [] }), 'DESCONOCIDO');
+  eq(auth.tipoDeAcceso(null), 'DESCONOCIDO', 'sin sesión no debe reventar');
+});
+
+await test('traducirError explica qué hacer, no el código', () => {
+  const m = auth.traducirError({ code: 'auth/invalid-credential' });
+  ok(/incorrect/i.test(m), m);
+  ok(/administrador/i.test(auth.traducirError({ code: 'auth/user-not-found' })));
+  ok(/6 caracteres/.test(auth.traducirError({ code: 'auth/weak-password' })));
+  // Un código desconocido no puede quedarse en blanco.
+  ok(auth.traducirError({ code: 'auth/algo-nuevo', message: 'vaya' }).length > 0);
+  ok(auth.traducirError(null).length > 0, 'ni siquiera con null');
 });
 
 resumen();

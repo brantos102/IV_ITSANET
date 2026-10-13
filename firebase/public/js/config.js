@@ -10,7 +10,18 @@
  */
 export const firebaseConfig = {
   apiKey: 'AIzaSyBCfPBE9YryYl8EX0vOVIgKQv2ZVro8ziM',
-  authDomain: 'iv-itsanet.firebaseapp.com',
+  // El MISMO origen que sirve la app, no `iv-itsanet.firebaseapp.com`.
+  //
+  // El acceso con Google por redirección deja un dato en el dominio de
+  // `authDomain` y lo recoge al volver. Cuando ese dominio es distinto al de la
+  // app, el navegador lo trata como almacenamiento de terceros y lo aísla:
+  // Chrome y Safari en los handheld llevan años restringiéndolo. El resultado
+  // es exactamente lo que se ve: eliges la cuenta, Google te devuelve, y la
+  // sesión no queda. Sin error, sin pista.
+  //
+  // Firebase Hosting sirve el manejador de acceso también en el dominio propio,
+  // así que apuntando aquí al mismo origen desaparece el problema.
+  authDomain: 'iv-itsanet.web.app',
   projectId: 'iv-itsanet',
   storageBucket: 'iv-itsanet.firebasestorage.app',
   messagingSenderId: '601300841441',
