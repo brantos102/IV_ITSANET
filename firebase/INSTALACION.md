@@ -81,6 +81,11 @@ consola de Firebase. Lo que hacen es subir los archivos del proyecto a Firebase.
 **Windows:** tecla Windows → escribe `powershell` → Enter.
 **Mac:** Cmd+Espacio → escribe `terminal` → Enter.
 
+> **No la abras como administrador.** No hace falta para nada de esto, y
+> arranca en `C:\WINDOWS\system32`, donde acabarías descargando el proyecto
+> por error. La terminal normal arranca en tu carpeta de usuario, que es donde
+> debe ir.
+
 Verás una ventana donde se escriben comandos y se pulsa Enter después de cada
 uno. Espera a que termine cada comando antes del siguiente.
 
@@ -106,14 +111,39 @@ git --version
 Deben responder con un número de versión. Si alguno dice "no se reconoce el
 comando", no se instaló o no reabriste la terminal.
 
+### Por qué el `-b` del comando
+
+El proyecto vive en la rama `pr_bep/serene-thompson-10qlxd`, no en `main`.
+`main` solo tiene el README inicial.
+
+Sin `-b`, Git descarga `main` y te deja una carpeta casi vacía: no existirá
+`firebase`, y `firebase use --add` dirá *"must be run from a Firebase project
+directory"*. **No es que falte instalar nada: es que no se descargó el
+proyecto.**
+
+Para comprobar qué rama tienes:
+
+```bash
+git branch --show-current
+```
+
+Debe responder `pr_bep/serene-thompson-10qlxd`. Si dice `main`:
+
+```bash
+git checkout pr_bep/serene-thompson-10qlxd
+```
+
 ### Si prefieres no instalar Git
 
 Puedes descargar el proyecto como archivo comprimido:
 
-1. Entra a [github.com/brantos102/IV_ITSANET](https://github.com/brantos102/IV_ITSANET)
+1. Entra a [la rama del proyecto](https://github.com/brantos102/IV_ITSANET/tree/pr_bep/serene-thompson-10qlxd)
 2. Botón verde **Code** → **Download ZIP**
-3. Descomprime donde quieras, por ejemplo en `Documentos`
+3. Descomprime en `Documentos`
 4. En la terminal, entra a esa carpeta con `cd` (ver abajo)
+
+> **Asegúrate de descargar el ZIP desde ese enlace**, que apunta a la rama. El
+> ZIP de la página principal trae `main`, que está vacío.
 
 Con Git es más cómodo para actualizar después, pero el ZIP funciona igual.
 
@@ -409,7 +439,7 @@ npm install -g firebase-tools
 ### Clonar y vincular
 
 ```bash
-git clone https://github.com/brantos102/IV_ITSANET.git
+git clone -b pr_bep/serene-thompson-10qlxd https://github.com/brantos102/IV_ITSANET.git
 cd IV_ITSANET/firebase
 firebase use --add          # elige IV ITSANET, alias: default
 ```
@@ -737,7 +767,7 @@ primero son las escrituras de Firestore.
 # Preparar
 npm install -g firebase-tools
 firebase login
-git clone https://github.com/brantos102/IV_ITSANET.git
+git clone -b pr_bep/serene-thompson-10qlxd https://github.com/brantos102/IV_ITSANET.git
 cd IV_ITSANET/firebase
 firebase use --add
 cd functions && npm install && npm test && cd ..
