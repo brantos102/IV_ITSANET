@@ -50,10 +50,18 @@ service cloud.firestore {
     match /productos/{sku}   { allow read: if activo(); allow write: if false; }
     match /codigos/{codigo}  { allow read: if activo(); allow write: if false; }
 
-    // Credenciales de Depot: ilegibles desde cualquier cliente, siempre.
+    // Configuracion de Depot: el panel solo puede leer el documento publico
+    // (URL, cliente, mascara de la credencial). Lista blanca, no lista negra:
+    // con una lista negra, cada documento nuevo nace legible por descuido.
     match /config/{doc} {
-      allow read: if esAdmin() && doc != 'depot_secreto';
+      allow read: if esAdmin() && doc == 'depot';
       allow write: if false;   // solo por Cloud Function
+    }
+
+    // Estado interno: token cacheado de Depot y similares. Ningun cliente lo
+    // lee, ni siquiera un ADMIN. El Admin SDK de las Functions salta reglas.
+    match /_internal/{doc} {
+      allow read, write: if false;
     }
 
     // ------------------------------------------------------------------ //

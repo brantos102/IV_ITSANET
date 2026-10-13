@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "engines": { "node": "20" },
   "scripts": {
-    "test": "node test/conteo.test.js && node test/admin.test.js",
+    "test": "node test/conteo.test.js && node test/admin.test.js && node test/token.test.js",
     "serve": "firebase emulators:start --only functions,firestore,auth,storage",
     "deploy": "firebase deploy --only functions"
   },

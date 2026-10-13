@@ -11,6 +11,7 @@
 'use strict';
 
 const { normalizarCodigo, limpiar } = require('./normalize');
+const { TokenProvider } = require('./token');
 
 /**
  * Rutas de la API. PENDIENTE: confirmar contra la documentación del WMS.
@@ -65,11 +66,11 @@ class DepotAdapter {
  * Corta la espera sin dejar la petición colgada.
  * En bodega, una API lenta no puede congelar el escáner.
  */
-async function fetchConTimeout(url, opciones, ms) {
+async function fetchConTimeout(url, opciones, ms, fetchFn = globalThis.fetch) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { ...opciones, signal: ctrl.signal });
+    return await fetchFn(url, { ...opciones, signal: ctrl.signal });
   } finally {
     clearTimeout(t);
   }
@@ -100,18 +101,37 @@ class HttpDepotAdapter extends DepotAdapter {
    * @param {string} [cfg.clave]
    * @param {string} [cfg.cliente]      Identificador del cliente en el WMS
    */
-  constructor(cfg) {
+  /**
+   * @param {object} cfg
+   * @param {TokenProvider} [tokenProvider] si el WMS exige login previo
+   */
+  constructor(cfg, tokenProvider = null, fetchFn = null) {
     super();
     if (!cfg || !cfg.baseUrl) throw new DepotError('Falta la URL base de Depot', { codigo: 'SIN_CONFIG' });
     this.baseUrl = String(cfg.baseUrl).replace(/\/+$/, '');
     this.cfg = cfg;
+    this.tokens = tokenProvider;
+    // Inyectable: lo usan las pruebas, y en produccion permite anteponer un
+    // proxy corporativo o trazas sin modificar esta clase.
+    this.fetchFn = fetchFn || (tokenProvider && tokenProvider.fetchFn) || globalThis.fetch;
     this.breaker = new CircuitBreaker();
   }
 
-  cabeceras() {
+  /**
+   * Cabeceras con el token vigente.
+   *
+   * Tres modos, según lo que ofrezca el WMS:
+   *   - `tokenProvider`  el WMS exige login; el token se pide una vez y se
+   *                      reutiliza todo el día.
+   *   - `cfg.token`      token fijo emitido a mano desde el panel.
+   *   - `usuario/clave`  autenticación básica en cada llamada.
+   */
+  async cabeceras() {
     const h = { Accept: 'application/json', 'Content-Type': 'application/json' };
-    if (this.cfg.token) {
-      h.Authorization = `Bearer ${this.cfg.token}`;
+    if (this.tokens) {
+      h.Authorization = `${this.cfg.prefijoToken || 'Bearer'} ${await this.tokens.obtener()}`;
+    } else if (this.cfg.token) {
+      h.Authorization = `${this.cfg.prefijoToken || 'Bearer'} ${this.cfg.token}`;
     } else if (this.cfg.usuario) {
       const b64 = Buffer.from(`${this.cfg.usuario}:${this.cfg.clave || ''}`).toString('base64');
       h.Authorization = `Basic ${b64}`;
@@ -146,10 +166,15 @@ class HttpDepotAdapter extends DepotAdapter {
     return null;
   }
 
-  async pedir(url) {
+  /**
+   * @param {string} url
+   * @param {boolean} yaReintento  evita un bucle de renovación
+   */
+  async pedir(url, yaReintento = false) {
     let r;
     try {
-      r = await fetchConTimeout(url, { method: 'GET', headers: this.cabeceras() }, TIMEOUT_MS);
+      r = await fetchConTimeout(url, { method: 'GET', headers: await this.cabeceras() },
+                                TIMEOUT_MS, this.fetchFn);
     } catch (e) {
       this.breaker.fallo();
       throw new DepotError(`Depot inalcanzable: ${e.message}`, {
@@ -159,7 +184,14 @@ class HttpDepotAdapter extends DepotAdapter {
 
     if (r.status === 404) { this.breaker.exito(); return null; }
     if (r.status === 401 || r.status === 403) {
-      // Credencial mala: reintentar no lo arregla y no debe abrir el circuito.
+      // El WMS puede revocar un token antes de su vencimiento. Si tenemos
+      // proveedor, se renueva y se reintenta UNA vez; si vuelve a fallar, la
+      // credencial es mala de verdad y reintentar no lo arregla.
+      if (this.tokens && !yaReintento) {
+        await this.tokens.invalidar();
+        await this.tokens.obtener(true);
+        return this.pedir(url, true);
+      }
       throw new DepotError('Depot rechazó las credenciales', { codigo: 'NO_AUTORIZADO' });
     }
     if (!r.ok) {
@@ -187,8 +219,8 @@ class HttpDepotAdapter extends DepotAdapter {
         const tanda = unicos.slice(i, i + LOTE_MAX);
         const r = await fetchConTimeout(
           `${this.baseUrl}${RUTAS.lote}`,
-          { method: 'POST', headers: this.cabeceras(), body: JSON.stringify({ codigos: tanda }) },
-          TIMEOUT_MS * 3,
+          { method: 'POST', headers: await this.cabeceras(), body: JSON.stringify({ codigos: tanda }) },
+          TIMEOUT_MS * 3, this.fetchFn,
         );
         if (!r.ok) throw new DepotError(`Depot respondió ${r.status} en consulta por lote`);
         const cuerpo = await r.json();
@@ -216,8 +248,8 @@ class HttpDepotAdapter extends DepotAdapter {
   async crearProducto(datos) {
     const r = await fetchConTimeout(
       `${this.baseUrl}${RUTAS.crear}`,
-      { method: 'POST', headers: this.cabeceras(), body: JSON.stringify(datos) },
-      TIMEOUT_MS * 2,
+      { method: 'POST', headers: await this.cabeceras(), body: JSON.stringify(datos) },
+      TIMEOUT_MS * 2, this.fetchFn,
     );
     if (!r.ok) throw new DepotError(`Depot respondió ${r.status} al crear el producto`);
     return mapearProducto(await r.json());
@@ -313,9 +345,9 @@ class MockDepotAdapter extends DepotAdapter {
  * antes de tener la API real. El `|| []` importa: un `null` no dispara el valor
  * por defecto del parámetro, solo un `undefined`.
  */
-function crearAdaptador(cfg) {
+function crearAdaptador(cfg, tokenProvider = null, fetchFn = null) {
   if (!cfg || !cfg.baseUrl) return new MockDepotAdapter((cfg && cfg.semilla) || []);
-  return new HttpDepotAdapter(cfg);
+  return new HttpDepotAdapter(cfg, tokenProvider, fetchFn);
 }
 
 module.exports = {

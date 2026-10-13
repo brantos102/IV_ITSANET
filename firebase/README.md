@@ -1,7 +1,11 @@
 # VAL VENTURA v3 — Firebase
 
-Tercera arquitectura de la app de validación física. Ver
-[`ARQUITECTURA.md`](ARQUITECTURA.md) para el análisis que llevó a ella.
+Tercera arquitectura de la app de validación física.
+
+| Documento | Para qué |
+|---|---|
+| [`INSTALACION.md`](INSTALACION.md) | **Empieza aquí.** De cero a la app en los handheld |
+| [`ARQUITECTURA.md`](ARQUITECTURA.md) | El análisis que llevó a este diseño |
 
 **Firebase es Google Cloud**, así que cumple la política de TI de no salir de
 Google, y además elimina el techo de rendimiento de Apps Script.
@@ -33,6 +37,7 @@ tiene índices.
 | Modelo de datos y reglas de seguridad | Listo |
 | Registro de conteos (transaccional, idempotente) | Listo · 21 pruebas |
 | Administración de operarios y credenciales | Listo · 15 pruebas |
+| Token de Depot: obtención y reutilización diaria | Listo · 17 pruebas |
 | Adaptador de Depot + resolución de códigos | Listo, contra mock |
 | Importador del packing list | Pendiente |
 | Cierre, informe por correo y exportación | Pendiente |
@@ -40,7 +45,7 @@ tiene índices.
 | Conexión a la API real de Depot | **Bloqueado**: faltan los endpoints |
 
 ```bash
-cd functions && npm test      # 36 pruebas, sin desplegar nada
+cd functions && npm test      # 53 pruebas, sin desplegar nada
 ```
 
 Las pruebas corren sobre un simulador de Firestore que implementa transacciones
@@ -130,6 +135,29 @@ match /config/{doc} {
 ```
 
 ---
+
+## Token de Depot
+
+El WMS se consulta con un token que se pide **una vez y se reutiliza toda la
+jornada**. Un login por escaneo sería lento, y muchas APIs de WMS limitan los
+intentos de login.
+
+```
+Escaneo → memoria del proceso   → 0 ms
+            ↓ vacía (arranque en frío)
+          Firestore             → ~30 ms, compartido entre instancias
+            ↓ vencido
+          login contra el WMS   → ~500 ms, una vez al día
+```
+
+- Si diez instancias arrancan a la vez, se coordinan por transacción y hacen
+  **un** login, no diez.
+- Si el WMS revoca el token antes de tiempo, la llamada que recibe el 401 lo
+  renueva y reintenta sola.
+- El token vive en `_internal/`, que **ninguna** regla deja leer, ni a un
+  administrador. El panel solo ve si está vigente y cuántos minutos le quedan.
+
+Probado: 50 consultas seguidas → 1 login. Una jornada completa → 1 login.
 
 ## Para conectar la API real
 
