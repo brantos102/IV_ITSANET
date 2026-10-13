@@ -17,6 +17,7 @@ const SUITES = [
   ['Apps Script — credenciales y token por cliente', 'apps-script/test/clientes.test.js'],
   ['Apps Script — contrato de Depot', 'apps-script/test/proxy.test.js'],
   ['Navegador — acceso, normalización e informe', 'firebase/test/app.test.mjs'],
+  ['Navegador — páginas: sintaxis, imports y referencias', 'firebase/test/paginas.test.mjs'],
   ['Referencia — motor de conteo', 'firebase/functions/test/conteo.test.js'],
   ['Referencia — administración', 'firebase/functions/test/admin.test.js'],
   ['Referencia — token', 'firebase/functions/test/token.test.js'],

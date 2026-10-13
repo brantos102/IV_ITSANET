@@ -223,7 +223,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **166 pruebas, todas en verde**
+- [ ] Termina en **177 pruebas, todas en verde**
 
 ---
 

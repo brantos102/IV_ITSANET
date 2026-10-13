@@ -1089,7 +1089,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**166 pruebas automáticas** en verde, con un solo comando:
+**177 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto
@@ -1105,6 +1105,7 @@ estés. Y no necesita `npm install`: ninguna prueba usa dependencias externas.
 | `apps-script/test/clientes.test.js` | 34 — credenciales y token por cliente |
 | `apps-script/test/proxy.test.js` | 9 — contrato real de Depot |
 | `firebase/test/app.test.mjs` | 21 — acceso, normalización e informe |
+| `firebase/test/paginas.test.mjs` | 11 — sintaxis, imports y referencias de cada página |
 | `firebase/functions/test/*` | 77 — motor de referencia |
 
 Completo y conectado: acceso con Google corporativo, importación del packing

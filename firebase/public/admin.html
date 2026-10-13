@@ -447,13 +447,6 @@ function pintarPrueba(r) {
     : '';
   $('resultadoPrueba').innerHTML = pasos + nota;
 }
-</script>
-<script>
-// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
-// módulo para que un fallo aquí nunca impida que la página cargue.
-if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
-}
 
 // =========================================================================== //
 // Diagnóstico del proxy
@@ -579,6 +572,13 @@ async function probarRed(url) {
   return bloque('warn', 'Responde, pero no es este proxy',
     'Devolvió:<br><code>' + esc(texto.slice(0, 200)) + '</code><br>' +
     'La URL apunta a otro Apps Script.');
+}
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
 
 </script>
