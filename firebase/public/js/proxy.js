@@ -113,5 +113,8 @@ export const Proxy = {
 
   subirFoto: (datos) => llamarProxy('subirFoto', datos),
 
+  /** Archiva el .xlsx final en la carpeta de Drive de esa recepción. */
+  guardarInforme: (datos) => llamarProxy('guardarInforme', datos, { timeoutMs: 180000 }),
+
   enviarInforme: (datos) => llamarProxy('enviarInforme', datos),
 };

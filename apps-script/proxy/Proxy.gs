@@ -85,6 +85,7 @@ function doPost(e) {
       producto: accionProductoMulti_,
       // Resto
       subirFoto: accionSubirFoto_,
+      guardarInforme: accionGuardarInforme_,
       enviarInforme: accionEnviarInforme_,
       estadoToken: accionEstadoToken_
     };
@@ -344,6 +345,38 @@ function accionSubirFoto_(p, usuario) {
     url: 'https://drive.google.com/uc?id=' + archivo.getId(),
     enlace: archivo.getUrl()
   };
+}
+
+/**
+ * Archiva el informe final en Drive, junto a las evidencias de esa recepción.
+ *
+ * El correo puede borrarse y la descarga del navegador se pierde con el equipo.
+ * Si mañana hay una reclamación, el archivo que se subió a Depot tiene que
+ * seguir estando en algún sitio de la empresa, con su fecha.
+ */
+function accionGuardarInforme_(p, usuario) {
+  if (!CFG.carpeta) throw new Error('Falta CARPETA_EVIDENCIAS en las propiedades del script.');
+  if (!p.base64) throw new Error('Falta el archivo.');
+
+  var raiz = DriveApp.getFolderById(CFG.carpeta);
+  var sub = carpetaDe_(raiz, String(p.recepcion || 'sin-recepcion'));
+
+  // Si la recepción se cierra más de una vez, se numera como haría el
+  // explorador de archivos en vez de pisar el informe anterior.
+  var base = String(p.nombre || 'validacion');
+  var nombre = base + '.xlsx';
+  for (var n = 2; n < 100 && sub.getFilesByName(nombre).hasNext(); n++) {
+    nombre = base + ' (' + n + ').xlsx';
+  }
+
+  var archivo = sub.createFile(Utilities.newBlob(
+    Utilities.base64Decode(p.base64),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    nombre));
+  archivo.setDescription('Informe de la recepción ' + p.recepcion +
+                         ' · cerrada por ' + usuario.email);
+
+  return { exito: true, fileId: archivo.getId(), nombre: nombre, enlace: archivo.getUrl() };
 }
 
 function carpetaDe_(padre, nombre) {

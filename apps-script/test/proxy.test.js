@@ -28,7 +28,7 @@ function entorno(opciones = {}) {
   }));
   const cache = new Map();
   const estado = {
-    gettoken: 0, getstock: 0, lookups: 0, correos: [], archivos: [],
+    gettoken: 0, getstock: 0, lookups: 0, correos: [], archivos: [], existentes: [],
     tokenActual: null, revocado: false,
     formatoToken: opciones.formatoToken || 'json',
     catalogo: opciones.catalogo || [
@@ -82,6 +82,8 @@ function entorno(opciones = {}) {
       getFolderById: () => ({
         getFoldersByName: () => ({ hasNext: () => false }),
         createFolder: () => ({
+          // `estado.existentes` simula los archivos que ya hay en la carpeta.
+          getFilesByName: (n) => ({ hasNext: () => estado.existentes.includes(n) }),
           createFile: (b) => { estado.archivos.push(b); return {
             getId: () => 'file-1', getUrl: () => 'https://drive/file-1', setDescription() {},
           }; },
@@ -186,6 +188,32 @@ test('la foto va a Drive y devuelve enlace', () => {
   ok(r.exito && r.fileId === 'file-1', 'debe crear el archivo');
   eq(estado.archivos.length, 1);
   ok(/\.jpg$/.test(estado.archivos[0].nombre), 'extensión según el tipo');
+});
+
+// El correo se borra y la descarga se pierde con el equipo. Si mañana hay una
+// reclamación, el archivo que se subió a Depot tiene que seguir en la empresa.
+test('el informe final se archiva en Drive', () => {
+  const { ctx, estado } = entorno();
+  const r = leer(ctx.doPost(peticion({ accion: 'guardarInforme', base64: 'QUJD',
+    nombre: 'validacion-VW-29-06-2026-10-13', recepcion: 'VW-29-06' })));
+  ok(r.exito && r.fileId === 'file-1', r.mensaje);
+  eq(estado.archivos.length, 1);
+  eq(estado.archivos[0].nombre, 'validacion-VW-29-06-2026-10-13.xlsx');
+});
+
+test('cerrar dos veces no pisa el informe anterior', () => {
+  const { ctx, estado } = entorno();
+  estado.existentes.push('validacion-VW-29-06.xlsx');
+  const r = leer(ctx.doPost(peticion({ accion: 'guardarInforme', base64: 'QUJD',
+    nombre: 'validacion-VW-29-06', recepcion: 'VW-29-06' })));
+  ok(r.exito, r.mensaje);
+  eq(r.nombre, 'validacion-VW-29-06 (2).xlsx', 'debe numerar, no pisar');
+});
+
+test('guardarInforme sin archivo se rechaza', () => {
+  const { ctx } = entorno();
+  const r = leer(ctx.doPost(peticion({ accion: 'guardarInforme', recepcion: 'X' })));
+  ok(!r.exito && /archivo/i.test(r.mensaje), r.mensaje);
 });
 
 test('el informe se envía con las discrepancias', () => {

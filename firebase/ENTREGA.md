@@ -34,6 +34,13 @@ Consola de Firebase → **Authentication** → **Sign-in method** →
 
 - [ ] Aparece **Habilitado** en la lista de proveedores
 
+> **No cambies `authDomain` en `config.js`.** Apunta a
+> `iv-itsanet.firebaseapp.com` a propósito: es el único URI de redirección
+> registrado en el cliente OAuth. Cambiarlo a `iv-itsanet.web.app` sin
+> registrarlo antes en Google Cloud Console da `Error 400:
+> redirect_uri_mismatch` y deja a todo el mundo fuera. El procedimiento
+> correcto está en INSTALACION.md.
+
 ### 1.2 Dominio autorizado
 
 Misma sección → **Settings** → **Authorized domains**.
@@ -217,6 +224,8 @@ Con la recepción abierta en el handheld y en un PC, con **usuarios distintos**:
 - [ ] Un SUPERVISOR cierra: pide confirmación con el resumen
 - [ ] Se descarga el `.xlsx`
 - [ ] Llega el correo con el archivo adjunto
+- [ ] El mismo `.xlsx` está en Drive, en la subcarpeta de esa recepción, junto
+      a las fotos
 - [ ] **La hoja VALIDADA tiene exactamente las mismas filas que el archivo
       original** — con el packing list de VW, 22 filas si entraron 22
 - [ ] Los adicionales están en la hoja **ADICIONALES**, no mezclados
@@ -237,7 +246,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **177 pruebas, todas en verde**
+- [ ] Termina en **180 pruebas, todas en verde**
 
 ---
 

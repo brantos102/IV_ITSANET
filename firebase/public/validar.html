@@ -649,6 +649,19 @@ $('bCerrar').addEventListener('click', async () => {
 
     descargarLibro(libro);
 
+    // Archivar en Drive antes del correo: el correo se borra y la descarga se
+    // pierde con el equipo. Si falla, no se tumba el cierre.
+    try {
+      const g = await Proxy.guardarInforme({
+        base64: libro.base64, nombre: libro.nombre, recepcion: recepcion.codigo,
+      });
+      aviso(`Archivado en Drive como ${g.nombre}, junto a las fotos de esta recepción.`,
+            'ok', 'Copia guardada');
+    } catch (e) {
+      aviso('No se pudo archivar en Drive: ' + e.message +
+            ' El archivo sí se descargó en este equipo.', 'warn');
+    }
+
     if (destinatarios.trim()) {
       d = aviso('Enviando el correo…', 'info');
       const env = await Proxy.enviarInforme({

@@ -55,6 +55,7 @@ Hace tres cosas que el navegador no puede hacer solo:
 7. [Probar la conexión con Depot](#7-probar-la-conexión-con-depot)
 8. [El primer administrador](#8-el-primer-administrador)
 8.bis [Quién entra y cómo](#8bis-quién-entra-y-cómo)
+8.ter [Dónde queda guardada cada cosa](#8ter-dónde-queda-guardada-cada-cosa)
 9. [Usar la app](#9-usar-la-app)
 10. [Instalar en los handheld](#10-instalar-en-los-handheld)
 11. [Errores frecuentes](#11-errores-frecuentes)
@@ -833,18 +834,99 @@ queda esperando una ventana que ya no puede observar.
 Si vuelve a aparecer, es que se desplegó sin esa cabecera: `firebase deploy
 --only hosting` la aplica.
 
-### Si el acceso con Google se queda colgado en el handheld
+### Acceso con Google en el móvil: por qué no es el camino del operario
 
-Era un fallo real y está corregido. El acceso por redirección deja un dato en
-el dominio de `authDomain` y lo recoge al volver; como ese dominio era
-`iv-itsanet.firebaseapp.com` y la app vive en `iv-itsanet.web.app`, los
-navegadores móviles lo trataban como almacenamiento de terceros y lo aislaban.
-El síntoma era exactamente ese: eliges la cuenta, Google te devuelve, y la
-sesión no queda. Sin error y sin pista.
+El acceso por redirección —el que usan los móviles— guarda un dato en el
+dominio de `authDomain` y lo recoge al volver. Ese dominio es
+`iv-itsanet.firebaseapp.com`, distinto al de la app, así que los navegadores
+móviles lo tratan como almacenamiento de terceros y lo aíslan: eliges la
+cuenta, Google te devuelve, y la sesión no queda. Sin error y sin pista.
 
-Ahora `authDomain` apunta al mismo origen que sirve la app. Si aun así falla en
-algún equipo, usa el acceso con usuario y contraseña: ese camino no depende de
-nada de esto.
+Apuntar `authDomain` al dominio de la app lo arregla, **pero no basta con
+cambiarlo en el código**: Google solo acepta los URI de redirección
+registrados en el cliente OAuth del proyecto, y `iv-itsanet.web.app` no viene
+registrado. Cambiarlo sin registrarlo produce
+
+```
+Error 400: redirect_uri_mismatch
+redirect_uri=https://iv-itsanet.web.app/__/auth/handler
+```
+
+y entonces no entra **nadie**, ni en móvil ni en escritorio. Por eso el código
+se queda en el dominio de fábrica, que funciona sin tocar ninguna consola.
+
+**No bloquea a nadie:** el operario entra con usuario y contraseña, que no pasa
+por nada de esto, y supervisores y administradores entran con Google desde su
+equipo, donde la ventana emergente sí funciona.
+
+Si algún día quieres además Google en el móvil, son dos pasos y en este orden:
+
+1. Google Cloud Console → **APIs y servicios → Credenciales** → el cliente
+   **OAuth 2.0 de tipo Web** del proyecto → **URI de redireccionamiento
+   autorizados** → añadir
+   `https://iv-itsanet.web.app/__/auth/handler` → Guardar.
+2. En `firebase/public/js/config.js`, poner `authDomain: 'iv-itsanet.web.app'`
+   y desplegar.
+
+Hacerlo al revés deja la app sin acceso hasta que se complete el paso 1.
+
+---
+
+## 8.ter Dónde queda guardada cada cosa
+
+Pregunta legítima antes de entregar: si mañana hay una reclamación, ¿de dónde
+se saca la prueba?
+
+| Qué | Dónde | Quién puede verlo |
+|---|---|---|
+| Líneas del packing list | Firestore `bd-iv-itsanet` → `recepciones/{código}/lineas` | cualquier usuario activo |
+| Conteo por SKU | → `recepciones/{código}/skus` | ídem |
+| **Cada conteo, uno a uno** | → `recepciones/{código}/eventos` | ídem |
+| Adicionales | → `recepciones/{código}/adicionales` | ídem |
+| Usuarios y roles | → `usuarios/{uid}` | el propio usuario y los supervisores |
+| Catálogo de Depot | → `productos` y `codigos` | cualquier usuario activo |
+| **Fotos de PNC** | Google Drive, carpeta `CARPETA_EVIDENCIAS`, una subcarpeta por recepción | quien tenga acceso a esa carpeta |
+| **Informe final `.xlsx`** | la misma subcarpeta de Drive, y adjunto en el correo | ídem |
+| Credenciales de Depot | Propiedades del Apps Script | solo quien edita el script |
+
+### Lo que no se borra nunca
+
+`eventos` es un libro de sólo-añadir. Un conteo registrado no se modifica ni se
+elimina: anularlo escribe un segundo registro que lo compensa, firmado por quien
+lo anuló y con el motivo. Esa es la base de los KPI y de cualquier reclamación.
+
+Las reglas de Firestore lo imponen; no es una convención que dependa de que la
+app se porte bien:
+
+```
+match /recepciones/{id}/eventos/{eventoId} {
+  allow create: ...        // con el uid y el correo de quien escribe
+  allow update, delete: if false;
+}
+```
+
+### El informe final
+
+Al cerrar una recepción, el `.xlsx` va a **tres sitios a la vez**:
+
+1. Se **descarga** en el equipo del supervisor.
+2. Se **archiva en Drive**, junto a las fotos de esa misma recepción.
+3. Se **envía por correo** a quien se indique, como adjunto.
+
+El correo se borra y la descarga se pierde con el equipo; la copia de Drive es
+la que queda. Si la recepción se cierra más de una vez, se numera —
+`validacion-VW (2).xlsx` — en lugar de pisar la anterior.
+
+### Dónde mirarlo a mano
+
+- **Datos:** consola de Firebase → Firestore Database → base `bd-iv-itsanet`
+- **Fotos e informes:** Google Drive → la carpeta cuyo id está en
+  `CARPETA_EVIDENCIAS` de las propiedades del Apps Script
+
+> **Quién es el dueño.** Hoy la carpeta de Drive y el Apps Script cuelgan de
+> `bespinoza@itsanet.com`. Si esa cuenta se pierde, la empresa pierde las fotos,
+> los informes archivados y las credenciales de Depot. Compártelos con un
+> segundo responsable antes de entregar.
 
 ---
 
@@ -1124,7 +1206,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**177 pruebas automáticas** en verde, con un solo comando:
+**180 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

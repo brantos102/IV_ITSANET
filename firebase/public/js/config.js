@@ -10,18 +10,31 @@
  */
 export const firebaseConfig = {
   apiKey: 'AIzaSyBCfPBE9YryYl8EX0vOVIgKQv2ZVro8ziM',
-  // El MISMO origen que sirve la app, no `iv-itsanet.firebaseapp.com`.
-  //
-  // El acceso con Google por redirección deja un dato en el dominio de
-  // `authDomain` y lo recoge al volver. Cuando ese dominio es distinto al de la
-  // app, el navegador lo trata como almacenamiento de terceros y lo aísla:
-  // Chrome y Safari en los handheld llevan años restringiéndolo. El resultado
-  // es exactamente lo que se ve: eliges la cuenta, Google te devuelve, y la
-  // sesión no queda. Sin error, sin pista.
-  //
-  // Firebase Hosting sirve el manejador de acceso también en el dominio propio,
-  // así que apuntando aquí al mismo origen desaparece el problema.
-  authDomain: 'iv-itsanet.web.app',
+  /**
+   * Dominio donde Google resuelve el acceso.
+   *
+   * Tiene que ser uno de los URI de redirección registrados en el cliente
+   * OAuth del proyecto. Firebase registra `…firebaseapp.com` al crear el
+   * proyecto; `iv-itsanet.web.app` NO viene registrado, y apuntando ahí sin
+   * añadirlo Google responde `Error 400: redirect_uri_mismatch` y no deja
+   * entrar a nadie.
+   *
+   * Por eso se queda el que viene de fábrica: funciona sin tocar ninguna
+   * consola.
+   *
+   * El inconveniente conocido es que el acceso por redirección —el de los
+   * móviles— guarda un dato en este dominio y lo recoge al volver; como no es
+   * el de la app, los navegadores móviles lo aíslan y la sesión no cuaja. No
+   * bloquea a nadie: el operario entra con usuario y contraseña, que no pasa
+   * por aquí, y supervisores y administradores entran con Google desde su
+   * equipo, donde la ventana emergente sí funciona.
+   *
+   * Para habilitar además Google en el móvil: registrar
+   * `https://iv-itsanet.web.app/__/auth/handler` como URI de redirección
+   * autorizado en Google Cloud Console → Credenciales → cliente OAuth web, y
+   * cambiar aquí a `iv-itsanet.web.app`. Está detallado en INSTALACION.md.
+   */
+  authDomain: 'iv-itsanet.firebaseapp.com',
   projectId: 'iv-itsanet',
   storageBucket: 'iv-itsanet.firebasestorage.app',
   messagingSenderId: '601300841441',
