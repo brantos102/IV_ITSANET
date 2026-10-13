@@ -36,9 +36,14 @@
 //   DEPOT_USUARIO      (opcional) usuario del cliente para /gettoken/
 //   DEPOT_CLAVE        (opcional) contraseña del cliente
 //   DEPOT_CLIENTE      (opcional) p.ej. VENTURA
-//   FIREBASE_API_KEY   la "apiKey" de la configuración web de Firebase
-//   DOMINIO_PERMITIDO  itsanet.com
-//   CARPETA_EVIDENCIAS id de la carpeta de Drive para las fotos
+//   FIREBASE_API_KEY      la "apiKey" de la configuración web de Firebase
+//   FIREBASE_PROJECT_ID   iv-itsanet
+//   FIREBASE_DATABASE_ID  bd-iv-itsanet
+//   DOMINIO_PERMITIDO     itsanet.com
+//   CARPETA_EVIDENCIAS    id de la carpeta de Drive para las fotos
+//
+// Las credenciales de cada cliente NO van aquí: se cargan desde el panel de
+// administración de la app y se guardan en CRED_<ID>. Ver Clientes.gs.
 //
 // Las credenciales NUNCA van en este archivo: van en las propiedades del
 // script, que no se versionan y que solo ve el dueño del proyecto.
@@ -71,9 +76,14 @@ function doPost(e) {
     var usuario = verificarSesion_(peticion.idToken);
 
     var acciones = {
-      diagnostico: accionDiagnostico_,
-      catalogo: accionCatalogo_,
-      producto: accionProducto_,
+      // Multi-cliente: un packing list puede mezclar mercadería de varios.
+      listarClientes: accionListarClientes_,
+      guardarCliente: accionGuardarCliente_,
+      borrarCliente: accionBorrarCliente_,
+      probarCliente: accionProbarCliente_,
+      catalogo: accionCatalogoMulti_,
+      producto: accionProductoMulti_,
+      // Resto
       subirFoto: accionSubirFoto_,
       enviarInforme: accionEnviarInforme_,
       estadoToken: accionEstadoToken_
@@ -152,6 +162,12 @@ function verificarSesion_(idToken) {
   }
 
   var usuario = { uid: u.localId, email: u.email, nombre: u.displayName || '' };
+
+  // El rol se lee de Firestore con el token del propio operario, así que las
+  // reglas se aplican igual que desde la app. El script no se cree nada que el
+  // cliente afirme de sí mismo.
+  usuario.rol = rolDeUsuario_(u.localId, idToken) || 'OPERADOR';
+
   CACHE.put(clave, JSON.stringify(usuario), 300);   // 5 minutos
   return usuario;
 }
@@ -270,71 +286,11 @@ function pedirDepot_(ruta, yaReintento) {
 // Acciones
 // ========================================================================== //
 
-/** Prueba gettoken y getstock por separado, para saber cuál de los dos falla. */
-function accionDiagnostico_(p) {
-  var pasos = [];
-  var t0 = Date.now();
-  try {
-    obtenerTokenDepot_(true);
-    pasos.push({ paso: 'gettoken', ok: true, ms: Date.now() - t0 });
-  } catch (e) {
-    pasos.push({ paso: 'gettoken', ok: false, ms: Date.now() - t0, mensaje: e.message });
-    return { exito: false, pasos: pasos };
-  }
 
-  var t1 = Date.now();
-  try {
-    var cuerpo = pedirDepot_(CFG.rutaStock + encodeURIComponent(p.codigo || ''), false);
-    var filas = filasDe_(cuerpo || []);
-    pasos.push({
-      paso: 'getstock', ok: true, ms: Date.now() - t1,
-      filas: filas.length,
-      muestra: filas.length ? mapearStock_(filas[0]) : null,
-      camposCrudos: filas.length ? Object.keys(filas[0]) : []
-    });
-    return { exito: true, pasos: pasos };
-  } catch (e) {
-    pasos.push({ paso: 'getstock', ok: false, ms: Date.now() - t1, mensaje: e.message });
-    return { exito: false, pasos: pasos };
-  }
-}
 
-/**
- * Descarga el catálogo completo.
- *
- * `getstock` sin código devuelve todo: el precalentado es UNA llamada, igual
- * que hace el Centro de Control con "Extraer Stock desde API".
- */
-function accionCatalogo_() {
-  var cuerpo = pedirDepot_(CFG.rutaStock, false);
-  var filas = filasDe_(cuerpo || []);
 
-  var productos = [];
-  var vistos = {};
-  for (var i = 0; i < filas.length; i++) {
-    var p = mapearStock_(filas[i]);
-    if (!p || !p.sku || vistos[p.sku]) continue;
-    vistos[p.sku] = true;
-    productos.push(p);
-  }
-  return { exito: true, productos: productos, filas: filas.length };
-}
 
-function accionProducto_(p) {
-  var codigo = normalizar_(p.codigo);
-  if (!codigo) return { exito: false, mensaje: 'Código vacío.' };
 
-  var cuerpo = pedirDepot_(CFG.rutaStock + encodeURIComponent(codigo), false);
-  var filas = filasDe_(cuerpo || []);
-  if (!filas.length) return { exito: true, producto: null };
-
-  // La API puede devolver varias filas del mismo producto (una por ubicación).
-  for (var i = 0; i < filas.length; i++) {
-    var m = mapearStock_(filas[i]);
-    if (m && (m.sku === codigo || m.ean === codigo)) return { exito: true, producto: m };
-  }
-  return { exito: true, producto: mapearStock_(filas[0]) };
-}
 
 function accionEstadoToken_() {
   var guardado = PROPS.getProperty('DEPOT_TOKEN_CACHE');
@@ -519,6 +475,7 @@ function verificarConfiguracion() {
   var faltan = [];
   if (!CFG.baseUrl) faltan.push('DEPOT_BASE_URL');
   if (!CFG.apiKey) faltan.push('FIREBASE_API_KEY');
+  if (!PROPS.getProperty('FIREBASE_PROJECT_ID')) faltan.push('FIREBASE_PROJECT_ID');
   if (!CFG.dominio) faltan.push('DOMINIO_PERMITIDO');
   if (!CFG.carpeta) faltan.push('CARPETA_EVIDENCIAS (solo si se usarán fotos)');
 
@@ -527,7 +484,44 @@ function verificarConfiguracion() {
     : 'Configuración completa.');
   Logger.log('URL base: ' + (CFG.baseUrl || '(sin configurar)'));
   Logger.log('Dominio permitido: ' + (CFG.dominio || '(sin restringir — PELIGROSO)'));
+
+  var ids = listaIds_();
+  Logger.log('Clientes configurados: ' + (ids.length ? ids.join(', ') : 'ninguno'));
+  for (var i = 0; i < ids.length; i++) {
+    var c = credencialesDe_(ids[i]);
+    var t = estadoTokenCliente_(ids[i]);
+    Logger.log('  ' + ids[i] + ': usuario ' + enmascarar_(c && c.usuario) +
+               ' · token ' + (t.vigente ? t.minutosRestantes + ' min' : 'sin token') +
+               (c && c.ultimoError ? ' · ÚLTIMO ERROR: ' + c.ultimoError : ''));
+  }
   return faltan;
+}
+
+/**
+ * Prueba todos los clientes desde el editor, sin pasar por la app.
+ * Imprime los nombres de campo que devuelve el WMS: con eso se ajusta el mapeo.
+ */
+function probarTodosLosClientes() {
+  var ids = listaIds_();
+  if (!ids.length) { Logger.log('No hay clientes configurados.'); return; }
+
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i];
+    Logger.log('--- ' + id + ' ---');
+    try {
+      obtenerTokenCliente_(id, true);
+      Logger.log('  gettoken OK');
+      var cuerpo = pedirCliente_(id, CFG.rutaStock, false);
+      var filas = filasDe_(cuerpo || []);
+      Logger.log('  getstock OK: ' + filas.length + ' filas');
+      if (filas.length) {
+        Logger.log('  Campos que devuelve: ' + Object.keys(filas[0]).join(', '));
+        Logger.log('  Primera fila mapeada: ' + JSON.stringify(mapearStock_(filas[0])));
+      }
+    } catch (e) {
+      Logger.log('  ERROR: ' + e.message);
+    }
+  }
 }
 
 /** Prueba la conexión con Depot desde el editor, sin pasar por la app. */

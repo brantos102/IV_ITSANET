@@ -511,9 +511,13 @@ Hosting URL: https://iv-itsanet.web.app
 1. Entra a [script.google.com](https://script.google.com) **con la cuenta
    corporativa**
 2. **Nuevo proyecto** → nómbralo `VAL VENTURA — Proxy Depot`
-3. Borra el contenido de `Código.gs`
-4. Pega entero el archivo `apps-script/proxy/Proxy.gs` del repositorio
+3. Borra el contenido de `Código.gs` y pega entero `apps-script/proxy/Proxy.gs`
+4. **Archivo → Nuevo → Secuencia de comandos**, nómbrala `Clientes`, y pega
+   entero `apps-script/proxy/Clientes.gs`
 5. Guarda (Ctrl+S)
+
+> Son **dos** archivos. `Clientes.gs` es el que guarda las credenciales de cada
+> cliente; sin él el proxy arranca pero no sabe a quién consultar.
 
 ### 5.2 Carpeta de Drive para las fotos
 
@@ -528,23 +532,23 @@ En el editor de Apps Script: **Configuración del proyecto** (engranaje) →
 
 | Propiedad | Valor | Obligatoria |
 |---|---|---|
-| `DEPOT_BASE_URL` | `http://dominio.com/apidepot` | Sí |
+| `DEPOT_BASE_URL` | `https://ec.itsanet.com/q_apidepot` | Sí |
 | `FIREBASE_API_KEY` | La `apiKey` del paso 2.2 | Sí |
+| `FIREBASE_PROJECT_ID` | `iv-itsanet` | Sí |
+| `FIREBASE_DATABASE_ID` | `bd-iv-itsanet` | Sí |
 | `DOMINIO_PERMITIDO` | `itsanet.com` | Sí |
 | `CARPETA_EVIDENCIAS` | El id del paso 5.2 | Para fotos |
-| `DEPOT_USUARIO` | Usuario del cliente | Si `/gettoken/` lo pide |
-| `DEPOT_CLAVE` | Contraseña del cliente | Si `/gettoken/` lo pide |
-| `DEPOT_CLIENTE` | `VENTURA` | Si el WMS separa por cliente |
 | `DEPOT_TTL_HORAS` | `12` | No (12 por defecto) |
 
-> **Aquí van las credenciales, y solo aquí.** No en el repositorio, no en el
-> chat, no en el código. Las propiedades del script solo las ve quien es dueño
-> del proyecto de Apps Script.
-
-Para los clientes que vas a ir agregando (BELIA, VENTURA…), lo que cambia es
-`DEPOT_USUARIO`, `DEPOT_CLAVE` y `DEPOT_CLIENTE`. Si cada cliente necesita
-credenciales distintas **al mismo tiempo**, dímelo: cambia el diseño a un mapa
-de credenciales por cliente, y prefiero construirlo bien desde el principio.
+> **Las credenciales de los clientes NO van aquí.** Se cargan desde el panel de
+> administración de la app, que las guarda en estas mismas propiedades pero bajo
+> `CRED_<ID>`, una por cliente. Así no hay que abrir el editor de Apps Script
+> cada vez que entra un cliente nuevo.
+>
+> `FIREBASE_PROJECT_ID` y `FIREBASE_DATABASE_ID` son necesarias para que el
+> proxy pueda comprobar que quien pide guardar credenciales es realmente un
+> ADMIN: lo lee de Firestore con el token del propio operario, así que se
+> aplican las mismas reglas que en la app.
 
 ### 5.4 Publicar
 

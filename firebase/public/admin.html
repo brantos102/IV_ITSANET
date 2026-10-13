@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Administración — VAL VENTURA</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🔑</text></svg>">
+<style>
+  :root {
+    --primary:#0f172a; --secondary:#64748b; --accent:#2563eb;
+    --bg:#f4f7f9; --surface:#fff; --border:#e2e8f0;
+    --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+    --font-ui:'Plus Jakarta Sans',system-ui,sans-serif;
+    --font-data:'JetBrains Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --primary:#f8fafc; --secondary:#94a3b8; --accent:#3b82f6;
+      --bg:#0f172a; --surface:#1e293b; --border:#334155;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--font-ui); background:var(--bg); color:var(--primary);
+         padding:20px 16px; -webkit-text-size-adjust:100%; }
+  .envoltorio { max-width:1000px; margin:0 auto; }
+
+  header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+  .marca { font-size:20px; font-weight:900; letter-spacing:-.5px; }
+  .marca span { color:var(--accent); }
+  .sub { font-size:10px; color:var(--secondary); letter-spacing:2px; text-transform:uppercase;
+         font-weight:800; }
+  header .sp { flex:1; }
+  .usuario { font-size:12px; color:var(--secondary); font-weight:700; text-align:right; }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:20px;
+           padding:26px; margin-bottom:20px; }
+  h2 { font-size:12px; color:var(--secondary); text-transform:uppercase; letter-spacing:1px;
+       margin:0 0 4px; font-weight:900; }
+  h2 + p { color:var(--secondary); font-size:13px; font-weight:600; margin:0 0 20px;
+           line-height:1.5; }
+
+  .rejilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+  label.campo { display:flex; flex-direction:column; gap:6px; }
+  label.campo span { font-size:11px; font-weight:800; color:var(--secondary);
+                     text-transform:uppercase; letter-spacing:.5px; }
+  input, select { padding:12px 14px; border:1px solid var(--border); border-radius:10px;
+                  font-family:var(--font-data); font-size:14px; font-weight:700;
+                  background:var(--bg); color:var(--primary); outline:none; width:100%; }
+  input:focus, select:focus { border-color:var(--accent);
+                              box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+  .pista { font-size:11px; color:var(--secondary); font-weight:600; }
+
+  button { font-family:inherit; font-weight:800; border:none; border-radius:10px;
+           cursor:pointer; transition:.2s; padding:12px 20px; font-size:13px; }
+  .b-primario { background:var(--accent); color:#fff; }
+  .b-primario:hover:not(:disabled) { transform:translateY(-2px);
+                                     box-shadow:0 6px 16px rgba(37,99,235,.3); }
+  .b-sec { background:var(--bg); color:var(--primary); border:1px solid var(--border); }
+  .b-sec:hover { border-color:var(--accent); color:var(--accent); }
+  .b-peligro { background:transparent; color:var(--danger); border:1px solid var(--border); }
+  .b-peligro:hover { background:var(--danger); color:#fff; border-color:var(--danger); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .acciones { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+
+  .msg { padding:13px 16px; border-radius:10px; font-size:13px; font-weight:600;
+         border-left:5px solid var(--secondary); background:var(--bg); margin-bottom:12px;
+         line-height:1.5; }
+  .msg b { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+           margin-bottom:4px; font-weight:900; }
+  .msg.ok { border-color:var(--success); } .msg.err { border-color:var(--danger); }
+  .msg.warn { border-color:var(--warning); } .msg.info { border-color:var(--accent); }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.5px;
+       color:var(--secondary); font-weight:900; padding:0 10px 10px; }
+  td { padding:13px 10px; border-top:1px solid var(--border); vertical-align:middle; }
+  td.id { font-family:var(--font-data); font-weight:800; }
+  .pastilla { display:inline-block; padding:3px 10px; border-radius:50px; font-size:10px;
+              font-weight:900; letter-spacing:.3px; }
+  .p-ok { background:rgba(16,185,129,.15); color:var(--success); }
+  .p-warn { background:rgba(245,158,11,.15); color:var(--warning); }
+  .p-err { background:rgba(239,68,68,.15); color:var(--danger); }
+  .p-off { background:rgba(100,116,139,.15); color:var(--secondary); }
+  .mini { font-size:11px; color:var(--secondary); font-weight:600; }
+  .oculto { display:none !important; }
+  .tabla-env { overflow-x:auto; }
+  pre { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:14px;
+        font-family:var(--font-data); font-size:11px; overflow-x:auto; margin:10px 0 0;
+        line-height:1.6; }
+  a { color:var(--accent); }
+  @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
+</style>
+</head>
+<body>
+<div class="envoltorio">
+
+<header>
+  <div>
+    <div class="marca">ITSANET <span>IMS</span></div>
+    <div class="sub">Administración</div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="/"><button class="b-sec">Volver</button></a>
+</header>
+
+<div id="avisos"></div>
+
+<!-- Sin permisos -->
+<div class="panel oculto" id="sinPermiso">
+  <h2>Acceso restringido</h2>
+  <p>Esta pantalla es solo para administradores. Pídele a un administrador que
+     cambie tu rol en Firestore → <code>usuarios</code> → tu documento.</p>
+</div>
+
+<!-- Panel principal -->
+<div id="panelAdmin" class="oculto">
+
+  <div class="panel">
+    <h2>Credenciales por cliente</h2>
+    <p>Cada cliente tiene su propio usuario y contraseña en Depot, y su propio
+       token. Un packing list puede necesitar varios a la vez: la app consulta
+       todos los activos y señala a qué cliente pertenece cada producto.</p>
+
+    <div class="msg info">
+      <b>Dónde quedan guardadas</b>
+      Las credenciales se guardan en las propiedades del Apps Script, del lado
+      servidor. No pasan por Firestore ni se quedan en el dispositivo, y esta
+      pantalla no puede volver a leerlas: solo muestra el usuario enmascarado.
+    </div>
+
+    <div class="tabla-env">
+      <table>
+        <thead><tr>
+          <th>Cliente</th><th>Usuario</th><th>Token</th>
+          <th>Última conexión</th><th>Estado</th><th></th>
+        </tr></thead>
+        <tbody id="tClientes"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 id="tituloForm">Agregar cliente</h2>
+    <p>El identificador es el nombre corto con el que la app se refiere al
+       cliente. Una vez creado no se cambia.</p>
+
+    <div class="rejilla">
+      <label class="campo">
+        <span>Identificador *</span>
+        <input id="fId" placeholder="VENTURA" autocapitalize="characters" maxlength="40">
+      </label>
+      <label class="campo">
+        <span>Nombre visible</span>
+        <input id="fNombre" placeholder="Impoventura S.A." style="font-family:var(--font-ui)">
+      </label>
+      <label class="campo">
+        <span>Usuario de Depot *</span>
+        <input id="fUsuario" autocomplete="off">
+      </label>
+      <label class="campo">
+        <span>Contraseña de Depot *</span>
+        <input id="fClave" type="password" autocomplete="new-password"
+               placeholder="dejar vacío = no cambiar">
+      </label>
+      <label class="campo" style="grid-column:1/-1">
+        <span>URL base (vacío = la global)</span>
+        <input id="fBaseUrl" placeholder="https://ec.itsanet.com/q_apidepot">
+        <span class="pista">Solo si este cliente usa otro servidor. Debe ser https.</span>
+      </label>
+    </div>
+
+    <div class="acciones">
+      <button class="b-primario" id="bGuardar">Guardar cliente</button>
+      <button class="b-sec" id="bLimpiar">Limpiar</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Probar la conexión</h2>
+    <p>Prueba <code>gettoken</code> y <code>getstock</code> por separado, para
+       saber cuál de los dos falla. Imprime además los nombres de campo reales
+       que devuelve el WMS.</p>
+    <div class="rejilla">
+      <label class="campo">
+        <span>Cliente</span>
+        <select id="fProbarId"></select>
+      </label>
+      <label class="campo">
+        <span>Código de prueba (opcional)</span>
+        <input id="fProbarCodigo" placeholder="vacío = todo el catálogo">
+      </label>
+    </div>
+    <div class="acciones">
+      <button class="b-primario" id="bProbar">Probar</button>
+    </div>
+    <div id="resultadoPrueba"></div>
+  </div>
+
+</div>
+</div>
+
+<script type="module">
+import { observarSesion, traducirError } from './js/auth.js';
+import { Proxy } from './js/proxy.js';
+
+const $ = (id) => document.getElementById(id);
+let clientes = [];
+let editando = null;
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '') {
+  const d = document.createElement('div');
+  d.className = 'msg ' + tipo;
+  d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
+  $('avisos').appendChild(d);
+  d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return d;
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+
+function fecha(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('es'); } catch { return iso; }
+}
+
+// --- Sesión --------------------------------------------------------------- //
+observarSesion(({ usuario, perfil, error }) => {
+  if (error) aviso(error, 'err');
+  if (!usuario) { location.href = '/'; return; }
+
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  if (perfil?.rol !== 'ADMIN') {
+    $('sinPermiso').classList.remove('oculto');
+    $('panelAdmin').classList.add('oculto');
+    return;
+  }
+  $('sinPermiso').classList.add('oculto');
+  $('panelAdmin').classList.remove('oculto');
+  cargar();
+});
+
+// --- Listado -------------------------------------------------------------- //
+async function cargar() {
+  $('tClientes').innerHTML =
+    '<tr><td colspan="6" class="mini">Consultando el proxy…</td></tr>';
+  try {
+    const r = await Proxy.listarClientes();
+    clientes = r.clientes || [];
+    pintar();
+    if (r.baseUrlGlobal) $('fBaseUrl').placeholder = r.baseUrlGlobal;
+  } catch (e) {
+    $('tClientes').innerHTML =
+      '<tr><td colspan="6" class="mini">No se pudo consultar.</td></tr>';
+    aviso(e.message, 'err', 'Proxy no disponible');
+  }
+}
+
+function pintar() {
+  if (!clientes.length) {
+    $('tClientes').innerHTML =
+      '<tr><td colspan="6" class="mini">Todavía no hay clientes. Agrega el primero abajo.</td></tr>';
+  } else {
+    $('tClientes').innerHTML = clientes.map((c) => {
+      const token = c.tokenVigente
+        ? `<span class="pastilla p-ok">${c.minutosRestantes} min</span>`
+        : '<span class="pastilla p-off">sin token</span>';
+      const estado = !c.activo
+        ? '<span class="pastilla p-off">desactivado</span>'
+        : c.ultimoError
+          ? '<span class="pastilla p-err">con error</span>'
+          : c.ultimaConexion
+            ? '<span class="pastilla p-ok">conectado</span>'
+            : '<span class="pastilla p-warn">sin probar</span>';
+      return `<tr>
+        <td class="id">${esc(c.id)}<br><span class="mini">${esc(c.nombre)}</span></td>
+        <td class="mini" style="font-family:var(--font-data)">${esc(c.usuario || '—')}</td>
+        <td>${token}</td>
+        <td class="mini">${fecha(c.ultimaConexion)}</td>
+        <td>${estado}${c.ultimoError
+            ? `<br><span class="mini">${esc(c.ultimoError.slice(0, 70))}</span>` : ''}</td>
+        <td style="white-space:nowrap">
+          <button class="b-sec" data-editar="${esc(c.id)}">Editar</button>
+          <button class="b-peligro" data-borrar="${esc(c.id)}">Borrar</button>
+        </td></tr>`;
+    }).join('');
+  }
+
+  $('fProbarId').innerHTML = clientes.length
+    ? clientes.map((c) => `<option value="${esc(c.id)}">${esc(c.id)} — ${esc(c.nombre)}</option>`).join('')
+    : '<option value="">— sin clientes —</option>';
+}
+
+$('tClientes').addEventListener('click', (ev) => {
+  const ed = ev.target.dataset.editar;
+  const bo = ev.target.dataset.borrar;
+  if (ed) editar(ed);
+  if (bo) borrar(bo);
+});
+
+function editar(id) {
+  const c = clientes.find((x) => x.id === id);
+  if (!c) return;
+  editando = id;
+  $('tituloForm').textContent = 'Editar ' + id;
+  $('fId').value = c.id;
+  $('fId').disabled = true;
+  $('fNombre').value = c.nombre || '';
+  $('fUsuario').value = '';
+  $('fUsuario').placeholder = c.usuario || '';
+  $('fClave').value = '';
+  $('fBaseUrl').value = c.baseUrl || '';
+  $('fUsuario').focus();
+  aviso('Deja la contraseña vacía si no quieres cambiarla.', 'info', 'Editando ' + id);
+}
+
+function limpiarForm() {
+  editando = null;
+  $('tituloForm').textContent = 'Agregar cliente';
+  ['fId', 'fNombre', 'fUsuario', 'fClave', 'fBaseUrl'].forEach((i) => { $(i).value = ''; });
+  $('fId').disabled = false;
+  $('fUsuario').placeholder = '';
+  limpiarAvisos();
+}
+$('bLimpiar').addEventListener('click', limpiarForm);
+
+async function borrar(id) {
+  if (!confirm(`¿Borrar el cliente ${id}? Se eliminan sus credenciales del proxy.`)) return;
+  limpiarAvisos();
+  try {
+    await Proxy.borrarCliente(id);
+    aviso(`Cliente ${id} eliminado.`, 'ok');
+    cargar();
+  } catch (e) { aviso(e.message, 'err'); }
+}
+
+// --- Guardar -------------------------------------------------------------- //
+$('bGuardar').addEventListener('click', async () => {
+  limpiarAvisos();
+  const id = $('fId').value.trim().toUpperCase();
+  const usuario = $('fUsuario').value.trim() || $('fUsuario').placeholder;
+
+  if (!id) return aviso('El identificador es obligatorio.', 'err');
+  if (!usuario || usuario.includes('*')) {
+    return aviso('Escribe el usuario de Depot completo.', 'err');
+  }
+  if (!editando && !$('fClave').value) {
+    return aviso('La contraseña es obligatoria al crear el cliente.', 'err');
+  }
+
+  $('bGuardar').disabled = true;
+  try {
+    await Proxy.guardarCliente({
+      id,
+      nombre: $('fNombre').value.trim() || id,
+      usuario,
+      clave: $('fClave').value,          // vacío = conserva la anterior
+      baseUrl: $('fBaseUrl').value.trim(),
+    });
+    aviso(`Cliente ${id} guardado. Pruébalo abajo antes de usarlo.`, 'ok');
+    limpiarForm();
+    await cargar();
+    $('fProbarId').value = id;
+  } catch (e) {
+    aviso(e.message, 'err', 'No se guardó');
+  } finally {
+    $('bGuardar').disabled = false;
+  }
+});
+
+// --- Probar --------------------------------------------------------------- //
+$('bProbar').addEventListener('click', async () => {
+  const id = $('fProbarId').value;
+  if (!id) return aviso('No hay clientes que probar.', 'warn');
+
+  $('bProbar').disabled = true;
+  $('resultadoPrueba').innerHTML = '<div class="msg info">Probando…</div>';
+  try {
+    const r = await Proxy.probarCliente(id, $('fProbarCodigo').value.trim());
+    pintarPrueba(r);
+    cargar();
+  } catch (e) {
+    $('resultadoPrueba').innerHTML = '';
+    aviso(e.message, 'err', 'No se pudo probar');
+  } finally {
+    $('bProbar').disabled = false;
+  }
+});
+
+function pintarPrueba(r) {
+  const pasos = (r.pasos || []).map((p) => {
+    const cab = p.ok
+      ? `<b>${esc(p.paso)} · correcto · ${p.ms} ms</b>`
+      : `<b>${esc(p.paso)} · falló</b>${esc(p.mensaje || '')}`;
+    let cuerpo = '';
+    if (p.ok && p.paso === 'getstock') {
+      cuerpo = `${p.filas} fila(s).`;
+      if (p.camposCrudos?.length) {
+        cuerpo += `<pre>Campos que devuelve el WMS:\n${esc(p.camposCrudos.join(', '))}` +
+                  `\n\nPrimera fila ya mapeada:\n${esc(JSON.stringify(p.muestra, null, 2))}</pre>`;
+      }
+    }
+    return `<div class="msg ${p.ok ? 'ok' : 'err'}">${cab}${cuerpo}</div>`;
+  }).join('');
+
+  const nota = r.exito
+    ? '<div class="msg info"><b>Siguiente paso</b>Copia la línea "Campos que ' +
+      'devuelve el WMS" y mándasela a quien mantiene la app: con eso se ajusta ' +
+      'el mapeo exacto en lugar de aceptar variantes.</div>'
+    : '';
+  $('resultadoPrueba').innerHTML = pasos + nota;
+}
+</script>
+</body>
+</html>

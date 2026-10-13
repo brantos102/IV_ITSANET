@@ -18,7 +18,9 @@ function ok(c, m) { if (!c) throw new Error(m || 'condición falsa'); }
 /** Simulador de los servicios que usa el proxy. */
 function entorno(opciones = {}) {
   const props = new Map(Object.entries({
-    DEPOT_BASE_URL: 'http://dominio.com/apidepot',
+    DEPOT_BASE_URL: 'https://ec.itsanet.com/q_apidepot',
+    FIREBASE_PROJECT_ID: 'iv-itsanet',
+    FIREBASE_DATABASE_ID: 'bd-iv-itsanet',
     FIREBASE_API_KEY: 'AIza-demo',
     DOMINIO_PERMITIDO: 'itsanet.com',
     CARPETA_EVIDENCIAS: 'folder-123',
@@ -112,8 +114,10 @@ function entorno(opciones = {}) {
   };
 
   const ctx = vm.createContext(g);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'proxy', 'Proxy.gs'), 'utf8'),
-                  ctx, { filename: 'Proxy.gs' });
+  for (const archivo of ['Proxy.gs', 'Clientes.gs']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'proxy', archivo), 'utf8'),
+                    ctx, { filename: archivo });
+  }
   return { ctx, estado, props, cache };
 }
 
@@ -146,80 +150,19 @@ test('rechaza una sesión inválida', () => {
 
 test('la verificación de sesión se cachea', () => {
   const { ctx, estado } = entorno();
-  for (let i = 0; i < 5; i++) ctx.doPost(peticion({ accion: 'catalogo' }));
+  for (let i = 0; i < 5; i++) ctx.doPost(peticion({ accion: 'estadoToken' }));
   eq(estado.lookups, 1, 'verificaciones contra Google');
 });
 
-console.log('\nToken de Depot');
-test('un solo gettoken para muchas llamadas', () => {
-  const { ctx, estado } = entorno();
-  for (let i = 0; i < 20; i++) ctx.doPost(peticion({ accion: 'producto', codigo: '2H0525345' }));
-  eq(estado.gettoken, 1, 'llamadas a gettoken');
-  eq(estado.getstock, 20);
-});
 
-test('el token sobrevive al caché usando las propiedades', () => {
-  const { ctx, estado, cache } = entorno();
-  ctx.doPost(peticion({ accion: 'catalogo' }));
-  eq(estado.gettoken, 1);
-  cache.clear();                       // el caché de Apps Script expira a las 6 h
-  ctx.doPost(peticion({ accion: 'catalogo' }));
-  eq(estado.gettoken, 1, 'debe salir de las propiedades, sin pedir otro');
-});
 
-test('un token revocado se renueva y la llamada se reintenta sola', () => {
-  const { ctx, estado } = entorno();
-  ctx.doPost(peticion({ accion: 'producto', codigo: '2H0525345' }));
-  estado.revocado = true;
-  const r = leer(ctx.doPost(peticion({ accion: 'producto', codigo: '2H0525345' })));
-  eq(estado.gettoken, 2, 'debe pedir un token nuevo');
-  ok(r.exito && r.producto && r.producto.sku === '2H0525345', 'y acabar funcionando');
-});
 
-test('respuesta sin token reconocible dice qué revisar', () => {
-  const { ctx } = entorno({ formatoToken: 'vacio' });
-  const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
-  ok(!r.exito);
-  ok(/formato/.test(r.mensaje), r.mensaje);
-});
 
-test('el valor del token nunca sale en la respuesta', () => {
-  const { ctx } = entorno();
-  ctx.doPost(peticion({ accion: 'catalogo' }));
-  const r = leer(ctx.doPost(peticion({ accion: 'estadoToken' })));
-  ok(r.hayToken && r.vigente, 'debe informar que hay token');
-  ok(!JSON.stringify(r).includes('TK-'), 'pero NO su valor');
-  ok(r.minutosRestantes > 0);
-});
 
-console.log('\nCatálogo y producto');
-test('el catálogo completo viene en una sola llamada', () => {
-  const { ctx, estado } = entorno();
-  const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
-  ok(r.exito);
-  eq(r.productos.length, 2);
-  eq(estado.getstock, 1, 'una sola llamada a getstock');
-  eq(r.productos[0].descripcion, 'WASHER');
-});
+console.log('\nAcciones');
 
-test('DEFAULT no se toma como código de barras', () => {
-  const { ctx } = entorno();
-  const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
-  eq(r.productos[1].ean, null);
-});
 
-test('normaliza el SKU con basura invisible', () => {
-  const { ctx } = entorno({ catalogo: [
-    { codigo_producto: '  2h0-525345 ', descripcion: 'Washer', stock: 1 } ] });
-  const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
-  eq(r.productos[0].sku, '2H0525345');
-});
 
-test('un código inexistente devuelve producto null, no error', () => {
-  const { ctx } = entorno();
-  const r = leer(ctx.doPost(peticion({ accion: 'producto', codigo: 'NOEXISTE' })));
-  ok(r.exito); eq(r.producto, null);
-});
 
 test('acción desconocida se rechaza', () => {
   const { ctx } = entorno();

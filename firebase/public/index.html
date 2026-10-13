@@ -260,9 +260,14 @@ observarSesion(async ({ usuario, perfil, error }) => {
   }
 
   if (perfil && perfil.rol === 'ADMIN') {
-    aviso('avisos-sesion',
-      'Eres administrador. Continúa con el paso 5: el proxy de Depot en Apps Script.',
-      'ok', 'Todo listo');
+    const d = aviso('avisos-sesion',
+      'Desde el panel se cargan las credenciales de cada cliente de Depot.',
+      'ok', 'Eres administrador');
+    const a = document.createElement('a');
+    a.href = '/admin.html';
+    a.textContent = 'Abrir panel de administración →';
+    a.style.cssText = 'display:inline-block;margin-top:10px;font-weight:800;font-size:13px;';
+    d.appendChild(a);
   }
 });
 </script>
