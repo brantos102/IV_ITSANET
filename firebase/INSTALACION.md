@@ -498,6 +498,16 @@ Hosting URL: https://iv-itsanet.web.app
 
 ### 5.1 Crear el proyecto
 
+> **Quién crea el Apps Script es el dueño de los datos.** El proyecto, la
+> carpeta de evidencias en Drive y las credenciales de Depot quedan bajo esa
+> cuenta de Google.
+>
+> Si la cuenta no está gestionada por Workspace, la empresa **no** puede
+> recuperarla si la persona se va o pierde el acceso. Para una herramienta de
+> operación conviene crearlo con una cuenta que la empresa controle, o al menos
+> compartir el proyecto y la carpeta con un segundo responsable
+> (**Compartir** → rol **Editor**) desde el primer día.
+
 1. Entra a [script.google.com](https://script.google.com) **con la cuenta
    corporativa**
 2. **Nuevo proyecto** → nómbralo `VAL VENTURA — Proxy Depot`
@@ -764,7 +774,7 @@ se cobra nada, pero deja de funcionar. Conviene saber dónde estás.
 | Escrituras de Firestore | 20.000 | ~800 |
 | Almacenamiento | 1 GiB | Unos pocos MB al año |
 | `UrlFetchApp` (Apps Script) | 20.000 | ~5 |
-| `MailApp` (Apps Script) | 1.500 | 1 por cierre |
+| `MailApp` (Apps Script) | 100 en cuenta de Google, 1.500 en Workspace | 1 por cierre |
 
 Caben del orden de **20 recepciones diarias** con holgura. El límite que se toca
 primero son las escrituras de Firestore.
