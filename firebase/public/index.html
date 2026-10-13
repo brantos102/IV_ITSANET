@@ -128,7 +128,7 @@
 </div>
 
 <script type="module">
-import { DOMINIO, SDK } from './js/config.js';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js';
 import { entrar, salir, observarSesion, recogerRedirect, traducirError,
          esCuentaWorkspace, db, auth } from './js/auth.js';
 import { doc, getDoc, collection, getDocs, limit, query }
@@ -207,6 +207,7 @@ observarSesion(async ({ usuario, perfil, error }) => {
   // --- Comprobación de la instalación ---
   fila('SDK de Firebase', SDK, true);
   fila('Proyecto', auth.app.options.projectId, true);
+  fila('Base de datos', DATABASE_ID, true);
   fila('Acceso con Google', 'activo', true);
   fila('Dominio corporativo', '@' + DOMINIO, true);
 

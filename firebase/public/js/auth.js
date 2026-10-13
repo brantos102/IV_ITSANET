@@ -11,11 +11,12 @@ import {
   enableIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
-import { firebaseConfig, DOMINIO, USAR_PISTA_HD } from './config.js';
+import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Segundo argumento: el proyecto usa una base nombrada, no la `(default)`.
+export const db = getFirestore(app, DATABASE_ID);
 
 // Los handheld trabajan con WiFi irregular: sin esto, perder la señal detiene
 // el conteo. Con esto, Firestore encola y envía al reconectar.

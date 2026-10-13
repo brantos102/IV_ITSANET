@@ -383,6 +383,7 @@ Google**.
 |---|---|
 | SDK de Firebase | 10.14.1 |
 | Proyecto | iv-itsanet |
+| Base de datos | bd-iv-itsanet |
 | Acceso con Google | activo |
 | Dominio corporativo | @itsanet.com |
 | Tipo de cuenta | Google Workspace *(o "Google con correo corporativo")* |
@@ -711,6 +712,7 @@ operario ve un aviso y **sigue trabajando**.
 |---|---|---|
 | `Cloud Functions requires Blaze` | Desplegaste `functions` | En Spark no se despliegan; usa Apps Script |
 | `This API method requires billing`, precedido de `Creating the new Firestore database` | La base no existe y el CLI intentó crearla | Créala desde la consola (paso 2.1) y repite el despliegue. **No hace falta plan de pago** |
+| Entra, pero `permission-denied` al leer o escribir | El id de la base no coincide | Compara `firebase.json`, `config.js` y la consola (paso 2.1, punto 4) |
 | `option '--only <targets>' argument missing` | Faltó indicar qué desplegar | `firebase deploy --only hosting` |
 | `HTTP Error: 403` | Sesión vencida | `firebase logout && firebase login` |
 | `Failed to get Firebase project` | Mal vinculado | `firebase use --add` |

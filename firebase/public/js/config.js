@@ -44,5 +44,21 @@ export const DOMINIO = 'itsanet.com';
  */
 export const USAR_PISTA_HD = false;
 
+/**
+ * Identificador de la base de datos de Firestore.
+ *
+ * El proyecto usa una base NOMBRADA, no la `(default)`. Tanto el SDK como el
+ * CLI apuntan a `(default)` si no se les dice otra cosa, así que este valor
+ * tiene que coincidir con tres sitios:
+ *
+ *   - el nombre que aparece en la consola de Firebase,
+ *   - el campo `database` de firebase.json,
+ *   - el segundo argumento de getFirestore() en auth.js.
+ *
+ * Si no coinciden, la app no falla al arrancar: falla al leer o escribir, con
+ * un error de permisos que hace pensar en las reglas. Por eso vive aquí solo.
+ */
+export const DATABASE_ID = 'bd-iv-itsanet';
+
 /** Versión del SDK de Firebase que carga la app. */
 export const SDK = '10.14.1';
