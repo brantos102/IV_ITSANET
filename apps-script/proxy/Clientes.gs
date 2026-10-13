@@ -183,7 +183,8 @@ function accionProbarCliente_(p, usuario) {
 
   var t1 = new Date().getTime();
   try {
-    var cuerpo = pedirCliente_(id, rutaStockDe_(id) + encodeURIComponent(p.codigo || ''), false);
+    var sufijo = p.codigo ? '/' + encodeURIComponent(p.codigo) : '';
+    var cuerpo = pedirCliente_(id, rutaStockDe_(id) + sufijo, false);
     var filas = filasDe_(cuerpo || []);
     pasos.push({
       paso: 'getstock', ok: true, ms: new Date().getTime() - t1,
@@ -227,9 +228,12 @@ function estadoTokenCliente_(id) {
   if (!crudo) return { vigente: false, minutosRestantes: 0 };
   try {
     var reg = JSON.parse(crudo);
-    var restante = reg.venceEn - new Date().getTime();
+    // Vale si es del día de hoy en Ecuador. El vencimiento solo sirve para
+    // mostrar cuánto le queda.
+    var mismoDia = !reg.dia || reg.dia === diaEcuador_();
+    var restante = (reg.venceEn || 0) - new Date().getTime();
     return {
-      vigente: restante > 0,
+      vigente: mismoDia && restante > 0,
       minutosRestantes: Math.max(Math.round(restante / 60000), 0)
     };
   } catch (e) {
@@ -266,7 +270,7 @@ function obtenerTokenCliente_(id, forzar) {
     if (guardado) {
       try {
         var reg = JSON.parse(guardado);
-        if (reg.token && reg.venceEn > new Date().getTime()) {
+        if (reg.token && reg.dia === diaEcuador_()) {
           CACHE.put(claveTokenCache_(id), reg.token, TTL_TOKEN_SEG);
           return reg.token;
         }
@@ -281,10 +285,14 @@ function obtenerTokenCliente_(id, forzar) {
   var base = baseUrlDe_(id);
   if (!base) throw new Error('No hay URL base para el cliente ' + id + '.');
 
-  var cab = { Accept: 'application/json, text/plain, */*' };
-  if (cred.usuario) cab.usuario = cred.usuario;
-  if (cred.clave) cab.clave = cred.clave;
-  cab.cliente = id;
+  // Las credenciales van en las cabeceras `userid` y `password`, tal como lo
+  // hace el Centro de Mando en producción. Con otros nombres el WMS responde
+  // 401 sin explicar nada.
+  var cab = {
+    Accept: 'application/json, text/plain, */*',
+    userid: cred.usuario,
+    password: cred.clave
+  };
 
   var r = UrlFetchApp.fetch(base + CFG.rutaToken, {
     method: 'get', headers: cab, muteHttpExceptions: true
@@ -304,14 +312,30 @@ function obtenerTokenCliente_(id, forzar) {
                     r.getContentText().substring(0, 120));
   }
 
-  var horas = Number(PROPS.getProperty('DEPOT_TTL_HORAS') || 12);
+  // Un token por día natural, igual que el Centro de Mando. Se usa la hora de
+  // Ecuador (GMT-5) para que rote a medianoche local y no a media jornada.
   CACHE.put(claveTokenCache_(id), token, TTL_TOKEN_SEG);
   PROPS.setProperty(claveTokenProp_(id), JSON.stringify({
     token: token,
-    venceEn: new Date().getTime() + horas * 3600 * 1000,
+    dia: diaEcuador_(),
+    venceEn: finDelDiaEcuador_(),
     obtenidoEn: new Date().getTime()
   }));
   return token;
+}
+
+/** Fecha de hoy en Ecuador, para decidir si el token del día sigue sirviendo. */
+function diaEcuador_() {
+  return Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd');
+}
+
+/** Milisegundos hasta la medianoche de Ecuador. */
+function finDelDiaEcuador_() {
+  var ahora = new Date();
+  var partes = Utilities.formatDate(ahora, 'GMT-5', 'HH:mm:ss').split(':');
+  var transcurrido = (Number(partes[0]) * 3600 + Number(partes[1]) * 60 +
+                      Number(partes[2])) * 1000;
+  return ahora.getTime() + (86400000 - transcurrido);
 }
 
 /** GET contra Depot con el token del cliente, reintentando una vez si lo revocaron. */
@@ -382,7 +406,7 @@ function accionProductoMulti_(p, usuario) {
   var errores = [];
   for (var i = 0; i < ids.length; i++) {
     try {
-      var cuerpo = pedirCliente_(ids[i], CFG.rutaStock + encodeURIComponent(codigo), false);
+      var cuerpo = pedirCliente_(ids[i], CFG.rutaStock + '/' + encodeURIComponent(codigo), false);
       var filas = filasDe_(cuerpo || []);
       for (var j = 0; j < filas.length; j++) {
         var m = mapearStock_(filas[j]);

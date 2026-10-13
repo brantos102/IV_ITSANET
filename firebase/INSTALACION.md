@@ -538,7 +538,26 @@ En el editor de Apps Script: **Configuración del proyecto** (engranaje) →
 | `FIREBASE_DATABASE_ID` | `bd-iv-itsanet` | Sí |
 | `DOMINIO_PERMITIDO` | `itsanet.com` | Sí |
 | `CARPETA_EVIDENCIAS` | El id del paso 5.2 | Para fotos |
-| `DEPOT_TTL_HORAS` | `12` | No (12 por defecto) |
+| `DEPOT_RUTA_TOKEN` | `/gettoken` | No (ya es el valor por defecto) |
+| `DEPOT_RUTA_STOCK` | `/getstock` | No (ya es el valor por defecto) |
+
+> **El contrato real de la API**, confirmado contra el Centro de Mando:
+>
+> | | |
+> |---|---|
+> | Token | `GET /gettoken`, **sin barra final** |
+> | Credenciales | cabeceras `userid` y `password` |
+> | Token en la respuesta | `token`, `Token`, `Result` o `result` |
+> | Consulta | `GET /getstock` (todo) o `/getstock/CODIGO` (uno) |
+> | Autenticación | cabecera `token` |
+> | Filas | array suelto, o dentro de `Result`, `result` o `data` |
+>
+> Campos que devuelve: `COD. PRODUCTO`, `DESCRIPCION`, `UNIDAD`, `CANTIDAD`,
+> `NAVE`, `CALLE`, `COLUMNA`, `NIVEL`, `NRO. SERIE`, `NRO. LOTE`,
+> `NRO. DESPACHO`, `NRO. PARTIDA`, `CAT. LOG.`, `EST. MERC.`, `COD. CLIENTE`,
+> `FAMILIA`.
+>
+> **No hay código de barras.** La validación por EAN no puede salir de aquí.
 
 > **Las credenciales de los clientes NO van aquí.** Se cargan desde el panel de
 > administración de la app, que las guarda en estas mismas propiedades pero bajo

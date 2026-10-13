@@ -59,8 +59,8 @@ var CFG = {
   get apiKey() { return PROPS.getProperty('FIREBASE_API_KEY') || ''; },
   get dominio() { return PROPS.getProperty('DOMINIO_PERMITIDO') || ''; },
   get carpeta() { return PROPS.getProperty('CARPETA_EVIDENCIAS') || ''; },
-  get rutaToken() { return PROPS.getProperty('DEPOT_RUTA_TOKEN') || '/gettoken/'; },
-  get rutaStock() { return PROPS.getProperty('DEPOT_RUTA_STOCK') || '/getstock/'; },
+  get rutaToken() { return PROPS.getProperty('DEPOT_RUTA_TOKEN') || '/gettoken'; },
+  get rutaStock() { return PROPS.getProperty('DEPOT_RUTA_STOCK') || '/getstock'; },
   get cabeceraToken() { return PROPS.getProperty('DEPOT_CABECERA_TOKEN') || 'token'; }
 };
 
@@ -232,7 +232,13 @@ function obtenerTokenDepot_(forzar) {
   return token;
 }
 
-/** El formato de /gettoken/ no está documentado: se aceptan los tres usuales. */
+/**
+ * Lee el token de la respuesta de /gettoken.
+ *
+ * Los campos son los que usa el Centro de Mando en producción:
+ * token, Token, Result o result. Se aceptan además texto plano y respuesta
+ * entrecomillada, que no cuestan nada y evitan una sorpresa.
+ */
 function extraerToken_(texto) {
   var t = String(texto || '').trim();
   if (!t) return null;
@@ -240,10 +246,12 @@ function extraerToken_(texto) {
   if (t.charAt(0) === '{' || t.charAt(0) === '[') {
     try {
       var j = JSON.parse(t);
-      var d = Array.isArray(j) ? j[0] : (j.data || j.result || j);
-      var v = d && (d.token || d.Token || d.token_id || d.tokenId || d.id ||
-                    d.access_token || d.TOKEN);
-      return v ? String(v) : null;
+      var d = Array.isArray(j) ? j[0] : j;
+      var v = d && (d.token || d.Token || d.Result || d.result ||
+                    d.TOKEN || d.access_token);
+      // Result puede venir anidado en algunos despliegues.
+      if (v && typeof v === 'object') v = v.token || v.Token || null;
+      return v ? String(v).trim() : null;
     } catch (e) { return null; }
   }
   return t.replace(/^"+|"+$/g, '') || null;
@@ -428,41 +436,60 @@ function limpiarTexto_(valor) {
     .trim();
 }
 
+/**
+ * Saca la lista de filas de la respuesta de /getstock.
+ *
+ * El Centro de Mando acepta: array suelto, o dentro de Result, result o data.
+ */
 function filasDe_(cuerpo) {
   if (Array.isArray(cuerpo)) return cuerpo;
   if (!cuerpo || typeof cuerpo !== 'object') return [];
-  var claves = ['data', 'result', 'stock', 'productos', 'items', 'Table', 'rows'];
+  var claves = ['Result', 'result', 'data', 'Data', 'stock', 'items', 'Table', 'rows'];
   for (var i = 0; i < claves.length; i++) {
     if (Array.isArray(cuerpo[claves[i]])) return cuerpo[claves[i]];
   }
   return [cuerpo];
 }
 
-/** Los nombres de campo no están documentados: se aceptan las variantes usuales. */
+/**
+ * Traduce una fila de /getstock.
+ *
+ * Los nombres de campo son los reales del WMS, tomados del Centro de Mando:
+ * van en mayúsculas, con espacios y puntos ("COD. PRODUCTO", "NRO. LOTE").
+ * Se dejan unas pocas alternativas por si otro despliegue difiere, pero las
+ * principales ya no son suposiciones.
+ *
+ * OJO: la respuesta NO trae código de barras. La validación por EAN no puede
+ * salir de aquí; hay que resolverla por otra vía.
+ */
 function mapearStock_(fila) {
   if (!fila || typeof fila !== 'object') return null;
 
-  var sku = fila.codigo_producto || fila.CodProducto || fila.cod_producto ||
-            fila.codProducto || fila.producto_id || fila.codigo || fila.sku ||
-            fila.Codigo || fila.CODIGO;
+  var sku = fila['COD. PRODUCTO'] || fila['COD.PRODUCTO'] ||
+            fila.codigo_producto || fila.CodProducto || fila.codigo || fila.sku;
   if (!sku) return null;
 
-  var ean = fila.codigo_barra || fila.codigoBarra || fila.CodigoBarra ||
-            fila.ean || fila.EAN || fila.barcode;
-  if (ean && (String(ean).toUpperCase() === 'DEFAULT' || String(ean) === '0')) ean = null;
-
-  var stock = fila.stock !== undefined ? fila.stock
-            : fila.Stock !== undefined ? fila.Stock
-            : fila.cantidad !== undefined ? fila.cantidad
-            : fila.existencia !== undefined ? fila.existencia : 0;
+  // La posición en bodega se arma igual que en el Centro de Mando.
+  var pos = [fila['NAVE'], fila['CALLE'], fila['COLUMNA'], fila['NIVEL']]
+    .map(function (x) { return limpiarTexto_(x); })
+    .filter(function (x) { return x !== ''; })
+    .join('-');
 
   return {
     sku: normalizar_(sku),
-    descripcion: limpiarTexto_(fila.descripcion || fila.Descripcion || fila.DESCRIPCION ||
-                               fila.nombre || fila.detalle || ''),
-    ean: ean ? normalizar_(ean) : null,
-    unidad: limpiarTexto_(fila.unidad || fila.unidad_id || fila.Unidad || '') || null,
-    stock: Number(stock) || 0
+    descripcion: limpiarTexto_(fila['DESCRIPCION'] || fila.descripcion || ''),
+    unidad: limpiarTexto_(fila['UNIDAD'] || fila.unidad || '') || null,
+    stock: Number(limpiarTexto_(fila['CANTIDAD'] || fila.cantidad || 0)) || 0,
+    posicion: pos || null,
+    lote: limpiarTexto_(fila['NRO. LOTE'] || '') || null,
+    serie: limpiarTexto_(fila['NRO. SERIE'] || '') || null,
+    partida: limpiarTexto_(fila['NRO. PARTIDA'] || '') || null,
+    familia: limpiarTexto_(fila['FAMILIA'] || '') || null,
+    estadoMercaderia: limpiarTexto_(fila['EST. MERC.'] || '') || null,
+    // El WMS puede devolver, con una sola credencial, el stock de varios
+    // clientes. Este campo dice de cuál es cada fila.
+    codCliente: limpiarTexto_(fila['COD. CLIENTE'] || '').toUpperCase() || null,
+    ean: null   // /getstock no devuelve código de barras
   };
 }
 

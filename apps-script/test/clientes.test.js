@@ -29,14 +29,20 @@ function entorno(opciones = {}) {
   }));
   const cache = new Map();
 
+  // Campos tal como los devuelve el WMS real (según el Centro de Mando).
   const cuentas = opciones.cuentas || {
     VENTURA: { usuario: 'u_ventura', clave: 'p_ventura', catalogo: [
-      { codigo_producto: '2H0525345', descripcion: 'WASHER', stock: 12 },
-      { codigo_producto: 'COMPARTIDO', descripcion: 'DESDE VENTURA', stock: 1 },
+      { 'COD. PRODUCTO': '2H0525345', 'DESCRIPCION': 'WASHER', 'CANTIDAD': '12',
+        'UNIDAD': 'CS', 'COD. CLIENTE': 'VENTURA', 'NAVE': 'A', 'CALLE': '01',
+        'COLUMNA': '03', 'NIVEL': '2', 'NRO. LOTE': 'L1', 'FAMILIA': 'REPUESTOS' },
+      { 'COD. PRODUCTO': 'COMPARTIDO', 'DESCRIPCION': 'DESDE VENTURA',
+        'CANTIDAD': '1', 'COD. CLIENTE': 'VENTURA' },
     ] },
     BELIA: { usuario: 'u_belia', clave: 'p_belia', catalogo: [
-      { codigo_producto: '9XX111', descripcion: 'PIEZA BELIA', stock: 7 },
-      { codigo_producto: 'COMPARTIDO', descripcion: 'DESDE BELIA', stock: 3 },
+      { 'COD. PRODUCTO': '9XX111', 'DESCRIPCION': 'PIEZA BELIA', 'CANTIDAD': '7',
+        'COD. CLIENTE': 'BELIA' },
+      { 'COD. PRODUCTO': 'COMPARTIDO', 'DESCRIPCION': 'DESDE BELIA',
+        'CANTIDAD': '3', 'COD. CLIENTE': 'BELIA' },
     ] },
   };
 
@@ -63,6 +69,14 @@ function entorno(opciones = {}) {
       DigestAlgorithm: { SHA_256: 1 },
       base64Decode: (s) => Buffer.from(s, 'base64'),
       newBlob: (d, t, n) => ({ datos: d, tipo: t, nombre: n }),
+      // Lo necesita la lógica de token por día natural (hora de Ecuador).
+      formatDate: (d, tz, fmt) => {
+        const p = (n) => String(n).padStart(2, '0');
+        const ec = new Date(d.getTime() - 5 * 3600 * 1000);   // GMT-5
+        return fmt === 'yyyy-MM-dd'
+          ? `${ec.getUTCFullYear()}-${p(ec.getUTCMonth() + 1)}-${p(ec.getUTCDate())}`
+          : `${p(ec.getUTCHours())}:${p(ec.getUTCMinutes())}:${p(ec.getUTCSeconds())}`;
+      },
     },
     Logger: { log: () => {} },
     ContentService: {
@@ -87,15 +101,16 @@ function entorno(opciones = {}) {
           return resp(200, JSON.stringify({ fields: { rol: { stringValue: estado.rol } } }));
         }
 
-        if (url.includes('/gettoken/')) {
-          // El WMS identifica al cliente por usuario y contraseña.
+        if (url.includes('/gettoken')) {
+          // El WMS espera las credenciales en `userid` y `password`.
           const id = Object.keys(cuentas).find((k) =>
-            cuentas[k].usuario === cab.usuario && cuentas[k].clave === cab.clave);
+            cuentas[k].usuario === cab.userid && cuentas[k].clave === cab.password);
           if (!id) return resp(401, 'credenciales invalidas');
           if (estado.caidos.has(id)) return resp(500, 'caido');
           estado.gettoken[id] = (estado.gettoken[id] || 0) + 1;
           estado.tokens[id] = `TK-${id}-${estado.gettoken[id]}`;
-          return resp(200, JSON.stringify({ token: estado.tokens[id] }));
+          // El WMS puede devolverlo en Result; el Centro de Mando lo contempla.
+          return resp(200, JSON.stringify({ Result: estado.tokens[id] }));
         }
 
         // getstock: el token identifica de qué cliente es la consulta.
@@ -104,12 +119,13 @@ function entorno(opciones = {}) {
         if (estado.caidos.has(id)) return resp(500, 'caido');
         estado.getstock[id] = (estado.getstock[id] || 0) + 1;
 
-        const m = url.match(/\/getstock\/(.*)$/);
-        const codigo = m && m[1] ? decodeURIComponent(m[1]) : '';
+        const m = url.match(/\/getstock\/(.+)$/);
+        const codigo = m ? decodeURIComponent(m[1]) : '';
         const cat = cuentas[id].catalogo;
-        if (!codigo) return resp(200, JSON.stringify(cat));
-        const fila = cat.find((f) => f.codigo_producto === codigo);
-        return resp(200, JSON.stringify(fila ? [fila] : []));
+        // El WMS envuelve las filas en Result.
+        if (!codigo) return resp(200, JSON.stringify({ Result: cat }));
+        const fila = cat.find((f) => f['COD. PRODUCTO'] === codigo);
+        return resp(200, JSON.stringify({ Result: fila ? [fila] : [] }));
       },
     },
   };
@@ -308,7 +324,10 @@ test('probar informa cada paso y los campos reales del WMS', () => {
   const r = pedir(e.ctx, { accion: 'probarCliente', id: 'VENTURA' });
   ok(r.exito);
   eq(r.pasos.map((p) => p.paso), ['gettoken', 'getstock']);
-  eq(r.pasos[1].camposCrudos, ['codigo_producto', 'descripcion', 'stock']);
+  // Los nombres reales del WMS, en mayúsculas y con puntos.
+  ok(r.pasos[1].camposCrudos.includes('COD. PRODUCTO'), r.pasos[1].camposCrudos.join(','));
+  ok(r.pasos[1].camposCrudos.includes('DESCRIPCION'));
+  ok(r.pasos[1].camposCrudos.includes('CANTIDAD'));
   ok(!JSON.stringify(r).includes('TK-'), 'el token no debe aparecer');
 });
 
@@ -362,7 +381,7 @@ test('una respuesta sin token reconocible dice qué revisar', () => {
   const e = entorno();
   // El WMS responde 200 pero sin token en ningún campo conocido.
   const original = e.ctx.UrlFetchApp.fetch;
-  e.ctx.UrlFetchApp.fetch = (url, opts) => (url.includes('/gettoken/')
+  e.ctx.UrlFetchApp.fetch = (url, opts) => (url.includes('/gettoken')
     ? { getResponseCode: () => 200, getContentText: () => '{"sesion":"abc"}' }
     : original(url, opts));
   pedir(e.ctx, { accion: 'guardarCliente', id: 'V', usuario: 'u_ventura', clave: 'p_ventura' });
@@ -386,6 +405,62 @@ test('normaliza el SKU con basura invisible', () => {
   pedir(e.ctx, { accion: 'guardarCliente', id: 'V', usuario: 'u_ventura', clave: 'p_ventura' });
   const r = pedir(e.ctx, { accion: 'catalogo' });
   eq(r.productos[0].sku, '2H0525345');
+});
+
+console.log('\nContrato real del WMS');
+test('las credenciales viajan en userid y password', () => {
+  const e = entorno();
+  let cabVistas = null;
+  const original = e.ctx.UrlFetchApp.fetch;
+  e.ctx.UrlFetchApp.fetch = (url, opts) => {
+    if (url.includes('/gettoken')) cabVistas = opts.headers;
+    return original(url, opts);
+  };
+  pedir(e.ctx, { accion: 'guardarCliente', id: 'V', usuario: 'u_ventura', clave: 'p_ventura' });
+  pedir(e.ctx, { accion: 'probarCliente', id: 'V' });
+  eq(cabVistas.userid, 'u_ventura');
+  eq(cabVistas.password, 'p_ventura');
+  ok(!cabVistas.usuario && !cabVistas.clave, 'los nombres antiguos darían 401');
+});
+
+test('las rutas van sin barra final', () => {
+  const e = conDosClientes();
+  const urls = [];
+  const original = e.ctx.UrlFetchApp.fetch;
+  e.ctx.UrlFetchApp.fetch = (url, opts) => { urls.push(url); return original(url, opts); };
+  pedir(e.ctx, { accion: 'catalogo', clientes: ['VENTURA'] });
+  ok(urls.some((u) => u.endsWith('/gettoken')), 'gettoken sin barra: ' + urls.join(' '));
+  ok(urls.some((u) => u.endsWith('/getstock')), 'getstock sin barra');
+});
+
+test('un código concreto va como /getstock/CODIGO', () => {
+  const e = conDosClientes();
+  const urls = [];
+  const original = e.ctx.UrlFetchApp.fetch;
+  e.ctx.UrlFetchApp.fetch = (url, opts) => { urls.push(url); return original(url, opts); };
+  pedir(e.ctx, { accion: 'producto', codigo: '2H0525345', clientes: ['VENTURA'] });
+  ok(urls.some((u) => u.endsWith('/getstock/2H0525345')), urls.join(' '));
+});
+
+test('lee el token aunque venga en Result', () => {
+  const e = conDosClientes();
+  const r = pedir(e.ctx, { accion: 'producto', codigo: '2H0525345' });
+  ok(r.exito && r.producto, 'debe funcionar con el token en Result');
+});
+
+test('mapea los campos reales del WMS', () => {
+  const e = conDosClientes();
+  const r = pedir(e.ctx, { accion: 'producto', codigo: '2H0525345' });
+  const p = r.producto;
+  eq(p.sku, '2H0525345');
+  eq(p.descripcion, 'WASHER');
+  eq(p.stock, 12, 'CANTIDAD viene como texto y debe quedar numérica');
+  eq(p.unidad, 'CS');
+  eq(p.posicion, 'A-01-03-2', 'NAVE-CALLE-COLUMNA-NIVEL');
+  eq(p.lote, 'L1');
+  eq(p.familia, 'REPUESTOS');
+  eq(p.codCliente, 'VENTURA');
+  eq(p.ean, null, '/getstock no devuelve código de barras');
 });
 
 console.log('\nSin clientes configurados');

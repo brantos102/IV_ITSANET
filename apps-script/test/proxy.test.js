@@ -60,6 +60,14 @@ function entorno(opciones = {}) {
       DigestAlgorithm: { SHA_256: 1 },
       base64Decode: (s) => Buffer.from(s, 'base64'),
       newBlob: (d, t, n) => ({ datos: d, tipo: t, nombre: n }),
+      // Lo necesita la lógica de token por día natural (hora de Ecuador).
+      formatDate: (d, tz, fmt) => {
+        const p = (n) => String(n).padStart(2, '0');
+        const ec = new Date(d.getTime() - 5 * 3600 * 1000);   // GMT-5
+        return fmt === 'yyyy-MM-dd'
+          ? `${ec.getUTCFullYear()}-${p(ec.getUTCMonth() + 1)}-${p(ec.getUTCDate())}`
+          : `${p(ec.getUTCHours())}:${p(ec.getUTCMinutes())}:${p(ec.getUTCSeconds())}`;
+      },
     },
     Logger: { log: () => {} },
     ContentService: {
