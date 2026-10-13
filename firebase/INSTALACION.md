@@ -200,7 +200,22 @@ Antes de empezar, consigue esto de quien administra el WMS:
 
 Ya tienes **IV ITSANET** en plan Spark. Solo falta activar Firestore.
 
-### 2.1 Firestore
+### 2.1 Firestore — crear la base DESDE LA CONSOLA
+
+> **Este paso no se puede saltar, y hay que hacerlo en el navegador.**
+>
+> Si llegas al despliegue sin haber creado la base aquí, el CLI intentará
+> crearla por su cuenta y fallará con un error que despista:
+>
+> ```
+> firestore: Creating the new Firestore database (default)...
+> Error: HTTP Error: 403, This API method requires billing to be enabled.
+> ```
+>
+> **No significa que Firestore necesite plan de pago.** Significa que *crear* la
+> base mediante la API administrativa sí lo necesita. Creándola desde la consola
+> se usa otra ruta, que funciona en Spark con su cuota gratuita. Hecho eso, el
+> despliegue de reglas ya no intenta crear nada y pasa sin problema.
 
 1. [console.firebase.google.com](https://console.firebase.google.com) → tu proyecto
 2. **Compilación** → **Firestore Database** → **Crear base de datos**
@@ -695,6 +710,8 @@ operario ve un aviso y **sigue trabajando**.
 | Error | Causa | Solución |
 |---|---|---|
 | `Cloud Functions requires Blaze` | Desplegaste `functions` | En Spark no se despliegan; usa Apps Script |
+| `This API method requires billing`, precedido de `Creating the new Firestore database` | La base no existe y el CLI intentó crearla | Créala desde la consola (paso 2.1) y repite el despliegue. **No hace falta plan de pago** |
+| `option '--only <targets>' argument missing` | Faltó indicar qué desplegar | `firebase deploy --only hosting` |
 | `HTTP Error: 403` | Sesión vencida | `firebase logout && firebase login` |
 | `Failed to get Firebase project` | Mal vinculado | `firebase use --add` |
 | `The query requires an index` | Índices construyéndose | Espera 5 min; el error trae un enlace que lo crea |
