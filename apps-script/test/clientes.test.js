@@ -197,6 +197,25 @@ test('rechaza http y exige usuario', () => {
   ok(!r.exito && /usuario/i.test(r.mensaje), r.mensaje);
 });
 
+// Es lo que paso de verdad: en el formulario se pego la URL del endpoint, no la
+// raiz, y el 404 que salia despues parecia un problema de credenciales.
+test('recorta el endpoint pegado en la URL base', () => {
+  const e = entorno();
+  const r = pedir(e.ctx, { accion: 'guardarCliente', id: 'X', usuario: 'u', clave: 'p',
+                           baseUrl: 'https://ec.itsanet.com/q_apidepot/getstock/' });
+  ok(r.exito, r.mensaje);
+  const guardada = JSON.parse(e.props.get('CRED_X')).baseUrl;
+  eq(guardada, 'https://ec.itsanet.com/q_apidepot');
+});
+
+test('no toca una URL base que ya es la raiz', () => {
+  const e = entorno();
+  const r = pedir(e.ctx, { accion: 'guardarCliente', id: 'Y', usuario: 'u', clave: 'p',
+                           baseUrl: 'https://otro.itsanet.com/api' });
+  ok(r.exito, r.mensaje);
+  eq(JSON.parse(e.props.get('CRED_Y')).baseUrl, 'https://otro.itsanet.com/api');
+});
+
 test('editar sin reescribir la contraseña la conserva', () => {
   const e = entorno();
   pedir(e.ctx, { accion: 'guardarCliente', id: 'V', usuario: 'u_ventura', clave: 'p_ventura' });

@@ -116,7 +116,12 @@ function accionGuardarCliente_(p, usuario) {
   var clave = p.clave ? String(p.clave) : (previo.clave || '');
   if (!clave) throw new Error('La contraseña de Depot es obligatoria la primera vez.');
 
-  var baseUrl = String(p.baseUrl || '').replace(/\/+$/, '');
+  // La URL base es la RAIZ de la API: el proxy le añade /gettoken y /getstock.
+  // Si alguien pega la de un endpoint, se recorta en vez de fallar luego con un
+  // 404 que parecería un problema de credenciales.
+  var baseUrl = String(p.baseUrl || '')
+    .replace(/\/+$/, '')
+    .replace(/\/(gettoken|getstock)$/i, '');
   if (baseUrl && !/^https:\/\//i.test(baseUrl)) {
     // Un http:// mandaría la credencial en claro por la red.
     throw new Error('La URL debe empezar por https://');

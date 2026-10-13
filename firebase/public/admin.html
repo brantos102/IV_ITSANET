@@ -53,6 +53,8 @@
   input:focus, select:focus { border-color:var(--accent);
                               box-shadow:0 0 0 3px rgba(37,99,235,.15); }
   .pista { font-size:11px; color:var(--secondary); font-weight:600; }
+  code { font-family:var(--font-data); font-size:.92em; background:var(--bg);
+         padding:2px 6px; border-radius:5px; word-break:break-all; }
 
   button { font-family:inherit; font-weight:800; border:none; border-radius:10px;
            cursor:pointer; transition:.2s; padding:12px 20px; font-size:13px; }
@@ -120,6 +122,27 @@
 <!-- Panel principal -->
 <div id="panelAdmin" class="oculto">
 
+  <!-- Diagnóstico del proxy: sin esto, todo lo demás falla igual -->
+  <div class="panel" style="border:2px solid var(--accent)">
+    <h2>Conexión con el proxy</h2>
+    <p>Todo lo de esta página pasa por el Apps Script. Si no responde, ni las
+       credenciales ni la prueba de Depot pueden funcionar.</p>
+
+    <label class="campo" style="margin-bottom:14px">
+      <span>URL del despliegue (config/proxy en Firestore)</span>
+      <input id="fUrlProxy" placeholder="https://script.google.com/macros/s/AKfy.../exec"
+             spellcheck="false">
+      <span class="pista">Termina en <code>/exec</code>. La de <code>/dev</code> es la
+        de pruebas y exige sesión de Google: desde la app nunca va a funcionar.</span>
+    </label>
+
+    <div class="acciones">
+      <button class="b-primario" id="bProbarProxy">Probar conexión</button>
+      <button class="b-sec" id="bGuardarUrl">Guardar esta URL</button>
+    </div>
+    <div id="resProxy"></div>
+  </div>
+
   <div class="panel">
     <h2>Credenciales por cliente</h2>
     <p>Cada cliente tiene su propio usuario y contraseña en Depot, y su propio
@@ -170,7 +193,9 @@
       <label class="campo" style="grid-column:1/-1">
         <span>URL base (vacío = la global)</span>
         <input id="fBaseUrl" placeholder="https://ec.itsanet.com/q_apidepot">
-        <span class="pista">Solo si este cliente usa otro servidor. Debe ser https.</span>
+        <span class="pista">La <b>raíz</b> de la API, sin <code>/gettoken</code> ni
+          <code>/getstock</code>: el proxy los añade. Solo si este cliente usa otro
+          servidor. Debe ser https.</span>
       </label>
     </div>
 
@@ -205,8 +230,10 @@
 </div>
 
 <script type="module">
-import { observarSesion, traducirError } from './js/auth.js';
-import { Proxy } from './js/proxy.js';
+import { observarSesion, traducirError, db } from './js/auth.js';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js';
+import { doc, getDoc, setDoc }
+  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -246,6 +273,7 @@ observarSesion(({ usuario, perfil, error }) => {
   }
   $('sinPermiso').classList.add('oculto');
   $('panelAdmin').classList.remove('oculto');
+  cargarUrlProxy();
   cargar();
 });
 
@@ -426,6 +454,133 @@ function pintarPrueba(r) {
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
+
+// =========================================================================== //
+// Diagnóstico del proxy
+// =========================================================================== //
+/**
+ * Dice CUÁL de las tres causas es, en vez de listarlas.
+ *
+ * Un Apps Script mal publicado no devuelve un error: redirige a la pantalla de
+ * acceso de Google, y el navegador bloquea esa redirección por CORS. Desde el
+ * `fetch` eso se ve igual que «no hay red», así que hay que mirar la forma de
+ * la URL y lo que responde un GET simple para distinguirlo.
+ */
+const FORMA_OK = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
+
+function resultado(html) { $('resProxy').innerHTML = html; }
+
+function bloque(tipo, titulo, cuerpo) {
+  return `<div class="msg ${tipo}" style="margin-top:16px"><b>${esc(titulo)}</b>${cuerpo}</div>`;
+}
+
+async function cargarUrlProxy() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'proxy'));
+    $('fUrlProxy').value = (snap.exists() && snap.get('url')) || '';
+  } catch (e) {
+    resultado(bloque('err', 'No se pudo leer config/proxy', esc(traducirError(e))));
+  }
+}
+
+$('bGuardarUrl').addEventListener('click', async () => {
+  const url = $('fUrlProxy').value.trim();
+  if (!url) return resultado(bloque('warn', 'Falta la URL', 'Pega la del despliegue.'));
+  try {
+    await setDoc(doc(db, 'config', 'proxy'), { url }, { merge: true });
+    resultado(bloque('ok', 'Guardada', 'Ahora pulsa <b>Probar conexión</b>.'));
+    await obtenerUrlProxy(true);   // olvidar la que estaba en memoria
+  } catch (e) {
+    resultado(bloque('err', 'No se pudo guardar', esc(traducirError(e))));
+  }
+});
+
+$('bProbarProxy').addEventListener('click', async () => {
+  const url = $('fUrlProxy').value.trim();
+  $('bProbarProxy').disabled = true;
+  try {
+    await diagnosticar(url);
+  } finally {
+    $('bProbarProxy').disabled = false;
+  }
+});
+
+async function diagnosticar(url) {
+  if (!url) {
+    return resultado(bloque('err', 'No hay URL guardada',
+      'Abre el Apps Script → <b>Implementar</b> → <b>Gestionar implementaciones</b>, ' +
+      'copia la <b>URL de la aplicación web</b>, pégala arriba y pulsa Guardar.'));
+  }
+
+  if (/\/dev$/.test(url)) {
+    return resultado(bloque('err', 'Es la URL de pruebas',
+      'Termina en <code>/dev</code>. Esa exige sesión de Google y el navegador la ' +
+      'bloquea. En <b>Gestionar implementaciones</b> copia la que termina en ' +
+      '<code>/exec</code>.'));
+  }
+
+  if (!FORMA_OK.test(url)) {
+    return resultado(bloque('warn', 'La URL no tiene la forma esperada',
+      'Debería ser <code>https://script.google.com/macros/s/…/exec</code>, sin nada ' +
+      'después. La que hay es:<br><code>' + esc(url) + '</code><br>Igual la pruebo.') +
+      await probarRed(url));
+  }
+
+  resultado(bloque('info', 'Probando…', 'Un momento.'));
+  resultado(await probarRed(url));
+}
+
+/** GET simple a la URL. `doGet` del proxy responde un JSON de comprobación. */
+async function probarRed(url) {
+  let res;
+  try {
+    res = await fetch(url, { method: 'GET', redirect: 'follow' });
+  } catch (e) {
+    // Un fetch que lanza es casi siempre la redirección al login bloqueada.
+    return bloque('err', 'El navegador no pudo llegar al proxy',
+      'Es casi seguro el permiso del despliegue. En el Apps Script: ' +
+      '<b>Implementar → Gestionar implementaciones → ✏️</b> y deja ' +
+      '<b>Quién tiene acceso: Cualquier usuario</b> ' +
+      '(no «Cualquier usuario con cuenta de Google»). Guarda como ' +
+      '<b>versión nueva</b>.<br><br>' +
+      'Si ya está así, abre la URL en otra pestaña: si te pide iniciar sesión, ' +
+      'es eso. Si ves <code>{"ok":true…}</code>, avísame.<br>' +
+      '<span class="pista">Detalle técnico: ' + esc(String(e.message || e)) + '</span>');
+  }
+
+  const texto = await res.text();
+
+  if (res.status === 404) {
+    return bloque('err', 'La URL no existe (404)',
+      'El despliegue fue borrado o la URL está mal copiada. Crea uno nuevo en ' +
+      '<b>Implementar → Nueva implementación → Aplicación web</b> y pega aquí la URL.');
+  }
+
+  if (/^\s*<!DOCTYPE html|^\s*<html/i.test(texto)) {
+    return bloque('err', 'Respondió una página, no datos',
+      'Es la pantalla de acceso de Google: el despliegue no está publicado para ' +
+      '<b>Cualquier usuario</b>. Cámbialo y publica una <b>versión nueva</b>.');
+  }
+
+  let cuerpo;
+  try { cuerpo = JSON.parse(texto); } catch {
+    return bloque('err', 'Respondió algo que no es JSON',
+      'Los primeros caracteres fueron:<br><code>' + esc(texto.slice(0, 160)) + '</code>');
+  }
+
+  if (cuerpo.servicio === 'proxy-depot') {
+    return bloque('ok', 'El proxy responde',
+      'La URL es correcta y está publicada para cualquier usuario. ' +
+      'Versión del proxy: <b>' + esc(cuerpo.version || '?') + '</b>.<br>' +
+      'Si guardar credenciales sigue fallando, el problema ya no es de red: ' +
+      'revisa las propiedades del script (paso 5 de la guía).');
+  }
+
+  return bloque('warn', 'Responde, pero no es este proxy',
+    'Devolvió:<br><code>' + esc(texto.slice(0, 200)) + '</code><br>' +
+    'La URL apunta a otro Apps Script.');
+}
+
 </script>
 </body>
 </html>

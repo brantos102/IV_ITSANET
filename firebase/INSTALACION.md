@@ -632,6 +632,35 @@ bien, y hay una prueba que lo vigila.
 
 ---
 
+### Si la página de administración dice «No se pudo contactar al proxy»
+
+No adivines entre las causas: la propia página te dice cuál es. En
+`/admin.html`, primer panel, **Conexión con el proxy** → **Probar conexión**.
+
+Hace un GET a la URL y distingue los cuatro casos:
+
+| Lo que responde | Qué significa |
+|---|---|
+| `{"ok":true,"servicio":"proxy-depot"}` | Correcto. Si aún falla, el problema está en las propiedades del script |
+| El navegador no pudo llegar | El despliegue **no** está en «Cualquier usuario» |
+| Una página HTML | Es la pantalla de acceso de Google: lo mismo |
+| 404 | La URL está mal copiada o el despliegue se borró |
+
+Los dos errores que más se repiten:
+
+1. **«Cualquier usuario con cuenta de Google»** en vez de **«Cualquier
+   usuario»**. Son opciones distintas y solo la segunda funciona: la primera
+   redirige al login, y el navegador bloquea esa redirección. Se cambia en
+   **Implementar → Gestionar implementaciones → ✏️**, y hay que guardar como
+   **versión nueva**.
+2. **La URL de `/dev`** en lugar de la de `/exec`. La de `/dev` es la de
+   pruebas y exige tu sesión de Google; desde la app nunca va a funcionar.
+
+Desde ese mismo panel puedes pegar la URL correcta y guardarla, sin entrar a
+Firestore a mano.
+
+---
+
 ## 7. Probar la conexión con Depot
 
 **Antes de construir nada encima.** En el editor de Apps Script:
