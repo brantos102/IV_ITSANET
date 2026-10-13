@@ -168,6 +168,7 @@ import {
   registrarConteo, anularConteo, leerBitacora, ubicacionesDe, resumir, nuevaClave,
 } from './js/conteo.js';
 import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
+import { comprimir, tamanoLegible } from './js/imagen.js';
 import { Proxy } from './js/proxy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -447,9 +448,7 @@ async function registrar(confirmarSobrante) {
 
   try {
     if ($('fEstado').value === 'PNC' && $('fFotos').files.length && !fotosSubidas.length) {
-      const d = aviso('Subiendo las fotos…', 'info');
       fotosSubidas = await subirFotos(actual.sku);
-      d.remove();
     }
 
     const r = await registrarConteo(RECEPCION, usuario, {
@@ -487,20 +486,33 @@ async function registrar(confirmarSobrante) {
   }
 }
 
-/** Las fotos van a Drive a través del proxy: Spark no incluye Cloud Storage. */
+/**
+ * Sube las fotos a Drive a través del proxy: Spark no incluye Cloud Storage.
+ *
+ * Se comprimen antes. Sin eso, una foto de handheld son varios MB que el proxy
+ * no alcanza a procesar dentro de su tiempo, y el operario ve «el proxy tardó
+ * demasiado» justo cuando acaba de documentar un producto dañado.
+ */
 async function subirFotos(sku) {
+  const archivos = [...$('fFotos').files].slice(0, 5);
   const subidas = [];
-  for (const archivo of [...$('fFotos').files].slice(0, 5)) {
-    const base64 = await new Promise((res, rej) => {
-      const fr = new FileReader();
-      fr.onload = () => res(String(fr.result).split(',')[1]);
-      fr.onerror = rej;
-      fr.readAsDataURL(archivo);
-    });
-    const r = await Proxy.subirFoto({
-      base64, sku, recepcion: RECEPCION, tipo: archivo.type || 'image/jpeg',
-    });
-    if (r.url) subidas.push(r.url);
+
+  for (let i = 0; i < archivos.length; i++) {
+    const d = aviso(`Preparando la foto ${i + 1} de ${archivos.length}…`, 'info');
+    const img = await comprimir(archivos[i]);
+    d.innerHTML = `Subiendo la foto ${i + 1} de ${archivos.length}` +
+      (img.comprimida
+        ? ` <span class="mini">(${tamanoLegible(img.bytesOriginal)} → ${tamanoLegible(img.bytes)})</span>`
+        : '');
+
+    try {
+      const r = await Proxy.subirFoto({
+        base64: img.base64, sku, recepcion: RECEPCION, tipo: img.tipo,
+      });
+      if (r.url) subidas.push(r.url);
+    } finally {
+      d.remove();
+    }
   }
   return subidas;
 }

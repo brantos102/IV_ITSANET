@@ -67,15 +67,15 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == uid || esSupervisor());
       allow list: if esSupervisor();
 
-      // Dos formas de nacer, y ninguna deja elegirse el rol:
+      // Tres formas de nacer, y en ninguna se elige uno su propio rol:
       //
-      // 1. Alta automática al entrar con Google. Solo puede crearse a sí mismo,
-      //    solo como OPERADOR, y con el correo verificado por Google.
-      // 2. Alta hecha por un administrador, para los operarios que entran con
-      //    usuario y contraseña. Una contraseña no verifica el correo, así que
-      //    ese camino NO puede ser automático: alguien con acceso a la app
-      //    podría reclamar cualquier dirección del dominio. Lo decide una
-      //    persona, y esa persona ya es administrador.
+      // 1. Entrando con Google desde el dominio corporativo. Ahí Google ya
+      //    verificó quién es, así que la cuenta nace ACTIVA, como OPERADOR.
+      // 2. Registrándose en la pantalla de acceso, con cualquier correo real.
+      //    Nace DESACTIVADA: cualquiera puede pedir acceso, y un administrador
+      //    decide. Sin esa condición, el registro abierto sería la puerta.
+      // 3. Dada de alta por un administrador, que ya es la persona que decide,
+      //    así que nace activa y con el rol que le ponga.
       allow create: if (request.auth != null
                         && request.auth.uid == uid
                         && dominioCorporativo()
@@ -83,11 +83,18 @@ service cloud.firestore {
                         && request.resource.data.activo == true
                         && request.resource.data.uid == uid
                         && request.resource.data.email == request.auth.token.email)
+                 || (request.auth != null
+                     && request.auth.uid == uid
+                     && request.resource.data.rol == 'OPERADOR'
+                     && request.resource.data.activo == false
+                     && request.resource.data.uid == uid
+                     && request.resource.data.email == request.auth.token.email
+                     && request.resource.data.usuario is string
+                     && request.resource.data.nombre is string)
                  || (esAdmin()
                      && request.resource.data.uid == uid
                      && request.resource.data.rol in ['OPERADOR', 'SUPERVISOR', 'ADMIN']
-                     && request.resource.data.email is string
-                     && request.resource.data.email.matches('(?i).*@itsanet[.]com'));
+                     && request.resource.data.email is string);
 
       // Promover, degradar o desactivar: solo un administrador.
       allow update: if esAdmin()
@@ -95,6 +102,30 @@ service cloud.firestore {
                  && !(request.auth.uid == uid
                       && request.resource.data.rol != resource.data.rol);
       allow delete: if false;
+    }
+
+    /**
+     * Alias → correo real.
+     *
+     * Se lee SIN sesión: el operario escribe `jperez` y hay que saber a qué
+     * correo corresponde antes de poder autenticarlo.
+     *
+     * Por eso `get` es público y `list` está prohibido: se puede comprobar un
+     * alias concreto, que es lo que necesita el acceso, y no se puede sacar la
+     * lista de nadie. Dentro solo hay el correo y el uid; ningún dato de la
+     * operación cuelga de aquí.
+     *
+     * Reservarlo es cosa de quien se registra; cambiarlo o liberarlo, de un
+     * administrador: reapuntar un alias a otro correo sería entregarle la
+     * entrada de alguien a otra persona.
+     */
+    match /alias/{usuario} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null
+                 && request.resource.data.uid == request.auth.uid
+                 && request.resource.data.email == request.auth.token.email;
+      allow update, delete: if esAdmin();
     }
 
     // ------------------------------------------------------------------ //

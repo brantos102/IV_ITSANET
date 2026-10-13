@@ -86,6 +86,22 @@ niegan y cambiamos el enfoque.
 
 ## 2. Usuarios
 
+### 2.0 Registro desde la pantalla de acceso
+
+En una ventana de incógnito, en `/` → pestaña **Registrarse**:
+
+| Campo | Valor de prueba |
+|---|---|
+| Nombre / Apellido | `Ana` / `Torres` |
+| Usuario | `atorres` |
+| Correo | uno tuyo que exista |
+| Contraseña | la que quieras, 6+ |
+
+- [ ] Dice que la cuenta se creó y que falta aprobarla
+- [ ] Intentando entrar con `atorres`, dice que todavía no está activada
+- [ ] Como ADMIN, en **Usuarios** sale arriba con el aviso de pendientes
+- [ ] Tras pulsar **Aprobar**, `atorres` ya entra
+
 ### 2.1 Crear el primer operario
 
 Entra como ADMIN → **Usuarios** → Dar de alta:
@@ -94,11 +110,12 @@ Entra como ADMIN → **Usuarios** → Dar de alta:
 |---|---|
 | Usuario | `prueba1` |
 | Nombre | `Operario Prueba` |
+| Correo real | uno tuyo que exista |
 | Contraseña | el botón **Sugerir contraseña** |
 | Rol | OPERADOR |
 
 - [ ] Sale el recuadro verde con el enlace, el usuario y la contraseña
-- [ ] Aparece en la tabla como `prueba1@itsanet.com`, acceso **CLAVE**, activo
+- [ ] Aparece en la tabla como `prueba1`, con su correo, activo
 - [ ] **Tu sesión de administrador sigue abierta** (no te echó al crear)
 
 ### 2.2 Entrar como ese operario
@@ -191,8 +208,9 @@ Usa el packing list real de VW, el de 22 filas.
       *(el subpallet no se mezcla con el pallet)*
 - [ ] Contar más de lo declarado: pide confirmar el **sobrante**
 - [ ] Marcar **PNC** sin observación: no deja, la exige
-- [ ] Marcar **PNC** con observación y una foto: registra, y la foto aparece en
-      la carpeta de Drive
+- [ ] Marcar **PNC** con observación y una foto: el aviso muestra el tamaño
+      antes y después, registra en pocos segundos, y la foto aparece en la
+      carpeta de Drive
 
 ### 5.3 Dos operarios a la vez
 
@@ -246,7 +264,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **180 pruebas, todas en verde**
+- [ ] Termina en **187 pruebas, todas en verde**
 
 ---
 
@@ -256,7 +274,7 @@ No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
       (Compartir → añadir correo → Editor)
 - [ ] La carpeta de evidencias de Drive, también
 - [ ] Hay **al menos dos ADMIN** en la pantalla de Usuarios
-- [ ] El usuario `prueba1` está borrado o desactivado
+- [ ] Los usuarios `prueba1` y `atorres` están desactivados
 - [ ] La recepción `PRUEBA-01` está cerrada
 - [ ] El ejecutivo de cuenta sabe que el informe entrega las mismas filas que
       recibe, con los adicionales en pestaña aparte

@@ -113,6 +113,16 @@
                text-transform:uppercase; letter-spacing:.5px; }
   .separador::before, .separador::after { content:''; flex:1; height:1px;
                                           background:var(--border); }
+  .pestanas { display:flex; gap:6px; background:var(--bg); border:1px solid var(--border);
+              border-radius:12px; padding:4px; margin-bottom:18px; }
+  .pestana { flex:1; padding:10px; border:none; border-radius:9px; cursor:pointer;
+             background:transparent; color:var(--secondary); font-family:inherit;
+             font-size:13px; font-weight:800; transition:.15s; }
+  .pestana.activa { background:var(--surface); color:var(--primary);
+                    box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .dos { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
+                        text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
 </head>
 <body>
@@ -129,6 +139,11 @@
 
     <!-- Usuario y contraseña va primero: es el camino del operario en un
          handheld compartido, y no pasa por el selector de cuentas. -->
+    <div class="pestanas">
+      <button type="button" class="pestana activa" id="tabEntrar">Entrar</button>
+      <button type="button" class="pestana" id="tabRegistro">Registrarse</button>
+    </div>
+
     <form id="formClave" autocomplete="on">
       <label class="campo2"><span>Usuario</span>
         <input id="inUsuario" autocomplete="username" autocapitalize="none"
@@ -139,7 +154,35 @@
       <button class="btn-clave" id="btnClave" type="submit">Entrar</button>
     </form>
 
-    <div class="separador"><span>o si tienes cuenta de Google</span></div>
+    <form id="formRegistro" class="oculto" autocomplete="on">
+      <div class="dos">
+        <label class="campo2"><span>Nombre</span>
+          <input id="rNombre" autocomplete="given-name" placeholder="Juan" required></label>
+        <label class="campo2"><span>Apellido</span>
+          <input id="rApellido" autocomplete="family-name" placeholder="Pérez" required></label>
+      </div>
+      <label class="campo2"><span>Usuario</span>
+        <input id="rUsuario" autocomplete="username" autocapitalize="none"
+               spellcheck="false" placeholder="jperez" required>
+        <span class="pista">Con esto entras cada día. Letras, números, punto o guion.</span></label>
+      <label class="campo2"><span>Correo electrónico</span>
+        <input id="rCorreo" type="email" autocomplete="email" autocapitalize="none"
+               spellcheck="false" placeholder="juan.perez@itsanet.com" required>
+        <span class="pista">Un buzón que exista: corporativo o personal.</span></label>
+      <div class="dos">
+        <label class="campo2"><span>Contraseña</span>
+          <input id="rClave" type="password" autocomplete="new-password"
+                 placeholder="mínimo 6" required></label>
+        <label class="campo2"><span>Repetir</span>
+          <input id="rClave2" type="password" autocomplete="new-password" required></label>
+      </div>
+      <button class="btn-clave" id="btnRegistro" type="submit">Crear mi cuenta</button>
+      <p class="mini" style="text-align:center;margin:4px 0 0">
+        Un administrador tiene que aprobarla antes de que puedas entrar.
+      </p>
+    </form>
+
+    <div class="separador" id="sepGoogle"><span>o si tienes cuenta de Google</span></div>
 
     <button class="btn-google" id="btnEntrar">
       <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
@@ -197,9 +240,9 @@
 
 <script type="module">
 import { DOMINIO, SDK, DATABASE_ID } from './js/config.js';
-import { entrar, entrarConClave, salir, observarSesion, recogerRedirect,
-         traducirError, esCuentaWorkspace, tipoDeAcceso, db, auth }
-  from './js/auth.js';
+import { entrar, entrarConClave, registrarse, salir, observarSesion,
+         recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
+         normalizarAlias, db, auth } from './js/auth.js';
 import { doc, getDoc, collection, getDocs, limit, query }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -221,6 +264,55 @@ function fila(etiqueta, valor, bien) {
     (bien === true ? 'ok-txt' : bien === false ? 'err-txt' : '') + '">' + valor + '</td>';
   $('tDiag').appendChild(tr);
 }
+
+// --- Entrar / Registrarse ------------------------------------------------ //
+function mostrar(cual) {
+  const registro = cual === 'registro';
+  $('formClave').classList.toggle('oculto', registro);
+  $('formRegistro').classList.toggle('oculto', !registro);
+  // Google solo tiene sentido para entrar: no crea cuentas aquí.
+  $('sepGoogle').classList.toggle('oculto', registro);
+  $('btnEntrar').classList.toggle('oculto', registro);
+  $('tabEntrar').classList.toggle('activa', !registro);
+  $('tabRegistro').classList.toggle('activa', registro);
+  limpiar('avisos-login');
+}
+$('tabEntrar').addEventListener('click', () => mostrar('entrar'));
+$('tabRegistro').addEventListener('click', () => mostrar('registro'));
+
+$('rUsuario').addEventListener('blur', () => {
+  $('rUsuario').value = normalizarAlias($('rUsuario').value);
+});
+
+$('formRegistro').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  limpiar('avisos-login');
+  if ($('rClave').value !== $('rClave2').value) {
+    return aviso('avisos-login', 'Las dos contraseñas no coinciden.', 'err');
+  }
+  $('btnRegistro').disabled = true;
+  $('btnRegistro').textContent = 'Creando...';
+  try {
+    const r = await registrarse({
+      nombre: $('rNombre').value,
+      apellido: $('rApellido').value,
+      usuario: $('rUsuario').value,
+      correo: $('rCorreo').value,
+      clave: $('rClave').value,
+    });
+    mostrar('entrar');
+    $('inUsuario').value = r.usuario;
+    aviso('avisos-login',
+      `Cuenta creada para ${r.nombre}, usuario «${r.usuario}». Un administrador ` +
+      'tiene que aprobarla; en cuanto lo haga entras con esa misma contraseña.',
+      'ok', 'Registro enviado');
+  } catch (e) {
+    aviso('avisos-login', traducirError(e), 'err', 'No se pudo registrar');
+  } finally {
+    $('btnRegistro').disabled = false;
+    $('btnRegistro').textContent = 'Crear mi cuenta';
+  }
+});
 
 $('formClave').addEventListener('submit', async (ev) => {
   ev.preventDefault();
@@ -297,32 +389,14 @@ observarSesion(async ({ usuario, perfil, error }) => {
   fila('Dominio corporativo', '@' + DOMINIO, true);
 
   // Tipo de cuenta: el token solo trae `hd` si está gestionada por Workspace.
+  // Solo informativo: la app funciona igual en los dos casos, así que esto es
+  // una fila del diagnóstico y no un aviso en la cara del operario.
   const tipo = await esCuentaWorkspace(usuario);
-  if (tipo.workspace === true) {
-    fila('Tipo de cuenta', 'Google Workspace', true);
-  } else if (tipo.workspace === false) {
-    fila('Tipo de cuenta', 'Google con correo corporativo', null);
-    aviso('avisos-sesion',
-      'Tu cuenta entra bien, pero no está gestionada por Google Workspace. ' +
-      'La app funciona igual. Dos cosas a tener en cuenta: no actives ' +
-      'USAR_PISTA_HD en config.js (escondería las cuentas del selector), y el ' +
-      'envío de correo del paso 5 tendrá cuota de consumidor, 100 al día en ' +
-      'vez de 1500.',
-      'warn', 'No es una cuenta de Workspace');
-  } else {
-    fila('Tipo de cuenta', 'no se pudo determinar', null);
-  }
-  fila('Perfil en Firestore', perfil ? 'creado' : 'falta', !!perfil);
-  fila('Rol asignado', rol, rol !== '—');
-
-  // Lectura: confirma que las reglas están desplegadas y dejan leer.
-  try {
-    const s = await getDoc(doc(db, 'usuarios', usuario.uid));
-    fila('Leer Firestore', s.exists() ? 'correcto' : 'sin documento', s.exists());
-  } catch (e) {
-    fila('Leer Firestore', 'bloqueado', false);
-    aviso('avisos-sesion', traducirError(e), 'err', 'Las reglas rechazan la lectura');
-  }
+  fila('Tipo de cuenta',
+       tipo.workspace === true ? 'Google Workspace'
+       : tipo.workspace === false ? 'Google con correo corporativo'
+       : 'no se pudo leer',
+       null);
 
   fila('Método de acceso',
        tipoDeAcceso(usuario) === 'CLAVE' ? 'usuario y contraseña' : 'cuenta de Google',

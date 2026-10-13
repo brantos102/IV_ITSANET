@@ -177,21 +177,39 @@ await test('la línea declarada en 0 admite lo que llegó físicamente', () => {
 // ============================== Acceso ==================================== //
 // El operario escribe su usuario, no su correo: con guantes, en un handheld y
 // en el relevo de turno, cada carácter de más es un intento fallido.
-await test('aCorreo completa el usuario suelto al dominio', () => {
-  eq(auth.aCorreo('jperez'), 'jperez@itsanet.com');
-  eq(auth.aCorreo('  JPerez  '), 'jperez@itsanet.com');
-  eq(auth.aCorreo('jperez@itsanet.com'), 'jperez@itsanet.com');
-  eq(auth.aCorreo('JPEREZ@ITSANET.COM'), 'jperez@itsanet.com', 'minúsculas');
-  eq(auth.aCorreo(''), '', 'vacío sigue vacío, no "@itsanet.com"');
-  eq(auth.aCorreo(null), '');
+await test('normalizarAlias deja solo lo que se puede teclear con guantes', () => {
+  eq(auth.normalizarAlias('  JPerez  '), 'jperez');
+  eq(auth.normalizarAlias('juan.perez'), 'juan.perez');
+  eq(auth.normalizarAlias('juan-perez_2'), 'juan-perez_2');
+  eq(auth.normalizarAlias('Juan Pérez'), 'juanprez', 'espacios y acentos fuera');
+  eq(auth.normalizarAlias('jperez@itsanet.com'), 'jperezitsanet.com');
+  eq(auth.normalizarAlias(''), '');
+  eq(auth.normalizarAlias(null), '');
 });
 
-await test('aCorreo no toca un correo de otro dominio', () => {
-  // Que lo rechace es tarea de dominioValido, no de aquí: completar a ciegas
-  // convertiría «juan@gmail.com» en algo que parece corporativo.
-  eq(auth.aCorreo('juan@gmail.com'), 'juan@gmail.com');
-  ok(!auth.dominioValido('juan@gmail.com'));
+await test('pareceCorreo distingue una dirección de un alias', () => {
+  ok(auth.pareceCorreo('juan.perez@itsanet.com'));
+  ok(auth.pareceCorreo('juan@gmail.com'), 'un gmail también vale');
+  ok(!auth.pareceCorreo('jperez'), 'un alias no es un correo');
+  ok(!auth.pareceCorreo('juan@itsanet'), 'sin dominio de primer nivel');
+  ok(!auth.pareceCorreo('juan perez@itsanet.com'), 'con espacio');
+  ok(!auth.pareceCorreo(''));
+  ok(!auth.pareceCorreo(null));
+});
+
+await test('resolverCorreo devuelve tal cual lo que ya es un correo', async () => {
+  // El alias se busca en Firestore; con un correo no hace falta ir a buscarlo.
+  eq(await auth.resolverCorreo('Juan@Gmail.com'), 'juan@gmail.com');
+  eq(await auth.resolverCorreo('  '), '');
+  eq(await auth.resolverCorreo(null), '');
+  // Sin base de datos de verdad, un alias no resuelve: se devuelve vacío en vez
+  // de inventarse «jperez@itsanet.com», que es justo lo que no se debe hacer.
+  eq(await auth.resolverCorreo('jperez'), '');
+});
+
+await test('dominioValido sigue cerrando el alta automática con Google', () => {
   ok(auth.dominioValido('jperez@itsanet.com'));
+  ok(!auth.dominioValido('juan@gmail.com'), 'un gmail entra por registro, no solo');
   ok(!auth.dominioValido('jperez@itsanetXcom'), 'el punto no es un comodín');
   ok(!auth.dominioValido(null));
 });
@@ -211,6 +229,36 @@ await test('traducirError explica qué hacer, no el código', () => {
   // Un código desconocido no puede quedarse en blanco.
   ok(auth.traducirError({ code: 'auth/algo-nuevo', message: 'vaya' }).length > 0);
   ok(auth.traducirError(null).length > 0, 'ni siquiera con null');
+});
+
+// ============================== Imágenes ================================== //
+// Una foto de handheld son varios MB; en base64 por el proxy, bastante más.
+// Es lo que agotaba el tiempo al registrar un PNC.
+const imagen = await cargar('imagen.js');
+
+await test('medidas limita el lado mayor sin deformar', () => {
+  eq(imagen.medidas(4000, 3000), { ancho: 1600, alto: 1200 }, 'horizontal');
+  eq(imagen.medidas(3000, 4000), { ancho: 1200, alto: 1600 }, 'vertical');
+  eq(imagen.medidas(4000, 4000), { ancho: 1600, alto: 1600 }, 'cuadrada');
+});
+
+await test('medidas nunca agranda una foto pequeña', () => {
+  eq(imagen.medidas(800, 600), { ancho: 800, alto: 600 });
+  eq(imagen.medidas(1600, 1200), { ancho: 1600, alto: 1200 }, 'justo en el límite');
+});
+
+await test('medidas aguanta una imagen sin dimensiones', () => {
+  eq(imagen.medidas(0, 0), { ancho: 0, alto: 0 });
+  eq(imagen.medidas(undefined, undefined), { ancho: 0, alto: 0 });
+});
+
+await test('tamanoLegible se lee de un vistazo', () => {
+  eq(imagen.tamanoLegible(512), '512 B');
+  eq(imagen.tamanoLegible(2048), '2 KB');
+  eq(imagen.tamanoLegible(350 * 1024), '350 KB');
+  eq(imagen.tamanoLegible(6 * 1024 * 1024), '6,0 MB');
+  eq(imagen.tamanoLegible(0), '0 B');
+  eq(imagen.tamanoLegible(undefined), '0 B');
 });
 
 resumen();

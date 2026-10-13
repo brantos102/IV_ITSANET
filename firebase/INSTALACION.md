@@ -739,29 +739,45 @@ administrador.
 
 ## 8.bis Quién entra y cómo
 
-Hay **dos caminos de acceso**, y la diferencia importa en el almacén.
+Tres caminos, y ninguno deja que alguien se asigne a sí mismo un rol.
 
-| | Usuario y contraseña | Cuenta de Google |
-|---|---|---|
-| Para quién | operarios | supervisores y administradores |
-| Cómo se crea | lo da de alta un administrador | automático al entrar la primera vez |
-| En el handheld | escribe dos campos | pasa por el selector de cuentas |
-| Verifica el correo | no | sí, Google |
+| | Registro propio | Alta por el administrador | Cuenta de Google |
+|---|---|---|---|
+| Quién lo usa | cualquiera que llegue al enlace | operarios que no quieren registrarse | supervisores y administradores de `@itsanet.com` |
+| Qué pide | nombre, apellido, usuario, correo real, contraseña | lo mismo, lo escribe el admin | nada, Google ya lo sabe |
+| Nace | **desactivado** | activo | activo, como OPERADOR |
+| Entra | cuando lo aprueban | enseguida | enseguida |
 
-### Por qué el operario no entra con Google
+### El usuario y el correo son cosas distintas
 
-El handheld es compartido. En el navegador se acumulan las cuentas personales
-de todos los que lo usaron, y en cada relevo el operario tiene que acertar la
-suya en un selector lleno. Basta equivocarse una vez para quedarse fuera sin
-saber por qué.
+El operario entra escribiendo `jperez`, no su correo: con guantes y en el
+relevo de turno, cada carácter de más es un intento fallido.
 
-Con usuario y contraseña el relevo es escribir `jperez` y la clave. No hace
-falta ni teclear el `@itsanet.com`: la app lo completa.
+Pero la **identidad** es un correo real, no uno inventado. Suponer que
+`jperez@itsanet.com` existe es suponer algo que nadie comprobó, y si mañana hay
+que escribirle a esa persona, no hay a dónde. Por eso el registro pide un buzón
+que exista —corporativo o personal— y el alias es solo la forma corta de
+entrar.
 
-Hay además una razón de fondo, y es el requisito que pediste al principio: que
-un operario no pueda hacerse pasar por otro. Las cuentas las crea un
-administrador, nadie se registra solo, y cada conteo queda firmado con el
-usuario de quien lo hizo.
+La correspondencia vive en la colección `alias`, que guarda únicamente el
+usuario, su correo y su uid. Se lee sin haber iniciado sesión, porque hace
+falta justo antes de entrar, pero **de uno en uno**: las reglas permiten `get`
+y prohíben `list`, así que se puede comprobar un alias concreto y no se puede
+sacar la lista de nadie.
+
+### Por qué el registro abierto no es un agujero
+
+Cualquiera que llegue al enlace puede pedir acceso. Lo que no puede es entrar:
+la cuenta nace con `activo: false` y hasta que un administrador la apruebe no
+ve ni un dato. Lo impone la regla de Firestore, no la pantalla:
+
+```
+allow create: if ... && request.resource.data.activo == false
+                     && request.resource.data.rol == 'OPERADOR'
+```
+
+En **Usuarios**, los que esperan aprobación salen primero y con un aviso arriba.
+Antes de aprobar a alguien, comprueba que sea quien dice ser.
 
 ### Activar el método (una sola vez)
 
@@ -769,21 +785,18 @@ Consola de Firebase → **Authentication** → **Sign-in method** →
 **Correo electrónico/contraseña** → activar el primer interruptor. El segundo,
 «Vínculo del correo electrónico», se queda apagado.
 
-Sin esto, al crear un usuario sale *«Ese método de acceso no está activado»*.
+Sin esto, tanto el registro como el alta dan *«Ese método de acceso no está
+activado»*.
 
-### Dar de alta a un operario
+### Dar de alta a un operario desde Administración
 
-Entra como ADMIN → **Usuarios** → rellena usuario, nombre y contraseña
-(el botón **Sugerir contraseña** genera una fácil de dictar: sin `O`/`0` ni
-`l`/`1`, que con guantes y poca luz se confunden).
+Entra como ADMIN → **Usuarios** → usuario, nombre, correo real y contraseña.
+El botón **Sugerir contraseña** genera una fácil de dictar por radio: sin `O`/`0`
+ni `l`/`1`, que con guantes y poca luz se confunden.
 
 Al crear sale un recuadro con el enlace, el usuario y la contraseña: **es la
 única vez que se muestra**. Ni la app ni Firebase la guardan en claro. Si se
 pierde, se genera otra.
-
-> **No hace falta que el buzón exista.** `jperez@itsanet.com` sirve como
-> identificador aunque nadie tenga ese correo. Lo que la app exige es que sea
-> del dominio.
 
 ### Roles
 
@@ -794,81 +807,10 @@ pierde, se genera otra.
 | ADMIN | además credenciales de Depot y usuarios |
 
 Cambiar un rol surte efecto **de inmediato**, sin esperar a que caduque la
-sesión del operario. Desactivar a alguien lo saca en la siguiente operación.
+sesión. Desactivar a alguien lo saca en la siguiente operación.
 
 Un ADMIN no puede quitarse el rol a sí mismo, para que nunca quede el sistema
 sin administrador.
-
-### Si una extensión del navegador bloquea la app
-
-Síntoma: la app carga pero no muestra datos, y en la consola del navegador
-(**F12 → Console**) aparece
-
-```
-POST https://firestore.googleapis.com/... net::ERR_BLOCKED_BY_CLIENT
-```
-
-`ERR_BLOCKED_BY_CLIENT` significa que **una extensión del navegador** —un
-bloqueador de anuncios, una extensión de privacidad o un antivirus con módulo
-web— está cortando la conexión con la base de datos. No es un problema del
-WiFi ni de las reglas.
-
-Solución: desactivar la extensión **para este sitio** (en el icono del
-bloqueador, junto a la barra de direcciones), o añadir `iv-itsanet.web.app` a
-sus excepciones.
-
-> En los handheld conviene **no instalar extensiones** en el navegador de
-> trabajo. Si el equipo trae alguna de fábrica, compruébalo antes de repartir
-> los dispositivos.
-
-### Si la ventana de Google se queda abierta sin terminar
-
-Síntoma, en la consola: *«Cross-Origin-Opener-Policy policy would block the
-window.closed call»*, repetido.
-
-Ya está corregido. La app se sirve con la cabecera
-`Cross-Origin-Opener-Policy: same-origin-allow-popups`, que es lo que permite a
-la página seguir viendo la ventana de Google que abrió. Sin ella, el acceso se
-queda esperando una ventana que ya no puede observar.
-
-Si vuelve a aparecer, es que se desplegó sin esa cabecera: `firebase deploy
---only hosting` la aplica.
-
-### Acceso con Google en el móvil: por qué no es el camino del operario
-
-El acceso por redirección —el que usan los móviles— guarda un dato en el
-dominio de `authDomain` y lo recoge al volver. Ese dominio es
-`iv-itsanet.firebaseapp.com`, distinto al de la app, así que los navegadores
-móviles lo tratan como almacenamiento de terceros y lo aíslan: eliges la
-cuenta, Google te devuelve, y la sesión no queda. Sin error y sin pista.
-
-Apuntar `authDomain` al dominio de la app lo arregla, **pero no basta con
-cambiarlo en el código**: Google solo acepta los URI de redirección
-registrados en el cliente OAuth del proyecto, y `iv-itsanet.web.app` no viene
-registrado. Cambiarlo sin registrarlo produce
-
-```
-Error 400: redirect_uri_mismatch
-redirect_uri=https://iv-itsanet.web.app/__/auth/handler
-```
-
-y entonces no entra **nadie**, ni en móvil ni en escritorio. Por eso el código
-se queda en el dominio de fábrica, que funciona sin tocar ninguna consola.
-
-**No bloquea a nadie:** el operario entra con usuario y contraseña, que no pasa
-por nada de esto, y supervisores y administradores entran con Google desde su
-equipo, donde la ventana emergente sí funciona.
-
-Si algún día quieres además Google en el móvil, son dos pasos y en este orden:
-
-1. Google Cloud Console → **APIs y servicios → Credenciales** → el cliente
-   **OAuth 2.0 de tipo Web** del proyecto → **URI de redireccionamiento
-   autorizados** → añadir
-   `https://iv-itsanet.web.app/__/auth/handler` → Guardar.
-2. En `firebase/public/js/config.js`, poner `authDomain: 'iv-itsanet.web.app'`
-   y desplegar.
-
-Hacerlo al revés deja la app sin acceso hasta que se complete el paso 1.
 
 ---
 
@@ -1041,6 +983,23 @@ trazabilidad, y los KPI que salgan de ahí no valen para reclamar nada.
 
 ---
 
+### Las fotos se reducen antes de subir
+
+La cámara de un handheld entrega entre 3 y 8 MB por foto, y codificarla para
+mandarla por el proxy la infla un tercio más. El proxy de Apps Script se
+quedaba sin tiempo antes de terminar, y el operario veía *«el proxy tardó
+demasiado»* justo al documentar un producto dañado.
+
+La app ahora reduce cada foto a 1600 px de lado mayor antes de subirla: entre
+200 y 400 KB, veinte veces menos, y el golpe o la caja mojada se ven igual. El
+aviso muestra el antes y el después mientras sube.
+
+No hay nada que configurar. Si alguna vez vuelve a aparecer el mensaje, ya es
+el WiFi del almacén: acercarse a un punto con mejor señal. **El conteo no se
+pierde** — lo que falló fue la foto.
+
+---
+
 ## 10. Instalar en los handheld
 
 Solo el enlace. No hay instalador.
@@ -1206,7 +1165,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**180 pruebas automáticas** en verde, con un solo comando:
+**187 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto
@@ -1221,7 +1180,7 @@ estés. Y no necesita `npm install`: ninguna prueba usa dependencias externas.
 | `apps-script/test/run-tests.js` | 25 — lógica de la app anterior |
 | `apps-script/test/clientes.test.js` | 34 — credenciales y token por cliente |
 | `apps-script/test/proxy.test.js` | 9 — contrato real de Depot |
-| `firebase/test/app.test.mjs` | 21 — acceso, normalización e informe |
+| `firebase/test/app.test.mjs` | 27 — acceso, alias, imágenes, informe |
 | `firebase/test/paginas.test.mjs` | 11 — sintaxis, imports y referencias de cada página |
 | `firebase/functions/test/*` | 77 — motor de referencia |
 

@@ -44,11 +44,16 @@
       <label class="campo"><span>Usuario *</span>
         <input id="fUsuario" placeholder="jperez" autocapitalize="none"
                spellcheck="false">
-        <span class="mini">Se completa a <code id="ejemploCorreo">jperez@itsanet.com</code>.
-          No hace falta que exista el buzón.</span></label>
+        <span class="mini">Con lo que entra: <code id="ejemploAlias">jperez</code>.
+          Letras, números, punto o guion.</span></label>
       <label class="campo"><span>Nombre y apellido *</span>
         <input id="fNombre" placeholder="Juan Pérez"
                style="font-family:var(--font-ui)"></label>
+      <label class="campo"><span>Correo real *</span>
+        <input id="fCorreo" type="email" placeholder="juan.perez@itsanet.com"
+               autocapitalize="none" spellcheck="false">
+        <span class="mini">Un buzón que exista: @itsanet.com o personal. Es a
+          donde se escribe si hay que avisarle algo.</span></label>
       <label class="campo"><span>Contraseña *</span>
         <input id="fClave" type="text" autocomplete="off" placeholder="mínimo 6 caracteres">
         <span class="mini">Visible a propósito: la entregas tú. El operario
@@ -73,10 +78,11 @@
     <h2>Usuarios registrados</h2>
     <p>Desactivar a alguien le corta el acceso en el acto, sin esperar a que
        caduque su sesión. Nada de lo que contó se borra.</p>
+    <div id="pendientes"></div>
     <div class="tabla-env">
       <table>
         <thead><tr>
-          <th>Usuario</th><th>Nombre</th><th>Acceso</th><th>Rol</th>
+          <th>Usuario</th><th>Nombre</th><th>Correo</th><th>Rol</th>
           <th>Estado</th><th></th>
         </tr></thead>
         <tbody id="tUsuarios"></tbody>
@@ -105,11 +111,10 @@
 <script type="module">
 import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
-  aCorreo, db, auth,
+  normalizarAlias, db,
 } from './js/auth.js';
 import { collection, getDocs, doc, updateDoc }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { DOMINIO } from './js/config.js';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null;
@@ -151,16 +156,26 @@ async function listar() {
   try {
     const snap = await getDocs(collection(db, 'usuarios'));
     const filas = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+      // Los que esperan aprobación van primero: es lo único que requiere acción.
+      .sort((a, b) => (a.activo === false ? -1 : 0) - (b.activo === false ? -1 : 0)
+                   || (a.usuario || a.email || '').localeCompare(b.usuario || b.email || ''));
+
+    const pendientes = filas.filter((u) => u.activo === false).length;
+    $('pendientes').innerHTML = pendientes
+      ? `<div class="msg warn"><b>${pendientes} ${pendientes === 1 ? 'persona espera' : 'personas esperan'} aprobación</b>
+         Se registraron desde la pantalla de acceso. Hasta que las actives no ven
+         ningún dato. Revisa que sean quienes dicen ser antes de activarlas.</div>`
+      : '';
 
     const esAdmin = perfil.rol === 'ADMIN';
     $('tUsuarios').innerHTML = filas.length ? filas.map((u) => {
       const yo = u.uid === usuario.uid;
       const clase = { ADMIN: 'p-err', SUPERVISOR: 'p-info', OPERADOR: 'p-off' };
       return `<tr>
-        <td class="id" style="font-size:12px">${esc(u.email || '')}</td>
-        <td>${esc(u.nombre || '')}${yo ? ' <span class="mini">(tú)</span>' : ''}</td>
-        <td><span class="pastilla p-off">${u.tipoAcceso === 'CLAVE' ? 'CLAVE' : 'GOOGLE'}</span></td>
+        <td class="id" style="font-size:12px">${esc(u.usuario || '—')}</td>
+        <td>${esc(u.nombre || '')}${yo ? ' <span class="mini">(tú)</span>' : ''}
+          <br><span class="mini">${u.tipoAcceso === 'CLAVE' ? 'usuario y contraseña' : 'cuenta de Google'}</span></td>
+        <td class="mini">${esc(u.email || '')}</td>
         <td>${esAdmin && !yo ? `
           <select data-rol="${esc(u.uid)}" style="padding:7px 9px;font-size:12px">
             ${['OPERADOR', 'SUPERVISOR', 'ADMIN'].map((r) =>
@@ -169,8 +184,9 @@ async function listar() {
         <td><span class="pastilla ${u.activo === false ? 'p-err' : 'p-ok'}">
             ${u.activo === false ? 'INACTIVO' : 'ACTIVO'}</span></td>
         <td>${esAdmin && !yo
-          ? `<button class="b-sec" data-activo="${esc(u.uid)}" data-valor="${u.activo === false}">
-               ${u.activo === false ? 'Activar' : 'Desactivar'}</button>`
+          ? `<button class="${u.activo === false ? 'b-primario' : 'b-sec'}"
+                     data-activo="${esc(u.uid)}" data-valor="${u.activo === false}">
+               ${u.activo === false ? 'Aprobar' : 'Desactivar'}</button>`
           : ''}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="6" class="mini">Ninguno todavía.</td></tr>';
@@ -198,14 +214,15 @@ $('tUsuarios').addEventListener('click', async (ev) => {
   try {
     await updateDoc(doc(db, 'usuarios', uid), { activo: activar });
     limpiarAvisos();
-    aviso(activar ? 'Usuario activado.' : 'Usuario desactivado: ya no puede entrar.', 'ok');
+    aviso(activar ? 'Usuario aprobado: ya puede entrar.'
+                  : 'Usuario desactivado: ya no puede entrar.', 'ok');
     listar();
   } catch (e) { aviso(traducirError(e), 'err'); }
 });
 
 // --- Alta ---------------------------------------------------------------- //
 $('fUsuario').addEventListener('input', () => {
-  $('ejemploCorreo').textContent = aCorreo($('fUsuario').value) || `usuario@${DOMINIO}`;
+  $('ejemploAlias').textContent = normalizarAlias($('fUsuario').value) || 'usuario';
 });
 
 // Contraseña fácil de dictar por radio y de teclear con guantes: sin
@@ -226,6 +243,7 @@ $('bCrear').addEventListener('click', async () => {
   try {
     const r = await crearOperario({
       usuario: $('fUsuario').value,
+      correo: $('fCorreo').value,
       clave: $('fClave').value,
       nombre: $('fNombre').value,
       rol: $('fRol').value,
@@ -237,14 +255,16 @@ $('bCrear').addEventListener('click', async () => {
         <b>Creado — entrégale estos datos</b>
         <div class="tabla-env" style="margin-top:8px"><table><tbody>
           <tr><td>Enlace</td><td class="id">${location.origin}</td></tr>
-          <tr><td>Usuario</td><td class="id">${esc(r.email)}</td></tr>
+          <tr><td>Usuario</td><td class="id">${esc(r.usuario)}</td></tr>
+          <tr><td>Correo</td><td class="id">${esc(r.email)}</td></tr>
           <tr><td>Contraseña</td><td class="id">${esc($('fClave').value)}</td></tr>
           <tr><td>Rol</td><td class="id">${esc(r.rol)}</td></tr>
         </tbody></table></div>
         Esta contraseña no se vuelve a mostrar. Si se pierde, crea otra desde
         Firebase → Authentication.
       </div>`;
-    $('fUsuario').value = ''; $('fNombre').value = ''; $('fClave').value = '';
+    $('fUsuario').value = ''; $('fNombre').value = '';
+    $('fCorreo').value = ''; $('fClave').value = '';
     listar();
   } catch (e) {
     aviso(traducirError(e), 'err', 'No se creó');

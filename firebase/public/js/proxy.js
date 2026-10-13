@@ -36,6 +36,20 @@ export async function obtenerUrlProxy(forzar = false) {
  * y el navegador no hace preflight. Apps Script no permite responder cabeceras
  * CORS propias, de modo que con preflight la llamada fallaría siempre.
  */
+/** Qué decirle al operario según lo que estaba haciendo cuando se agotó. */
+const MENSAJE_TIEMPO = {
+  subirFoto:
+    'La foto tardó demasiado en subir. Suele ser el WiFi del almacén: acércate ' +
+    'a un punto con mejor señal y vuelve a intentarlo. El conteo no se perdió.',
+  guardarInforme:
+    'El informe tardó demasiado en archivarse en Drive. La recepción sí se ' +
+    'cerró y el archivo se descargó en este equipo.',
+  catalogo:
+    'La descarga del catálogo tardó demasiado. Prueba con menos clientes a la vez.',
+  defecto:
+    'El proxy tardó demasiado en responder. Revisa la conexión y vuelve a intentarlo.',
+};
+
 export async function llamarProxy(accion, datos = {}, { timeoutMs = 120000 } = {}) {
   const url = await obtenerUrlProxy();
   const usuario = auth.currentUser;
@@ -57,10 +71,7 @@ export async function llamarProxy(accion, datos = {}, { timeoutMs = 120000 } = {
     });
   } catch (e) {
     if (e.name === 'AbortError') {
-      throw new Error(
-        'El proxy tardó demasiado. Si estabas descargando catálogos, ' +
-        'prueba con menos clientes a la vez.',
-      );
+      throw new Error(MENSAJE_TIEMPO[accion] || MENSAJE_TIEMPO.defecto);
     }
     throw new Error(
       'No se pudo contactar al proxy. Revisa que esté publicado como ' +
@@ -111,7 +122,8 @@ export const Proxy = {
 
   estadoToken: () => llamarProxy('estadoToken'),
 
-  subirFoto: (datos) => llamarProxy('subirFoto', datos),
+  /** La imagen llega ya comprimida desde `imagen.js`: 200-400 KB, no varios MB. */
+  subirFoto: (datos) => llamarProxy('subirFoto', datos, { timeoutMs: 90000 }),
 
   /** Archiva el .xlsx final en la carpeta de Drive de esa recepción. */
   guardarInforme: (datos) => llamarProxy('guardarInforme', datos, { timeoutMs: 180000 }),

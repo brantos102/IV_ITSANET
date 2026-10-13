@@ -86,19 +86,109 @@ export async function recogerRedirect() {
  * propio equipo.
  */
 
-/** Completa un usuario suelto a correo del dominio: «jperez» → jperez@itsanet.com */
-export function aCorreo(entrada) {
+/**
+ * Resuelve lo que escribe el operario a un correo real.
+ *
+ * El operario escribe `jperez`, no su correo: con guantes y en el relevo de
+ * turno, cada carácter de más es un intento fallido. Pero la identidad NO puede
+ * ser un correo inventado: suponer que `jperez@itsanet.com` existe es suponer
+ * algo que nadie ha comprobado, y si mañana hay que escribirle a esa persona,
+ * no hay a dónde.
+ *
+ * Así que el alias y el correo son cosas distintas. `alias/{usuario}` guarda el
+ * correo real con el que se registró, y aquí se consulta.
+ *
+ * Ese documento se lee sin haber iniciado sesión —hace falta justo antes de
+ * entrar—, pero solo de uno en uno: las reglas permiten `get` y prohíben
+ * `list`, así que se puede comprobar un alias concreto y no se puede sacar la
+ * lista de nadie.
+ */
+export function pareceCorreo(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
+}
+
+export const normalizarAlias = (v) =>
+  String(v || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+
+export async function resolverCorreo(entrada) {
   const v = String(entrada || '').trim().toLowerCase();
   if (!v) return '';
-  return v.includes('@') ? v : `${v}@${DOMINIO.toLowerCase()}`;
+  if (v.includes('@')) return v;
+
+  const alias = normalizarAlias(v);
+  if (!alias) return '';
+  try {
+    const snap = await getDoc(doc(db, 'alias', alias));
+    if (snap.exists() && snap.get('email')) return String(snap.get('email'));
+  } catch {
+    // Sin permiso o sin red: se deja que falle el acceso con su propio error.
+  }
+  return '';
 }
 
 export async function entrarConClave(usuarioOCorreo, clave) {
-  const correo = aCorreo(usuarioOCorreo);
-  if (!correo) throw new Error('Escribe tu usuario.');
+  if (!String(usuarioOCorreo || '').trim()) throw new Error('Escribe tu usuario o tu correo.');
   if (!clave) throw new Error('Escribe tu contraseña.');
+
+  const correo = await resolverCorreo(usuarioOCorreo);
+  if (!correo) {
+    throw new Error(
+      `No hay ningún usuario «${String(usuarioOCorreo).trim()}». Revisa cómo lo ` +
+      'escribiste, o entra con tu correo completo.',
+    );
+  }
   const cred = await signInWithEmailAndPassword(auth, correo, clave);
   return cred.user;
+}
+
+/**
+ * Registro desde la pantalla de acceso.
+ *
+ * Nace SIEMPRE desactivado. Cualquiera que llegue al enlace puede pedir acceso,
+ * y es un administrador quien decide: así el registro es cómodo sin que abra la
+ * puerta a nadie. Hasta que lo activen, la cuenta existe pero no ve ni un dato.
+ */
+export async function registrarse({ nombre, apellido, usuario, correo, clave }) {
+  const alias = normalizarAlias(usuario);
+  const email = String(correo || '').trim().toLowerCase();
+  const nom = limpiarNombre(nombre);
+  const ape = limpiarNombre(apellido);
+
+  if (!nom || !ape) throw new Error('Escribe tu nombre y tu apellido.');
+  if (alias.length < 3) {
+    throw new Error('El usuario necesita al menos 3 caracteres: letras, números, punto o guion.');
+  }
+  if (!pareceCorreo(email)) throw new Error('Escribe un correo electrónico válido.');
+  if (!clave || clave.length < 6) {
+    throw new Error('La contraseña necesita al menos 6 caracteres.');
+  }
+
+  const yaEsta = await getDoc(doc(db, 'alias', alias));
+  if (yaEsta.exists()) {
+    throw new Error(`El usuario «${alias}» ya está tomado. Prueba con otro.`);
+  }
+
+  const cred = await createUserWithEmailAndPassword(auth, email, clave);
+  const completo = `${nom} ${ape}`;
+  await updateProfile(cred.user, { displayName: completo });
+
+  // El perfil y el alias se escriben con la sesión recién creada, que es la
+  // única que las reglas permiten para su propio documento.
+  await setDoc(doc(db, 'usuarios', cred.user.uid), {
+    uid: cred.user.uid,
+    email,
+    usuario: alias,
+    nombre: completo,
+    foto: null,
+    rol: 'OPERADOR',
+    activo: false,
+    tipoAcceso: 'CLAVE',
+    creadoEn: serverTimestamp(),
+  });
+  await setDoc(doc(db, 'alias', alias), { email, uid: cred.user.uid });
+
+  await signOut(auth);
+  return { usuario: alias, email, nombre: completo };
 }
 
 /**
@@ -110,10 +200,14 @@ export async function entrarConClave(usuarioOCorreo, clave) {
  * SEGUNDA instancia de la app: nace ahí, se cierra esa sesión y se desecha la
  * instancia. La sesión del administrador ni se entera.
  */
-export async function crearOperario({ usuario, clave, nombre, rol = 'OPERADOR' }) {
-  const correo = aCorreo(usuario);
-  if (!dominioValido(correo)) {
-    throw new Error(`El usuario debe ser del dominio @${DOMINIO}.`);
+export async function crearOperario({ usuario, correo, clave, nombre, rol = 'OPERADOR' }) {
+  const alias = normalizarAlias(usuario);
+  const email = String(correo || '').trim().toLowerCase();
+  if (alias.length < 3) {
+    throw new Error('El usuario necesita al menos 3 caracteres.');
+  }
+  if (!pareceCorreo(email)) {
+    throw new Error('Escribe un correo electrónico válido para esta persona.');
   }
   if (!clave || clave.length < 6) {
     throw new Error('La contraseña necesita al menos 6 caracteres.');
@@ -122,18 +216,23 @@ export async function crearOperario({ usuario, clave, nombre, rol = 'OPERADOR' }
     throw new Error('Rol no válido.');
   }
 
+  const yaEsta = await getDoc(doc(db, 'alias', alias));
+  if (yaEsta.exists()) throw new Error(`El usuario «${alias}» ya está tomado.`);
+
   const secundaria = initializeApp(firebaseConfig, 'alta-' + Date.now());
   try {
     const authSec = getAuth(secundaria);
-    const cred = await createUserWithEmailAndPassword(authSec, correo, clave);
-    const nombreFinal = limpiarNombre(nombre) || correo.split('@')[0];
+    const cred = await createUserWithEmailAndPassword(authSec, email, clave);
+    const nombreFinal = limpiarNombre(nombre) || alias;
     await updateProfile(cred.user, { displayName: nombreFinal });
 
     // El perfil lo escribe el administrador con SU sesión: el operario recién
-    // creado todavía no tiene permiso para nada.
+    // creado todavía no tiene permiso para nada. Y nace ACTIVO, porque el alta
+    // ya la está haciendo quien decide.
     await setDoc(doc(db, 'usuarios', cred.user.uid), {
       uid: cred.user.uid,
-      email: correo,
+      email,
+      usuario: alias,
       nombre: nombreFinal,
       foto: null,
       rol,
@@ -141,9 +240,10 @@ export async function crearOperario({ usuario, clave, nombre, rol = 'OPERADOR' }
       tipoAcceso: 'CLAVE',
       creadoEn: serverTimestamp(),
     });
+    await setDoc(doc(db, 'alias', alias), { email, uid: cred.user.uid });
 
     await signOut(authSec);
-    return { uid: cred.user.uid, email: correo, nombre: nombreFinal, rol };
+    return { uid: cred.user.uid, usuario: alias, email, nombre: nombreFinal, rol };
   } finally {
     await deleteApp(secundaria).catch(() => {});
   }
@@ -223,6 +323,16 @@ export async function asegurarPerfil(usuario) {
     );
   }
 
+  // Alta automática al entrar con Google, solo para el dominio corporativo: ahí
+  // Google ya verificó quién es, así que no hace falta que lo apruebe nadie.
+  // Cualquier otro correo tiene que pasar por el registro y por un administrador.
+  if (!dominioValido(usuario.email)) {
+    throw new Error(
+      `${usuario.email} no está registrado en la aplicación. Usa «Registrarse» ` +
+      'en la pantalla de acceso y pide que te activen.',
+    );
+  }
+
   const perfil = {
     uid: usuario.uid,
     email: usuario.email,
@@ -247,24 +357,20 @@ export function observarSesion(alCambiar) {
   return onAuthStateChanged(auth, async (usuario) => {
     if (!usuario) return alCambiar({ usuario: null, perfil: null });
 
-    // El parámetro `hd` es solo una pista: se puede saltar. Aquí se cierra la
-    // sesión de quien no sea del dominio, para que no quede a medias.
-    if (!dominioValido(usuario.email)) {
-      await salir();
-      return alCambiar({
-        usuario: null, perfil: null,
-        error: `Esta aplicación es solo para cuentas de ${DOMINIO}. ` +
-               `Entraste con ${usuario.email}.`,
-      });
-    }
-
+    // Quien decide quién entra es el perfil, no el dominio del correo.
+    //
+    // El registro acepta cualquier correo real —incluido un gmail— porque
+    // fabricar `usuario@itsanet.com` es inventarse una dirección que quizá no
+    // existe. A cambio, toda cuenta nueva nace desactivada y la activa un
+    // administrador: la puerta está, solo que la abre una persona.
     try {
       const perfil = await asegurarPerfil(usuario);
       if (perfil.activo === false) {
         await salir();
         return alCambiar({
           usuario: null, perfil: null,
-          error: 'Tu cuenta está desactivada. Habla con tu supervisor.',
+          error: 'Tu cuenta todavía no está activada. Un administrador tiene que ' +
+                 'aprobarla; en cuanto lo haga, entras con el mismo usuario y contraseña.',
         });
       }
       alCambiar({ usuario, perfil });
