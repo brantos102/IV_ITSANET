@@ -35,14 +35,21 @@
 
 <!-- Paso 1: escanear -->
 <div class="panel">
-  <label class="campo">
-    <span>1 · Escanee o escriba el código</span>
-    <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
-           spellcheck="false" placeholder="▌">
-  </label>
+  <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <label class="campo" style="flex:3;min-width:200px">
+      <span>1 · Escanee o escriba el código</span>
+      <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
+             spellcheck="false" placeholder="▌">
+    </label>
+    <label class="campo" style="flex:1;min-width:110px">
+      <span>Cantidad</span>
+      <input id="inCantidad" class="escaner" type="number" inputmode="decimal"
+             step="any" value="1">
+    </label>
+  </div>
   <p class="mini" style="margin-top:9px">
-    Cada escaneo suma 1 unidad. Si ya contó varias, escriba la cantidad abajo
-    antes de escanear y se registrarán de una vez.
+    Cada escaneo suma 1 unidad. Si ya contó varias, escriba aquí la cantidad
+    <b>antes</b> de escanear y ese escaneo registra esa cantidad completa.
   </p>
 </div>
 
@@ -292,6 +299,11 @@ $('fFiltro').addEventListener('input', pintarTabla);
 $('fEstadoFiltro').addEventListener('change', pintarTabla);
 
 // --- Paso 1 y 2: escanear y validar --------------------------------------- //
+// La pistola manda Enter: desde el campo de cantidad el foco vuelve al escáner.
+$('inCantidad').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') { ev.preventDefault(); $('inEscaner').focus(); }
+});
+
 $('inEscaner').addEventListener('keydown', (ev) => {
   if (ev.key !== 'Enter') return;
   ev.preventDefault();
@@ -306,7 +318,7 @@ async function escanear(codigo) {
 
   // La cantidad pre-digitada se respeta: si el operario contó 5 y escaneó una
   // vez, se registran 5. Si no tocó nada, 1.
-  const cantidadPrevia = actual ? null : parseFloat($('fCantidad').value);
+  const cantidadPrevia = parseFloat($('inCantidad').value);
 
   const enLista = skus.find((s) => s.sku === c);
   let producto = null;
@@ -350,7 +362,8 @@ async function escanear(codigo) {
   $('ficha').classList.remove('oculto');
   refrescarFicha(s);
 
-  $('fCantidad').value = cantidadPrevia && cantidadPrevia > 1
+  // Si pre-digitó una cantidad, manda esa. Si no, se propone lo que falta.
+  $('fCantidad').value = cantidadPrevia > 1
     ? cantidadPrevia
     : Math.max((s.esperado || 0) - (s.contado || 0), 1) || 1;
   $('fObs').value = '';
@@ -498,6 +511,7 @@ function reiniciar() {
   $('ficha').classList.add('oculto');
   $('panelNoEncontrado').classList.add('oculto');
   $('inEscaner').value = '';
+  $('inCantidad').value = '1';
   $('fCantidad').value = '1';
   $('inEscaner').focus();
 }

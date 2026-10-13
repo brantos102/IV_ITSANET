@@ -746,9 +746,9 @@ pediste:
    y la posición que devuelve Depot. Si no existe, el paso 8.
 3. **Cantidad** — viene con lo que falta de ese SKU. Un escaneo suma 1.
 
-   > **Para contar varias de una vez:** escribe la cantidad en el campo
-   > **Cantidad** *antes* de escanear, y ese escaneo registra esa cantidad
-   > completa.
+   > **Para contar varias de una vez:** el campo **Cantidad** está al lado del
+   > escáner. Escribe ahí la cantidad *antes* de escanear y ese escaneo
+   > registra esa cantidad completa. Vuelve a 1 después de cada registro.
 
 4. **Pallet** — alfanumérico (`A1`, `B04`) con subpallets (`B04.1`). Si ese SKU
    ya se guardó en algún pallet, salen botones con cada ubicación y su cantidad:
