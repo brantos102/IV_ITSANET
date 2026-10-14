@@ -78,6 +78,19 @@
     </div>
   </div>
 
+  <!-- De qué lista sale esta cantidad. Solo aparece si la recepción consolida
+       varias y este producto está en más de una: en cualquier otro caso no hay
+       nada que decidir y preguntarlo solo estorba. -->
+  <div id="fOrigenCaja" class="oculto" style="margin-bottom:14px">
+    <label class="campo">
+      <span>¿De qué packing list es esta cantidad? *</span>
+      <select id="fOrigen"></select>
+    </label>
+  </div>
+
+  <!-- Lo que ya se registró de este producto -->
+  <div id="fHistorial" class="oculto" style="margin-bottom:14px"></div>
+
   <div id="fUbicaciones" class="oculto" style="margin-bottom:14px">
     <span class="mini" style="font-weight:800;text-transform:uppercase">
       Ya guardado en esta recepción</span>
@@ -195,7 +208,7 @@ import {
 } from './js/datos.js';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
-  ubicacionesDe, resumir, nuevaClave, registrarAuditoria,
+  ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
 } from './js/conteo.js';
 import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
 import { comprimir, tamanoLegible } from './js/imagen.js';
@@ -210,6 +223,7 @@ let skus = [];                 // agregado en vivo
 let actual = null;             // SKU en curso
 let claveEnvio = null;         // idempotencia por intento
 let ultimoPallet = '';
+let eventosCache = [];
 let fotosSubidas = [];
 
 function esc(v) {
@@ -267,6 +281,10 @@ observarSesion(async (e) => {
   }
 
   // Tiempo real: lo que cuenta un operario lo ven los demás al instante.
+  // El historial del producto sale de la bitácora; se refresca al abrir cada
+  // ficha, no en cada escaneo, para no leerla una vez por código.
+  refrescarEventos();
+
   escucharSkus(RECEPCION, (lista) => {
     skus = lista.sort((a, b) => (a.sku < b.sku ? -1 : 1));
     pintarKpis();
@@ -304,6 +322,10 @@ function aplicarEstado() {
       : 'Esta recepción está cerrada. Habla con tu supervisor si falta algo.',
       'warn', 'Cerrada');
   }
+}
+
+async function refrescarEventos() {
+  try { eventosCache = await leerBitacora(RECEPCION, 400); } catch { /* sin historial */ }
 }
 
 // --- Indicadores ---------------------------------------------------------- //
@@ -496,6 +518,8 @@ function refrescarFicha(s) {
     chip.dataset.palletRapido = ultimoPallet;
   }
 
+  pintarOrigen(s);
+  pintarHistorial(s);
   pintarPosicionesDepot();
 
   const ubic = ubicacionesDe(s);
@@ -518,6 +542,78 @@ function refrescarFicha(s) {
     if (!$('fPallet').value && mejor) $('fPallet').value = '';
     if (!$('fPallet').value) $('fPallet').value = ultimoPallet;
   }
+}
+
+/**
+ * El selector de packing list.
+ *
+ * Si la recepción consolida varias listas y el producto está en más de una, la
+ * cantidad tiene que imputarse a una concreta. Antes lo resolvía el informe
+ * llenando líneas en orden, que es una convención: el operario no decía de qué
+ * embarque salía cada pieza. Preguntándolo deja de ser una suposición.
+ *
+ * Con una sola lista no hay nada que decidir, así que no se pregunta.
+ */
+function pintarOrigen(s) {
+  const caja = $('fOrigenCaja');
+  const listas = s.origenes || [];
+  const contado = porOrigenDe(s);
+
+  if (listas.length < 2) {
+    caja.classList.add('oculto');
+    $('fOrigen').innerHTML = listas.length
+      ? `<option value="${esc(listas[0])}">${esc(listas[0])}</option>` : '';
+    return;
+  }
+
+  caja.classList.remove('oculto');
+  // Cada opción dice cuánto declara esa lista y cuánto lleva imputado: sin eso
+  // la elección es a ciegas.
+  const porLista = decodificarPallets(s.esperadoPorOrigen);
+  $('fOrigen').innerHTML = '<option value="">— elige la lista —</option>' +
+    listas.map((o) => {
+      const ya = contado[o] || 0;
+      const dec = porLista[o];
+      return `<option value="${esc(o)}">${esc(o)}` +
+        (dec != null ? ` · declara ${dec}` : '') +
+        ` · lleva ${ya}</option>`;
+    }).join('');
+}
+
+/**
+ * Lo que ya se hizo con este producto.
+ *
+ * Al escanearlo otra vez para otro pallet, lo primero que hace falta es ver qué
+ * se registró antes: de qué lista salió, dónde quedó y cuándo. Sin eso el
+ * segundo registro se hace a ciegas y se duplica o se contradice.
+ */
+function pintarHistorial(s) {
+  const caja = $('fHistorial');
+  const previos = registrosDe(eventosCache, s.sku || actual?.sku);
+
+  if (!previos.length) {
+    caja.classList.add('oculto');
+    caja.innerHTML = '';
+    return;
+  }
+
+  caja.classList.remove('oculto');
+  caja.innerHTML = `
+    <span class="mini" style="font-weight:800;text-transform:uppercase">
+      Ya registrado en esta recepción · ${previos.reduce((a, r) => a + r.cantidad, 0)} u.
+      en ${previos.length} ${previos.length === 1 ? 'registro' : 'registros'}</span>
+    <div class="tabla-env" style="margin-top:7px"><table>
+      <thead><tr><th>Cuándo</th><th class="num">Cant.</th><th>Pallet</th>
+        <th>Posición</th><th>Lista</th><th>Operario</th></tr></thead>
+      <tbody>${previos.slice(0, 8).map((r) => `<tr>
+        <td class="mini">${r.cuando ? esc(r.cuando.toLocaleString('es-EC', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) : ''}</td>
+        <td class="num">${r.cantidad}</td>
+        <td class="id" style="font-size:12px">${esc(r.pallet)}</td>
+        <td class="mini">${esc(r.posicionReal)}</td>
+        <td class="mini">${esc(r.origen || '—')}</td>
+        <td class="mini">${esc((r.operador || '').split(' ')[0])}</td>
+      </tr>`).join('')}</tbody></table></div>`;
 }
 
 /**
@@ -677,8 +773,14 @@ async function registrar(confirmarSobrante) {
       fotosSubidas = await subirFotos(actual.sku);
     }
 
+    if (!$('fOrigenCaja').classList.contains('oculto') && !$('fOrigen').value) {
+      $('fOrigen').focus();
+      throw new Error('Elige de qué packing list es esta cantidad.');
+    }
+
     const r = await registrarConteo(RECEPCION, usuario, {
       sku: actual.sku,
+      origen: $('fOrigen').value,
       codigoEscaneado: actual.sku,
       cantidad: parseFloat($('fCantidad').value),
       pallet: $('fPallet').value,
@@ -693,6 +795,7 @@ async function registrar(confirmarSobrante) {
 
     bip('ok');
     ultimoPallet = r.pallet || ultimoPallet;   // solo para el chip de «el mismo»
+    refrescarEventos();
     aviso(`${r.sku} · ${r.cantidadRegistrada} u. en ${r.pallet} — contado ${r.contado} de ${r.esperado}`,
           'ok', r.duplicado ? 'Ya estaba registrado (no se duplicó)' : 'Registrado');
     reiniciar();

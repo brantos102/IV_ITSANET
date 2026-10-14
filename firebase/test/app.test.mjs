@@ -29,6 +29,18 @@ await test('normalizarPallet conserva el punto del subpallet', () => {
 
 // El guion separa nave, calle, columna y nivel: borrarlo convertía A-01-03-2 en
 // A01032, que no se puede buscar en Depot ni leer de un vistazo.
+// «PL-A» como clave de mapa quedaba en «PLA» con el normalizador de pallets, y
+// entonces lo imputado a una lista no se podía encontrar por su nombre.
+await test('claveMapa conserva el nombre de la lista y protege el punto', () => {
+  eq(datos.claveMapa('PL-A'), 'PL-A');
+  eq(datos.claveMapa('RB 48529'), 'RB 48529');
+  eq(datos.claveMapa('v1.2'), 'V1~2', 'el punto sí, que Firestore lo usa de ruta');
+  eq(datos.palletDesdeClave(datos.claveMapa('v1.2')), 'V1.2');
+  eq(datos.claveMapa(''), '');
+  // Y sigue siendo distinto del de pallets, que sí borra los guiones.
+  eq(datos.clavePallet('PL-A'), 'PLA');
+});
+
 await test('normalizarPosicion conserva los guiones de la ubicación', () => {
   eq(datos.normalizarPosicion('a-01-03-2'), 'A-01-03-2');
   eq(datos.normalizarPosicion('  BM-BB-04-1  '), 'BM-BB-04-1');
@@ -432,6 +444,82 @@ await test('el nombre de la hoja respeta lo que Excel admite', () => {
   eq(informe.nombreDeHoja('A:B\\C?D*E[F]'), 'A-B-C-D-E-F-');
   eq(informe.nombreDeHoja(''), 'LISTA');
   eq(informe.nombreDeHoja(null), 'LISTA');
+});
+
+// ====== Atribución entre packing lists: dato, no suposición ============== //
+await test('lo imputado a cada lista se reparte dentro de esa lista', () => {
+  // X está en las dos listas: 5 en PL-A y 4 en PL-B. El operario imputó 5 a
+  // PL-A y 2 a PL-B al registrar.
+  const a = informe.repartirPorLinea(
+    [{ linea: 1, sku: 'X', cantidad: 5, origen: 'PL-A' }], { X: 5 });
+  const b = informe.repartirPorLinea(
+    [{ linea: 1, sku: 'X', cantidad: 4, origen: 'PL-B' }], { X: 2 });
+
+  eq(a[0].fisica, 5, 'PL-A cuadra');
+  eq(a[0].diferencia, 0);
+  eq(b[0].fisica, 2, 'PL-B tiene su propio faltante');
+  eq(b[0].diferencia, -2);
+  // Y cada lista sigue entregando una fila.
+  eq(a.length + b.length, 2);
+});
+
+// El registro de un conteo guarda a qué lista se imputa, para que el informe no
+// tenga que adivinarlo.
+await test('el conteo guarda la lista elegida y la suma en su propio mapa', async () => {
+  globalThis.__documentos = {
+    'recepciones/R1': { estado: 'EN_VALIDACION' },
+    'recepciones/R1/skus/X': {
+      sku: 'X', esperado: 9, contado: 0, enPackingList: true,
+      origenes: ['PL-A', 'PL-B'],
+    },
+  };
+  await conteo.registrarConteo('R1', { uid: 'u1', email: 'o@itsanet.com' }, {
+    sku: 'X', cantidad: 5, pallet: 'A1', origen: 'PL-A', idempotencyKey: 'ko1',
+  });
+
+  const evento = (globalThis.__escrituras || []).find((e) => e.ruta.includes('eventos/'));
+  eq(evento.datos.origen, 'PL-A');
+
+  const agregado = (globalThis.__escrituras || []).find((e) => e.ruta.includes('skus/X'));
+  eq(agregado.datos.porOrigen['PL-A'].__inc, 5);
+});
+
+await test('sin varias listas no se guarda imputación: no hay nada que decidir', async () => {
+  globalThis.__documentos = {
+    'recepciones/R1': { estado: 'EN_VALIDACION' },
+    'recepciones/R1/skus/X': { sku: 'X', esperado: 9, contado: 0, enPackingList: true },
+  };
+  await conteo.registrarConteo('R1', { uid: 'u1', email: 'o@itsanet.com' }, {
+    sku: 'X', cantidad: 3, pallet: 'A1', idempotencyKey: 'ko2',
+  });
+  const agregado = (globalThis.__escrituras || []).find((e) => e.ruta.includes('skus/X'));
+  ok(!agregado.datos.porOrigen, 'no debe inventarse una lista');
+});
+
+// Al volver a escanear el mismo producto para otro pallet, hay que ver qué se
+// hizo antes: de qué lista salió, dónde quedó y cuándo.
+await test('registrosDe resume lo ya hecho con ese producto', () => {
+  const t = (min) => ({ toDate: () => new Date(2026, 9, 14, 10, min) });
+  const previos = conteo.registrosDe([
+    { id: 'e1', sku: 'X', cantidad: 5, pallet: 'A1', origen: 'PL-A',
+      operadorNombre: 'Juan Pérez', creadoEn: t(10) },
+    { id: 'e2', sku: 'X', cantidad: 2, pallet: 'B04', origen: 'PL-B',
+      operadorNombre: 'Ana Torres', creadoEn: t(30) },
+    { id: 'e3', sku: 'OTRO', cantidad: 9, pallet: 'C1', creadoEn: t(20) },
+  ], 'X');
+
+  eq(previos.length, 2, 'solo los de ese SKU');
+  eq(previos[0].pallet, 'B04', 'el más reciente primero');
+  eq(previos.map((r) => r.origen), ['PL-B', 'PL-A']);
+});
+
+await test('registrosDe no cuenta lo anulado', () => {
+  const previos = conteo.registrosDe([
+    { id: 'e1', sku: 'X', cantidad: 5, pallet: 'A1' },
+    { id: 'anula-e1', sku: 'X', cantidad: -5, pallet: 'A1',
+      tipo: 'ANULACION', refEvento: 'e1' },
+  ], 'X');
+  eq(previos.length, 0, 'ni el original ni la reversa');
 });
 
 resumen();

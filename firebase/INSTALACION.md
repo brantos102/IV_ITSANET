@@ -1056,15 +1056,38 @@ nunca 29 mezcladas. Quien recibe cada archivo espera el suyo.
 El conteo sí es común —se cuenta una vez, contra la suma de lo declarado— y por
 eso el operario no tiene que saber de qué lista salió cada pieza.
 
-> **Cuando una referencia está en las dos listas**, la app avisa al cargar la
-> segunda. Repartir después lo contado entre una lista y otra es una
-> **convención, no un hecho**: el operario no dice de qué embarque salió cada
-> unidad. La app llena primero las líneas de la primera lista y lo que sobre lo
-> imputa a la última.
->
-> Si de esa atribución depende una reclamación a un proveedor concreto,
-> **valida esas listas por separado**. La consolidación ahorra recorridos, no
-> sustituye a tener los datos bien separados cuando importan.
+#### Cuando una referencia está en las dos listas
+
+El operario lo decide al registrar. Si el producto está en más de una lista, la
+ficha pide **de qué packing list es esta cantidad**, y cada opción dice cuánto
+declara esa lista y cuánto lleva imputado:
+
+```
+PL-A · declara 5 · lleva 5
+PL-B · declara 4 · lleva 2
+```
+
+Así la atribución es un **dato**, no una suposición del informe. Sin esa
+pregunta habría que repartir por orden de líneas, y eso es una convención: el
+operario no dice de qué embarque salió cada pieza si nadie se lo pregunta.
+
+Lo registrado antes de que existiera esta pregunta se sigue repartiendo por
+orden, para no cambiar informes ya emitidos.
+
+#### Qué se hizo antes con ese producto
+
+Al escanear un producto que ya tiene conteos, la ficha muestra **qué se
+registró antes**: cuánto, en qué pallet, en qué posición, de qué lista y quién
+lo hizo.
+
+Es lo que hace falta para el segundo registro: sin eso se duplica o se
+contradice lo del compañero. Un mismo producto puede ir a varios pallets, y en
+el informe se separan con **guion medio**:
+
+```
+PALLET
+A1(5)-B04(2)
+```
 
 ### 9.2.septies Exportar sin cerrar, y reabrir
 
@@ -1370,7 +1393,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**208 pruebas automáticas** en verde, con un solo comando:
+**214 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

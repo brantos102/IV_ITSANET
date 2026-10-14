@@ -88,6 +88,16 @@ export function aNumero(v, def = 0) {
 export const clavePallet = (p) => normalizarPallet(p).replace(/\./g, '~');
 export const palletDesdeClave = (k) => String(k || '').replace(/~/g, '.');
 
+/**
+ * Clave de mapa para algo que NO es un pallet: el nombre de un packing list.
+ *
+ * `clavePallet` no sirve aquí porque normaliza como un pallet y borra los
+ * guiones: «PL-A» quedaba como «PLA», y entonces lo imputado a una lista no se
+ * podía volver a encontrar por su nombre. Lo único que hay que proteger es el
+ * punto, que Firestore trata como separador de ruta.
+ */
+export const claveMapa = (v) => limpiar(v).toUpperCase().replace(/\./g, '~');
+
 export function decodificarPallets(mapa) {
   const out = {};
   for (const [k, v] of Object.entries(mapa || {})) {
@@ -325,6 +335,11 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
         tienePnc: antes?.tienePnc === true,
         // En qué listas aparece: es lo que avisa de un SKU compartido.
         origenes: [...new Set([...(antes?.origenes || []), origen])],
+        // Y cuánto declara cada una, para que el operario elija sabiendo.
+        esperadoPorOrigen: {
+          ...(antes?.esperadoPorOrigen || {}),
+          [claveMapa(origen)]: esperado,
+        },
         creadoEn: antes?.creadoEn || serverTimestamp(),
       },
     });

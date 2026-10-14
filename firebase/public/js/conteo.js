@@ -34,7 +34,7 @@ import {
 import { db } from './auth.js';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
-  limpiar, aNumero, clavePallet, decodificarPallets, estadoDe,
+  limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
 } from './datos.js';
 
 export class ErrorConteo extends Error {
@@ -98,6 +98,10 @@ function validar(p) {
     // packing list, así que no se valida contra nada: se registra tal cual y
     // viaja al informe en su propia columna.
     posicionReal: normalizarPosicion(p.posicionReal) || null,
+    // De qué packing list sale esta cantidad. Cuando una recepción consolida
+    // varias listas y el SKU está en más de una, lo elige el operario: así deja
+    // de ser una suposición del informe y pasa a ser un dato.
+    origen: limpiar(p.origen).toUpperCase().slice(0, 40) || null,
   };
 }
 
@@ -176,6 +180,7 @@ export async function registrarConteo(recepcionId, usuario, p) {
       cantidad: d.cantidad,
       pallet: d.pallet,
       posicionReal: d.posicionReal,
+      origen: d.origen,
       estadoFisico: d.estadoFisico,
       tipo: p.tipo || 'CONTEO',
       observacion: d.observacion,
@@ -192,6 +197,9 @@ export async function registrarConteo(recepcionId, usuario, p) {
       esperado,
       contado: increment(d.cantidad),
       pallets: { [clavePallet(d.pallet)]: increment(d.cantidad) },
+      // Cuánto se ha imputado a cada lista. El informe reparte con esto, no
+      // adivinando.
+      ...(d.origen ? { porOrigen: { [claveMapa(d.origen)]: increment(d.cantidad) } } : {}),
       estado: estadoDe(esperado, total, verificado),
       verificado,
       enPackingList: actual.enPackingList === true,
@@ -265,6 +273,7 @@ export async function anularConteo(recepcionId, usuario, eventoId, motivo) {
       sku: orig.sku,
       cantidad: -orig.cantidad,
       pallet: orig.pallet,
+      origen: orig.origen || null,
       estadoFisico: orig.estadoFisico,
       tipo: 'ANULACION',
       observacion: `ANULA ${eventoId}: ${limpiar(motivo)}`.slice(0, 500),
@@ -283,6 +292,9 @@ export async function anularConteo(recepcionId, usuario, eventoId, motivo) {
     tx.set(refSku, {
       contado: increment(-orig.cantidad),
       pallets: { [clavePallet(orig.pallet)]: increment(-orig.cantidad) },
+      ...(orig.origen
+        ? { porOrigen: { [claveMapa(orig.origen)]: increment(-orig.cantidad) } }
+        : {}),
       estado: estadoDe(esperado, total, verificado),
       verificado,
       actualizadoEn: serverTimestamp(),
@@ -353,6 +365,32 @@ export async function leerBitacora(recepcionId, max = 60) {
   const anulados = new Set(eventos.filter((e) => e.refEvento).map((e) => e.refEvento));
   return eventos.map((e) => ({ ...e, anulado: anulados.has(e.id) }));
 }
+
+/**
+ * Lo ya registrado de un SKU, con su lista, su pallet y quién lo puso.
+ *
+ * Al volver a escanear el mismo producto en otro pallet, lo primero que hay que
+ * saber es qué se hizo antes con él: de qué packing list salió lo que ya está
+ * contado, dónde quedó y cuándo. Sin eso, el segundo registro se hace a ciegas.
+ */
+export function registrosDe(eventos, sku) {
+  const anulados = new Set(eventos.filter((e) => e.refEvento).map((e) => e.refEvento));
+  return eventos
+    .filter((e) => e.sku === sku && e.tipo !== 'ANULACION' && !anulados.has(e.id))
+    .map((e) => ({
+      id: e.id,
+      cantidad: aNumero(e.cantidad, 0),
+      pallet: e.pallet || '',
+      posicionReal: e.posicionReal || '',
+      origen: e.origen || null,
+      operador: e.operadorNombre || e.operadorEmail || '',
+      cuando: e.creadoEn?.toDate ? e.creadoEn.toDate() : null,
+    }))
+    .sort((a, b) => (b.cuando?.getTime() || 0) - (a.cuando?.getTime() || 0));
+}
+
+/** Lo contado por cada packing list, con la clave ya decodificada. */
+export const porOrigenDe = (skuDoc) => decodificarPallets(skuDoc?.porOrigen);
 
 /** Pallets donde ya está este SKU, de mayor a menor cantidad. */
 export function ubicacionesDe(skuDoc) {

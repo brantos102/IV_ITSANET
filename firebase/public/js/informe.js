@@ -71,10 +71,12 @@ export async function reunirInforme(recepcionId, recepcion) {
   const pncPorSku = {};
   for (const s of skus) {
     porSku[s.sku] = aNumero(s.contado, 0);
+    // Varios pallets se separan con guion medio: es el formato con el que se
+    // leen en el almacén y el que espera quien da el alta en el sistema.
     palletsPorSku[s.sku] = Object.entries(decodificarPallets(s.pallets))
       .sort((a, b) => b[1] - a[1])
       .map(([p, c]) => `${p}(${c})`)
-      .join(' ');
+      .join('-');
     pncPorSku[s.sku] = s.tienePnc === true;
   }
 
@@ -119,9 +121,43 @@ export async function reunirInforme(recepcionId, recepcion) {
       const [pallet, posicion] = clave.split('|');
       return posicion ? `${pallet}→${posicion}(${n})` : `${pallet}(${n})`;
     })
-    .join(' ');
+    .join('-');
 
-  const detalle = repartirPorLinea(lineas, porSku).map((l) => ({
+  /**
+   * El reparto se hace POR LISTA, con lo que el operario imputó a cada una.
+   *
+   * Cuando eligió la lista al registrar, la atribución es un dato y no hay nada
+   * que adivinar. Para lo registrado antes de que existiera esa pregunta —o en
+   * recepciones de una sola lista— se cae al reparto por orden de líneas, que
+   * es lo que había.
+   */
+  const contadoPorOrigen = {};
+  for (const e of eventos) {
+    if (e.tipo === 'ANULACION' || !e.origen) continue;
+    const m = (contadoPorOrigen[e.origen] = contadoPorOrigen[e.origen] || {});
+    m[e.sku] = (m[e.sku] || 0) + aNumero(e.cantidad, 0);
+  }
+
+  const listasDeLineas = [...new Set(lineas.map((l) => l.origen || 'PRINCIPAL'))];
+  const repartido = listasDeLineas.length > 1
+    ? listasDeLineas.flatMap((origen) => {
+        const suyas = lineas.filter((l) => (l.origen || 'PRINCIPAL') === origen);
+        const imputado = contadoPorOrigen[origen];
+        if (imputado) return repartirPorLinea(suyas, imputado);
+        // Sin imputación explícita: lo no asignado se reparte entre sus líneas.
+        const sinAsignar = {};
+        for (const l of suyas) {
+          if (sinAsignar[l.sku] !== undefined) continue;
+          const total = aNumero(porSku[l.sku], 0);
+          const yaImputado = Object.values(contadoPorOrigen)
+            .reduce((a, m) => a + aNumero(m[l.sku], 0), 0);
+          sinAsignar[l.sku] = Math.max(total - yaImputado, 0);
+        }
+        return repartirPorLinea(suyas, sinAsignar);
+      })
+    : repartirPorLinea(lineas, porSku);
+
+  const detalle = repartido.map((l) => ({
     ...l,
     pallets: palletsPorSku[l.sku] || '',
     estado: etiquetaEstado(aNumero(l.cantidad, 0), l.fisica),
@@ -189,6 +225,7 @@ function hojaValidada(filas) {
     'PALLET': l.pallets,
     'POSICION REAL ASIGNADA': l.posicionReal,
     'DESGLOSE PALLET → POSICION': l.destino,
+    'PACKING LIST': l.origen || '',
     'ESTADO MERCADERIA': l.pnc || 'BUENO',
     'OBSERVACION': l.observacion,
   }));
@@ -196,9 +233,9 @@ function hojaValidada(filas) {
   const hoja = XLSX.utils.json_to_sheet(datos);
   hoja['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
     { wch: 10 }, { wch: 14 }, { wch: 11 }, { wch: 13 }, { wch: 22 }, { wch: 24 },
-    { wch: 30 }, { wch: 17 }, { wch: 38 }];
+    { wch: 30 }, { wch: 14 }, { wch: 17 }, { wch: 38 }];
   hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
-    e: { r: datos.length, c: 13 } }) };
+    e: { r: datos.length, c: 14 } }) };
   return hoja;
 }
 
@@ -242,6 +279,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     'CANTIDAD': aNumero(e.cantidad, 0),
     'PALLET': e.pallet || '',
     'POSICION REAL': e.posicionReal || '',
+    'PACKING LIST': e.origen || '',
     'ESTADO': e.estadoFisico || '',
     'TIPO': e.tipo || 'CONTEO',
     'OPERARIO': e.operadorNombre || e.operadorEmail || '',
@@ -249,7 +287,8 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     'FOTOS': (e.fotos || []).join(' '),
   })));
   h3['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 12 },
-    { wch: 16 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 34 }, { wch: 40 }];
+    { wch: 16 }, { wch: 14 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 34 },
+    { wch: 40 }];
   XLSX.utils.book_append_sheet(libro, h3, 'BITACORA');
 
   // --- Hoja 4: cierres y exportaciones --- //
