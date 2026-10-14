@@ -13,8 +13,22 @@ PHOTO_DIR = DATA_DIR / "fotos"
 for _d in (DATA_DIR, UPLOAD_DIR, EXPORT_DIR, PHOTO_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
-# SQLite por defecto (WAL). Para Postgres: VAL_DATABASE_URL=postgresql+psycopg://...
+# SQLite por defecto (WAL): no hay nada que instalar y para una maquina sobra.
+#
+# En el servidor de la empresa, MySQL:
+#   VAL_DATABASE_URL=mysql+pymysql://val:CLAVE@127.0.0.1:3306/val_ventura?charset=utf8mb4
+#
+# El ?charset=utf8mb4 no es opcional: sin el, MySQL negocia latin1 y las tildes
+# y las enes de las descripciones se guardan rotas. Los pasos completos estan en
+# docs/MYSQL.md.
 DATABASE_URL = os.getenv("VAL_DATABASE_URL", f"sqlite:///{DATA_DIR / 'ventura.db'}")
+
+# Reciclar las conexiones antes de que MySQL las cierre por su cuenta
+# (wait_timeout, 8 h por defecto). Una hora deja margen de sobra.
+DB_POOL_RECYCLE = int(os.getenv("VAL_DB_POOL_RECYCLE", "3600"))
+# Un handheld por operario mas la pantalla del supervisor: cinco conexiones
+# fijas y otras cinco de desahogo cubren un turno entero.
+DB_POOL_SIZE = int(os.getenv("VAL_DB_POOL_SIZE", "5"))
 
 SECRET_KEY = os.getenv("VAL_SECRET_KEY", "cambiar-esta-clave-en-produccion")
 SESSION_HOURS = int(os.getenv("VAL_SESSION_HOURS", "12"))

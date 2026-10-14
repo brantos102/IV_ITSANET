@@ -353,7 +353,8 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **287 pruebas, todas en verde**
+- [ ] Termina en **369 pruebas, todas en verde** (incluye las del
+      servidor local; si dice «Sin pytest», `pip install -r requirements.txt`)
 
 ---
 
@@ -367,6 +368,17 @@ No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 - [ ] La recepción `PRUEBA-01` está cerrada
 - [ ] El ejecutivo de cuenta sabe que el informe entrega las mismas filas que
       recibe, con los adicionales en pestaña aparte
+
+---
+
+## 8. El salto al servidor de la empresa
+
+Cuando toque dejar la nube, el procedimiento entero está en `docs/MYSQL.md`:
+crear la base en MySQL, apuntar la aplicación local, exportar el histórico desde
+Administración e importarlo.
+
+- [ ] Se ha leído **antes** de empezar, sobre todo lo de las contraseñas: no se
+      pueden traer de Firebase y hay que dar un PIN nuevo a cada operario
 
 ---
 

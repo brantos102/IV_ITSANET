@@ -508,6 +508,15 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
  * puede hacer solo un administrador, y la pantalla exige escribir el código.
  */
 export async function borrarRecepcion(recepcionId, alAvanzar) {
+  // Qué listas trajo, ANTES de borrar el documento. Es lo único que se necesita
+  // saber de él después, y sirve para borrar sus huellas por identificador
+  // exacto en vez de buscarlas: borrar un documento que se nombra no necesita
+  // permiso para listar la colección, y una consulta sí.
+  let origenes = [];
+  try {
+    origenes = (await getDoc(doc(db, 'recepciones', recepcionId))).data()?.origenes || [];
+  } catch { /* si no se puede leer, abajo queda la búsqueda como respaldo */ }
+
   // La recepción PRIMERO.
   //
   // Lo que el supervisor quiere es que desaparezca de la lista y que nadie
@@ -541,6 +550,16 @@ export async function borrarRecepcion(recepcionId, alAvanzar) {
   // Las huellas de sus packing lists se van con ella: si la recepción se borró
   // porque el archivo estaba mal, volver a subirlo bien no puede saltar como
   // «ya validado en» una recepción que ya no existe.
+  let huellasSueltas = false;
+  for (const origen of origenes) {
+    try {
+      await deleteDoc(doc(db, 'huellas', `${recepcionId}__${claveMapa(origen)}`));
+      borrados++;
+    } catch { huellasSueltas = true; }
+  }
+
+  // Respaldo para lo que no se pueda nombrar: una recepción cuyo documento ya no
+  // se pudo leer, o una huella de antes de que se guardaran los orígenes.
   try {
     const snap = await getDocs(query(collection(db, 'huellas'),
                                      where('recepcionId', '==', recepcionId)));
@@ -551,7 +570,9 @@ export async function borrarRecepcion(recepcionId, alAvanzar) {
       borrados += snap.docs.length;
     }
   } catch {
-    huerfanas.push('huellas');
+    // Solo es un problema si quedó algo de verdad. Si las huellas ya se
+    // borraron una por una, que la búsqueda no esté permitida da igual.
+    if (huellasSueltas || !origenes.length) huerfanas.push('huellas');
   }
 
   return { borrados, huerfanas };

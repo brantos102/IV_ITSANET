@@ -53,6 +53,38 @@ for (const [titulo, archivo] of SUITES) {
   }
 }
 
+// --- El servidor local (Python) ------------------------------------------- //
+//
+// Va aquí y no en un comando aparte porque una suite que hay que acordarse de
+// lanzar es una suite que no se lanza. Si no está pytest, se dice y se sigue:
+// quien trabaja solo en la parte del navegador no tiene por qué instalarlo.
+console.log('\n\x1b[1m── Servidor local — API, migración y esquema MySQL\x1b[0m  (tests/)');
+const py = spawnSync('python3', ['-m', 'pytest', 'tests', '-q'],
+  { cwd: RAIZ, encoding: 'utf8' });
+const salidaPy = (py.stdout || '') + (py.stderr || '');
+
+if (/No module named pytest|No module named 'pytest'/.test(salidaPy) || py.error) {
+  console.log('\x1b[33m   Sin pytest: no se ejecutaron. '
+    + 'pip install -r requirements.txt\x1b[0m');
+} else {
+  const mp = salidaPy.match(/(\d+) passed/);
+  const mf = salidaPy.match(/(\d+) failed/);
+  if (mp || mf) {
+    pasadas += mp ? Number(mp[1]) : 0;
+    falladas += mf ? Number(mf[1]) : 0;
+    if (mf) {
+      console.log(salidaPy.split('\n').filter((l) => /FAILED/.test(l)).join('\n'));
+      console.log('\x1b[31m   ' + (mp ? mp[1] : 0) + ' pasadas, ' + mf[1] + ' FALLADAS\x1b[0m');
+    } else {
+      console.log('\x1b[32m   ' + mp[1] + ' pasadas\x1b[0m');
+    }
+  } else {
+    suitesRotas++;
+    console.log('\x1b[31m   No se pudo ejecutar:\x1b[0m');
+    console.log(salidaPy.split('\n').slice(0, 6).map((l) => '   ' + l).join('\n'));
+  }
+}
+
 console.log('\n' + '─'.repeat(58));
 if (falladas || suitesRotas) {
   console.log('\x1b[31m\x1b[1m  ' + pasadas + ' pasadas, ' + falladas + ' falladas' +

@@ -1,6 +1,11 @@
 fastapi==0.143.0
 uvicorn[standard]==0.53.0
 SQLAlchemy==2.1.4
+# Conector de MySQL para el servidor de la empresa. Es Python puro: no hace
+# falta compilar nada ni tener las cabeceras de MySQL instaladas, que es lo que
+# convierte a mysqlclient en un problema en un Windows sin herramientas de
+# compilacion.
+PyMySQL==1.1.1
 pydantic==2.13.5
 Jinja2==3.1.6
 python-multipart==0.0.32

@@ -245,6 +245,23 @@
     <div id="resCsv"></div>
   </div>
 
+  <div class="panel">
+    <h2>Llevar el histórico al servidor local</h2>
+    <p>Descarga en un archivo todo lo validado hasta ahora —recepciones, líneas,
+       conteos y auditoría— para importarlo en la base MySQL del servidor de la
+       empresa. El catálogo de productos no va: es una copia del maestro de
+       Depot y allí se vuelve a descargar.</p>
+    <div class="msg info"><b>Después, en el servidor</b>
+      <code>python scripts/importar_firestore.py ARCHIVO.json --ensayo</code> para
+      ver qué entraría, y sin <code>--ensayo</code> para hacerlo. Se puede lanzar
+      las veces que haga falta: no duplica nada. Los pasos completos, en
+      <code>docs/MYSQL.md</code>.</div>
+    <div class="acciones">
+      <button class="b-primario" id="bExportarTodo">Exportar para el servidor local</button>
+    </div>
+    <div id="resExportar"></div>
+  </div>
+
 </div>
 </div>
 
@@ -255,6 +272,7 @@ import { confirmar } from './js/modal.js';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv,
 } from './js/csv.js';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js';
 import { doc, getDoc, setDoc }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -718,6 +736,43 @@ async function probarRed(url) {
     'Devolvió:<br><code>' + esc(texto.slice(0, 200)) + '</code><br>' +
     'La URL apunta a otro Apps Script.');
 }
+
+// --- Llevarse el histórico ------------------------------------------------ //
+$('bExportarTodo').addEventListener('click', async () => {
+  limpiarAvisos();
+  $('bExportarTodo').disabled = true;
+  const caja = $('resExportar');
+  caja.innerHTML = '<div class="msg info">Leyendo…</div>';
+
+  try {
+    const datos = await reunirTodo(usuarioActual, (hechas, total, codigo) => {
+      caja.innerHTML = `<div class="msg info"><b>Leyendo</b>`
+        + `${hechas} de ${total} recepciones · ${esc(codigo)}</div>`;
+    });
+
+    const n = contar(datos);
+    const nombre = `val-ventura-${new Date().toISOString().slice(0, 10)}.json`;
+    descargarJson(datos, nombre);
+
+    // Las cifras se enseñan para poder cuadrarlas con lo que diga el importador
+    // en el servidor. Si allí entran menos conteos de los que salieron de aquí,
+    // hay que saberlo antes de apagar nada.
+    caja.innerHTML = `<div class="msg ok"><b>${esc(nombre)}</b>
+      <ul style="margin:8px 0 0 18px">
+        <li>${n.recepciones} recepciones</li>
+        <li>${n.lineas} líneas de packing list</li>
+        <li>${n.conteos} conteos</li>
+        <li>${n.adicionales} adicionales · ${n.auditoria} registros de auditoría</li>
+        <li>${n.usuarios} usuarios</li>
+      </ul>
+      <p style="margin:10px 0 0">Apunta estas cifras: el importador dice cuántas
+      entran, y tienen que coincidir.</p></div>`;
+  } catch (e) {
+    caja.innerHTML = `<div class="msg err"><b>No se pudo exportar</b>${esc(traducirError(e))}</div>`;
+  } finally {
+    $('bExportarTodo').disabled = false;
+  }
+});
 </script>
 <script>
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del
