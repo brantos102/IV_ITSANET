@@ -160,6 +160,21 @@ service cloud.firestore {
       allow write: if esAdmin();
     }
 
+    // Huella de cada packing list cargado: con qué archivo vino y qué traía.
+    //
+    // Es lo que permite avisar de que una lista ya se validó en otra recepción,
+    // así que tiene que poder consultarla cualquiera que vaya a cargar una, y
+    // antes de saber en qué recepción acabará. No guarda nada confidencial: el
+    // nombre del archivo y tres cifras.
+    match /huellas/{huellaId} {
+      allow read: if activo();
+      allow create, update: if esSupervisor();
+      // Se borran en cascada al borrar la recepción: si la recepción se borró
+      // porque el archivo estaba mal, volver a subirlo no puede saltar como
+      // duplicado de algo que ya no existe.
+      allow delete: if esAdmin();
+    }
+
     // Estado interno. Ningún cliente lo lee, ni siquiera un ADMIN.
     match /_internal/{doc} {
       allow read, write: if false;

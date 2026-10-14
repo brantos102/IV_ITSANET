@@ -60,6 +60,10 @@
     <div class="filtros">
       <label class="campo"><span>Desde</span><input id="fDesde" type="date"></label>
       <label class="campo"><span>Hasta</span><input id="fHasta" type="date"></label>
+      <label class="campo"><span>Código de recepción</span>
+        <input id="fCodigo" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" placeholder="todas">
+        <span class="mini" id="pistaCodigo" style="color:var(--warning)"></span></label>
       <label class="campo"><span>Cliente</span>
         <select id="fCliente"><option value="">Todos</option></select></label>
       <label class="campo"><span>Estado</span>
@@ -110,6 +114,7 @@
 <script type="module">
 import { observarSesion, traducirError } from './js/auth.js';
 import { conectarGlosario } from './js/glosario.js';
+import { parecidos, avisoDeParecidos } from './js/sugerir.js';
 import {
   recepcionesDesde, detalleDe, indicadoresDe, consolidar, porOperario,
   skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf,
@@ -117,8 +122,9 @@ import {
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null;
-let detalles = [];      // [{ recepcion, skus, eventos }]
-let indicadores = [];   // una fila por recepción
+let detallesTodos = []; // lo leído del periodo, sin filtrar por código
+let detalles = [];      // [{ recepcion, skus, eventos }] ya filtrado
+let indicadores = [];   // una fila por recepción, del conjunto filtrado
 let vista = 'recepciones';
 let skuElegido = null;
 
@@ -178,22 +184,20 @@ async function cargar() {
 
     // Cada recepción son 2 lecturas de colección. En paralelo, por tandas, para
     // no abrir doscientas conexiones de golpe desde un handheld.
-    detalles = [];
+    detallesTodos = [];
     const TANDA = 6;
     for (let i = 0; i < filtradas.length; i += TANDA) {
       const lote = await Promise.all(filtradas.slice(i, i + TANDA).map(async (r) => {
         const d = await detalleDe(r.id);
         return { recepcion: r, ...d };
       }));
-      detalles.push(...lote);
+      detallesTodos.push(...lote);
       $('cuerpo').innerHTML =
-        `<p class="mini">Leyendo ${detalles.length} de ${filtradas.length} recepciones…</p>`;
+        `<p class="mini">Leyendo ${detallesTodos.length} de ${filtradas.length} recepciones…</p>`;
     }
 
-    indicadores = detalles.map(indicadoresDe);
     llenarClientes(recepciones);
-    pintarKpis();
-    pintar();
+    filtrarPorCodigo();
   } catch (e) {
     $('cuerpo').innerHTML = '';
     aviso(traducirError(e), 'err', 'No se pudieron leer los datos');
@@ -201,6 +205,32 @@ async function cargar() {
     $('bAplicar').disabled = false;
   }
 }
+
+/**
+ * Buscar una recepción por su código sin tener que escribirlo exacto.
+ *
+ * Los códigos se parecen demasiado entre sí —REC0260002 y REC026002— y hasta
+ * ahora un dígito de más devolvía la tabla vacía sin decir que había algo al
+ * lado. Ahora se ordena por parecido y, si no hay coincidencia exacta, se dice
+ * cuál se parece.
+ *
+ * Filtra lo ya leído: no vuelve a la base en cada tecla. Y filtra de verdad, así
+ * que las cifras de arriba y lo que se exporta a Excel o PDF son lo que se ve.
+ */
+function filtrarPorCodigo() {
+  const texto = $('fCodigo').value;
+  detalles = parecidos(texto, detallesTodos,
+                       { max: 500, minimo: 0.5, clave: (d) => d.recepcion.codigo });
+  indicadores = detalles.map(indicadoresDe);
+  $('pistaCodigo').textContent =
+    avisoDeParecidos(texto, detallesTodos, (d) => d.recepcion.codigo);
+  pintarKpis();
+  pintar();
+}
+
+$('fCodigo').addEventListener('input', () => {
+  if (detallesTodos.length) filtrarPorCodigo();
+});
 
 function llenarClientes(recepciones) {
   const actual = $('fCliente').value;
@@ -250,8 +280,14 @@ for (const b of document.querySelectorAll('.pestana')) {
 
 function pintar() {
   if (!indicadores.length) {
-    $('cuerpo').innerHTML =
-      '<p class="mini">No hay recepciones en ese periodo. Prueba a ampliar las fechas.</p>';
+    const buscando = $('fCodigo').value.trim();
+    $('cuerpo').innerHTML = buscando
+      ? `<p class="mini">Ninguna recepción del periodo se parece a «${esc(buscando)}».`
+        + (detallesTodos.length
+            ? ` Hay ${detallesTodos.length} en estas fechas: vacía el código para verlas.`
+            : '')
+        + '</p>'
+      : '<p class="mini">No hay recepciones en ese periodo. Prueba a ampliar las fechas.</p>';
     return;
   }
   ({ recepciones: pRecepciones, skus: pSkus, operarios: pOperarios,

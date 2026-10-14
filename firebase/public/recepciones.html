@@ -53,7 +53,8 @@
     <label class="campo"><span>Código de recepción *</span>
       <input id="fCodigo" placeholder="VW-29-06-2026" autocapitalize="characters">
       <span class="mini">Cliente y fecha. Es el nombre con el que la buscarás
-        después, y no se puede repetir ni cambiar.</span></label>
+        después, y no se puede repetir ni cambiar.</span>
+      <span class="mini" id="pistaCodigo" style="color:var(--warning)"></span></label>
     <label class="campo"><span>Cliente</span>
       <input id="fCliente" placeholder="VENTURA" autocapitalize="characters">
       <span class="mini">El mismo nombre con el que está dado de alta en
@@ -137,11 +138,12 @@
 import { observarSesion } from './js/auth.js';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
-  listarMisRecepciones, borrarRecepcion,
+  listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
 } from './js/datos.js';
 import { Proxy } from './js/proxy.js';
 import { resumir } from './js/conteo.js';
+import { avisoDeParecidos } from './js/sugerir.js';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -211,11 +213,52 @@ $('bCrear').addEventListener('click', async () => {
   }
 });
 
+// Dos recepciones a un dígito de distancia —REC0260002 y REC026002— se crean
+// sin querer y después nadie sabe cuál es cuál. El código no se bloquea: puede
+// ser legítimo. Solo se dice lo que ya hay parecido, mientras se escribe.
+$('fCodigo').addEventListener('input', () => {
+  $('pistaCodigo').textContent =
+    avisoDeParecidos($('fCodigo').value, todas, (r) => r.codigo);
+});
+
 // --- Leer el archivo ------------------------------------------------------ //
+// Lo que se encontró parecido al leer el archivo, y si ya se aceptó cargarlo
+// igualmente. Se reinicia con cada archivo: aceptar uno no acepta el siguiente.
+let parecidos = [];
+let duplicadoAceptado = false;
+
+/** El aviso de que esta lista ya está en otra recepción. */
+function avisarParecidos() {
+  if (!parecidos.length) return '';
+  const grave = parecidos.some((h) => h.nivel === 'identico');
+  const donde = parecidos.map((h) => {
+    const cuando = h.cargadoEn?.toDate
+      ? ' el ' + h.cargadoEn.toDate().toLocaleDateString('es-EC') : '';
+    return `<li><b>${esc(h.codigo)}</b>${h.origen && h.origen !== 'PRINCIPAL'
+      ? ` · lista «${esc(h.origen)}»` : ''}${cuando}<br>
+      <span class="mini">Coincide ${esc(h.motivos.join(', '))}.</span></li>`;
+  }).join('');
+
+  return `<div class="msg ${grave ? 'err' : 'warn'}">
+    <b>${grave ? 'Este packing list ya está cargado' : 'Esto se parece mucho a algo ya cargado'}</b>
+    ${grave
+      ? 'El mismo archivo ya se validó —o se está validando— aquí:'
+      : 'No es idéntico, pero conviene mirarlo antes de seguir:'}
+    <ul style="margin:8px 0 0 18px">${donde}</ul>
+    <p class="mini" style="margin:10px 0 0">
+      Si de verdad llegó dos veces la misma mercadería, continúa: esto es un
+      aviso, no un impedimento. Si es el archivo repetido, cambia de archivo —
+      validarlo dos veces duplica el trabajo y deja dos informes que no cuadran.</p>
+  </div>`;
+}
+
 $('fArchivo').addEventListener('change', async (ev) => {
   const archivo = ev.target.files[0];
   if (!archivo) return;
   limpiarAvisos();
+  parecidos = [];
+  duplicadoAceptado = false;
+  nombreArchivo = archivo.name;
   $('vistaPrevia').innerHTML = '<div class="msg info">Analizando el archivo…</div>';
   $('bSubir').disabled = true;
 
@@ -244,6 +287,18 @@ $('fArchivo').addEventListener('change', async (ev) => {
         <tbody>${muestra}</tbody></table></div>
       <p class="mini" style="margin-top:8px">Primeras 5 líneas de ${resultadoArchivo.lineas.length}.</p>`;
     $('bSubir').disabled = false;
+
+    // El mismo archivo reenviado por correo, renombrado con la fecha o guardado
+    // dos veces acaba validándose dos veces. Se mira el contenido, no el nombre:
+    // renombrarlo no lo convierte en otro packing list.
+    parecidos = await buscarPackingListParecido(resultadoArchivo, archivo.name,
+                                                { excluirRecepcion: recepcionActual });
+    if (parecidos.length) {
+      $('vistaPrevia').insertAdjacentHTML('afterbegin', avisarParecidos());
+      $('bSubir').textContent = 'Guardar packing list de todas formas';
+    } else {
+      $('bSubir').textContent = 'Guardar packing list';
+    }
   } catch (e) {
     resultadoArchivo = null;
     $('vistaPrevia').innerHTML = '';
@@ -253,6 +308,18 @@ $('fArchivo').addEventListener('change', async (ev) => {
 
 $('bSubir').addEventListener('click', async () => {
   if (!resultadoArchivo || !recepcionActual) return;
+
+  // Un duplicado exacto se confirma dos veces. El primer clic suele ser el de
+  // quien ya tenía la mano puesta en el botón antes de leer el aviso.
+  if (parecidos.some((h) => h.nivel === 'identico') && !duplicadoAceptado) {
+    duplicadoAceptado = true;
+    limpiarAvisos();
+    aviso(`Este archivo ya está cargado en ${parecidos[0].codigo}. Vuelve a `
+        + 'pulsar «Guardar» si aun así quieres validarlo otra vez aquí.',
+          'err', 'Confirma que no es un duplicado');
+    return;
+  }
+
   limpiarAvisos();
   $('bSubir').disabled = true;
   const prog = aviso('Guardando…', 'info', 'Un momento');
@@ -262,7 +329,7 @@ $('bSubir').addEventListener('click', async () => {
       (hechas, total) => {
         prog.innerHTML = `<b>Guardando</b>${hechas} de ${total} registros`;
       },
-      { origen: $('fOrigen').value });
+      { origen: $('fOrigen').value, archivo: nombreArchivo });
 
     limpiarAvisos();
     aviso(`Lista «${r.origen}» guardada: ${r.lineas} líneas. ` +
@@ -282,6 +349,10 @@ $('bSubir').addEventListener('click', async () => {
     $('fArchivo').value = '';
     $('fOrigen').value = '';
     resultadoArchivo = null;
+    nombreArchivo = '';
+    parecidos = [];
+    duplicadoAceptado = false;
+    $('bSubir').textContent = 'Guardar packing list';
     $('vistaPrevia').innerHTML = '';
     cargarListado();
   } catch (e) {

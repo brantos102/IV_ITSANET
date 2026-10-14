@@ -763,4 +763,91 @@ await test('no inventa parecidos donde no los hay', () => {
   eq(sug.avisoDeParecidos('', ['REC0260002']), '');
 });
 
+// =============== Avisar de que el packing list ya se cargó ============== //
+const datosH = await cargar('datos.js');
+
+const conHuellas = (filas) => { globalThis.__coleccion = { huellas: filas }; };
+const huellaDe = (lineas, archivo) => ({
+  ...huella.resumenDe(pl(lineas), archivo),
+});
+
+await test('reconoce el mismo packing list en otra recepción', async () => {
+  conHuellas([{ id: 'REC001__PRINCIPAL', recepcionId: 'REC001', codigo: 'REC0260002',
+                origen: 'PRINCIPAL', ...huellaDe([['X', 5], ['Y', 3]], 'vw.xlsx') }]);
+  const r = await datosH.buscarPackingListParecido(pl([['X', 5], ['Y', 3]]),
+                                                   'copia de vw (2).xlsx');
+  eq(r.length, 1);
+  eq(r[0].nivel, 'identico');
+  eq(r[0].codigo, 'REC0260002', 'tiene que decir EN QUÉ recepción está');
+});
+
+await test('no se avisa a sí misma: la recepción en curso se excluye', async () => {
+  conHuellas([{ id: 'REC001__PRINCIPAL', recepcionId: 'REC001', codigo: 'REC0260002',
+                origen: 'PRINCIPAL', ...huellaDe([['X', 5]], 'vw.xlsx') }]);
+  const r = await datosH.buscarPackingListParecido(pl([['X', 5]]), 'vw.xlsx',
+                                                   { excluirRecepcion: 'REC001' });
+  eq(r.length, 0);
+});
+
+await test('un packing list distinto no levanta ninguna alarma', async () => {
+  conHuellas([{ id: 'REC001__PRINCIPAL', recepcionId: 'REC001', codigo: 'REC0260002',
+                origen: 'PRINCIPAL', ...huellaDe([['X', 5], ['Y', 3]], 'vw.xlsx') }]);
+  const r = await datosH.buscarPackingListParecido(
+    pl([['A', 1], ['B', 2], ['C', 3], ['D', 4]]), 'gac.xlsx');
+  eq(r.length, 0, 'avisar de más entrena al operario a ignorar el aviso');
+});
+
+await test('lo idéntico se ofrece antes que lo parecido', async () => {
+  conHuellas([
+    { id: 'R2__P', recepcionId: 'R2', codigo: 'PARECIDA', origen: 'P',
+      ...huellaDe([['X', 4], ['Y', 4]], 'otro.xlsx') },      // mismas cifras
+    { id: 'R3__P', recepcionId: 'R3', codigo: 'IDENTICA', origen: 'P',
+      ...huellaDe([['X', 5], ['Y', 3]], 'otro.xlsx') },      // mismo contenido
+  ]);
+  const r = await datosH.buscarPackingListParecido(pl([['X', 5], ['Y', 3]]), 'nuevo.xlsx');
+  eq(r[0].codigo, 'IDENTICA');
+  eq(r[0].nivel, 'identico');
+  eq(r[1].nivel, 'probable');
+});
+
+await test('sin huellas guardadas, cargar sigue funcionando', async () => {
+  globalThis.__coleccion = {};
+  eq((await datosH.buscarPackingListParecido(pl([['X', 1]]), 'a.xlsx')).length, 0);
+});
+
+await test('si la consulta falla, no impide cargar el packing list', async () => {
+  globalThis.__coleccion = null;
+  const r = await datosH.buscarPackingListParecido(pl([['X', 1]]), 'a.xlsx');
+  eq(r.length, 0, 'el aviso es una ayuda, no un requisito para trabajar');
+});
+
+await test('al guardar el packing list queda su huella para la próxima vez', async () => {
+  globalThis.__coleccion = {};
+  globalThis.__sets = [];
+  await datosH.guardarPackingList('REC0260002', {
+    ...pl([['X', 5], ['Y', 3]]),
+    encabezados: ['ITEM', 'CANTIDAD'], columnas: {}, hoja: 'REV', embarques: [],
+    skusUnicos: 2, unidades: 8,
+  }, null, { origen: 'PL-A', archivo: 'VW-29-06-2026.xlsx' });
+
+  const h = globalThis.__sets.find((x) => x.ruta.startsWith('huellas/'));
+  ok(h, 'sin esta anotación el duplicado no se detecta nunca');
+  eq(h.ruta, 'huellas/REC0260002__PL-A');
+  eq(h.datos.recepcionId, 'REC0260002');
+  eq(h.datos.origen, 'PL-A');
+  eq(h.datos.archivo, 'VW-29-06-2026', 'el nombre, sin extensión ni «(2)»');
+  eq(h.datos.lineas, 2);
+  eq(h.datos.huella, huella.huellaDe(pl([['X', 5], ['Y', 3]])));
+});
+
+await test('«PL-A» no se guarda como «PLA»: el guion separa listas', async () => {
+  globalThis.__sets = [];
+  await datosH.guardarPackingList('R1', {
+    ...pl([['X', 1]]), encabezados: [], columnas: {}, hoja: '', embarques: [],
+    skusUnicos: 1, unidades: 1,
+  }, null, { origen: 'PL-A', archivo: 'a.xlsx' });
+  const h = globalThis.__sets.find((x) => x.ruta.startsWith('huellas/'));
+  eq(h.ruta, 'huellas/R1__PL-A');
+});
+
 resumen();

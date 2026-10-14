@@ -17,8 +17,32 @@ const STUB_SDK = `
 export const doc = (...a) => ({ ruta: a.slice(1).join('/') });
 export const collection = (...a) => ({ ruta: a.slice(1).join('/') });
 export const getDoc = async () => ({ exists: () => false, data: () => ({}), get: () => undefined });
-export const getDocs = async () => ({ docs: [], size: 0 });
-export const setDoc = async () => {};
+/*
+ * Lectura de colecciones.
+ *
+ * globalThis.__coleccion['ruta'] = [{ id, ...datos }] simula lo que hay. Las
+ * clausulas where() NO se simulan: devuelve la coleccion entera. Para lo que se
+ * prueba aqui es mas exigente, no menos, porque obliga a que el filtrado real
+ * lo haga el codigo y no la consulta.
+ */
+export const getDocs = async (q) => {
+  const ruta = Array.isArray(q) ? q.flat(9).find((x) => x && x.ruta)?.ruta : q?.ruta;
+  const todos = (globalThis.__coleccion || {})[ruta] || [];
+  return {
+    size: todos.length,
+    docs: todos.map((d) => ({
+      id: d.id,
+      ref: { ruta: ruta + '/' + d.id },
+      data: () => d,
+      get: (c) => d[c],
+    })),
+  };
+};
+/* globalThis.__sets recoge cada setDoc suelto: la forma de lo que se escribe
+ * ya escondio un error una vez (el mapa de pallets) y no se ve en lo devuelto. */
+export const setDoc = async (ref, datos, opciones) => {
+  (globalThis.__sets = globalThis.__sets || []).push({ ruta: ref?.ruta, datos, opciones });
+};
 export const updateDoc = async () => {};
 export const addDoc = async () => {};
 export const deleteDoc = async () => {};

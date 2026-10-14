@@ -375,6 +375,10 @@ observarSesion(async (e) => {
 
   escucharSkus(RECEPCION, (lista) => {
     skus = lista.sort((a, b) => (a.sku < b.sku ? -1 : 1));
+    // El <datalist> del escáner: al teclear a mano, el navegador va ofreciendo
+    // los códigos de esta recepción. Con la pistola no estorba.
+    $('sugerencias').innerHTML = skus
+      .map((s) => `<option value="${esc(s.sku)}">${esc(s.descripcion || '')}</option>`).join('');
     pintarKpis();
     pintarTabla();
     if (actual) {
@@ -1081,9 +1085,16 @@ function mostrarNoEncontrado(codigo) {
   $('fBuscar').focus();
 }
 
+/**
+ * Los códigos del packing list que más se parecen al que no se encontró.
+ *
+ * Antes se exigía que coincidieran los seis primeros caracteres: un dígito mal
+ * leído por la pistola en medio del código, o uno de más al teclearlo, dejaba
+ * al operario sin ninguna pista delante de un código que sí estaba en la lista.
+ */
 function buscarParecidos(codigo) {
-  const raiz = codigo.slice(0, 6);
-  const cerca = skus.filter((s) => s.sku.startsWith(raiz) && s.sku !== codigo).slice(0, 6);
+  const cerca = parecidos(codigo, skus.filter((s) => s.sku !== codigo),
+                          { max: 6, minimo: 0.5, clave: (s) => s.sku });
   $('coincidencias').innerHTML = cerca.length
     ? `<div class="msg info"><b>Códigos parecidos en el packing list</b>
        ${cerca.map((s) => `<button type="button" class="chip" data-sku="${esc(s.sku)}">${esc(s.sku)}</button>`).join(' ')}</div>`

@@ -10,6 +10,7 @@ import {
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
+import { resumenDe, comparar, nombreLimpio } from './huella.js';
 
 // --------------------------------------------------------------------------- //
 // Normalización — la misma que usa el proxy, para que los cruces coincidan
@@ -308,12 +309,6 @@ export async function crearRecepcion({ codigo, cliente, descripcion, bultos }, u
 /**
  * Guarda las líneas y el agregado por SKU.
  *
- * Firestore admite 500 operaciones por lote, así que se parte en tandas. Las
- * líneas son inmutables: son la versión del sistema contra la que se compara.
- */
-/**
- * Guarda las líneas y el agregado por SKU.
- *
  * Una recepción puede consolidar VARIOS packing lists. Pasa cuando llegan dos
  * embarques cortos el mismo día, o cuando uno se parte. Validarlos por separado
  * obliga a recorrer el almacén dos veces para la misma mercadería.
@@ -325,6 +320,69 @@ export async function crearRecepcion({ codigo, cliente, descripcion, bultos }, u
  * Firestore admite 500 operaciones por lote, así que se parte en tandas. Las
  * líneas son inmutables: son la versión del sistema contra la que se compara.
  */
+/**
+ * ¿Este packing list ya está cargado en otra recepción?
+ *
+ * Un archivo reenviado por correo, renombrado con la fecha o guardado dos veces
+ * acaba validándose dos veces: dos operarios contando lo mismo, dos informes que
+ * no cuadran y nadie sabiendo cuál mandar al cliente.
+ *
+ * Se mira por tres caminos, porque un duplicado se disfraza de formas distintas:
+ * el contenido exacto, las cifras del archivo (líneas, productos y unidades) y
+ * el nombre. Tres consultas pequeñas, una sola vez al cargar.
+ *
+ * Avisa; no bloquea. Recibir dos veces la misma mercancía existe, y el que está
+ * delante lo sabe y la máquina no.
+ */
+export async function buscarPackingListParecido(resultado, archivo, opciones = {}) {
+  const mio = resumenDe(resultado, archivo);
+  const excluir = opciones.excluirRecepcion || '';
+  const col = collection(db, 'huellas');
+
+  const consultas = [
+    query(col, where('huella', '==', mio.huella), limit(5)),
+    query(col, where('lineas', '==', mio.lineas), limit(25)),
+  ];
+  if (mio.archivo) consultas.push(query(col, where('archivo', '==', mio.archivo), limit(10)));
+
+  const vistos = new Map();
+  for (const q of consultas) {
+    let snap;
+    try {
+      snap = await getDocs(q);
+    } catch {
+      // Sin el índice o sin permiso, cargar tiene que seguir funcionando: esto
+      // es un aviso, no un requisito.
+      continue;
+    }
+    snap.docs.forEach((d) => vistos.set(d.id, { id: d.id, ...d.data() }));
+  }
+
+  const ORDEN = { identico: 3, probable: 2, revisar: 1, distinto: 0 };
+  return [...vistos.values()]
+    .filter((h) => h.recepcionId && h.recepcionId !== excluir)
+    .map((h) => ({ ...h, ...comparar(mio, h) }))
+    .filter((h) => h.nivel !== 'distinto')
+    .sort((a, b) => ORDEN[b.nivel] - ORDEN[a.nivel])
+    .slice(0, 5);
+}
+
+/** La ficha que deja un packing list cargado, para reconocerlo la próxima vez. */
+async function anotarHuella(recepcionId, codigo, origen, resumen) {
+  try {
+    await setDoc(doc(db, 'huellas', `${recepcionId}__${claveMapa(origen)}`), {
+      ...resumen,
+      recepcionId,
+      codigo: codigo || recepcionId,
+      origen,
+      cargadoEn: serverTimestamp(),
+    });
+  } catch {
+    // Que no se pueda anotar no puede tumbar una carga que ya se hizo. Lo único
+    // que se pierde es el aviso de duplicado la próxima vez.
+  }
+}
+
 export async function guardarPackingList(recepcionId, resultado, alAvanzar, opciones = {}) {
   const refRec = doc(db, 'recepciones', recepcionId);
   const origen = limpiar(opciones.origen).toUpperCase().slice(0, 40) || 'PRINCIPAL';
@@ -416,6 +474,9 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
         encabezados: resultado.encabezados || [],
         columnas: resultado.columnas || {},
         hoja: resultado.hoja || '',
+        // Con qué archivo se cargó y qué traía: es lo que permite reconocerlo
+        // si vuelve a subirse en otra recepción.
+        ...resumenDe(resultado, opciones.archivo),
       },
     },
     hoja: resultado.hoja,
@@ -426,6 +487,10 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
   // SKU que ya venían de otra lista: la atribución de lo contado entre listas
   // es una convención, no un hecho, y quien carga tiene que saberlo.
   const compartidos = Object.keys(resultado.porSku).filter((sku) => existentes[sku]);
+
+  await anotarHuella(recepcionId, previo.codigo, origen,
+                     resumenDe(resultado, opciones.archivo));
+
   return { origen, lineas: resultado.lineas.length, compartidos };
 }
 
@@ -471,6 +536,22 @@ export async function borrarRecepcion(recepcionId, alAvanzar) {
     } catch {
       huerfanas.push(nombre);
     }
+  }
+
+  // Las huellas de sus packing lists se van con ella: si la recepción se borró
+  // porque el archivo estaba mal, volver a subirlo bien no puede saltar como
+  // «ya validado en» una recepción que ya no existe.
+  try {
+    const snap = await getDocs(query(collection(db, 'huellas'),
+                                     where('recepcionId', '==', recepcionId)));
+    if (snap.docs.length) {
+      const lote = writeBatch(db);
+      snap.docs.forEach((d) => lote.delete(d.ref));
+      await lote.commit();
+      borrados += snap.docs.length;
+    }
+  } catch {
+    huerfanas.push('huellas');
   }
 
   return { borrados, huerfanas };

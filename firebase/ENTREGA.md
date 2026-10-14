@@ -197,8 +197,33 @@ Usa el packing list real de VW, el de 22 filas.
 - [ ] **Guardar packing list**: el total de SKU y de unidades coincide con el
       archivo
 
+### 5.1.1 Que el mismo packing list no se valide dos veces
+
+Con `PRUEBA-01` ya cargada, crea `PRUEBA-02` y sube **el mismo archivo**:
+
+- [ ] Antes de guardar, avisa en rojo de que ya está cargado y dice en qué
+      recepción
+- [ ] El botón pasa a decir **Guardar packing list de todas formas**
+- [ ] El primer clic no guarda: pide confirmar
+- [ ] El segundo sí guarda (recibir dos veces lo mismo existe; esto avisa, no
+      prohíbe)
+
+Renombra el archivo (`copia de VW (2).xlsx`) y vuelve a subirlo en otra
+recepción:
+
+- [ ] Avisa igual — la comprobación es del contenido, no del nombre
+
+Borra `PRUEBA-02` como ADMIN y sube otra vez el archivo en una recepción nueva:
+
+- [ ] **No** avisa: la huella se fue con la recepción borrada
+
 ### 5.2 Contar
 
+- [ ] Tocar **Buscar** con el campo vacío **no** recarga la página ni pierde la
+      recepción *(era el fallo que dejaba «Falta indicar la recepción»)*
+- [ ] Lo mismo con la tecla **Ir** del teclado del móvil
+- [ ] Abrir `/validar.html` **sin** `?r=`: en vez de un callejón sin salida,
+      ofrece las recepciones abiertas y deja filtrarlas escribiendo el código
 - [ ] Escanear un código del packing list: sale descripción, unidad y stock
 - [ ] Registrar 1 unidad en el pallet `A1`
 - [ ] Escanear **el mismo código**: aparece el botón **📦 A1** con la cantidad
@@ -224,6 +249,8 @@ Con la recepción abierta en el handheld y en un PC, con **usuarios distintos**:
 
 - [ ] Escanear algo que no está: sale el modal con el buscador
 - [ ] Buscar por parte de la descripción encuentra la línea
+- [ ] Escanear un código del packing list **con un dígito cambiado**: ofrece el
+      código bueno entre los parecidos
 - [ ] **Registrar como adicional**: avisa de que irá en una pestaña aparte
 
 ### 5.5 Anular
@@ -262,6 +289,10 @@ Como SUPERVISOR, abre **KPIs** desde el inicio:
       historial
 - [ ] **Operarios** muestra a cada uno con sus conteos y unidades
 - [ ] El botón **CSV** descarga y Excel abre las tildes bien
+- [ ] Escribiendo un código en **Código de recepción** se filtra la tabla al
+      teclear, y las cifras de arriba y lo que exporta Excel/PDF filtran igual
+- [ ] Escribiendo el código con un dígito de más dice **«¿Quisiste decir…?»**
+      con el código real, en vez de dejar la tabla vacía
 
 Como OPERADOR:
 
@@ -283,7 +314,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **191 pruebas, todas en verde**
+- [ ] Termina en **272 pruebas, todas en verde**
 
 ---
 
