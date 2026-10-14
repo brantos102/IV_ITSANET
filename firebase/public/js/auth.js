@@ -137,8 +137,42 @@ export async function entrarConClave(usuarioOCorreo, clave) {
       'escribiste, o entra con tu correo completo.',
     );
   }
-  const cred = await signInWithEmailAndPassword(auth, correo, clave);
-  return cred.user;
+  try {
+    const cred = await signInWithEmailAndPassword(auth, correo, clave);
+    return cred.user;
+  } catch (e) {
+    // Una cuenta creada con Google no TIENE contraseña, así que Firebase
+    // rechaza cualquiera que se escriba. Decir «usuario o contraseña
+    // incorrectos» es engañoso: las credenciales no están mal, es que esa
+    // cuenta no entra por aquí. Quien no cae en eso se da por bloqueado.
+    if (/invalid-credential|wrong-password|user-not-found/.test(e?.code || '')
+        && await entraConGoogle(usuarioOCorreo, correo)) {
+      throw new Error(
+        `La cuenta ${correo} entra con el botón «Entrar con Google», no con ` +
+        'contraseña. Es la de más abajo en esta misma pantalla. Si necesitas ' +
+        'una contraseña, pídele a un administrador que te la cree.',
+      );
+    }
+    throw e;
+  }
+}
+
+/** ¿Esa cuenta se creó entrando con Google? Lo dice su alias, que sí se puede leer. */
+async function entraConGoogle(entrada, correo) {
+  const candidatos = [
+    normalizarAlias(entrada),
+    normalizarAlias(String(correo).split('@')[0]),
+  ].filter((a) => a.length >= 3);
+
+  for (const alias of new Set(candidatos)) {
+    try {
+      const snap = await getDoc(doc(db, 'alias', alias));
+      if (snap.exists() && snap.get('email') === correo) {
+        return snap.get('tipoAcceso') === 'GOOGLE';
+      }
+    } catch { /* sin permiso o sin red: se deja el error original */ }
+  }
+  return false;
 }
 
 /**
@@ -344,7 +378,53 @@ export async function asegurarPerfil(usuario) {
     creadoEn: serverTimestamp(),
   };
   await setDoc(ref, perfil);
+
+  // Y su alias, para que tenga un usuario con el que volver.
+  //
+  // Sin esto, quien entraba con Google quedaba sin nombre de usuario: no
+  // aparecía en ninguna parte y, al cerrar sesión, lo único que le dejaba
+  // volver era el propio botón de Google. Si no caía en eso —o si el botón
+  // fallaba en su móvil— se quedaba fuera de la aplicación sin saber por qué.
+  await asegurarAlias(usuario);
+
   return { ...perfil, nuevo: true };
+}
+
+/**
+ * Reserva un alias para quien entró con Google.
+ *
+ * Sale de la parte del correo antes de la arroba. Si ya está tomado por otra
+ * persona se le añade un número: no se puede listar la colección —las reglas lo
+ * impiden a propósito, para que nadie saque el directorio de la empresa—, así
+ * que se prueban candidatos de uno en uno.
+ *
+ * `tipoAcceso` queda escrito aquí porque el alias SÍ se puede leer sin haber
+ * entrado, y es lo que permite decirle a alguien «esa cuenta entra con Google»
+ * en vez de «usuario o contraseña incorrectos».
+ */
+async function asegurarAlias(usuario) {
+  const base = normalizarAlias(String(usuario.email || '').split('@')[0]);
+  if (base.length < 3) return null;
+
+  for (let n = 0; n < 20; n++) {
+    const alias = n === 0 ? base : `${base}${n + 1}`;
+    try {
+      const snap = await getDoc(doc(db, 'alias', alias));
+      if (snap.exists()) {
+        if (snap.get('uid') === usuario.uid) return alias;   // ya era suyo
+        continue;                                            // de otra persona
+      }
+      await setDoc(doc(db, 'alias', alias), {
+        email: usuario.email, uid: usuario.uid, tipoAcceso: 'GOOGLE',
+      });
+      return alias;
+    } catch {
+      // Que no se pueda reservar no puede impedir entrar: el perfil ya existe y
+      // el botón de Google sigue funcionando. Solo se queda sin alias.
+      return null;
+    }
+  }
+  return null;
 }
 
 /**

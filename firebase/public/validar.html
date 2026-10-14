@@ -703,13 +703,12 @@ function refrescarFicha(s) {
   const p = actual?.producto;
   // Lo que identifica al producto, y de qué lista viene: en una recepción
   // consolidada eso último es tan parte de su identidad como el cliente.
-  const enDepot = ubicacionesDepot(p);
+  // Aquí solo va lo que IDENTIFICA al producto. La existencia y las ubicaciones
+  // de Depot estaban también en esta línea y ahora viven en su panel plegable:
+  // repetirlas aquí volvería a llenar la ficha de lo que no es lo primero.
   const listas = s.origenes || [];
   $('fExtra').textContent = [
     p?.unidad && 'Unidad ' + p.unidad,
-    p?.stock != null && 'Stock ' + p.stock,
-    enDepot.length === 1 ? 'Pos. ' + enDepot[0].posicion
-      : enDepot.length > 1 ? `${enDepot.length} ubicaciones` : null,
     p?.cliente && 'Cliente ' + p.cliente,
     listas.length ? 'Lista ' + listas.join(' + ') : null,
   ].filter(Boolean).join(' · ');
@@ -861,44 +860,42 @@ document.addEventListener('click', (ev) => {
   if (!$('fPallet').value) $('fPallet').value = 'DP';
 });
 
+/**
+ * Lo que Depot sabe del producto: plegado, y solo si se pide.
+ *
+ * Lo primero es contar. Una tabla de ubicaciones, lotes y existencias abierta
+ * encima de la ficha empuja hacia abajo lo único imprescindible —la cantidad
+ * física encontrada— y en el handheld eso significa desplazarse para registrar.
+ *
+ * Así que se resume en una línea y el detalle se abre a propósito. La elección
+ * se recuerda: quien lo quiera abierto todo el día lo abre una vez.
+ */
+const CLAVE_DEPOT = 'itsanet.depot.abierto';
+const depotAbierto = () => {
+  try { return localStorage.getItem(CLAVE_DEPOT) === '1'; } catch { return false; }
+};
+
 function pintarPosicionesDepot() {
   const caja = $('fDepot');
   const p = actual?.producto;
+  if (!p) { caja.classList.add('oculto'); caja.innerHTML = ''; return; }
+
   const posiciones = ubicacionesDepot(p);
-
-  if (!posiciones.length) {
-    // Que Depot no devuelva ubicaciones es un dato, no la ausencia de un dato:
-    // el producto existe en el maestro pero hoy no hay existencia en bodega.
-    // Callarlo deja al operario pensando que la consulta falló.
-    caja.classList.remove('oculto');
-    // Con stock pero sin ubicación, el catálogo está incompleto; decir «sin
-    // existencia» sería afirmar algo que no se sabe.
-    const hayStock = Number(p?.stock) > 0;
-    caja.innerHTML = !p ? '' : hayStock
-      ? `<div class="msg info" style="margin:0">
-           <b>Ubicación no disponible</b>
-           Depot reporta ${esc(String(p.stock))} ${esc(p.unidad || 'u')} de
-           ${esc(p.sku || '')}, pero el catálogo descargado no trae en qué
-           ubicación. Vuelve a descargarlo desde Recepciones para verlas.</div>`
-      : `<div class="msg warn" style="margin:0">
-           <b>Sin existencia en bodega</b>
-           ${esc(p.sku || '')} está en el maestro de Depot${
-             p.cliente ? ` (cliente ${esc(p.cliente)})` : ''}, pero ahora mismo
-           no tiene ninguna ubicación con existencia en BM — Bodega Matriz.
-           Lo que registres será su primer ingreso.</div>`;
-    return;
-  }
-
-  const total = posiciones.reduce((a, u) => a + (u.stock || 0), 0);
-  const sitios = new Set(posiciones.map((u) => u.posicion)).size;
-  const hayDetalle = posiciones.some((u) => u.lote || u.serie || u.partida);
-
+  const abierto = depotAbierto();
   caja.classList.remove('oculto');
-  caja.innerHTML = `
-    <span class="mini" style="font-weight:800;text-transform:uppercase">
-      En Depot hoy · ${total} ${esc(p.unidad || 'u')} en ${sitios}
-      ${sitios === 1 ? 'ubicación' : 'ubicaciones'}</span>
-    <div class="tabla-env" style="margin-top:7px"><table>
+
+  // --- El resumen, siempre una línea --- //
+  let resumen;
+  let detalle = '';
+
+  if (posiciones.length) {
+    const total = posiciones.reduce((a, u) => a + (u.stock || 0), 0);
+    const sitios = new Set(posiciones.map((u) => u.posicion)).size;
+    const hayDetalle = posiciones.some((u) => u.lote || u.serie || u.partida);
+    resumen = `En Depot hoy: ${total} ${esc(p.unidad || 'u')} en ${sitios} `
+            + `${sitios === 1 ? 'ubicación' : 'ubicaciones'}`;
+
+    detalle = `<div class="tabla-env" style="margin-top:7px"><table>
       <thead><tr><th>Posición</th><th class="num">Cant.</th>
         ${hayDetalle ? '<th>Lote</th><th>Serie</th><th>Partida</th>' : ''}
         <th>Estado</th></tr></thead>
@@ -916,7 +913,41 @@ function pintarPosicionesDepot() {
           <td class="mini">${esc(u.estado || '')}</td>
         </tr>`).join('')}
       </tbody></table></div>`;
+  } else if (Number(p.stock) > 0) {
+    // Con existencia pero sin ubicación, el catálogo está incompleto; decir
+    // «sin existencia» sería afirmar algo que no se sabe.
+    resumen = `En Depot hoy: ${esc(String(p.stock))} ${esc(p.unidad || 'u')}, `
+            + 'sin ubicación en el catálogo';
+    detalle = `<div class="msg info" style="margin:7px 0 0">
+      <b>Ubicación no disponible</b>
+      Depot reporta existencia de ${esc(p.sku || '')} pero el catálogo descargado
+      no trae en qué ubicación. Vuelve a descargarlo desde Recepciones para
+      verlas. No afecta a lo que registres aquí.</div>`;
+  } else {
+    // Que Depot no devuelva ubicaciones es un dato, no la ausencia de un dato:
+    // el producto existe en el maestro pero hoy no hay existencia en bodega.
+    resumen = 'En Depot hoy: sin existencia — será su primer ingreso';
+    detalle = `<div class="msg warn" style="margin:7px 0 0">
+      <b>Sin existencia en bodega</b>
+      ${esc(p.sku || '')} está en el maestro de Depot${
+        p.cliente ? ` (cliente ${esc(p.cliente)})` : ''}, pero ahora mismo no
+      tiene ninguna ubicación con existencia en BM — Bodega Matriz. Lo que
+      registres será su primer ingreso.</div>`;
+  }
+
+  caja.innerHTML = `
+    <button type="button" class="enlace-ayuda" id="bDepot"
+            aria-expanded="${abierto ? 'true' : 'false'}">
+      ${abierto ? '▾' : '▸'} ${resumen}</button>
+    <div id="detalleDepot"${abierto ? '' : ' class="oculto"'}>${detalle}</div>`;
 }
+
+$('fDepot').addEventListener('click', (ev) => {
+  if (!ev.target.closest('#bDepot')) return;
+  const abierto = !depotAbierto();
+  try { localStorage.setItem(CLAVE_DEPOT, abierto ? '1' : '0'); } catch { /* da igual */ }
+  pintarPosicionesDepot();
+});
 
 /**
  * Pallet genérico para lo que no pasa por un pallet.

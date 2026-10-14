@@ -1060,4 +1060,53 @@ await test('las fotos de otro producto no cuentan', () => {
   eq(nom.siguienteFoto('ABC', ['OTRO-1.jpg', 'ABCD-1.jpg']), 1);
 });
 
+// =============== Entrar con Google deja usuario ========================= //
+// Quien entraba con Google quedaba sin nombre de usuario: al cerrar sesión, lo
+// único que le dejaba volver era el propio botón, y quien no caía en eso se
+// daba por bloqueado.
+const autenticacion = await cargar('auth.js');
+
+const googleUid = (uid, email) => ({ uid, email, displayName: 'Ana Torres',
+  providerData: [{ providerId: 'google.com' }] });
+
+await test('al entrar con Google por primera vez se reserva su alias', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  await autenticacion.asegurarPerfil(googleUid('u1', 'atorres@itsanet.com'));
+
+  const alias = globalThis.__sets.find((x) => x.ruta.startsWith('alias/'));
+  ok(alias, 'sin alias no tiene usuario con el que volver');
+  eq(alias.ruta, 'alias/atorres', 'sale de la parte del correo antes de la arroba');
+  eq(alias.datos.email, 'atorres@itsanet.com');
+  eq(alias.datos.uid, 'u1');
+  eq(alias.datos.tipoAcceso, 'GOOGLE',
+     'el alias sí se puede leer sin entrar: es lo que permite decir «entra con Google»');
+});
+
+await test('también se crea su perfil, activo', async () => {
+  globalThis.__sets = [];
+  const p = await autenticacion.asegurarPerfil(googleUid('u2', 'bespinoza@itsanet.com'));
+  eq(p.activo, true);
+  eq(p.tipoAcceso, 'GOOGLE');
+  ok(globalThis.__sets.some((x) => x.ruta === 'usuarios/u2'));
+});
+
+await test('un correo de fuera del dominio no se da de alta solo', async () => {
+  globalThis.__sets = [];
+  let fallo = null;
+  try { await autenticacion.asegurarPerfil(googleUid('u3', 'alguien@gmail.com')); }
+  catch (e) { fallo = e.message; }
+  ok(fallo, 'tiene que rechazarlo');
+  ok(/Registrarse/.test(fallo), fallo);
+  ok(!globalThis.__sets.some((x) => x.ruta.startsWith('alias/')), 'ni alias ni perfil');
+});
+
+await test('un correo demasiado corto no genera un alias inservible', async () => {
+  globalThis.__sets = [];
+  await autenticacion.asegurarPerfil(googleUid('u4', 'ab@itsanet.com'));
+  ok(!globalThis.__sets.some((x) => x.ruta.startsWith('alias/')),
+     'con menos de 3 caracteres no se reserva nada');
+  ok(globalThis.__sets.some((x) => x.ruta === 'usuarios/u4'), 'el perfil sí');
+});
+
 resumen();
