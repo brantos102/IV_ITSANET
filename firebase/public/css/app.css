@@ -163,3 +163,48 @@ button.kpi:disabled { opacity:1; cursor:default; }
   .acciones button, .acciones a { flex:1; }
   .acciones a button { width:100%; }
 }
+
+/* --- Diálogos ---
+   Sustituyen a confirm() y prompt(): en el handheld aquellos salían diminutos,
+   sin jerarquía y se cerraban de un toque accidental. */
+.modal { border:none; border-radius:18px; padding:26px; width:min(460px, calc(100vw - 28px));
+         background:var(--surface); color:var(--primary); font-family:var(--font-ui);
+         box-shadow:0 24px 60px rgba(15,23,42,.28); }
+.modal::backdrop { background:rgba(15,23,42,.55); backdrop-filter:blur(2px); }
+.modal-titulo { margin:0 0 10px; font-size:17px; font-weight:800; letter-spacing:-.3px; }
+.modal-texto { font-size:13px; line-height:1.55; color:var(--secondary); font-weight:600; }
+.modal-texto b { color:var(--primary); }
+.modal-texto ul { margin:10px 0 0 18px; padding:0; }
+.modal .campo { margin-top:16px; }
+.modal-acciones { display:flex; gap:10px; justify-content:flex-end; margin-top:22px;
+                  flex-wrap:wrap; }
+.modal-acciones button { flex:1 1 auto; min-width:120px; }
+.b-peligro-lleno { background:var(--danger); color:#fff; }
+.b-peligro-lleno:disabled { opacity:.45; }
+
+/* Una opción por botón, con su explicación debajo: dos botones genéricos
+   obligaban a traducir «Aceptar» y «Cancelar» a dos cosas distintas. */
+.modal-opciones { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+.modal-opcion { display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+                text-align:left; padding:14px 16px; border-radius:12px;
+                border:1px solid var(--border); background:var(--bg); color:var(--primary);
+                cursor:pointer; font-family:inherit; width:100%; }
+.modal-opcion:hover, .modal-opcion:focus-visible { border-color:var(--accent); }
+.modal-opcion b { font-size:14px; font-weight:800; }
+.modal-opcion span { font-size:12px; color:var(--secondary); font-weight:600; line-height:1.45; }
+
+.modal-exacto { font-family:var(--font-data); font-size:18px; font-weight:800;
+                text-align:center; letter-spacing:1px; margin:18px 0 0;
+                padding:12px; border-radius:10px; background:var(--bg);
+                border:1px dashed var(--border); user-select:all; }
+
+/* Una franja de color arriba: de un vistazo se sabe si es buena o mala noticia. */
+.modal-tono { height:5px; border-radius:3px; margin:-6px 0 16px; background:var(--accent); }
+.modal-tono.ok { background:var(--success); }
+.modal-tono.warn { background:var(--warning); }
+.modal-tono.err { background:var(--danger); }
+
+@media (max-width:480px) {
+  .modal { padding:20px; }
+  .modal-acciones button { min-width:0; }
+}

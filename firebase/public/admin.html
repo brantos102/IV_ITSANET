@@ -232,6 +232,7 @@
 <script type="module">
 import { observarSesion, traducirError, db } from './js/auth.js';
 import { Proxy, obtenerUrlProxy } from './js/proxy.js';
+import { confirmar } from './js/modal.js';
 import { doc, getDoc, setDoc }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -362,7 +363,14 @@ function limpiarForm() {
 $('bLimpiar').addEventListener('click', limpiarForm);
 
 async function borrar(id) {
-  if (!confirm(`¿Borrar el cliente ${id}? Se eliminan sus credenciales del proxy.`)) return;
+  if (!await confirmar({
+    titulo: `¿Borrar el cliente ${id}?`,
+    texto: 'Se eliminan sus credenciales del proxy. Las recepciones y los conteos '
+         + 'que ya tenga no se tocan, pero dejará de poderse consultar su stock '
+         + 'y de descargarse su catálogo hasta que se vuelva a dar de alta.',
+    aceptar: 'Borrar el cliente',
+    peligro: true,
+  })) return;
   limpiarAvisos();
   try {
     await Proxy.borrarCliente(id);

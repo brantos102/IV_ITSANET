@@ -144,6 +144,7 @@ import {
 import { Proxy } from './js/proxy.js';
 import { resumir } from './js/conteo.js';
 import { avisoDeParecidos } from './js/sugerir.js';
+import { confirmarEscribiendo } from './js/modal.js';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -379,29 +380,23 @@ $('tRecepciones').addEventListener('click', async (ev) => {
   const lineas = Number(b.dataset.lineas) || 0;
   const cerrada = b.dataset.estado === 'CERRADA';
 
-  // El código va en la ÚLTIMA línea, que es la que se lee antes de escribir.
-  // Puesto arriba, la gente escribe el nombre que tiene en la cabeza —la
-  // descripción— y el borrado se rechaza sin que quede claro por qué.
-  const texto =
-    `Se borrará TODO lo de esta recepción: ${lineas} líneas, los conteos,\n` +
-    'la bitácora y la auditoría. No se puede deshacer.\n' +
-    (cerrada
-      ? '\nOJO: está CERRADA. Si su informe ya se entregó, borrarla lo deja\n' +
-        'sin respaldo.\n'
-      : '') +
-    '\nEscribe exactamente este código:\n\n' +
-    `        ${id}`;
-
-  const escrito = prompt(texto, '');
-  if (escrito === null) return;
-
-  const limpio = String(escrito).trim().toUpperCase().replace(/\s+/g, '');
-  if (limpio !== id.toUpperCase().replace(/\s+/g, '')) {
-    return aviso(
-      `Hay que escribir el CÓDIGO «${id}», no su descripción. ` +
-      `Escribiste «${escrito}». No se borró nada.`,
-      'warn', 'No coincide');
-  }
+  // El código va en su propia línea y justo encima del campo. En el prompt()
+  // del navegador iba dentro de un párrafo, y la gente escribía el nombre que
+  // tenía en la cabeza —la descripción— sin entender por qué se rechazaba.
+  // Ahora el botón está apagado hasta que lo escrito coincide: no hay forma de
+  // equivocarse y tampoco hace falta reprochárselo después.
+  if (!await confirmarEscribiendo({
+    titulo: '¿Borrar esta recepción?',
+    texto: `Se borra <b>todo</b> lo suyo: ${lineas} líneas, los conteos, la `
+         + 'bitácora y la auditoría. No se puede deshacer.'
+         + (cerrada
+             ? '<p style="margin:12px 0 0;color:var(--danger)"><b>Está CERRADA.</b> '
+               + 'Si su informe ya se entregó, borrarla lo deja sin respaldo.</p>'
+             : ''),
+    exacto: id,
+    etiqueta: 'Escribe el código para confirmar',
+    aceptar: 'Borrar definitivamente',
+  })) return;
 
   limpiarAvisos();
   const prog = aviso('Borrando…', 'info');

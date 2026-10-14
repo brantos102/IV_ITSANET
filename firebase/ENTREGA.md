@@ -231,7 +231,10 @@ Borra `PRUEBA-02` como ADMIN y sube otra vez el archivo en una recepción nueva:
 - [ ] Escribir `5` en **Cantidad** y escanear una vez: registra 5 de golpe
 - [ ] Registrar el mismo SKU en `A1.1`: salen las dos ubicaciones por separado
       *(el subpallet no se mezcla con el pallet)*
-- [ ] Contar más de lo declarado: pide confirmar el **sobrante**
+- [ ] Contar más de lo declarado: sale un diálogo con «Sí, registrar el
+      sobrante» y «Corregir la cantidad»; lo segundo deja el cursor en Cantidad
+- [ ] **No apareció** pide confirmar antes de registrar el 0
+- [ ] Con un diálogo abierto, **Esc** lo cierra y **no** borra la ficha
 - [ ] Marcar **PNC** sin observación: no deja, la exige
 - [ ] Marcar **PNC** con observación y una foto: el aviso muestra el tamaño
       antes y después, registra en pocos segundos, y la foto aparece en la
@@ -255,7 +258,7 @@ Con la recepción abierta en el handheld y en un PC, con **usuarios distintos**:
 
 ### 5.5 Anular
 
-- [ ] **Bitácora → Anular** pide motivo
+- [ ] **Bitácora → Anular** pide motivo en un diálogo, y no deja aceptar vacío
 - [ ] El total del SKU baja, y el conteo original sigue en la lista, tachado
 
 ### 5.6 Sin conexión
@@ -266,7 +269,11 @@ Con la recepción abierta en el handheld y en un PC, con **usuarios distintos**:
 ### 5.7 Cerrar
 
 - [ ] Un OPERADOR no puede cerrar (el botón lo rechaza)
-- [ ] Un SUPERVISOR cierra: pide confirmación con el resumen
+- [ ] Un SUPERVISOR cierra: sale un diálogo con las cifras una por línea
+- [ ] Después pregunta **qué informe**: «para enviar al cliente» o «auditable»
+      *(antes esto no se preguntaba y cerrar fallaba siempre)*
+- [ ] Después pregunta a qué correos, con el tuyo ya puesto
+- [ ] Cancelando en cualquiera de los tres pasos **no** cierra la recepción
 - [ ] Se descarga el `.xlsx`
 - [ ] Llega el correo con el archivo adjunto
 - [ ] El mismo `.xlsx` está en Drive, en la subcarpeta de esa recepción, junto
@@ -314,7 +321,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **272 pruebas, todas en verde**
+- [ ] Termina en **273 pruebas, todas en verde**
 
 ---
 

@@ -254,6 +254,7 @@ import { comprimir, tamanoLegible } from './js/imagen.js';
 import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js';
 import { conectarGlosario } from './js/glosario.js';
 import { parecidos } from './js/sugerir.js';
+import { confirmar, pedirTexto, elegir, modalAbierto } from './js/modal.js';
 import { Proxy } from './js/proxy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -948,6 +949,16 @@ $('bNoApareció').addEventListener('click', async () => {
                  'faltante sin motivo no se le puede reclamar a nadie.',
                  'warn', 'Falta la nota');
   }
+  // Declarar que algo no llegó es una reclamación al proveedor. Se confirma.
+  if (!await confirmar({
+    titulo: `¿${actual.sku} no apareció?`,
+    texto: `Queda registrado con <b>0 unidades</b> contra las `
+         + `<b>${actual.esperado ?? '—'}</b> declaradas, con tu nota y tu nombre. `
+         + 'Si aparece después, se anula desde la bitácora y vuelve a quedar pendiente.',
+    aceptar: 'Sí, no apareció',
+    peligro: true,
+  })) return;
+
   $('bNoApareció').disabled = true;
   try {
     const r = await declararNoEncontrado(RECEPCION, usuario, {
@@ -969,7 +980,11 @@ $('bNoApareció').addEventListener('click', async () => {
   }
 });
 $('bCancelar').addEventListener('click', reiniciar);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') reiniciar(); });
+document.addEventListener('keydown', (e) => {
+  // Con un diálogo abierto, Escape es suyo: lo cierra el navegador. Si además
+  // reseteáramos la ficha, cancelar una confirmación borraría lo escrito.
+  if (e.key === 'Escape' && !modalAbierto()) reiniciar();
+});
 
 async function registrar(confirmarSobrante) {
   if (!actual) return;
@@ -1012,12 +1027,18 @@ async function registrar(confirmarSobrante) {
   } catch (e) {
     bip('error');
     if (e.codigo === 'CONFIRMAR_SOBRANTE') {
-      const d = aviso(e.message, 'warn', 'Confirmar');
-      const b = document.createElement('button');
-      b.className = 'b-primario';
-      b.textContent = 'Sí, registrar';
-      b.onclick = () => registrar(true);
-      d.appendChild(b);
+      // Un sobrante es una novedad que alguien va a tener que explicar. El botón
+      // dentro del aviso se perdía de vista al escanear lo siguiente.
+      if (await confirmar({
+        titulo: 'Esto suma más de lo declarado',
+        texto: esc(e.message) + '<p style="margin:12px 0 0">Si lo registras queda '
+             + 'como <b>sobrante</b> en el informe. Si fue un error de conteo, '
+             + 'cancela y corrige la cantidad.</p>',
+        aceptar: 'Sí, registrar el sobrante',
+        cancelar: 'Corregir la cantidad',
+      })) return registrar(true);
+      $('fCantidad').focus();
+      $('fCantidad').select?.();
     } else {
       aviso(e.message, 'err', 'No se registró');
     }
@@ -1165,13 +1186,44 @@ $('bBitacora').addEventListener('click', async () => {
 $('tBitacora').addEventListener('click', async (ev) => {
   const id = ev.target.dataset.anular;
   if (!id) return;
-  const motivo = prompt('Motivo de la anulación:');
+  const motivo = await pedirTexto({
+    titulo: 'Anular este conteo',
+    texto: 'El conteo original no se borra: queda tachado en la bitácora con el '
+         + 'motivo y tu nombre. Se registra uno contrario que descuenta las unidades.',
+    etiqueta: 'Motivo de la anulación',
+    marcador: 'Se contó en el pallet equivocado',
+    obligatorio: true,
+    aceptar: 'Anular',
+    lineas: 2,
+  });
   if (!motivo) return;
   try {
     await anularConteo(RECEPCION, usuario, id, motivo);
     aviso('Conteo anulado. El registro original queda en la bitácora.', 'ok');
     $('bBitacora').click(); $('bBitacora').click();
   } catch (e) { aviso(e.message, 'err'); }
+});
+
+/**
+ * Qué archivo se quiere, dicho con lo que cada uno sirve.
+ *
+ * Antes era un confirm() con «Aceptar = auditable / Cancelar = solo el packing
+ * list»: dos botones genéricos que obligan a traducir mentalmente cuál es cuál,
+ * y se elegía mal justo en el paso que genera lo que se le manda al cliente.
+ */
+const elegirVersion = (titulo) => elegir({
+  titulo,
+  texto: 'Las dos traen las mismas filas del packing list. Cambia lo que va además.',
+  opciones: [
+    { valor: 'envio',
+      titulo: 'Para enviar al cliente',
+      detalle: 'Solo las hojas del packing list, con el mismo formato que llegó. '
+             + 'Es la que se sube al sistema.' },
+    { valor: 'auditable',
+      titulo: 'Auditable',
+      detalle: 'Añade adicionales, bitácora, auditoría y el detalle por pallet. '
+             + 'Para reclamar, analizar o transferir datos.' },
+  ],
 });
 
 /**
@@ -1184,12 +1236,8 @@ $('tBitacora').addEventListener('click', async (ev) => {
  */
 $('bExportar').addEventListener('click', async () => {
   limpiarAvisos();
-  const versionElegida = confirm(
-    'Versión AUDITABLE: todas las hojas —detalle, adicionales, bitácora y ' +
-    'auditoría—, para analizar y transferir datos.\n\n' +
-    'Aceptar = auditable\n' +
-    'Cancelar = solo la hoja del packing list, la que se sube al sistema')
-    ? 'auditable' : 'envio';
+  const versionElegida = await elegirVersion('Descargar un avance');
+  if (!versionElegida) return;
   $('bExportar').disabled = true;
   const d = aviso('Armando el informe…', 'info');
   try {
@@ -1221,8 +1269,16 @@ $('bExportar').addEventListener('click', async () => {
 
 /** Reabrir: el cierre anterior no se borra, queda en la auditoría. */
 $('bReabrir').addEventListener('click', async () => {
-  const motivo = prompt('¿Por qué se reabre esta recepción?\n' +
-                        '(queda registrado con tu nombre)');
+  const motivo = await pedirTexto({
+    titulo: `Reabrir ${recepcion.codigo}`,
+    texto: 'Los conteos anteriores siguen donde estaban. El cierre anterior no se '
+         + 'borra: queda en la auditoría junto a este motivo y tu nombre.',
+    etiqueta: '¿Por qué se reabre?',
+    marcador: 'Llegó un bulto que faltaba',
+    obligatorio: true,
+    aceptar: 'Reabrir',
+    lineas: 2,
+  });
   if (!motivo || !motivo.trim()) return;
   limpiarAvisos();
   try {
@@ -1257,17 +1313,37 @@ $('bCerrar').addEventListener('click', async () => {
       'warn', 'No se puede cerrar todavía');
   }
 
-  const texto =
-    `¿Cerrar ${recepcion.codigo}?\n\n` +
-    `${r.unidadesFisicas} de ${r.unidadesEsperadas} unidades\n` +
-    `${r.ok} completos · ${r.noEncontrado} no aparecieron · ` +
-    `${r.faltante - r.noEncontrado} con faltante · ${r.sobrante} con sobrante\n` +
-    '\nDespués no se podrán registrar más conteos.';
-  if (!confirm(texto)) return;
+  // Las cifras del cierre, cada una en su línea. En el confirm() del navegador
+  // iban todas en un párrafo gris y nadie las leía.
+  const linea = (n, t) => `<li><b>${n}</b> ${t}</li>`;
+  if (!await confirmar({
+    titulo: `¿Cerrar ${recepcion.codigo}?`,
+    texto: `<ul>
+        ${linea(`${r.unidadesFisicas} de ${r.unidadesEsperadas}`, 'unidades contadas')}
+        ${linea(r.ok, 'referencias completas')}
+        ${linea(r.noEncontrado, 'no aparecieron')}
+        ${linea(r.faltante - r.noEncontrado, 'con faltante')}
+        ${linea(r.sobrante, 'con sobrante')}
+      </ul>
+      <p style="margin:12px 0 0">Después no se podrán registrar más conteos.
+      Un supervisor puede reabrirla, y queda registrado.</p>`,
+    aceptar: 'Cerrar la recepción',
+    peligro: true,
+  })) return;
 
-  const destinatarios = prompt(
-    '¿A qué correos se envía el informe?\n(separados por coma; deje vacío para solo descargarlo)',
-    usuario.email);
+  // Antes esto no se preguntaba y la variable «version» ni siquiera existía:
+  // cerrar lanzaba un error y la recepción no llegaba a cerrarse nunca.
+  const version = await elegirVersion('¿Qué informe se genera?');
+  if (!version) return;
+
+  const destinatarios = await pedirTexto({
+    titulo: '¿A quién se le envía?',
+    texto: 'Se manda el informe adjunto con el resumen y las fotos de novedades. '
+         + 'Déjalo vacío para solo descargarlo.',
+    etiqueta: 'Correos, separados por coma',
+    valor: usuario.email,
+    aceptar: 'Cerrar y enviar',
+  });
   if (destinatarios === null) return;
 
   limpiarAvisos();
