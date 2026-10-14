@@ -252,9 +252,9 @@
         <b>Recepciones</b>
         <span>Subir el packing list y abrir una validación</span>
       </a>
-      <a class="acceso" href="/recepciones.html#enCurso">
+      <a class="acceso" href="/recepciones.html?mias=1">
         <b>Validar</b>
-        <span>Continuar una validación en curso</span>
+        <span>Lo que has validado, y seguir donde lo dejaste</span>
       </a>
       <a class="acceso oculto" id="accesoKpis" href="/kpis.html">
         <b>KPIs</b>
@@ -277,10 +277,6 @@
     </div>
     <div id="listaRec"><p class="mini">Cargando…</p></div>
 
-    <details style="margin-top:20px">
-      <summary class="sec" style="cursor:pointer">Qué puedes hacer</summary>
-      <table class="diag"><tbody id="tPermisos"></tbody></table>
-    </details>
 
     <div id="bloqueDiag" class="oculto">
       <h2 class="sec">Comprobación de la instalación</h2>
@@ -506,30 +502,6 @@ observarSesion(async ({ usuario, perfil, error }) => {
   }
 
   cargarRecepciones();
-
-  // --- Qué puede hacer este rol ---
-  // En pantalla y no solo en el manual: así nadie descubre a mitad de turno
-  // que no puede cerrar, y un supervisor ve de un vistazo qué ve su gente.
-  const ROL = perfil?.rol || 'OPERADOR';
-  const nivel = { OPERADOR: 1, SUPERVISOR: 2, ADMIN: 3 }[ROL] || 1;
-  for (const [desde, que] of [
-    [1, 'Escanear y contar'],
-    [1, 'Registrar PNC con fotos'],
-    [1, 'Anular sus propios conteos'],
-    [2, 'Crear recepciones y subir el packing list'],
-    [2, 'Descargar el catálogo de Depot'],
-    [2, 'Anular el conteo de cualquiera'],
-    [2, 'Cerrar la recepción y enviar el informe'],
-    [2, 'Ver los indicadores y la trazabilidad'],
-    [2, 'Dar de alta operarios'],
-    [3, 'Credenciales de Depot por cliente'],
-    [3, 'Cambiar roles y aprobar registros'],
-  ]) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + que + '</td><td class="' +
-      (nivel >= desde ? 'ok-txt">sí' : '">no') + '</td>';
-    $('tPermisos').appendChild(tr);
-  }
 
   // --- Qué puede abrir cada quien ---
   if (perfil && ['SUPERVISOR', 'ADMIN'].includes(perfil.rol)) {

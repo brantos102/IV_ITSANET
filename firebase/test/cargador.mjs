@@ -61,6 +61,7 @@ export const runTransaction = async (db, fn) => {
   });
 };
 export const increment = (n) => ({ __inc: n });
+export const arrayUnion = (...v) => ({ __union: v });
 export const getFirestore = () => ({});
 export const initializeFirestore = () => ({});
 export const persistentLocalCache = () => ({});

@@ -192,12 +192,28 @@ service cloud.firestore {
        */
       // Cerrar, reabrir y consolidar otra lista son del supervisor. Reabrir no
       // borra nada: el cierre anterior queda en la auditoría.
+      /**
+       * El supervisor manda sobre la recepción; el operario solo puede
+       * arrancarla y apuntarse en ella.
+       *
+       * El primer conteo la pasa a EN_VALIDACION y añade al operario a la lista
+       * de quienes han trabajado en ella —de ahí sale «qué he validado yo»—.
+       * Nada más: no puede cerrarla, reabrirla, ni tocar el resto del documento.
+       */
       allow update: if esSupervisor()
                  || (activo()
-                     && resource.data.estado == 'ABIERTA'
-                     && request.resource.data.estado == 'EN_VALIDACION'
                      && request.resource.data.diff(resource.data)
-                          .affectedKeys().hasOnly(['estado', 'iniciadoEn']));
+                          .affectedKeys().hasOnly(['estado', 'iniciadoEn', 'operarios'])
+                     && (!('estado' in request.resource.data.diff(resource.data)
+                             .affectedKeys())
+                         || (resource.data.estado == 'ABIERTA'
+                             && request.resource.data.estado == 'EN_VALIDACION'))
+                     // Solo puede apuntarse a sí mismo, y sin borrar a nadie.
+                     && (!('operarios' in request.resource.data.diff(resource.data)
+                             .affectedKeys())
+                         || (request.auth.uid in request.resource.data.operarios
+                             && request.resource.data.operarios
+                                  .hasAll(resource.data.get('operarios', [])))));
 
       /**
        * Borrar una recepción entera: solo un administrador.

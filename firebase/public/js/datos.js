@@ -460,6 +460,28 @@ export async function listarRecepciones(max = 50) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * Las recepciones en las que ha trabajado este operario.
+ *
+ * Sale de la lista que la recepción guarda, no de recorrer la bitácora: eso
+ * costaría una lectura por conteo de la jornada.
+ *
+ * Se ordena aquí y no en la consulta para no obligar a crear un índice
+ * compuesto en Firestore: son pocas decenas de recepciones y el orden en el
+ * navegador es gratis.
+ */
+export async function listarMisRecepciones(uid, max = 60) {
+  if (!uid) return [];
+  const snap = await getDocs(query(
+    collection(db, 'recepciones'),
+    where('operarios', 'array-contains', uid),
+    limit(max),
+  ));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.creadoEn?.toMillis?.() || 0) - (a.creadoEn?.toMillis?.() || 0));
+}
+
 export async function obtenerRecepcion(id) {
   const snap = await getDoc(doc(db, 'recepciones', id));
   if (!snap.exists()) throw new Error('La recepción no existe.');

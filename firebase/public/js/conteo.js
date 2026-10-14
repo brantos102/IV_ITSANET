@@ -29,7 +29,7 @@
  */
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
-  query, orderBy, limit, getDocs,
+  query, orderBy, limit, getDocs, arrayUnion,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
 import {
@@ -223,10 +223,21 @@ export async function registrarConteo(recepcionId, usuario, p) {
       }, { merge: true });
     }
 
-    // --- 4. La recepción pasa a EN_VALIDACION con el primer conteo --- //
+    // --- 4. Estado de la recepción y quién ha trabajado en ella --- //
+    //
+    // La lista de operarios se guarda en la recepción, no se deduce de los
+    // eventos: «qué he validado yo» es una consulta que el operario hace al
+    // entrar, y recorrer la bitácora de todas las recepciones para responderla
+    // costaría una lectura por conteo de la jornada.
+    const cambios = {};
     if (estadoRec === 'ABIERTA') {
-      tx.update(refRec, { estado: 'EN_VALIDACION', iniciadoEn: serverTimestamp() });
+      cambios.estado = 'EN_VALIDACION';
+      cambios.iniciadoEn = serverTimestamp();
     }
+    if (!(snapRec.get('operarios') || []).includes(usuario.uid)) {
+      cambios.operarios = arrayUnion(usuario.uid);
+    }
+    if (Object.keys(cambios).length) tx.update(refRec, cambios);
 
     return {
       duplicado: false, eventoId: idem, sku: d.sku,
