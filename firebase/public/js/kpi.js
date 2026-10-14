@@ -242,6 +242,93 @@ export function historialDe(sku, detalles) {
   return filas.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 }
 
+/**
+ * Exporta lo que se esté viendo.
+ *
+ * Excel y PDF, no CSV. El CSV está reservado a los formatos de alta masiva
+ * hacia Depot: si los indicadores salieran también en CSV, acabarían subiéndose
+ * como si fueran uno de esos archivos.
+ *
+ * El PDF es para leer y adjuntar a un correo; el Excel, para seguir
+ * trabajándolo.
+ */
+export function aExcel(filas, columnas, titulo, nombre) {
+  if (typeof XLSX === 'undefined') {
+    throw new Error('No se cargó la librería de Excel. Recarga la página.');
+  }
+  const datos = filas.map((f) => {
+    const o = {};
+    for (const c of columnas) o[c.titulo] = c.valor(f);
+    return o;
+  });
+
+  const hoja = XLSX.utils.json_to_sheet(datos);
+  hoja['!cols'] = columnas.map((c) => ({ wch: Math.min(Math.max(c.titulo.length + 4, 12), 40) }));
+  if (datos.length) {
+    hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
+      e: { r: datos.length, c: columnas.length - 1 } }) };
+  }
+
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, (titulo || 'KPI').slice(0, 31));
+  XLSX.writeFile(libro, nombre.endsWith('.xlsx') ? nombre : nombre + '.xlsx');
+}
+
+/**
+ * PDF con la tabla, para adjuntar o imprimir.
+ *
+ * Se arma con jsPDF, que carga la página. Si no llegó —red del almacén— se dice
+ * en vez de dejar un botón que no hace nada.
+ */
+export function aPdf(filas, columnas, { titulo, subtitulo, nombre, resumen }) {
+  const jsPDFCtor = window.jspdf?.jsPDF;
+  if (!jsPDFCtor) {
+    throw new Error('No se cargó la librería de PDF. Revisa la conexión y recarga.');
+  }
+
+  // Apaisado: estas tablas tienen más columnas que alto.
+  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const ancho = doc.internal.pageSize.getWidth();
+
+  doc.setFontSize(15);
+  doc.setFont(undefined, 'bold');
+  doc.text(titulo || 'Indicadores', 40, 42);
+
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(110);
+  doc.text(subtitulo || '', 40, 58);
+  doc.text(`ITSANET IMS · ${new Date().toLocaleString('es-EC')}`, ancho - 40, 58,
+           { align: 'right' });
+
+  if (resumen) {
+    doc.setTextColor(30);
+    doc.setFontSize(10);
+    doc.text(resumen, 40, 78, { maxWidth: ancho - 80 });
+  }
+
+  doc.autoTable({
+    startY: resumen ? 94 : 74,
+    head: [columnas.map((c) => c.titulo)],
+    body: filas.map((f) => columnas.map((c) => {
+      const v = c.valor(f);
+      return v === null || v === undefined ? '' : String(v);
+    })),
+    styles: { fontSize: 7.5, cellPadding: 3, overflow: 'linebreak' },
+    headStyles: { fillColor: [15, 23, 42], fontSize: 7.5, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [244, 247, 249] },
+    margin: { left: 40, right: 40 },
+    didDrawPage: (d) => {
+      const alto = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8);
+      doc.setTextColor(140);
+      doc.text(`Página ${d.pageNumber}`, ancho - 40, alto - 20, { align: 'right' });
+    },
+  });
+
+  doc.save(nombre.endsWith('.pdf') ? nombre : nombre + '.pdf');
+}
+
 /** Exporta lo que se esté viendo, para seguir trabajándolo fuera. */
 export function aCsv(filas, columnas) {
   const esc = (v) => {
@@ -254,6 +341,12 @@ export function aCsv(filas, columnas) {
   return '﻿' + lineas.join('\r\n');
 }
 
+/**
+ * CSV: reservado a los formatos de alta masiva hacia Depot.
+ *
+ * Se mantiene porque esos archivos sí van en CSV. Los indicadores NO lo usan:
+ * ver `aExcel` y `aPdf`.
+ */
 export function descargarCsv(texto, nombre) {
   const url = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8;' }));
   const a = document.createElement('a');

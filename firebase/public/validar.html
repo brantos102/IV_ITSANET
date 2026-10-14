@@ -967,11 +967,17 @@ $('tBitacora').addEventListener('click', async (ev) => {
  */
 $('bExportar').addEventListener('click', async () => {
   limpiarAvisos();
+  const versionElegida = confirm(
+    'Versión AUDITABLE: todas las hojas —detalle, adicionales, bitácora y ' +
+    'auditoría—, para analizar y transferir datos.\n\n' +
+    'Aceptar = auditable\n' +
+    'Cancelar = solo la hoja del packing list, la que se sube al sistema')
+    ? 'auditable' : 'envio';
   $('bExportar').disabled = true;
   const d = aviso('Armando el informe…', 'info');
   try {
     const datos = await reunirInforme(RECEPCION, recepcion);
-    const libro = construirLibro(datos);
+    const libro = construirLibro(datos, { version: versionElegida });
     d.remove();
     descargarLibro(libro);
 
@@ -1054,7 +1060,7 @@ $('bCerrar').addEventListener('click', async () => {
     // El archivo se arma ANTES de cerrar: si algo falla, la recepción sigue
     // abierta y se puede reintentar sin haber perdido nada.
     const datos = await reunirInforme(RECEPCION, recepcion);
-    const libro = construirLibro(datos);
+    const libro = construirLibro(datos, { version });
     d.remove();
 
     await cerrarRecepcion(RECEPCION);
@@ -1071,6 +1077,7 @@ $('bCerrar').addEventListener('click', async () => {
       sobrante: r.sobrante, adicionales: datos.adicionales.length,
       exactitud: r.exactitud,
       archivo: libro.nombre,
+      version,
     }).catch(() => {});
     aviso(`Recepción cerrada. El archivo entrega ${libro.filas} filas, ` +
           `las mismas del packing list original.`, 'ok', 'Cerrada');

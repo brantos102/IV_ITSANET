@@ -92,7 +92,7 @@
       <thead><tr>
         <th>Código</th><th>Estado</th><th class="num">SKU</th>
         <th class="num">Sistema</th><th class="num">Físico</th>
-        <th>Avance</th><th></th><th></th>
+        <th>Avance</th><th></th><th></th><th></th>
       </tr></thead>
       <tbody id="tRecepciones"></tbody>
     </table>
@@ -105,6 +105,7 @@
 import { observarSesion } from './js/auth.js';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
+  borrarRecepcion,
   guardarCatalogo, escucharSkus,
 } from './js/datos.js';
 import { Proxy } from './js/proxy.js';
@@ -253,6 +254,53 @@ $('bSubir').addEventListener('click', async () => {
 
 // Añadir otra lista a una recepción que ya existe: dos embarques cortos el
 // mismo día se validan de una pasada en vez de recorrer el almacén dos veces.
+/**
+ * Borrar una recepción equivocada.
+ *
+ * Exige escribir el código. Un «¿seguro?» se acepta sin leer; escribir el
+ * código obliga a mirar cuál se está borrando, que es justo el error que esto
+ * viene a arreglar.
+ */
+$('tRecepciones').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-borrar]');
+  if (!b) return;
+  const id = b.dataset.borrar;
+  const lineas = Number(b.dataset.lineas) || 0;
+  const cerrada = b.dataset.estado === 'CERRADA';
+
+  const texto =
+    `Se borrará la recepción ${id} y TODO lo que cuelga de ella:\n` +
+    `${lineas} líneas, los conteos, la bitácora y la auditoría.\n\n` +
+    (cerrada
+      ? 'OJO: esta recepción está CERRADA. Si su informe ya se entregó, borrarla\n' +
+        'deja ese informe sin respaldo.\n\n'
+      : '') +
+    'No se puede deshacer.\n\nEscribe el código para confirmar:';
+
+  const escrito = prompt(texto);
+  if (escrito === null) return;
+  if (escrito.trim().toUpperCase() !== id.toUpperCase()) {
+    return aviso(`Escribiste «${escrito}» y la recepción es «${id}». No se borró nada.`,
+                 'warn', 'No coincide');
+  }
+
+  limpiarAvisos();
+  const prog = aviso('Borrando…', 'info');
+  try {
+    const n = await borrarRecepcion(id, (hechos, donde) => {
+      prog.innerHTML = `<b>Borrando</b>${hechos} registros · ${donde}`;
+    });
+    prog.remove();
+    aviso(`Recepción ${id} borrada, con sus ${n} registros.`, 'ok', 'Borrada');
+    cargarListado();
+  } catch (e) {
+    prog.remove();
+    aviso(/permission/i.test(e.message || '')
+      ? 'Solo un administrador puede borrar recepciones.'
+      : e.message, 'err', 'No se borró');
+  }
+});
+
 $('tRecepciones').addEventListener('click', (ev) => {
   const id = ev.target.dataset.anadir;
   if (!id) return;
@@ -319,22 +367,36 @@ async function cargarListado() {
     const recs = await listarRecepciones();
     if (!recs.length) {
       $('tRecepciones').innerHTML =
-        '<tr><td colspan="7" class="mini">Todavía no hay recepciones.</td></tr>';
+        '<tr><td colspan="9" class="mini">Todavía no hay recepciones.</td></tr>';
       return;
     }
+    const esAdmin = perfil?.rol === 'ADMIN';
+
     $('tRecepciones').innerHTML = recs.map((r) => {
       const t = r.totales || {};
       const clase = { ABIERTA: 'p-warn', EN_VALIDACION: 'p-ok', CERRADA: 'p-off' }[r.estado] || 'p-off';
-      return `<tr>
+      // Sin packing list no hay nada que validar. En vez de ofrecer un botón
+      // que lleva a una pantalla vacía, se dice lo que falta y se ofrece
+      // justo eso: cargar el archivo.
+      const vacia = !(t.lineas > 0);
+
+      return `<tr${vacia ? ' style="background:rgba(245,158,11,.06)"' : ''}>
         <td class="id">${esc(r.codigo)}<br><span class="mini">${esc(r.cliente || '')}</span></td>
-        <td><span class="pastilla ${clase}">${esc(r.estado)}</span></td>
+        <td><span class="pastilla ${vacia ? 'p-warn' : clase}">
+          ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
         <td class="num">${t.skus ?? 0}</td>
         <td class="num">${t.unidades ?? 0}</td>
         <td class="num" id="fis_${esc(r.id)}">—</td>
         <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}"></i></div></td>
-        <td><button class="b-sec" data-anadir="${esc(r.id)}">+ Lista</button></td>
-        <td><a href="/validar.html?r=${encodeURIComponent(r.id)}">
-          <button class="b-primario">Validar →</button></a></td></tr>`;
+        <td><button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
+          ${vacia ? 'Cargar packing list' : '+ Lista'}</button></td>
+        <td>${vacia ? '' : `<a href="/validar.html?r=${encodeURIComponent(r.id)}">
+          <button class="b-primario">Validar →</button></a>`}</td>
+        <td>${esAdmin
+          ? `<button class="b-peligro" data-borrar="${esc(r.id)}"
+                     data-lineas="${t.lineas ?? 0}" data-estado="${esc(r.estado)}"
+                     title="Borrar la recepción entera">Borrar</button>`
+          : ''}</td></tr>`;
     }).join('');
 
     // Avance en vivo de las recepciones abiertas.
@@ -349,7 +411,7 @@ async function cargarListado() {
     });
   } catch (e) {
     $('tRecepciones').innerHTML =
-      `<tr><td colspan="7" class="mini">${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="9" class="mini">${esc(e.message)}</td></tr>`;
   }
 }
 </script>

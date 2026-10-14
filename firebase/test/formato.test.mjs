@@ -151,6 +151,44 @@ for (const nombre of archivos) {
     }
   });
 
+  // La version de envio lleva SOLO las hojas del packing list. Adjuntar cuatro
+  // hojas mas obliga a quien da el alta a buscar la buena, y se equivoca.
+  await test(`${nombre}: la versión de envío solo trae la hoja del packing list`, () => {
+    const detalle = leido.lineas.map((l) => ({
+      ...l, fisica: l.cantidad, diferencia: 0, estado: 'OK',
+      palletsSimple: 'A1', pallets: 'A1(1)', observacion: '',
+      destino: '', origen: 'PL', pnc: '', posicionReal: '',
+    }));
+    const base = {
+      recepcion: { codigo: 'REC-1', formatos: {} },
+      detalle,
+      porOrigen: [{ origen: 'PL',
+        formato: { encabezados: leido.encabezados, columnas: leido.columnas }, detalle }],
+      adicionales: [{ sku: 'X', descripcion: 'd', fisica: 1, pallets: '', motivo: 'm',
+                      detectadoPor: '', observacion: '' }],
+      eventos: [], auditoria: [],
+    };
+
+    const envio = informe.construirLibro(base, { version: 'envio' });
+    const auditable = informe.construirLibro(base);
+
+    const hojasEnvio = XLSX.read(envio.base64, { type: 'base64' }).SheetNames;
+    const hojasAuditable = XLSX.read(auditable.base64, { type: 'base64' }).SheetNames;
+
+    eq(hojasEnvio, ['VALIDADA'], 'envío: solo el packing list');
+    ok(hojasAuditable.includes('ADICIONALES'), hojasAuditable.join(','));
+    ok(hojasAuditable.includes('BITACORA'));
+    ok(hojasAuditable.includes('AUDITORIA'));
+    ok(hojasAuditable.length > hojasEnvio.length);
+
+    // Y la hoja del packing list tiene que ser idéntica en las dos.
+    const filasEnvio = XLSX.utils.sheet_to_json(
+      XLSX.read(envio.base64, { type: 'base64' }).Sheets.VALIDADA, { header: 1, defval: '' });
+    const filasAud = XLSX.utils.sheet_to_json(
+      XLSX.read(auditable.base64, { type: 'base64' }).Sheets.VALIDADA, { header: 1, defval: '' });
+    eq(filasEnvio, filasAud, 'la hoja que se entrega no cambia entre versiones');
+  });
+
   await test(`${nombre}: el pallet nunca lleva cantidades ni paréntesis`, () => {
     eq(informe.soloPallets({ A1: 5, B04: 2 }), 'A1-B04');
     eq(informe.soloPallets({ 'A1.1': 3, C1: 9 }), 'C1-A1.1', 'de mayor a menor');

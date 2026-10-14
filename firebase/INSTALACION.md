@@ -1174,6 +1174,45 @@ puede resolver.
 Después de cerrar, la recepción no admite más conteos. La pantalla queda en
 solo lectura.
 
+### 9.4.bis Dos versiones del informe
+
+Al cerrar, la app pregunta dos cosas:
+
+1. **¿Enviar por correo, o solo descargar?**
+2. **¿Qué versión?**
+
+| Versión | Qué lleva | Para qué |
+|---|---|---|
+| **Envío** | Solo la hoja del packing list | Mandar por correo y subir al sistema |
+| **Auditable** | Todas: detalle, adicionales, bitácora y auditoría | Analizar, transferir datos, responder un reclamo |
+
+La versión de envío existe porque adjuntar cuatro hojas más obliga a quien da
+el alta a buscar la buena, y a la primera se equivoca. La hoja del packing list
+es idéntica en las dos: la versión no cambia lo que se entrega, solo lo que se
+acompaña.
+
+**Exportar ahora** pregunta lo mismo.
+
+### 9.4.ter Recepciones equivocadas
+
+Subir el archivo que no era pasa. Y una recepción vacía en el listado no es
+inofensiva: el operario no sabe cuál es la buena y acaba contando contra la que
+no era.
+
+- Una recepción **sin packing list** sale marcada en el listado, con el botón
+  **Cargar packing list** en vez de **Validar**.
+- Un **ADMIN** puede **Borrar** una recepción entera, con sus líneas, conteos,
+  bitácora y auditoría.
+
+> Borrar exige **escribir el código**. Un «¿seguro?» se acepta sin leer;
+> escribirlo obliga a mirar cuál se está borrando, que es justo el error que
+> esto viene a arreglar. Si la recepción está cerrada, además avisa de que su
+> informe se queda sin respaldo.
+>
+> Lo que se borra es la recepción **completa**. No hay forma de quitar un conteo
+> suelto, y eso es a propósito: para corregir uno está la anulación, que deja
+> constancia.
+
 ### 9.5 Corregir un conteo
 
 **Bitácora** lista los últimos conteos. **Anular** pide el motivo y registra una
@@ -1221,8 +1260,12 @@ Cinco vistas, con filtro por fechas, cliente y estado:
 | **Tendencia** | Unidades y exactitud por día |
 | **Trazabilidad** | Todo lo que le ha pasado a una referencia en el periodo |
 
-Cualquiera se exporta a CSV con el botón, y se abre en Excel con las tildes
-bien.
+Cualquiera se exporta a **Excel** o a **PDF**. El PDF sale apaisado, con el
+periodo y el resumen en la cabecera, listo para adjuntar a un correo.
+
+> **En indicadores no hay CSV, a propósito.** El CSV está reservado a los
+> formatos de alta masiva hacia Depot. Si los indicadores salieran también en
+> CSV, acabarían subiéndose como si fueran uno de esos archivos.
 
 #### Las dos cifras que hay que entender
 
@@ -1422,7 +1465,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**226 pruebas automáticas** en verde, con un solo comando:
+**228 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

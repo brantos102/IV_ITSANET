@@ -198,7 +198,16 @@ service cloud.firestore {
                      && request.resource.data.estado == 'EN_VALIDACION'
                      && request.resource.data.diff(resource.data)
                           .affectedKeys().hasOnly(['estado', 'iniciadoEn']));
-      allow delete: if false;
+
+      /**
+       * Borrar una recepción entera: solo un administrador.
+       *
+       * Subir el archivo equivocado pasa, y una recepción vacía o de prueba en
+       * el listado no es inofensiva: el operario no sabe cuál es la buena. Lo
+       * que se borra es la recepción COMPLETA, con su bitácora; no hay forma de
+       * quitar un conteo suelto por aquí, que es lo que esto nunca debe ser.
+       */
+      allow delete: if esAdmin();
 
       // ---- Líneas del packing list ---- //
       // Las escribe el supervisor al importar y nunca se modifican después:
@@ -208,7 +217,9 @@ service cloud.firestore {
         // Se crean al importar, y una recepción puede consolidar varias listas,
         // así que el id lleva el origen delante y cada línea nace una sola vez.
         allow create: if esSupervisor();
-        allow update, delete: if false;
+        allow update: if false;
+        // Solo para el borrado en cascada de una recepción entera.
+        allow delete: if esAdmin();
       }
 
       // ---- Agregado por SKU ---- //
@@ -250,8 +261,10 @@ service cloud.firestore {
                    && request.resource.data.pallet is string
                    // La hora la pone el servidor: el dispositivo no la decide.
                    && request.resource.data.creadoEn == request.time;
-        // Nada se modifica ni se borra: corregir es registrar una reversa.
-        allow update, delete: if false;
+        // Nada se modifica: corregir es registrar una reversa. El borrado
+        // existe solo para llevarse una recepción entera por delante.
+        allow update: if false;
+        allow delete: if esAdmin();
       }
 
       /**
@@ -267,7 +280,8 @@ service cloud.firestore {
                    && request.resource.data.usuarioUid == request.auth.uid
                    && request.resource.data.usuarioEmail == request.auth.token.email
                    && request.resource.data.creadoEn == request.time;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if esAdmin();
       }
 
       // ---- Adicionales: SKU fuera del packing list ---- //
@@ -283,7 +297,7 @@ service cloud.firestore {
                    || (activo()
                        && recepcionAbierta()
                        && request.resource.data.sku == resource.data.sku);
-        allow delete: if false;
+        allow delete: if esAdmin();
       }
     }
   }

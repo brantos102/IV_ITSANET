@@ -6,7 +6,7 @@
  * ve el resultado al instante en vez de esperar a un disparador.
  */
 import {
-  collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where,
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
@@ -420,6 +420,38 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
   // es una convención, no un hecho, y quien carga tiene que saberlo.
   const compartidos = Object.keys(resultado.porSku).filter((sku) => existentes[sku]);
   return { origen, lineas: resultado.lineas.length, compartidos };
+}
+
+/**
+ * Borra una recepción entera, con todo lo que cuelga de ella.
+ *
+ * Existe porque subir el archivo equivocado pasa, y una recepción vacía o de
+ * demostración en el listado no es inofensiva: el operario no sabe cuál es la
+ * buena, y acaba contando contra la que no era.
+ *
+ * Firestore no borra en cascada: hay que recorrer cada subcolección. Se hace en
+ * lotes de 400 porque el límite es 500 operaciones.
+ *
+ * Es irreversible y se lleva por delante la bitácora y la auditoría. Por eso lo
+ * puede hacer solo un administrador, y la pantalla exige escribir el código.
+ */
+export async function borrarRecepcion(recepcionId, alAvanzar) {
+  const subcolecciones = ['eventos', 'lineas', 'skus', 'adicionales', 'auditoria'];
+  let borrados = 0;
+
+  for (const nombre of subcolecciones) {
+    const snap = await getDocs(collection(db, 'recepciones', recepcionId, nombre));
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const lote = writeBatch(db);
+      snap.docs.slice(i, i + 400).forEach((d) => lote.delete(d.ref));
+      await lote.commit();
+      borrados += Math.min(400, snap.docs.length - i);
+      if (alAvanzar) alAvanzar(borrados, nombre);
+    }
+  }
+
+  await deleteDoc(doc(db, 'recepciones', recepcionId));
+  return borrados;
 }
 
 export async function listarRecepciones(max = 50) {

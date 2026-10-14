@@ -322,11 +322,23 @@ function hojaValidada(filas) {
 }
 
 /** Construye el .xlsx y lo devuelve en base64, listo para el correo. */
+/**
+ * Dos versiones del mismo informe, y la diferencia importa.
+ *
+ * `envio`: solo las hojas del packing list, con el formato que espera quien lo
+ * recibe. Es lo que se manda por correo y lo que se sube al sistema. Adjuntar
+ * cuatro hojas más obliga a quien da el alta a buscar la buena, y a la primera
+ * se equivoca.
+ *
+ * `auditable`: todo —el detalle, los adicionales, la bitácora y la auditoría—.
+ * Es para analizar, transferir datos y responder a una reclamación.
+ */
 export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
-                                 eventos, auditoria }) {
+                                 eventos, auditoria }, opciones = {}) {
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Recarga la página.');
   }
+  const soloEnvio = opciones.version === 'envio';
   const libro = XLSX.utils.book_new();
 
   // --- Una hoja por packing list, con SU formato y SUS filas --- //
@@ -348,10 +360,19 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
       base);
 
     // Y aparte, lo que la validación añade.
-    if (lista.formato?.encabezados?.length) {
+    if (!soloEnvio && lista.formato?.encabezados?.length) {
       XLSX.utils.book_append_sheet(
         libro, hojaValidada(lista.detalle), nombreDeHoja(base + ' DET'));
     }
+  }
+
+  if (soloEnvio) {
+    return {
+      base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64' }),
+      nombre: nombreArchivo(recepcion, 'validacion'),
+      filas: detalle.length,
+      version: 'envio',
+    };
   }
 
   // --- Adicionales, aparte para no alterar el conteo de filas --- //
@@ -407,13 +428,16 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     { wch: 60 }];
   XLSX.utils.book_append_sheet(libro, h4, 'AUDITORIA');
 
-  const base64 = XLSX.write(libro, { bookType: 'xlsx', type: 'base64' });
   return {
-    base64,
-    nombre: `validacion-${(recepcion?.codigo || 'recepcion')}-${new Date().toISOString().slice(0, 10)}`,
+    base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64' }),
+    nombre: nombreArchivo(recepcion, 'auditable'),
     filas: detalle.length,
+    version: 'auditable',
   };
 }
+
+const nombreArchivo = (recepcion, sufijo) =>
+  `${recepcion?.codigo || 'recepcion'}-${sufijo}-${new Date().toISOString().slice(0, 10)}`;
 
 /** Descarga local del mismo archivo, por si el correo falla o no se quiere enviar. */
 export function descargarLibro(libro) {
