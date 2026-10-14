@@ -519,7 +519,14 @@ function exigirAdmin_(usuario) {
 }
 
 /** Lee el perfil del operario en Firestore usando su propio token. */
-function rolDeUsuario_(uid, idToken) {
+/**
+ * Lee el perfil del operario en Firestore.
+ *
+ * Se consulta con el token del PROPIO operario, así que las reglas se aplican
+ * igual que desde la app: el script no se cree nada que el cliente afirme de sí
+ * mismo.
+ */
+function perfilDeUsuario_(uid, idToken) {
   var proyecto = PROPS.getProperty('FIREBASE_PROJECT_ID');
   var baseDatos = PROPS.getProperty('FIREBASE_DATABASE_ID') || '(default)';
   if (!proyecto) return null;
@@ -536,9 +543,19 @@ function rolDeUsuario_(uid, idToken) {
   if (r.getResponseCode() !== 200) return null;
 
   try {
-    var d = JSON.parse(r.getContentText());
-    return (d.fields && d.fields.rol && d.fields.rol.stringValue) || null;
+    var f = (JSON.parse(r.getContentText()) || {}).fields || {};
+    return {
+      rol: (f.rol && f.rol.stringValue) || 'OPERADOR',
+      activo: !(f.activo && f.activo.booleanValue === false),
+      email: (f.email && f.email.stringValue) || ''
+    };
   } catch (e) {
     return null;
   }
+}
+
+/** Compatibilidad: varias partes solo necesitan el rol. */
+function rolDeUsuario_(uid, idToken) {
+  var p = perfilDeUsuario_(uid, idToken);
+  return p ? p.rol : null;
 }

@@ -177,7 +177,25 @@ service cloud.firestore {
       allow read: if activo();
       allow create: if esSupervisor()
                  && request.resource.data.creadoPorUid == request.auth.uid;
-      allow update: if esSupervisor();
+
+      /**
+       * El supervisor manda sobre la recepción; el operario solo puede
+       * arrancarla.
+       *
+       * El primer conteo marca la recepción como EN_VALIDACION, y ese conteo lo
+       * hace un operario. Sin esta excepción, la transacción entera fallaba con
+       * «Missing or insufficient permissions» y el operario no podía registrar
+       * NADA en una recepción recién abierta.
+       *
+       * Solo ese salto, y solo desde ABIERTA: no puede cerrarla, reabrirla, ni
+       * tocar nada más del documento.
+       */
+      allow update: if esSupervisor()
+                 || (activo()
+                     && resource.data.estado == 'ABIERTA'
+                     && request.resource.data.estado == 'EN_VALIDACION'
+                     && request.resource.data.diff(resource.data)
+                          .affectedKeys().hasOnly(['estado', 'iniciadoEn']));
       allow delete: if false;
 
       // ---- Líneas del packing list ---- //

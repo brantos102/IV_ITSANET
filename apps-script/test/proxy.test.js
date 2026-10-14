@@ -30,6 +30,8 @@ function entorno(opciones = {}) {
   const estado = {
     gettoken: 0, getstock: 0, lookups: 0, correos: [], archivos: [], existentes: [],
     tokenActual: null, revocado: false,
+    perfil: opciones.perfil === null ? null
+      : (opciones.perfil || { rol: opciones.rol || 'OPERADOR', activo: true }),
     formatoToken: opciones.formatoToken || 'json',
     catalogo: opciones.catalogo || [
       { codigo_producto: '2H0525345', descripcion: 'WASHER', codigo_barra: '7501234567890', stock: 12 },
@@ -100,6 +102,15 @@ function entorno(opciones = {}) {
                 email: estado.correoUsuario, displayName: 'Juan Pérez' }] }))
             : resp(400, '{"error":"invalid"}');
         }
+        // Perfil del operario en Firestore: es lo que autoriza, no el dominio.
+        if (url.includes('firestore.googleapis.com')) {
+          if (!estado.perfil) return resp(404, '{}');
+          return resp(200, JSON.stringify({ fields: {
+            rol: { stringValue: estado.perfil.rol },
+            activo: { booleanValue: estado.perfil.activo },
+            email: { stringValue: estado.correoUsuario },
+          } }));
+        }
         const cab = opts.headers || {};
         if (url.includes('/gettoken/')) {
           estado.gettoken += 1;
@@ -143,12 +154,33 @@ test('sin token de sesión no hace nada', () => {
   eq(estado.gettoken, 0, 'no debe tocar Depot');
 });
 
-test('rechaza un correo fuera del dominio corporativo', () => {
-  const { ctx, estado } = entorno({ correoUsuario: 'ajeno@gmail.com' });
+// El correo personal es legítimo desde que el registro lo acepta: lo que
+// autoriza es tener perfil activo, no el dominio. Antes, un operario dado de
+// alta con su gmail entraba en la app y el proxy le negaba subir la foto.
+test('un correo personal con perfil activo sí pasa la autenticación', () => {
+  const { ctx } = entorno({ correoUsuario: 'ajeno@gmail.com' });
+  const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
+  // Llega hasta la falta de clientes, que es un problema de configuración, no
+  // de identidad: el dominio del correo ya no le cierra la puerta.
+  ok(!/dominio|itsanet|alta|desactivada/i.test(r.mensaje || ''), r.mensaje);
+});
+
+test('sin perfil en la aplicación no se pasa', () => {
+  const { ctx, estado } = entorno({ perfil: null });
   const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
   ok(!r.exito);
-  ok(/itsanet\.com/.test(r.mensaje), r.mensaje);
+  ok(/alta/i.test(r.mensaje), r.mensaje);
   eq(estado.getstock, 0, 'la API del WMS no debe quedar expuesta');
+});
+
+// Más estrecho que el filtro del dominio: antes, una cuenta corporativa
+// desactivada seguía llegando al WMS.
+test('una cuenta desactivada no llega al WMS aunque sea del dominio', () => {
+  const { ctx, estado } = entorno({ perfil: { rol: 'SUPERVISOR', activo: false } });
+  const r = leer(ctx.doPost(peticion({ accion: 'catalogo' })));
+  ok(!r.exito);
+  ok(/desactivada/i.test(r.mensaje), r.mensaje);
+  eq(estado.getstock, 0);
 });
 
 test('rechaza una sesión inválida', () => {

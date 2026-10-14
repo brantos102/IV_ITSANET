@@ -121,6 +121,11 @@ a { color:var(--accent); text-decoration:none; }
 .kpi .v { font-size:26px; font-weight:900; font-family:var(--font-data); line-height:1; }
 .kpi .e { font-size:10px; font-weight:800; color:var(--secondary); text-transform:uppercase;
           letter-spacing:.5px; margin-top:6px; }
+/* Las cifras que filtran se comportan como botones; las demás, no. */
+button.kpi { font-family:inherit; width:100%; }
+button.kpi:disabled { opacity:1; cursor:default; }
+.kpi-boton { cursor:pointer; transition:.15s; }
+.kpi-boton:hover { border-color:var(--accent); transform:translateY(-2px); }
 
 /* --- Escaneo --- */
 .escaner { font-size:20px; letter-spacing:1px; text-align:center; padding:16px;

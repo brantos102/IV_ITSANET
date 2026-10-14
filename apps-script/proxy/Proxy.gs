@@ -23,8 +23,8 @@
  * SEGURIDAD
  * ---------
  * Cada petición trae el token de sesión de Firebase del operario. Se verifica
- * contra Google antes de hacer nada, y se exige que el correo sea del dominio
- * corporativo. Sin eso, publicar este script sería abrir la API del WMS a
+ * contra Google antes de hacer nada, y se exige que tenga un perfil ACTIVO en
+ * la aplicación. Sin eso, publicar este script sería abrir la API del WMS a
  * internet.
  */
 
@@ -157,17 +157,31 @@ function verificarSesion_(idToken) {
   var u = datos.users && datos.users[0];
   if (!u || !u.email) throw new Error('Sesión sin correo asociado.');
 
-  // El dominio corporativo es la frontera: nadie de fuera llega al WMS.
-  if (CFG.dominio && u.email.toLowerCase().indexOf('@' + CFG.dominio.toLowerCase()) === -1) {
-    throw new Error('Solo cuentas de ' + CFG.dominio + ' pueden usar este servicio.');
+  /**
+   * La frontera es el PERFIL, no el dominio del correo.
+   *
+   * Antes se exigía `@itsanet.com`. Desde que el registro acepta un correo real
+   * —incluido uno personal— esa comprobación dejaba fuera a operarios legítimos:
+   * entraban en la app y, al subir la foto de un producto no conforme, el proxy
+   * les respondía que solo las cuentas del dominio pueden usar el servicio.
+   *
+   * El perfil es además una frontera más estrecha: una cuenta `@itsanet.com`
+   * desactivada pasaba el filtro del dominio y llegaba igual al WMS.
+   */
+  var perfil = perfilDeUsuario_(u.localId, idToken);
+  if (!perfil) {
+    throw new Error('Tu cuenta no está dada de alta en la aplicación.');
+  }
+  if (!perfil.activo) {
+    throw new Error('Tu cuenta está desactivada. Habla con tu supervisor.');
   }
 
-  var usuario = { uid: u.localId, email: u.email, nombre: u.displayName || '' };
-
-  // El rol se lee de Firestore con el token del propio operario, así que las
-  // reglas se aplican igual que desde la app. El script no se cree nada que el
-  // cliente afirme de sí mismo.
-  usuario.rol = rolDeUsuario_(u.localId, idToken) || 'OPERADOR';
+  var usuario = {
+    uid: u.localId,
+    email: u.email,
+    nombre: u.displayName || '',
+    rol: perfil.rol || 'OPERADOR'
+  };
 
   CACHE.put(clave, JSON.stringify(usuario), 300);   // 5 minutos
   return usuario;

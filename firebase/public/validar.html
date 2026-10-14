@@ -35,18 +35,28 @@
 
 <!-- Paso 1: escanear -->
 <div class="panel">
-  <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-    <label class="campo" style="flex:3;min-width:200px">
-      <span>1 · Escanee o escriba el código</span>
-      <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
-             spellcheck="false" placeholder="▌">
-    </label>
-    <label class="campo" style="flex:1;min-width:110px">
-      <span>Cantidad</span>
-      <input id="inCantidad" class="escaner" type="number" inputmode="decimal"
-             step="any" value="1">
-    </label>
-  </div>
+  <!-- Va dentro de un <form>: en el teclado del móvil, la tecla Intro solo
+       envía si el campo pertenece a un formulario. Sin esto, el operario
+       escribía el código, pulsaba Intro y no pasaba nada. -->
+  <form id="formEscaner" autocomplete="off">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <label class="campo" style="flex:3;min-width:180px">
+        <span>1 · Escanee o escriba el código</span>
+        <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
+               autocorrect="off" spellcheck="false" enterkeyhint="go"
+               inputmode="text" placeholder="▌" list="sugerencias">
+        <datalist id="sugerencias"></datalist>
+      </label>
+      <label class="campo" style="flex:1;min-width:100px">
+        <span>Cantidad</span>
+        <input id="inCantidad" class="escaner" type="number" inputmode="decimal"
+               step="any" value="1" enterkeyhint="go">
+      </label>
+      <button type="submit" class="b-primario" id="bBuscar"
+              style="padding:16px 22px">Buscar</button>
+    </div>
+  </form>
+  <div id="pistaCodigo"></div>
   <p class="mini" style="margin-top:9px">
     Cada escaneo suma 1 unidad. Si ya contó varias, escriba aquí la cantidad
     <b>antes</b> de escanear y ese escaneo registra esa cantidad completa.
@@ -254,18 +264,43 @@ observarSesion(async (e) => {
 });
 
 // --- Indicadores ---------------------------------------------------------- //
+/**
+ * Las cifras de arriba son botones: tocar «Faltantes» deja en la tabla
+ * justo lo que hay que volver a buscar, que es lo que se hace con ellas.
+ */
 function pintarKpis() {
   const r = resumir(skus);
-  $('kpis').innerHTML = `
-    <div class="kpi"><div class="v">${r.skus}</div><div class="e">SKU</div></div>
-    <div class="kpi"><div class="v" style="color:var(--success)">${r.ok}</div><div class="e">Completos</div></div>
-    <div class="kpi"><div class="v" style="color:var(--warning)">${r.faltante}</div><div class="e">Faltantes</div></div>
-    <div class="kpi"><div class="v" style="color:var(--info)">${r.sobrante}</div><div class="e">Sobrantes</div></div>
-    <div class="kpi"><div class="v">${r.unidadesEsperadas}</div><div class="e">Unid. sistema</div></div>
-    <div class="kpi"><div class="v" style="color:var(--accent)">${r.unidadesFisicas}</div><div class="e">Unid. físicas</div></div>
-    <div class="kpi"><div class="v">${r.avance}%</div><div class="e">Avance</div></div>`;
+  const sel = $('fEstadoFiltro').value;
+  const tarjeta = (filtro, valor, etiqueta, color) => `
+    <button type="button" class="kpi${filtro !== null ? ' kpi-boton' : ''}"
+            ${filtro !== null ? `data-filtro="${filtro}"` : 'disabled'}
+            ${filtro !== null && filtro === sel ? 'style="border-color:var(--accent)"' : ''}>
+      <div class="v"${color ? ` style="color:${color}"` : ''}>${valor}</div>
+      <div class="e">${etiqueta}</div></button>`;
+
+  $('kpis').innerHTML =
+    tarjeta('', r.skus, 'SKU') +
+    tarjeta('OK', r.ok, 'Completos', 'var(--success)') +
+    tarjeta('FALTANTE', r.faltante, 'Faltantes', 'var(--warning)') +
+    tarjeta('SOBRANTE', r.sobrante, 'Sobrantes', 'var(--info)') +
+    tarjeta('PENDIENTE', r.sinContar, 'Sin contar', 'var(--secondary)') +
+    tarjeta(null, r.unidadesEsperadas, 'Unid. sistema') +
+    tarjeta(null, r.unidadesFisicas, 'Unid. físicas', 'var(--accent)') +
+    tarjeta(null, r.avance + '%', 'Verificado');
+
   $('barraAvance').style.width = r.avance + '%';
 }
+
+$('kpis').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-filtro]');
+  if (!b) return;
+  // Volver a tocar la misma quita el filtro.
+  $('fEstadoFiltro').value = $('fEstadoFiltro').value === b.dataset.filtro
+    ? '' : b.dataset.filtro;
+  pintarKpis();
+  pintarTabla();
+  $('fFiltro').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
 
 function pintarTabla() {
   const filtro = $('fFiltro').value.trim().toUpperCase();
@@ -297,7 +332,7 @@ function pintarTabla() {
 }
 
 $('fFiltro').addEventListener('input', pintarTabla);
-$('fEstadoFiltro').addEventListener('change', pintarTabla);
+$('fEstadoFiltro').addEventListener('change', () => { pintarKpis(); pintarTabla(); });
 
 // --- Paso 1 y 2: escanear y validar --------------------------------------- //
 // La pistola manda Enter: desde el campo de cantidad el foco vuelve al escáner.
