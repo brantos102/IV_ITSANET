@@ -41,7 +41,16 @@ case "$VAL_DATABASE_URL" in
            "Un servicio que escriba en la base de pruebas no lo nota nadie hasta que falta todo." ;;
 esac
 
+# El 8000 es lo habitual, pero en un servidor compartido suele estar tomado.
+# Se cambia con: PUERTO=3002 bash scripts/servicio.sh
 PUERTO="${PUERTO:-8000}"
+
+if ss -ltn 2>/dev/null | grep -q ":${PUERTO} "; then
+  quien=$(ss -ltnp 2>/dev/null | grep ":${PUERTO} " | grep -o 'users:(("[^"]*"' | head -1 | tr -d '"' | sed 's/users:((//')
+  echo
+  echo "   AVISO: el puerto ${PUERTO} ya esta ocupado${quien:+ por $quien}."
+  echo "   Si no es esta misma aplicacion, elige otro:  PUERTO=3002 bash scripts/servicio.sh"
+fi
 USUARIO="$(whoami)"
 
 # --------------------------------------------------------------------------- #

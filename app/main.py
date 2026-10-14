@@ -47,6 +47,20 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
 
+# La aplicación de validación completa, servida desde este mismo servidor.
+#
+# Es la que usan los operarios: el escáner, el informe con el formato del
+# packing list, los duplicados, los CSV para Depot. Ocho mil líneas que ya
+# funcionan y que NO se reescriben.
+#
+# Hoy sus datos siguen viniendo de Firestore, así que el handheld necesita
+# internet igual que ahora. Lo que cambia es que se sirve desde la red local y
+# bajo una sola dirección: la misma que seguirá valiendo cuando la capa de datos
+# pase a hablar con este servidor. Los operarios no verán el cambio.
+_APP_OPERARIOS = BASE_DIR / "firebase" / "public"
+if _APP_OPERARIOS.is_dir():
+    app.mount("/app", StaticFiles(directory=str(_APP_OPERARIOS), html=True), name="operarios")
+
 app.include_router(ui.router)
 app.include_router(auth.router)
 app.include_router(recepciones.router)
