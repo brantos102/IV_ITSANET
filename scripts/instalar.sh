@@ -66,6 +66,18 @@ fi
   || morir "Las librerías no quedaron bien instaladas."
 bien "fastapi, sqlalchemy y pymysql responden"
 
+# cryptography aparte, porque falla MUY tarde: PyMySQL importa sin ella y el
+# error no aparece hasta intentar conectarse, en el paso 4, hablando de métodos
+# de autenticación en lugar de decir que falta un paquete. MySQL 8 autentica con
+# caching_sha2_password por defecto, así que hace falta siempre.
+"$PY" -c "import cryptography" 2>/dev/null \
+  || morir "Falta el paquete cryptography." \
+"MySQL 8 no acepta la conexión sin él. Se instala con el extra de PyMySQL:
+     .venv/bin/python -m pip install -r requirements.txt
+   Si sigue faltando, directamente:
+     .venv/bin/python -m pip install 'PyMySQL[rsa]'"
+bien "cryptography presente (la pide MySQL 8 para autenticar)"
+
 # --------------------------------------------------------------------------- #
 paso "3/5  A qué base de datos se va a hablar"
 
