@@ -181,14 +181,17 @@ function enLlaves(codigo) {
 function declarados(codigo) {
   const n = new Set();
   const anadir = (txt) => String(txt || '').split(',').forEach((t) => {
-    // «a as b» y «a: b» enlazan a b; «a = 1» declara a.
-    const m = t.split(/\s+as\s+|:/).pop().split('=')[0]
+    // Lo que se declara esta SIEMPRE antes del primer «=»; lo de despues es el
+    // valor inicial. Cortar por ahi primero es lo que permite entender
+    // «let a = null, b = null»: sin eso solo se veia la primera.
+    // Despues, «a as b» y «a: b» enlazan a b, que es el nombre real.
+    const m = t.split('=')[0].split(/\s+as\s+|:/).pop()
       .replace(/[[\]{}.]/g, ' ').trim().split(/\s+/);
     m.forEach((x) => { if (/^[A-Za-z_$][\w$]*$/.test(x)) n.add(x); });
   });
 
   for (const m of codigo.matchAll(/import\s+([^'"]+?)\s+from/g)) anadir(m[1].replace(/[{}*]/g, ' '));
-  for (const m of codigo.matchAll(/\b(?:const|let|var)\s+([^=;\n]+)/g)) anadir(m[1]);
+  for (const m of codigo.matchAll(/\b(?:const|let|var)\s+([^;\n]+)/g)) anadir(m[1]);
   for (const m of codigo.matchAll(/\bfunction\s*\*?\s*([\w$]+)/g)) n.add(m[1]);
   for (const m of codigo.matchAll(/\bclass\s+([\w$]+)/g)) n.add(m[1]);
   for (const m of codigo.matchAll(/\bcatch\s*\(\s*([\w$]+)/g)) n.add(m[1]);
@@ -236,6 +239,23 @@ function abreviadoSinDeclarar(etiqueta, codigo) {
     avisados.add(nombre);
     malo(`${etiqueta}: { ${nombre} } no esta declarado en el archivo `
        + '— en un modulo eso es un ReferenceError, no un undefined');
+  }
+
+  // Y lo mismo con una asignacion suelta: `nombreArchivo = archivo.name`.
+  //
+  // En un modulo eso NO crea la variable, lanza un ReferenceError, y si esta en
+  // la primera linea de un manejador se lleva el manejador entero por delante.
+  // Asi se quedo la carga del packing list: se elegia el archivo y no pasaba
+  // nada — ni vista previa, ni mensaje de error, ni nada que mirar.
+  //
+  // Solo cuentan las asignaciones al principio de una sentencia: lo que va tras
+  // un parentesis es un parametro por defecto o un for, no una variable nueva.
+  for (const m of fuera.matchAll(/(?:^|[;{}\n])\s*([A-Za-z_$][\w$]*)\s*=(?!=)/g)) {
+    const nombre = m[1];
+    if (hay.has(nombre) || GLOBALES.has(nombre) || avisados.has(nombre)) continue;
+    avisados.add(nombre);
+    malo(`${etiqueta}: se asigna a ${nombre} sin declararlo `
+       + '— en un modulo eso es un ReferenceError que mata la funcion entera');
   }
 }
 

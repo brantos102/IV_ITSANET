@@ -148,6 +148,7 @@ import { confirmarEscribiendo } from './js/modal.js';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
+let nombreArchivo = '';   // el nombre del .xlsx, para reconocer un duplicado
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,

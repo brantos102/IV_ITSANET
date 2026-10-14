@@ -260,4 +260,56 @@ for (const nombre of archivos) {
   });
 }
 
+// --- Un formato que no se reconoce tiene que decir QUE trae ---------------- //
+// Cada cliente manda su packing list con otras columnas. Cuando llega uno
+// nuevo, «no se encontro la tabla» deja a quien lo carga sin saber si el
+// problema es la hoja, la fila o el nombre de una columna.
+
+const libroDe = (filas) => {
+  const l = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(l, XLSX.utils.aoa_to_sheet(filas), 'REV');
+  const b64 = XLSX.write(l, { bookType: 'xlsx', type: 'base64' });
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
+};
+
+const errorAlLeer = (filas) => {
+  try { datos.leerPackingList(libroDe(filas)); return null; }
+  catch (e) { return e.message; }
+};
+
+await test('dice en que hoja y fila esta lo mas parecido a una cabecera', () => {
+  const m = errorAlLeer([
+    ['INFORME DE EMBARQUE'],
+    ['CODIGO INTERNO', 'DETALLE DEL BIEN', 'PIEZAS', 'PESO'],
+    ['A1', 'TORNILLO', '10', '2'],
+  ]);
+  ok(m, 'tiene que fallar: esas columnas no se reconocen');
+  ok(/hoja «REV»/.test(m), m);
+  ok(/fila 2/.test(m), m);
+});
+
+await test('lista las columnas que trae, para poder darlas de alta', () => {
+  const m = errorAlLeer([
+    ['CODIGO INTERNO', 'DETALLE DEL BIEN', 'PIEZAS', 'PESO'],
+    ['A1', 'TORNILLO', '10', '2'],
+  ]);
+  ok(/CODIGO INTERNO/.test(m), m);
+  ok(/PIEZAS/.test(m), m);
+});
+
+await test('dice cual de los dos datos obligatorios falta', () => {
+  // Trae ITEM, que si se reconoce, pero ninguna columna de cantidad.
+  const m = errorAlLeer([
+    ['ITEM', 'DESCRIPCION', 'PESO'],
+    ['A1', 'TORNILLO', '2'],
+  ]);
+  ok(/la cantidad/.test(m), m);
+  ok(!/el código del producto/.test(m), 'ITEM si se reconocio: ' + m);
+});
+
+await test('un archivo sin ninguna tabla lo dice de otra forma', () => {
+  const m = errorAlLeer([['solo esto'], ['y esto']]);
+  ok(/ninguna fila con varias columnas/.test(m), m);
+});
+
 resumen();

@@ -199,6 +199,11 @@ export function leerPackingList(arrayBuffer) {
   }
   const libro = XLSX.read(arrayBuffer, { type: 'array' });
 
+  // Lo que se fue mirando, por si al final no se reconoce nada: sin esto el
+  // error dice «no se encontró la tabla» y deja a quien carga un cliente nuevo
+  // sin saber si el problema es la hoja, la fila o el nombre de una columna.
+  const miradas = [];
+
   for (const nombreHoja of libro.SheetNames) {
     const hoja = libro.Sheets[nombreHoja];
     const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, blankrows: false, defval: '' });
@@ -206,7 +211,21 @@ export function leerPackingList(arrayBuffer) {
     for (let i = 0; i < Math.min(filas.length, 25); i++) {
       const mapa = mapearEncabezado(filas[i]);
       const campos = new Set(Object.values(mapa));
-      if (!campos.has('sku') || !campos.has('cantidad')) continue;
+      if (!campos.has('sku') || !campos.has('cantidad')) {
+        // La fila con más celdas con texto es la que más se parece a una
+        // cabecera, aunque sus nombres no sean los que se esperan.
+        const llenas = (filas[i] || []).filter((c) => limpiar(c)).length;
+        if (llenas >= 3 && miradas.length < 4) {
+          miradas.push({
+            hoja: nombreHoja,
+            fila: i + 1,
+            llenas,
+            columnas: (filas[i] || []).map((c) => limpiar(c)).filter(Boolean).slice(0, 12),
+            reconocidas: [...campos],
+          });
+        }
+        continue;
+      }
 
       // Los encabezados TAL CUAL. El informe final devuelve el archivo con
       // estas mismas columnas, en este mismo orden: quien lo recibe lo abre
@@ -273,9 +292,26 @@ export function leerPackingList(arrayBuffer) {
     }
   }
 
+  // El error dice QUE trae el archivo, no solo que no sirve. Con un cliente
+  // nuevo es la diferencia entre «no funciona» y «ah, la columna se llama
+  // CODIGO y no ITEM».
+  const mejor = miradas.sort((a, b) => b.llenas - a.llenas)[0];
+  if (!mejor) {
+    throw new Error(
+      'El archivo no tiene ninguna fila con varias columnas de texto. ' +
+      '¿Es el archivo correcto, o está la tabla en otra hoja?',
+    );
+  }
+
+  const falta = ['sku', 'cantidad'].filter((c) => !mejor.reconocidas.includes(c));
+  const NOMBRE = { sku: 'el código del producto', cantidad: 'la cantidad' };
+
   throw new Error(
-    'No se encontró la tabla. El archivo debe tener una fila de encabezados ' +
-    'con al menos las columnas ITEM (o SKU) y CANTIDAD.',
+    `No se reconoció la tabla. Lo más parecido a una cabecera está en la hoja ` +
+    `«${mejor.hoja}», fila ${mejor.fila}, y trae: ${mejor.columnas.join(' · ')}. ` +
+    `De ahí no se identifica ${falta.map((c) => NOMBRE[c]).join(' ni ')}. ` +
+    'Pásame estos nombres de columna y añado este formato: cada cliente envía ' +
+    'el suyo y hay que darlos de alta una vez.',
   );
 }
 
