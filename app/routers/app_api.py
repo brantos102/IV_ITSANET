@@ -1,0 +1,228 @@
+"""La API que habla el idioma de la aplicación de los operarios.
+
+Las rutas de `recepciones.py` son del prototipo: identificadores numéricos,
+campos en snake_case, un modelo que no sabe de qué packing list viene cada
+línea. La aplicación que está en los handhelds lleva meses escribiendo otros
+documentos, y son los que entienden `informe.js`, `conteo.js` y `kpi.js`.
+
+Así que estas rutas devuelven exactamente esos documentos, con esos nombres de
+campo. La capa de datos del navegador cambia de destino —de Firestore a este
+servidor— sin que el resto de la aplicación se entere, que es lo único que
+permite migrar sin reescribir las pantallas y sin perder nada por el camino.
+
+Las dos conviven mientras dure la transición: `/api/recepciones` sigue sirviendo
+al prototipo y a sus KPIs.
+"""
+from __future__ import annotations
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from app.db import get_db
+from app.models import Operador, Rol
+from app.security import requiere_supervisor, usuario_actual
+from app.services import app_modelo as m
+from app.services import depot as depot_svc
+
+router = APIRouter(prefix="/api/app", tags=["app-operarios"])
+
+# El código de la recepción ES su identificador, como en Firestore. Las rutas
+# lo llevan tal cual: /api/app/recepciones/REC0260002.
+COLECCIONES = ("lineas", "skus", "adicionales", "eventos", "auditoria")
+
+
+def _quien(op: Operador) -> str:
+    """Con qué nombre queda firmado un evento."""
+    return op.email or op.usuario
+
+
+def _traducir(exc: m.ErrorApp) -> HTTPException:
+    """Un error del modelo, con su código, en el sitio donde el handheld lo lee.
+
+    El código viaja en el cuerpo porque la pantalla decide con él: CONFIRMAR_SOBRANTE
+    abre el diálogo de confirmación, RECEPCION_CERRADA manda a elegir otra. Un
+    texto suelto no se puede programar.
+    """
+    estado = {
+        "NO_ENCONTRADA": 404, "NO_ENCONTRADO": 404,
+        "DUPLICADA": 409, "ORIGEN_DUPLICADO": 409, "YA_CERRADA": 409,
+        "NO_CERRADA": 409, "YA_ANULADO": 409, "RECEPCION_CERRADA": 409,
+        "CONFIRMAR_SOBRANTE": 409,
+    }.get(exc.codigo, 422)
+    return HTTPException(estado, {"codigo": exc.codigo, "mensaje": str(exc)})
+
+
+# --------------------------------------------------------------------------- #
+# Recepciones
+# --------------------------------------------------------------------------- #
+@router.get("/recepciones")
+def listar(max: int = Query(50, ge=1, le=500), mias: bool = False,
+           db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    return m.listar_recepciones(db, max, usuario=_quien(op) if mias else None)
+
+
+@router.post("/recepciones", status_code=201)
+def crear(datos: dict = Body(...), db: Session = Depends(get_db),
+          op: Operador = Depends(requiere_supervisor)):
+    try:
+        return m.crear_recepcion(db, datos, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get("/recepciones/{codigo}")
+def una(codigo: str, db: Session = Depends(get_db),
+        _: Operador = Depends(usuario_actual)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    return m.doc_recepcion(r, m.operarios_de(db, r.codigo))
+
+
+@router.delete("/recepciones/{codigo}")
+def borrar(codigo: str, db: Session = Depends(get_db),
+           op: Operador = Depends(requiere_supervisor)):
+    """Irreversible: se lleva la bitácora y la auditoría. Solo un administrador."""
+    if op.rol != Rol.ADMIN:
+        raise HTTPException(403, "Solo un administrador puede borrar una recepción")
+    try:
+        return m.borrar_recepcion(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get("/recepciones/{codigo}/{coleccion}")
+def subcoleccion(codigo: str, coleccion: str, max: int = Query(0, ge=0, le=5000),
+                 db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    """Las subcolecciones que lee la aplicación: líneas, SKU, adicionales, eventos.
+
+    Una sola ruta para las cinco porque el navegador las lee con una sola
+    función (`leerColeccion`): cuantas menos formas haya de pedir lo mismo,
+    menos sitios donde puedan discrepar.
+    """
+    if coleccion not in COLECCIONES:
+        raise HTTPException(404, f"No existe la colección «{coleccion}»")
+    try:
+        return m.leer_coleccion(db, codigo, coleccion, max)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Packing list
+# --------------------------------------------------------------------------- #
+@router.post("/recepciones/{codigo}/packing-list")
+def cargar_packing_list(codigo: str, cuerpo: dict = Body(...),
+                        db: Session = Depends(get_db),
+                        op: Operador = Depends(requiere_supervisor)):
+    """Recibe el packing list YA LEÍDO por el navegador.
+
+    El archivo no se sube: lo lee el navegador con la rutina que conoce los
+    formatos reales de cada cliente y manda el resultado traducido. Dos lectores
+    de Excel, uno en cada lado, serían dos cosas que pueden discrepar sobre
+    cuántas unidades declara una fila.
+    """
+    try:
+        return m.guardar_packing_list(
+            db, codigo,
+            resultado=cuerpo.get("resultado") or {},
+            origen=cuerpo.get("origen") or "PRINCIPAL",
+            archivo=cuerpo.get("archivo"),
+        )
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/packing-lists/parecidos")
+def parecidos(cuerpo: dict = Body(...), db: Session = Depends(get_db),
+              _: Operador = Depends(usuario_actual)):
+    """¿Este packing list ya se cargó antes? Se pregunta por contenido."""
+    return m.packing_lists_parecidos(
+        db, cuerpo.get("resumen") or {}, excluir=cuerpo.get("excluirRecepcion"))
+
+
+# --------------------------------------------------------------------------- #
+# Conteo
+# --------------------------------------------------------------------------- #
+@router.post("/recepciones/{codigo}/conteos")
+def contar(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+           op: Operador = Depends(usuario_actual)):
+    try:
+        return m.registrar_conteo(db, codigo, _quien(op), cuerpo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/no-encontrado")
+def no_encontrado(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+                  op: Operador = Depends(usuario_actual)):
+    try:
+        return m.declarar_no_encontrado(db, codigo, _quien(op), cuerpo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/conteos/{evento_id}/anular")
+def anular(codigo: str, evento_id: str, cuerpo: dict = Body(default={}),
+           db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    try:
+        return m.anular_conteo(db, codigo, _quien(op), evento_id,
+                               cuerpo.get("motivo") or "")
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/auditoria")
+def auditar(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+            op: Operador = Depends(usuario_actual)):
+    return m.registrar_auditoria(db, codigo, _quien(op),
+                                 cuerpo.get("tipo") or "AUDITORIA",
+                                 cuerpo.get("detalle") or {})
+
+
+@router.get("/recepciones/{codigo}/skus/{sku}/recalcular")
+def recalcular(codigo: str, sku: str, db: Session = Depends(get_db),
+               _: Operador = Depends(requiere_supervisor)):
+    """Vuelve a armar el agregado desde el libro mayor. La verdad son los eventos."""
+    try:
+        return m.recalcular_sku(db, codigo, sku)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Cierre
+# --------------------------------------------------------------------------- #
+@router.post("/recepciones/{codigo}/cerrar")
+def cerrar(codigo: str, db: Session = Depends(get_db),
+           op: Operador = Depends(requiere_supervisor)):
+    try:
+        return m.cerrar_recepcion(db, codigo, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/reabrir")
+def reabrir(codigo: str, cuerpo: dict = Body(default={}), db: Session = Depends(get_db),
+            op: Operador = Depends(requiere_supervisor)):
+    try:
+        return m.reabrir_recepcion(db, codigo, _quien(op), cuerpo.get("motivo") or "")
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Catálogo
+# --------------------------------------------------------------------------- #
+@router.get("/catalogo/{codigo}")
+def catalogo(codigo: str, db: Session = Depends(get_db),
+             _: Operador = Depends(usuario_actual)):
+    """Lo que la pantalla necesita saber de un código escaneado."""
+    r = depot_svc.resolver_codigo(db, codigo)
+    return {
+        "sku": r.sku, "existe": r.existe, "descripcion": r.descripcion,
+        "ean": r.ean, "unidad": r.unidad, "inactivo": r.inactivo,
+        "fuente": r.fuente, "degradado": r.degradado,
+        "candidatos": r.candidatos, "mensaje": r.mensaje, "accion": r.accion,
+    }

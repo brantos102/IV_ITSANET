@@ -15,8 +15,8 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text,
-    UniqueConstraint,
+    JSON, Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String,
+    Text, UniqueConstraint,
 )
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -102,6 +102,12 @@ class Operador(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     usuario: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     nombre: Mapped[str] = mapped_column(String(120))
+    # Con que queda firmado lo que hace. La aplicacion de los operarios firma
+    # cada conteo con el correo —es lo que sale en la bitacora y en el informe—
+    # y las cuentas importadas de Firebase lo traen. Opcional: un operario dado
+    # de alta a mano en el servidor puede no tener buzon, y entonces firma con
+    # su usuario.
+    email: Mapped[str | None] = mapped_column(String(160), index=True)
     pin_hash: Mapped[str] = mapped_column(String(200))
     rol: Mapped[Rol] = mapped_column(Enum(Rol), default=Rol.OPERADOR)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -308,3 +314,174 @@ class Auditoria(Base):
     accion: Mapped[str] = mapped_column(String(60), index=True)
     detalle: Mapped[str | None] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+
+
+# --------------------------------------------------------------------------- #
+# El modelo de la aplicacion de los operarios
+# --------------------------------------------------------------------------- #
+# Las tablas de arriba son del prototipo: una recepcion con sus lineas y su
+# libro mayor, pensado desde el servidor. La aplicacion que usan los operarios
+# en el handheld lleva meses en produccion con un modelo propio, y ese modelo
+# sabe cosas que el otro no:
+#
+#   - De que packing list viene cada linea (`origen`) y cuanto declara cada uno
+#     del mismo SKU. Dos listas de la misma recepcion con el mismo codigo es lo
+#     normal, no la excepcion.
+#   - El reparto de lo contado por pallet Y por lista, que es lo que permite
+#     devolver el archivo con las mismas filas que trajo: 22 filas, 22 filas.
+#   - La cabecera original de cada archivo, para reescribirlo igual.
+#   - La huella de contenido de cada lista, para reconocerla si vuelve a
+#     subirse en otra recepcion.
+#
+# Traducir eso al modelo del prototipo seria perderlo. Asi que la migracion va
+# al reves: estas tablas guardan los MISMOS documentos que la aplicacion ya
+# escribe, con los mismos nombres de campo, y el servidor habla su idioma. Lo
+# que no se puede fijar en columnas —los mapas por pallet, por origen, las
+# cabeceras— va en JSON, que es exactamente lo que son.
+#
+# El prefijo `app_` las separa de las del prototipo. Conviven: el prototipo
+# sigue sirviendo sus pantallas y sus KPIs mientras dure la transicion.
+JSON_MAPA = JSON().with_variant(mysql.JSON(), "mysql")
+
+
+class AppRecepcion(Base):
+    """Una recepcion, como la escribe la aplicacion de los operarios."""
+
+    __tablename__ = "app_recepciones"
+
+    # El codigo ES el identificador, como en Firestore: REC0260002. No un
+    # autoincremental. Asi un enlace de la aplicacion vieja sigue valiendo y la
+    # importacion no tiene que inventar correspondencias.
+    codigo: Mapped[str] = mapped_column(String(60), primary_key=True)
+    cliente: Mapped[str] = mapped_column(String(60), default="VENTURA", index=True)
+    descripcion: Mapped[str | None] = mapped_column(String(300))
+    bultos: Mapped[int | None] = mapped_column(Integer)
+    estado: Mapped[str] = mapped_column(String(20), default="ABIERTA", index=True)
+    hoja: Mapped[str | None] = mapped_column(String(120))
+
+    creado_por: Mapped[str | None] = mapped_column(String(120))
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+    packing_list_en: Mapped[datetime | None] = mapped_column(FECHA)
+    cerrada_en: Mapped[datetime | None] = mapped_column(FECHA)
+    cerrada_por: Mapped[str | None] = mapped_column(String(120))
+
+    # totales {lineas, skus, unidades}; el resto son mapas por origen.
+    totales: Mapped[dict | None] = mapped_column(JSON_MAPA)
+    origenes: Mapped[list | None] = mapped_column(JSON_MAPA)
+    lineas_por_origen: Mapped[dict | None] = mapped_column(JSON_MAPA)
+    formatos: Mapped[dict | None] = mapped_column(JSON_MAPA)
+    embarques: Mapped[list | None] = mapped_column(JSON_MAPA)
+
+
+class AppLinea(Base):
+    """Una linea del packing list, tal como venia en el archivo.
+
+    `orden` conserva el sitio que ocupaba: el informe se devuelve con las mismas
+    filas y en el mismo orden, y eso no se puede reconstruir ordenando por SKU.
+    """
+
+    __tablename__ = "app_lineas"
+    __table_args__ = (
+        UniqueConstraint("recepcion", "origen", "linea", name="uq_app_linea"),
+        Index("ix_app_lineas_rec_orden", "recepcion", "orden"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recepcion: Mapped[str] = mapped_column(
+        ForeignKey("app_recepciones.codigo", ondelete="CASCADE"), index=True)
+    origen: Mapped[str] = mapped_column(String(40), default="PRINCIPAL")
+    linea: Mapped[int] = mapped_column(Integer)
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    sku: Mapped[str] = mapped_column(String(80), index=True)
+    descripcion: Mapped[str | None] = mapped_column(String(300))
+    cantidad: Mapped[float] = mapped_column(CANTIDAD, default=0)
+    # Las columnas que no son estandar del archivo: se devuelven igual.
+    extra: Mapped[dict | None] = mapped_column(JSON_MAPA)
+
+
+class AppSku(Base):
+    """El estado de un SKU dentro de una recepcion.
+
+    `contado` y los mapas se derivan de los eventos: aqui estan materializados
+    porque el handheld los lee en cada escaneo y recalcularlos cada vez seria
+    sumar el libro mayor entero en cada codigo. La verdad sigue siendo el libro
+    mayor: `recalcular_sku` los vuelve a armar desde cero.
+    """
+
+    __tablename__ = "app_skus"
+    __table_args__ = (UniqueConstraint("recepcion", "sku", name="uq_app_sku"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recepcion: Mapped[str] = mapped_column(
+        ForeignKey("app_recepciones.codigo", ondelete="CASCADE"), index=True)
+    sku: Mapped[str] = mapped_column(String(80), index=True)
+    descripcion: Mapped[str | None] = mapped_column(String(300))
+    esperado: Mapped[float] = mapped_column(CANTIDAD, default=0)
+    contado: Mapped[float] = mapped_column(CANTIDAD, default=0)
+    verificado: Mapped[bool] = mapped_column(Boolean, default=False)
+    estado: Mapped[str] = mapped_column(String(20), default="PENDIENTE", index=True)
+    en_packing_list: Mapped[bool] = mapped_column(Boolean, default=True)
+    tiene_pnc: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Si es un adicional, por que se registro y quien lo vio. Va aqui y no en
+    # una tabla aparte porque es un dato del SKU en esta recepcion, y asi no hay
+    # dos sitios que puedan discrepar sobre si algo es adicional o no.
+    motivo: Mapped[str | None] = mapped_column(String(300))
+    detectado_por: Mapped[str | None] = mapped_column(String(120))
+    ultimo_operador: Mapped[str | None] = mapped_column(String(120))
+
+    pallets: Mapped[dict | None] = mapped_column(JSON_MAPA)            # {pallet: cantidad}
+    por_origen: Mapped[dict | None] = mapped_column(JSON_MAPA)         # {origen: {pallet: cant}}
+    origenes: Mapped[list | None] = mapped_column(JSON_MAPA)
+    esperado_por_origen: Mapped[dict | None] = mapped_column(JSON_MAPA)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+    actualizado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppEvento(Base):
+    """El libro mayor: cada conteo, cada anulacion, cada no encontrado.
+
+    El identificador lo pone el handheld y es la clave de idempotencia: si la
+    red se corta despues de escribir y el operario repite el escaneo, el segundo
+    intento reescribe el mismo evento en vez de contar dos veces. Es la misma
+    garantia que daba el identificador del documento en Firestore.
+    """
+
+    __tablename__ = "app_eventos"
+    __table_args__ = (Index("ix_app_eventos_rec_fecha", "recepcion", "creado_en"),)
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    recepcion: Mapped[str] = mapped_column(
+        ForeignKey("app_recepciones.codigo", ondelete="CASCADE"), index=True)
+    tipo: Mapped[str] = mapped_column(String(30), index=True)   # CONTEO|ANULACION|NO_ENCONTRADO…
+    sku: Mapped[str | None] = mapped_column(String(80), index=True)
+    cantidad: Mapped[float] = mapped_column(CANTIDAD, default=0)
+    pallet: Mapped[str | None] = mapped_column(String(60))
+    posicion: Mapped[str | None] = mapped_column(String(60))
+    origen: Mapped[str | None] = mapped_column(String(40))
+    usuario: Mapped[str | None] = mapped_column(String(120), index=True)
+    anula_a: Mapped[str | None] = mapped_column(String(120), index=True)
+    motivo: Mapped[str | None] = mapped_column(String(300))
+    datos: Mapped[dict | None] = mapped_column(JSON_MAPA)       # fotos, extra, lo que venga
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+
+
+class AppHuella(Base):
+    """La huella de contenido de un packing list ya cargado.
+
+    Sirve para avisar de que el archivo que se esta subiendo ya se cargo antes,
+    aunque venga con otro nombre: la huella se calcula sobre los pares
+    `sku:cantidad`, no sobre el nombre del archivo.
+    """
+
+    __tablename__ = "app_huellas"
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    huella: Mapped[str] = mapped_column(String(32), index=True)
+    recepcion: Mapped[str] = mapped_column(String(60), index=True)
+    codigo: Mapped[str | None] = mapped_column(String(60))
+    origen: Mapped[str | None] = mapped_column(String(40))
+    archivo: Mapped[str | None] = mapped_column(String(300), index=True)
+    lineas: Mapped[int] = mapped_column(Integer, default=0)
+    skus: Mapped[int] = mapped_column(Integer, default=0)
+    unidades: Mapped[float] = mapped_column(CANTIDAD, default=0)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
