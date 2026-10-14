@@ -264,31 +264,68 @@ export async function crearRecepcion({ codigo, cliente, descripcion, bultos }, u
  * Firestore admite 500 operaciones por lote, así que se parte en tandas. Las
  * líneas son inmutables: son la versión del sistema contra la que se compara.
  */
-export async function guardarPackingList(recepcionId, resultado, alAvanzar) {
+/**
+ * Guarda las líneas y el agregado por SKU.
+ *
+ * Una recepción puede consolidar VARIOS packing lists. Pasa cuando llegan dos
+ * embarques cortos el mismo día, o cuando uno se parte. Validarlos por separado
+ * obliga a recorrer el almacén dos veces para la misma mercadería.
+ *
+ * Cada línea guarda de qué lista viene (`origen`), y el informe final se genera
+ * por lista: cada una entrega exactamente las filas que trajo. El agregado por
+ * SKU sí es común —se cuenta una vez— y por eso se SUMA en vez de sobrescribir.
+ *
+ * Firestore admite 500 operaciones por lote, así que se parte en tandas. Las
+ * líneas son inmutables: son la versión del sistema contra la que se compara.
+ */
+export async function guardarPackingList(recepcionId, resultado, alAvanzar, opciones = {}) {
   const refRec = doc(db, 'recepciones', recepcionId);
-  const operaciones = [];
+  const origen = limpiar(opciones.origen).toUpperCase().slice(0, 40) || 'PRINCIPAL';
+  const previo = (await getDoc(refRec)).data() || {};
+  const yaHabia = previo.totales || { lineas: 0, skus: 0, unidades: 0 };
+  const origenes = previo.origenes || [];
 
-  resultado.lineas.forEach((l) => {
-    operaciones.push({
-      ref: doc(db, 'recepciones', recepcionId, 'lineas', String(l.linea)),
-      datos: { ...l, creadoEn: serverTimestamp() },
-    });
-  });
+  if (origenes.includes(origen)) {
+    throw new Error(
+      `Ya se cargó un packing list con el nombre «${origen}» en esta recepción. ` +
+      'Usa otro nombre para distinguirlos en el informe.',
+    );
+  }
+
+  // El número de línea lleva el origen delante: así dos listas con una línea 1
+  // no se pisan, y el orden dentro de cada una se conserva.
+  const operaciones = resultado.lineas.map((l) => ({
+    ref: doc(db, 'recepciones', recepcionId, 'lineas', `${origen}-${l.linea}`),
+    datos: { ...l, origen, orden: yaHabia.lineas + l.linea, creadoEn: serverTimestamp() },
+  }));
+
+  // Lo esperado se acumula: el mismo SKU en dos listas se cuenta una sola vez,
+  // contra la suma de las dos.
+  const existentes = {};
+  if (origenes.length) {
+    const snap = await getDocs(collection(db, 'recepciones', recepcionId, 'skus'));
+    snap.docs.forEach((d) => { existentes[d.id] = d.data(); });
+  }
 
   Object.entries(resultado.porSku).forEach(([sku, esperado]) => {
     const primera = resultado.lineas.find((l) => l.sku === sku);
+    const antes = existentes[sku];
+    const total = aNumero(antes?.esperado, 0) + esperado;
     operaciones.push({
       ref: doc(db, 'recepciones', recepcionId, 'skus', sku),
       datos: {
         sku,
-        descripcion: primera?.descripcion || '',
-        esperado,
-        contado: 0,
-        pallets: {},
-        estado: esperado > 0 ? 'PENDIENTE' : 'OK',
+        descripcion: antes?.descripcion || primera?.descripcion || '',
+        esperado: total,
+        contado: aNumero(antes?.contado, 0),
+        pallets: antes?.pallets || {},
+        verificado: antes?.verificado === true,
+        estado: estadoDe(total, aNumero(antes?.contado, 0), antes?.verificado === true),
         enPackingList: true,
-        tienePnc: false,
-        creadoEn: serverTimestamp(),
+        tienePnc: antes?.tienePnc === true,
+        // En qué listas aparece: es lo que avisa de un SKU compartido.
+        origenes: [...new Set([...(antes?.origenes || []), origen])],
+        creadoEn: antes?.creadoEn || serverTimestamp(),
       },
     });
   });
@@ -296,21 +333,32 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar) {
   const TANDA = 450;
   for (let i = 0; i < operaciones.length; i += TANDA) {
     const lote = writeBatch(db);
-    operaciones.slice(i, i + TANDA).forEach((o) => lote.set(o.ref, o.datos));
+    operaciones.slice(i, i + TANDA).forEach((o) => lote.set(o.ref, o.datos, { merge: true }));
     await lote.commit();
     if (alAvanzar) alAvanzar(Math.min(i + TANDA, operaciones.length), operaciones.length);
   }
 
+  const skusTotales = new Set([
+    ...Object.keys(existentes),
+    ...Object.keys(resultado.porSku),
+  ]).size;
+
   await updateDoc(refRec, {
     totales: {
-      lineas: resultado.lineas.length,
-      skus: resultado.skusUnicos,
-      unidades: resultado.unidades,
+      lineas: yaHabia.lineas + resultado.lineas.length,
+      skus: skusTotales,
+      unidades: aNumero(yaHabia.unidades, 0) + resultado.unidades,
     },
+    origenes: [...origenes, origen],
     hoja: resultado.hoja,
-    embarques: resultado.embarques,
+    embarques: [...new Set([...(previo.embarques || []), ...resultado.embarques])],
     packingListEn: serverTimestamp(),
   });
+
+  // SKU que ya venían de otra lista: la atribución de lo contado entre listas
+  // es una convención, no un hecho, y quien carga tiene que saberlo.
+  const compartidos = Object.keys(resultado.porSku).filter((sku) => existentes[sku]);
+  return { origen, lineas: resultado.lineas.length, compartidos };
 }
 
 export async function listarRecepciones(max = 50) {
@@ -338,6 +386,23 @@ export async function cerrarRecepcion(recepcionId) {
   await updateDoc(doc(db, 'recepciones', recepcionId), {
     estado: 'CERRADA',
     cerradoEn: serverTimestamp(),
+  });
+}
+
+/**
+ * Reabre una recepción cerrada.
+ *
+ * Cerrar por error, o descubrir al día siguiente que faltó contar un pallet,
+ * pasa. La alternativa —crear una recepción nueva con el mismo packing list—
+ * parte el historial en dos y deja dos informes del mismo embarque.
+ *
+ * No borra nada: los conteos siguen donde estaban y el cierre anterior queda
+ * en la auditoría. Lo que cambia es que vuelve a admitir conteos.
+ */
+export async function reabrirRecepcion(recepcionId) {
+  await updateDoc(doc(db, 'recepciones', recepcionId), {
+    estado: 'EN_VALIDACION',
+    reabiertoEn: serverTimestamp(),
   });
 }
 

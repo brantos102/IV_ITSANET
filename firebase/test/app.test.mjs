@@ -400,4 +400,38 @@ await test('anular descuenta del mismo pallet, también anidado', async () => {
   eq(w.datos.pallets.C1.__inc, -5);
 });
 
+// ============== Consolidar varios packing lists ========================== //
+// Validar dos embarques cortos a la vez ahorra recorrer el almacen dos veces,
+// pero cada lista tiene que entregar SUS filas: 22 y 7, nunca 29 mezcladas.
+await test('cada lista reparte solo contra sus propias líneas', () => {
+  const lineasA = [
+    { linea: 1, sku: 'X', cantidad: 5, origen: 'PL-A', orden: 1 },
+    { linea: 2, sku: 'Y', cantidad: 3, origen: 'PL-A', orden: 2 },
+  ];
+  const lineasB = [
+    { linea: 1, sku: 'Z', cantidad: 4, origen: 'PL-B', orden: 3 },
+  ];
+
+  const a = informe.repartirPorLinea(lineasA, { X: 5, Y: 1 });
+  const b = informe.repartirPorLinea(lineasB, { Z: 4 });
+
+  eq(a.length, 2, 'la lista A entrega sus dos filas');
+  eq(b.length, 1, 'la lista B entrega su fila');
+  eq(a.map((l) => l.fisica), [5, 1]);
+  eq(b[0].fisica, 4);
+  // Y nada de B aparece en A.
+  ok(!a.some((l) => l.sku === 'Z'));
+});
+
+// Excel rechaza el archivo entero si una hoja pasa de 31 caracteres o lleva
+// alguno de los caracteres prohibidos: el informe no se abriría.
+await test('el nombre de la hoja respeta lo que Excel admite', () => {
+  eq(informe.nombreDeHoja('PL-A'), 'PL-A');
+  eq(informe.nombreDeHoja('PACKING-LIST-DEMASIADO-LARGO-PARA-EXCEL').length, 31);
+  eq(informe.nombreDeHoja('RB/48529'), 'RB-48529', 'la barra está prohibida');
+  eq(informe.nombreDeHoja('A:B\\C?D*E[F]'), 'A-B-C-D-E-F-');
+  eq(informe.nombreDeHoja(''), 'LISTA');
+  eq(informe.nombreDeHoja(null), 'LISTA');
+});
+
 resumen();

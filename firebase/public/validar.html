@@ -103,6 +103,7 @@
   </div>
   <div class="chips" style="margin-top:9px">
     <button type="button" class="chip" data-pallet-rapido="DP">DP · directo a posición</button>
+    <button type="button" class="chip oculto" id="chipUltimo"></button>
   </div>
 
   <div class="rejilla" style="margin-top:13px">
@@ -155,7 +156,9 @@
       <option value="OK">Completos</option>
     </select>
     <button class="b-sec" id="bBitacora">Bitácora</button>
-    <button class="b-ok" id="bCerrar">Finalizar</button>
+    <button class="b-sec oculto" id="bExportar">Exportar ahora</button>
+    <button class="b-sec oculto" id="bReabrir">Reabrir</button>
+    <button class="b-ok oculto" id="bCerrar">Finalizar</button>
   </div>
   <div class="tabla-env">
     <table>
@@ -188,7 +191,7 @@
 import { observarSesion } from './js/auth.js';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion,
-  registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
+  reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
 } from './js/datos.js';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
@@ -257,10 +260,7 @@ observarSesion(async (e) => {
     recepcion = await obtenerRecepcion(RECEPCION);
     $('lblRecepcion').textContent = recepcion.codigo;
     document.title = recepcion.codigo + ' — Validación';
-    if (recepcion.estado === 'CERRADA') {
-      aviso('Esta recepción está cerrada: no admite más conteos.', 'warn', 'Solo lectura');
-      $('inEscaner').disabled = true;
-    }
+    aplicarEstado();
   } catch (err) {
     aviso(err.message, 'err');
     return;
@@ -279,6 +279,32 @@ observarSesion(async (e) => {
 
   $('inEscaner').focus();
 });
+
+/**
+ * Qué puede hacer cada quien, según el estado de la recepción.
+ *
+ * El operario entra y sale de las recepciones que estén en curso: contar es
+ * su trabajo y no bloquea a nadie. Cerrar, exportar y reabrir son del
+ * supervisor, porque son las que dejan constancia hacia fuera.
+ */
+function aplicarEstado() {
+  const manda = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
+  const cerrada = recepcion.estado === 'CERRADA';
+
+  $('inEscaner').disabled = cerrada;
+  $('bBuscar').disabled = cerrada;
+  $('bExportar').classList.toggle('oculto', !manda);
+  $('bCerrar').classList.toggle('oculto', !manda || cerrada);
+  $('bReabrir').classList.toggle('oculto', !manda || !cerrada);
+
+  if (cerrada) {
+    aviso(manda
+      ? 'Recepción cerrada: no admite más conteos. Puedes volver a exportar el ' +
+        'informe, o reabrirla si hay que completarla.'
+      : 'Esta recepción está cerrada. Habla con tu supervisor si falta algo.',
+      'warn', 'Cerrada');
+  }
+}
 
 // --- Indicadores ---------------------------------------------------------- //
 /**
@@ -423,6 +449,7 @@ async function escanear(codigo) {
   $('fCantidad').value = cantidadPrevia > 1
     ? cantidadPrevia
     : Math.max((s.esperado || 0) - (s.contado || 0), 1) || 1;
+  $('fPallet').value = '';
   $('fObs').value = '';
   $('fPosReal').value = '';
   $('fEstado').value = 'BUENO';
@@ -461,6 +488,14 @@ function refrescarFicha(s) {
   $('fCont').textContent = contado;
   $('fPend').textContent = Math.max(esperado - contado, 0);
 
+  // Repetir el pallet anterior tiene que ser una decisión, no un descuido.
+  const chip = $('chipUltimo');
+  chip.classList.toggle('oculto', !ultimoPallet);
+  if (ultimoPallet) {
+    chip.textContent = `↺ ${ultimoPallet}`;
+    chip.dataset.palletRapido = ultimoPallet;
+  }
+
   pintarPosicionesDepot();
 
   const ubic = ubicacionesDe(s);
@@ -469,7 +504,10 @@ function refrescarFicha(s) {
     $('fChips').innerHTML = ubic.map((u) =>
       `<button type="button" class="chip" data-pallet="${esc(u.pallet)}">📦 ${esc(u.pallet)} · ${u.cantidad}</button>`
     ).join('');
-    if (!$('fPallet').value) $('fPallet').value = ubic[0].pallet;
+    // NO se rellena solo. Arrastrar el pallet del conteo anterior registra
+    // mercadería en un sitio donde no está, y el error no se ve: el campo
+    // parece confirmado porque trae algo escrito. Los botones de arriba están
+    // para elegirlo en un toque.
   } else {
     $('fUbicaciones').classList.add('oculto');
     $('fChips').innerHTML = '';
@@ -509,8 +547,18 @@ function pintarPosicionesDepot() {
   const posiciones = (p?.posiciones || []).filter((u) => u.posicion);
 
   if (!posiciones.length) {
-    caja.classList.add('oculto');
-    caja.innerHTML = '';
+    // Que Depot no devuelva ubicaciones es un dato, no la ausencia de un dato:
+    // el producto existe en el maestro pero hoy no hay existencia en bodega.
+    // Callarlo deja al operario pensando que la consulta falló.
+    caja.classList.remove('oculto');
+    caja.innerHTML = p
+      ? `<div class="msg warn" style="margin:0">
+           <b>Sin existencia en bodega</b>
+           ${esc(p.sku || '')} está en el maestro de Depot${
+             p.cliente ? ` (cliente ${esc(p.cliente)})` : ''}, pero ahora mismo
+           no tiene ninguna ubicación con existencia en BM — Bodega Matriz.
+           Lo que registres será su primer ingreso.</div>`
+      : '';
     return;
   }
 
@@ -551,12 +599,12 @@ function pintarPosicionesDepot() {
  * `DP` dice exactamente eso —directo a posición— y el sitio real se anota en
  * «Posición real asignada», que viaja al informe final en su propia columna.
  */
-for (const b of document.querySelectorAll('[data-pallet-rapido]')) {
-  b.addEventListener('click', () => {
-    $('fPallet').value = b.dataset.palletRapido;
-    $('fPosReal').focus();
-  });
-}
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-pallet-rapido]');
+  if (!b) return;
+  $('fPallet').value = b.dataset.palletRapido;
+  if (b.dataset.palletRapido === 'DP') $('fPosReal').focus();
+});
 
 $('fChips').addEventListener('click', (ev) => {
   const p = ev.target.dataset.pallet;
@@ -644,7 +692,7 @@ async function registrar(confirmarSobrante) {
     });
 
     bip('ok');
-    ultimoPallet = r.pallet || ultimoPallet;
+    ultimoPallet = r.pallet || ultimoPallet;   // solo para el chip de «el mismo»
     aviso(`${r.sku} · ${r.cantidadRegistrada} u. en ${r.pallet} — contado ${r.contado} de ${r.esperado}`,
           'ok', r.duplicado ? 'Ya estaba registrado (no se duplicó)' : 'Registrado');
     reiniciar();
@@ -806,11 +854,68 @@ $('tBitacora').addEventListener('click', async (ev) => {
   } catch (e) { aviso(e.message, 'err'); }
 });
 
+/**
+ * Exportar sin cerrar.
+ *
+ * Una validación de 300 líneas dura dos turnos. Tener que cerrarla para
+ * enseñarle a alguien cómo va obliga a elegir entre informar y seguir
+ * trabajando. El archivo sale igual, marcado como parcial, y queda en la
+ * auditoría igual que cualquier otra exportación.
+ */
+$('bExportar').addEventListener('click', async () => {
+  limpiarAvisos();
+  $('bExportar').disabled = true;
+  const d = aviso('Armando el informe…', 'info');
+  try {
+    const datos = await reunirInforme(RECEPCION, recepcion);
+    const libro = construirLibro(datos);
+    d.remove();
+    descargarLibro(libro);
+
+    const r = resumir(skus);
+    aviso(`${libro.filas} filas, ${r.avance}% verificado.` +
+          (recepcion.estado === 'CERRADA' ? '' :
+           ` Quedan ${r.sinVerificar} referencias sin buscar: este archivo es un avance, no el final.`),
+          'ok', recepcion.estado === 'CERRADA' ? 'Informe' : 'Avance descargado');
+
+    registrarAuditoria(RECEPCION, usuario, 'EXPORTACION', {
+      destino: 'DESCARGA',
+      archivo: libro.nombre,
+      parcial: recepcion.estado !== 'CERRADA',
+      avance: r.avance,
+      sinVerificar: r.sinVerificar,
+    }).catch(() => {});
+  } catch (e) {
+    d.remove();
+    aviso(e.message, 'err', 'No se pudo exportar');
+  } finally {
+    $('bExportar').disabled = false;
+  }
+});
+
+/** Reabrir: el cierre anterior no se borra, queda en la auditoría. */
+$('bReabrir').addEventListener('click', async () => {
+  const motivo = prompt('¿Por qué se reabre esta recepción?\n' +
+                        '(queda registrado con tu nombre)');
+  if (!motivo || !motivo.trim()) return;
+  limpiarAvisos();
+  try {
+    await reabrirRecepcion(RECEPCION);
+    await registrarAuditoria(RECEPCION, usuario, 'REAPERTURA', { motivo: motivo.trim() });
+    recepcion = await obtenerRecepcion(RECEPCION);
+    aplicarEstado();
+    aviso('Recepción reabierta. Los conteos anteriores siguen donde estaban y el ' +
+          'cierre anterior queda en la auditoría.', 'ok', 'Reabierta');
+  } catch (e) {
+    aviso(traducirErrorLocal(e), 'err', 'No se pudo reabrir');
+  }
+});
+
+const traducirErrorLocal = (e) =>
+  /permission/i.test(e?.message || '') ? 'Solo un supervisor puede reabrir.' : e.message;
+
 // --- Finalizar ------------------------------------------------------------ //
 $('bCerrar').addEventListener('click', async () => {
-  if (!['SUPERVISOR', 'ADMIN'].includes(perfil?.rol)) {
-    return aviso('Solo un supervisor puede cerrar la validación.', 'warn');
-  }
   const r = resumir(skus);
 
   // Ningún SKU puede quedarse sin dato. Dejarlo en blanco significa «no sé», y
@@ -850,7 +955,8 @@ $('bCerrar').addEventListener('click', async () => {
     d.remove();
 
     await cerrarRecepcion(RECEPCION);
-    $('inEscaner').disabled = true;
+    recepcion.estado = 'CERRADA';
+    aplicarEstado();
 
     // Qué se cerró, con qué cifras y quién. El agregado se puede volver a
     // calcular; lo que se entregó aquel día, no.

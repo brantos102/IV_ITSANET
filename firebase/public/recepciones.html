@@ -57,7 +57,12 @@
      quedan inmutables: son la versión del sistema contra la que se compara.</p>
 
   <div class="rejilla">
-    <label class="campo" style="grid-column:1/-1"><span>Archivo .xlsx</span>
+    <label class="campo"><span>Nombre de esta lista</span>
+      <input id="fOrigen" placeholder="RB48529" autocapitalize="characters"
+             spellcheck="false">
+      <span class="mini">Una recepción puede consolidar varias. Cada una entrega
+        su propia hoja en el informe, con sus filas.</span></label>
+    <label class="campo" style="grid-column:span 2"><span>Archivo .xlsx</span>
       <input type="file" id="fArchivo" accept=".xlsx,.xlsm,.xls"></label>
   </div>
   <div id="vistaPrevia"></div>
@@ -87,7 +92,7 @@
       <thead><tr>
         <th>Código</th><th>Estado</th><th class="num">SKU</th>
         <th class="num">Sistema</th><th class="num">Físico</th>
-        <th>Avance</th><th></th>
+        <th>Avance</th><th></th><th></th>
       </tr></thead>
       <tbody id="tRecepciones"></tbody>
     </table>
@@ -212,15 +217,31 @@ $('bSubir').addEventListener('click', async () => {
   const prog = aviso('Guardando…', 'info', 'Un momento');
 
   try {
-    await guardarPackingList(recepcionActual, resultadoArchivo, (hechas, total) => {
-      prog.innerHTML = `<b>Guardando</b>${hechas} de ${total} registros`;
-    });
+    const r = await guardarPackingList(recepcionActual, resultadoArchivo,
+      (hechas, total) => {
+        prog.innerHTML = `<b>Guardando</b>${hechas} de ${total} registros`;
+      },
+      { origen: $('fOrigen').value });
+
     limpiarAvisos();
-    aviso(`Packing list guardado: ${resultadoArchivo.lineas.length} líneas. ` +
+    aviso(`Lista «${r.origen}» guardada: ${r.lineas} líneas. ` +
           'Los operarios ya pueden validar.', 'ok', 'Listo');
-    $('panelArchivo').classList.add('oculto');
+
+    // Un SKU que ya venía de otra lista se cuenta UNA vez contra la suma de
+    // las dos. Repartir después lo contado entre listas es una convención, no
+    // un hecho: el operario no dice de qué embarque salió cada unidad.
+    if (r.compartidos.length) {
+      aviso(`${r.compartidos.length} referencias ya venían de otra lista de esta ` +
+            `recepción (${r.compartidos.slice(0, 5).join(', ')}` +
+            `${r.compartidos.length > 5 ? '…' : ''}). Se contarán una sola vez, ` +
+            'contra la suma de ambas. En el informe, lo que sobre de esas se ' +
+            'imputa a la última lista: si eso no sirve para reclamar, valídalas ' +
+            'por separado.', 'warn', 'Referencias compartidas');
+    }
     $('fArchivo').value = '';
+    $('fOrigen').value = '';
     resultadoArchivo = null;
+    $('vistaPrevia').innerHTML = '';
     cargarListado();
   } catch (e) {
     limpiarAvisos();
@@ -228,6 +249,18 @@ $('bSubir').addEventListener('click', async () => {
   } finally {
     $('bSubir').disabled = false;
   }
+});
+
+// Añadir otra lista a una recepción que ya existe: dos embarques cortos el
+// mismo día se validan de una pasada en vez de recorrer el almacén dos veces.
+$('tRecepciones').addEventListener('click', (ev) => {
+  const id = ev.target.dataset.anadir;
+  if (!id) return;
+  recepcionActual = id;
+  $('lblRecepcion').textContent = id;
+  $('panelArchivo').classList.remove('oculto');
+  $('panelArchivo').scrollIntoView({ behavior: 'smooth' });
+  $('fOrigen').focus();
 });
 
 $('bCancelar').addEventListener('click', () => {
@@ -299,6 +332,7 @@ async function cargarListado() {
         <td class="num">${t.unidades ?? 0}</td>
         <td class="num" id="fis_${esc(r.id)}">—</td>
         <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}"></i></div></td>
+        <td><button class="b-sec" data-anadir="${esc(r.id)}">+ Lista</button></td>
         <td><a href="/validar.html?r=${encodeURIComponent(r.id)}">
           <button class="b-primario">Validar →</button></a></td></tr>`;
     }).join('');

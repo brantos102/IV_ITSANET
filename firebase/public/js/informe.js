@@ -62,7 +62,9 @@ export async function reunirInforme(recepcionId, recepcion) {
     leerColeccion(recepcionId, 'auditoria').catch(() => []),
   ]);
 
-  lineas.sort((a, b) => aNumero(a.linea) - aNumero(b.linea));
+  // Orden global estable: primero por el orden de carga, y dentro de cada lista
+  // por su número de línea original.
+  lineas.sort((a, b) => aNumero(a.orden, a.linea) - aNumero(b.orden, b.linea));
 
   const porSku = {};
   const palletsPorSku = {};
@@ -142,18 +144,39 @@ export async function reunirInforme(recepcionId, recepcion) {
     };
   }).filter((a) => a.fisica !== 0 || a.motivo);
 
-  return { recepcion, detalle, adicionales: adicionalesDetalle, eventos, skus, auditoria };
+  /**
+   * Una entrada por packing list, con SUS líneas.
+   *
+   * Consolidar varias listas en una validación ahorra recorrer el almacén dos
+   * veces, pero el informe tiene que respetar cada lista como llegó: si una
+   * trajo 22 filas y la otra 7, salen 22 y 7, nunca 29 mezcladas. Quien recibe
+   * cada archivo espera el suyo.
+   */
+  const origenes = [...new Set(detalle.map((l) => l.origen || 'PRINCIPAL'))];
+  const porOrigen = origenes.map((origen) => ({
+    origen,
+    detalle: detalle.filter((l) => (l.origen || 'PRINCIPAL') === origen),
+  }));
+
+  return {
+    recepcion, detalle, porOrigen,
+    adicionales: adicionalesDetalle, eventos, skus, auditoria,
+  };
 }
 
-/** Construye el .xlsx y lo devuelve en base64, listo para el correo. */
-export function construirLibro({ recepcion, detalle, adicionales, eventos, auditoria }) {
-  if (typeof XLSX === 'undefined') {
-    throw new Error('No se cargó la librería de Excel. Recarga la página.');
-  }
-  const libro = XLSX.utils.book_new();
+/** Excel limita el nombre de hoja a 31 caracteres y prohíbe : \ / ? * [ ] */
+export function nombreDeHoja(origen) {
+  return String(origen || 'LISTA').replace(/[:\\/?*[\]]/g, '-').slice(0, 31);
+}
 
-  // --- Hoja 1: el packing list, misma cantidad de filas que el original --- //
-  const validada = detalle.map((l) => ({
+/**
+ * La hoja de una lista: sus filas, en su orden, con las columnas añadidas.
+ *
+ * Nunca añade ni quita filas. Es la regla que más fácil se rompe sin darse
+ * cuenta, y por eso vive en un solo sitio.
+ */
+function hojaValidada(filas) {
+  const datos = filas.map((l) => ({
     'ITEM': l.sku,
     'DESCRIPCION': l.descripcion || '',
     'REFERENCIA PEDIDO': l.referencia || '',
@@ -169,15 +192,35 @@ export function construirLibro({ recepcion, detalle, adicionales, eventos, audit
     'ESTADO MERCADERIA': l.pnc || 'BUENO',
     'OBSERVACION': l.observacion,
   }));
-  const h1 = XLSX.utils.json_to_sheet(validada);
-  h1['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+
+  const hoja = XLSX.utils.json_to_sheet(datos);
+  hoja['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
     { wch: 10 }, { wch: 14 }, { wch: 11 }, { wch: 13 }, { wch: 22 }, { wch: 24 },
     { wch: 30 }, { wch: 17 }, { wch: 38 }];
-  h1['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
-    e: { r: validada.length, c: 13 } }) };
-  XLSX.utils.book_append_sheet(libro, h1, 'VALIDADA');
+  hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
+    e: { r: datos.length, c: 13 } }) };
+  return hoja;
+}
 
-  // --- Hoja 2: adicionales, aparte para no alterar el conteo de filas --- //
+/** Construye el .xlsx y lo devuelve en base64, listo para el correo. */
+export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
+                                 eventos, auditoria }) {
+  if (typeof XLSX === 'undefined') {
+    throw new Error('No se cargó la librería de Excel. Recarga la página.');
+  }
+  const libro = XLSX.utils.book_new();
+
+  // --- Una hoja por packing list, cada una con SUS filas --- //
+  const listas = (porOrigen && porOrigen.length)
+    ? porOrigen
+    : [{ origen: 'VALIDADA', detalle }];
+
+  for (const lista of listas) {
+    const nombre = listas.length === 1 ? 'VALIDADA' : nombreDeHoja(lista.origen);
+    XLSX.utils.book_append_sheet(libro, hojaValidada(lista.detalle), nombre);
+  }
+
+  // --- Adicionales, aparte para no alterar el conteo de filas --- //
   const h2 = XLSX.utils.json_to_sheet(adicionales.length ? adicionales.map((a) => ({
     'ITEM': a.sku,
     'DESCRIPCION': a.descripcion,

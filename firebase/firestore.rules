@@ -190,6 +190,8 @@ service cloud.firestore {
        * Solo ese salto, y solo desde ABIERTA: no puede cerrarla, reabrirla, ni
        * tocar nada más del documento.
        */
+      // Cerrar, reabrir y consolidar otra lista son del supervisor. Reabrir no
+      // borra nada: el cierre anterior queda en la auditoría.
       allow update: if esSupervisor()
                  || (activo()
                      && resource.data.estado == 'ABIERTA'
@@ -203,6 +205,8 @@ service cloud.firestore {
       // son la versión del sistema contra la que se compara.
       match /lineas/{lineaId} {
         allow read: if activo();
+        // Se crean al importar, y una recepción puede consolidar varias listas,
+        // así que el id lleva el origen delante y cada línea nace una sola vez.
         allow create: if esSupervisor();
         allow update, delete: if false;
       }

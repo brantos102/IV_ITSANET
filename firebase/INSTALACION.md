@@ -1043,6 +1043,46 @@ Cinco unidades en el pallet B04, dos directas a la posición A-01-03-2.
 > siete tamaños distintos, porque es la regla que más fácil se rompe sin darse
 > cuenta.
 
+### 9.2.sexies Consolidar varios packing lists
+
+Dos embarques cortos el mismo día, o uno que llega partido: validarlos por
+separado obliga a recorrer el almacén dos veces para la misma mercadería.
+
+Desde el listado, **+ Lista** añade otro packing list a una recepción que ya
+existe. Cada lista lleva su nombre (`RB48529`), y **el informe entrega una hoja
+por lista, con sus propias filas**: si una trajo 22 y la otra 7, salen 22 y 7,
+nunca 29 mezcladas. Quien recibe cada archivo espera el suyo.
+
+El conteo sí es común —se cuenta una vez, contra la suma de lo declarado— y por
+eso el operario no tiene que saber de qué lista salió cada pieza.
+
+> **Cuando una referencia está en las dos listas**, la app avisa al cargar la
+> segunda. Repartir después lo contado entre una lista y otra es una
+> **convención, no un hecho**: el operario no dice de qué embarque salió cada
+> unidad. La app llena primero las líneas de la primera lista y lo que sobre lo
+> imputa a la última.
+>
+> Si de esa atribución depende una reclamación a un proveedor concreto,
+> **valida esas listas por separado**. La consolidación ahorra recorridos, no
+> sustituye a tener los datos bien separados cuando importan.
+
+### 9.2.septies Exportar sin cerrar, y reabrir
+
+Una validación de 300 líneas dura dos turnos. **Exportar ahora** descarga el
+estado actual sin cerrar nada, para enseñar cómo va sin tener que elegir entre
+informar y seguir trabajando. El archivo queda marcado como avance y la
+exportación se registra en la auditoría igual que cualquier otra.
+
+**Reabrir** devuelve a EN_VALIDACIÓN una recepción cerrada. Cerrar por error, o
+descubrir al día siguiente que faltó un pallet, pasa; la alternativa —crear otra
+recepción con el mismo packing list— parte el historial en dos y deja dos
+informes del mismo embarque. No borra nada: los conteos siguen donde estaban, y
+el cierre anterior y el motivo de la reapertura quedan en la auditoría.
+
+Las dos son del supervisor. El operario entra y sale de las recepciones en curso
+cuantas veces quiera —contar es su trabajo y no bloquea a nadie—, pero no cierra
+ni reabre.
+
 ### 9.3 Código que no existe (paso 8)
 
 Sale un modal con:
@@ -1330,7 +1370,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**206 pruebas automáticas** en verde, con un solo comando:
+**208 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto
