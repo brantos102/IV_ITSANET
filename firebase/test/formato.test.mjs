@@ -198,4 +198,66 @@ for (const nombre of archivos) {
   });
 }
 
+// ============ Dos packing lists, dos hojas ============================== //
+// Si se validan dos listas en una recepcion, el informe tiene que entregar las
+// dos. Exportar solo la primera deja la mitad del trabajo sin reportar, y no se
+// nota hasta que alguien busca el otro archivo.
+{
+  const uno = fs.readFileSync(path.join(MUESTRAS, archivos[0]));
+  const dos = fs.readFileSync(path.join(MUESTRAS, archivos[archivos.length - 1]));
+  const a = datos.leerPackingList(new Uint8Array(uno).buffer);
+  const b = datos.leerPackingList(new Uint8Array(dos).buffer);
+
+  const prep = (leido, origen) => leido.lineas.slice(0, 12).map((l) => ({
+    ...l, origen, fisica: l.cantidad, diferencia: 0, estado: 'OK',
+    palletsSimple: 'A1', pallets: 'A1(1)', observacion: '',
+    destino: '', pnc: '', posicionReal: '',
+  }));
+
+  const dA = prep(a, 'PL-A');
+  const dB = prep(b, 'PL-B');
+
+  await test('dos listas consolidadas producen dos hojas, con sus filas', () => {
+    const libro = informe.construirLibro({
+      recepcion: { codigo: 'REC-2', formatos: {} },
+      detalle: [...dA, ...dB],
+      porOrigen: [
+        { origen: 'PL-A', formato: { encabezados: a.encabezados, columnas: a.columnas },
+          detalle: dA },
+        { origen: 'PL-B', formato: { encabezados: b.encabezados, columnas: b.columnas },
+          detalle: dB },
+      ],
+      adicionales: [], eventos: [], auditoria: [],
+    }, { version: 'envio' });
+
+    const leidoLibro = XLSX.read(libro.base64, { type: 'base64' });
+    eq(leidoLibro.SheetNames, ['PL-A', 'PL-B'], 'una hoja por lista');
+
+    const filasA = XLSX.utils.sheet_to_json(leidoLibro.Sheets['PL-A'], { header: 1, defval: '' });
+    const filasB = XLSX.utils.sheet_to_json(leidoLibro.Sheets['PL-B'], { header: 1, defval: '' });
+    eq(filasA.length - 1, dA.length, 'PL-A entrega sus filas');
+    eq(filasB.length - 1, dB.length, 'PL-B entrega las suyas');
+    eq(filasA[0], a.encabezados, 'y cada una con SU cabecera');
+    eq(filasB[0], b.encabezados);
+  });
+
+  // Una lista cargada antes de que se guardara el formato original no puede
+  // desaparecer del informe: sale con las columnas propias.
+  await test('una lista sin formato guardado sigue saliendo', () => {
+    const libro = informe.construirLibro({
+      recepcion: { codigo: 'REC-3', formatos: {} },
+      detalle: [...dA, ...dB],
+      porOrigen: [
+        { origen: 'PL-A', formato: { encabezados: a.encabezados, columnas: a.columnas },
+          detalle: dA },
+        { origen: 'PL-B', formato: null, detalle: dB },
+      ],
+      adicionales: [], eventos: [], auditoria: [],
+    }, { version: 'envio' });
+
+    const nombres = XLSX.read(libro.base64, { type: 'base64' }).SheetNames;
+    eq(nombres, ['PL-A', 'PL-B'], 'las dos, aunque una no tenga formato');
+  });
+}
+
 resumen();

@@ -402,6 +402,13 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
       unidades: aNumero(yaHabia.unidades, 0) + resultado.unidades,
     },
     origenes: [...origenes, origen],
+    // Cuántas líneas trajo cada lista. Sin esto, que una consolidación haya
+    // salido mal —una lista que piso a la otra, una que no llegó a guardarse—
+    // no se nota hasta que falta media hoja en el informe.
+    lineasPorOrigen: {
+      ...(previo.lineasPorOrigen || {}),
+      [claveMapa(origen)]: resultado.lineas.length,
+    },
     // La cabecera original de cada lista, para devolver el archivo igual.
     formatos: {
       ...(previo.formatos || {}),

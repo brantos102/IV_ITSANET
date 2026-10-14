@@ -426,7 +426,10 @@ function pintarListado() {
       const vacia = !(t.lineas > 0);
 
       return `<tr${vacia ? ' style="background:rgba(245,158,11,.06)"' : ''}>
-        <td class="id">${esc(r.codigo)}<br><span class="mini">${esc(r.cliente || '')}</span></td>
+        <td class="id">${esc(r.codigo)}<br><span class="mini">${
+          [r.cliente, (r.origenes || []).length > 1
+            ? `${r.origenes.length} listas: ${r.origenes.join(' · ')}`
+            : (r.origenes || [])[0]].filter(Boolean).join(' — ')}</span></td>
         <td><span class="pastilla ${vacia ? 'p-warn' : clase}">
           ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
         <td class="num">${t.skus ?? 0}</td>

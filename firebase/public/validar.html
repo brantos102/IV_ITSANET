@@ -19,6 +19,7 @@
   <div>
     <div class="marca">ITSANET <span>IMS</span></div>
     <div class="sub" id="lblRecepcion">—</div>
+    <div class="mini" id="lblListas"></div>
   </div>
   <div class="sp"></div>
   <div class="usuario" id="uUsuario"></div>
@@ -93,6 +94,7 @@
        varias y este producto está en más de una: en cualquier otro caso no hay
        nada que decidir y preguntarlo solo estorba. -->
   <div id="fOrigenCaja" class="oculto" style="margin-bottom:14px">
+    <div id="fOrigenNota"></div>
     <label class="campo">
       <span>¿De qué packing list es esta cantidad? *</span>
       <select id="fOrigen"></select>
@@ -286,6 +288,7 @@ observarSesion(async (e) => {
     recepcion = await obtenerRecepcion(RECEPCION);
     $('lblRecepcion').textContent = recepcion.codigo;
     document.title = recepcion.codigo + ' — Validación';
+    pintarListas();
     aplicarEstado();
   } catch (err) {
     aviso(err.message, 'err');
@@ -317,6 +320,38 @@ observarSesion(async (e) => {
  * su trabajo y no bloquea a nadie. Cerrar, exportar y reabrir son del
  * supervisor, porque son las que dejan constancia hacia fuera.
  */
+/**
+ * Qué packing lists tiene esta recepción, y cuántas líneas trajo cada uno.
+ *
+ * Una consolidación que salió mal —una lista que no llegó a guardarse, o que
+ * piso a la anterior— no se nota hasta que falta media hoja en el informe
+ * final, con la recepción ya cerrada. Aquí se ve antes de empezar a contar.
+ */
+function pintarListas() {
+  const listas = recepcion?.origenes || [];
+  const porLista = decodificarPallets(recepcion?.lineasPorOrigen);
+  const totalLineas = recepcion?.totales?.lineas || 0;
+
+  if (!listas.length) {
+    $('lblListas').textContent = totalLineas ? `${totalLineas} líneas` : '';
+    return;
+  }
+
+  $('lblListas').innerHTML = listas.length === 1
+    ? `${esc(listas[0])} · ${porLista[listas[0]] ?? totalLineas} líneas`
+    : `<b>${listas.length} listas:</b> ` + listas.map((o) =>
+        `${esc(o)} (${porLista[o] ?? '?'})`).join(' · ') +
+      ` · ${totalLineas} líneas en total`;
+
+  // La suma de las partes tiene que dar el total. Si no da, algo se perdió.
+  const suma = listas.reduce((a, o) => a + (porLista[o] || 0), 0);
+  if (listas.length > 1 && suma && suma !== totalLineas) {
+    aviso(`Las listas suman ${suma} líneas pero la recepción tiene ${totalLineas}. ` +
+          'Algo se perdió al consolidar: revisa el informe antes de cerrar.',
+          'warn', 'Las cuentas no cuadran');
+  }
+}
+
 function aplicarEstado() {
   const manda = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
   const cerrada = recepcion.estado === 'CERRADA';
@@ -601,12 +636,10 @@ function refrescarFicha(s) {
   } else {
     $('fUbicaciones').classList.add('oculto');
     $('fChips').innerHTML = '';
-    // Sin ubicación propia todavía: se propone la que más tiene en Depot.
-    const mejor = (actual?.producto?.posiciones || [])
-      .filter((u) => u.posicion)
-      .sort((a, b) => (b.stock || 0) - (a.stock || 0))[0];
-    if (!$('fPallet').value && mejor) $('fPallet').value = '';
-    if (!$('fPallet').value) $('fPallet').value = ultimoPallet;
+    // El pallet NO se rellena solo, ni aquí ni arriba. Me había quedado esta
+    // línea del comportamiento anterior, y como `escucharSkus` vuelve a pintar
+    // la ficha con cada conteo de cualquier operario, el campo se rellenaba
+    // solo mientras el de al lado estaba escribiendo otro pallet.
   }
 }
 
@@ -622,47 +655,45 @@ function refrescarFicha(s) {
  */
 function pintarOrigen(s) {
   const caja = $('fOrigenCaja');
+  const sel = $('fOrigen');
+  const nota = $('fOrigenNota');
   const listas = s.origenes || [];
   const contado = porOrigenDe(s);
+  const declarado = decodificarPallets(s.esperadoPorOrigen);
 
-  if (listas.length < 2) {
-    // Con una sola lista no hay nada que elegir, pero sí que saber: en una
-    // recepción consolidada, de qué packing list sale este producto es parte de
-    // su identidad. Se muestra, sin pedir nada.
-    const unica = listas[0];
-    $('fOrigen').innerHTML = unica
-      ? `<option value="${esc(unica)}">${esc(unica)}</option>` : '';
-
-    const varias = (recepcion?.origenes || []).length > 1;
-    caja.classList.toggle('oculto', !varias || !unica);
-    if (varias && unica) {
-      caja.innerHTML = `<div class="msg info" style="margin:0">
-        <b>Packing list</b>Este producto solo está en <b>${esc(unica)}</b>
-        ${contado[unica] ? ` · lleva ${contado[unica]} contadas` : ''}.</div>
-        <select id="fOrigen" class="oculto">
-          <option value="${esc(unica)}" selected>${esc(unica)}</option></select>`;
-    }
+  if (!listas.length) {
+    caja.classList.add('oculto');
+    sel.innerHTML = '';
     return;
   }
 
-  // Volver al selector si antes se había dejado como aviso.
-  if (!caja.querySelector('select:not(.oculto)')) {
-    caja.innerHTML = `<label class="campo">
-      <span>¿De qué packing list es esta cantidad? *</span>
-      <select id="fOrigen"></select></label>`;
+  // Con una sola lista no hay nada que elegir, pero sí que saber: en una
+  // recepción consolidada, de qué packing list sale este producto es parte de
+  // su identidad. Se dice, sin pedir nada.
+  if (listas.length === 1) {
+    const unica = listas[0];
+    sel.innerHTML = `<option value="${esc(unica)}" selected>${esc(unica)}</option>`;
+    sel.classList.add('oculto');
+    const varias = (recepcion?.origenes || []).length > 1;
+    caja.classList.toggle('oculto', !varias);
+    nota.innerHTML = varias
+      ? `<div class="msg info" style="margin:0"><b>Packing list</b>
+         Este producto solo está en <b>${esc(unica)}</b>${
+           contado[unica] ? ` · lleva ${contado[unica]} contadas` : ''}.</div>`
+      : '';
+    return;
   }
 
+  // En más de una: hay que elegir, y con el contexto delante.
   caja.classList.remove('oculto');
-  // Cada opción dice cuánto declara esa lista y cuánto lleva imputado: sin eso
-  // la elección es a ciegas.
-  const porLista = decodificarPallets(s.esperadoPorOrigen);
-  $('fOrigen').innerHTML = '<option value="">— elige la lista —</option>' +
+  sel.classList.remove('oculto');
+  nota.innerHTML = '';
+  sel.innerHTML = '<option value="">— elige la lista —</option>' +
     listas.map((o) => {
       const ya = contado[o] || 0;
-      const dec = porLista[o];
+      const dec = declarado[o];
       return `<option value="${esc(o)}">${esc(o)}` +
-        (dec != null ? ` · declara ${dec}` : '') +
-        ` · lleva ${ya}</option>`;
+        (dec != null ? ` · declara ${dec}` : '') + ` · lleva ${ya}</option>`;
     }).join('');
 }
 
