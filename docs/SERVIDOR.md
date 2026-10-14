@@ -60,7 +60,9 @@ libro mayor y una prueba comprueba que no discrepaban.
 ```bash
 cd ~/bryan/IV_ITSANET
 set -a && . /etc/iv-itsanet.env && set +a
-.venv/bin/python scripts/crear_operador.py        # pregunta usuario, nombre y rol
+.venv/bin/python scripts/crear_operador.py dochoa "Danny Ochoa" 482133 \
+  --email dochoa@itsanet.com
+.venv/bin/python scripts/crear_operador.py bespinoza "Bryan Espinoza" 918244 --rol ADMIN
 ```
 
 O importando lo que ya hay en Firestore:

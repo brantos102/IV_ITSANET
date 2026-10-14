@@ -2,6 +2,7 @@
 """Crea o actualiza un operador.
 
     python scripts/crear_operador.py juan "Juan Perez" 4821 --rol OPERADOR
+    python scripts/crear_operador.py juan "Juan Perez" 4821 --email juan@itsanet.com
 """
 from __future__ import annotations
 
@@ -24,6 +25,9 @@ def main() -> int:
     p.add_argument("nombre")
     p.add_argument("pin")
     p.add_argument("--rol", default="OPERADOR", choices=[r.value for r in Rol])
+    # Con que queda firmado lo que hace. Sale en la bitacora y en el informe; sin
+    # el, firma con su usuario, que se lee peor seis meses despues.
+    p.add_argument("--email", default=None, help="correo con el que firma sus conteos")
     args = p.parse_args()
 
     init_db()
@@ -34,9 +38,12 @@ def main() -> int:
         ).scalar_one_or_none()
         if op:
             op.nombre, op.pin_hash, op.rol = args.nombre, hash_pin(args.pin), Rol(args.rol)
+            if args.email:
+                op.email = args.email.strip().lower()
             accion = "actualizado"
         else:
             db.add(Operador(usuario=usuario, nombre=args.nombre,
+                            email=(args.email or "").strip().lower() or None,
                             pin_hash=hash_pin(args.pin), rol=Rol(args.rol)))
             accion = "creado"
         db.commit()
