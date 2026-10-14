@@ -34,12 +34,30 @@ SECRET_KEY = os.getenv("VAL_SECRET_KEY", "cambiar-esta-clave-en-produccion")
 SESSION_HOURS = int(os.getenv("VAL_SESSION_HOURS", "12"))
 
 # --- Integracion sistema Depot -------------------------------------------------
-DEPOT_BASE_URL = os.getenv("DEPOT_BASE_URL", "").rstrip("/")
-DEPOT_TOKEN = os.getenv("DEPOT_TOKEN", "")
-DEPOT_CLIENTE = os.getenv("DEPOT_CLIENTE", "VENTURA")
+# El WMS no usa una clave fija: se piden credenciales en /gettoken y devuelve
+# un token con vencimiento, que es el que viaja en las demas llamadas. Es el
+# mismo protocolo que ya habla el proxy de Apps Script en produccion, con los
+# mismos nombres de propiedad, para que las credenciales de un sitio valgan
+# en el otro sin traducir nada.
+#
+# Las credenciales NO viven en el codigo ni en el archivo del servicio: van en
+# /etc/iv-itsanet.env, que solo lee root. Ver scripts/servicio.sh.
+DEPOT_BASE_URL = os.getenv("DEPOT_BASE_URL", "https://ec.itsanet.com/q_apidepot").rstrip("/")
+DEPOT_USUARIO = os.getenv("DEPOT_USUARIO", "")
+DEPOT_CLAVE = os.getenv("DEPOT_CLAVE", "")
+DEPOT_CLIENTE = os.getenv("DEPOT_CLIENTE", "")
+DEPOT_RUTA_TOKEN = os.getenv("DEPOT_RUTA_TOKEN", "/gettoken")
+DEPOT_RUTA_STOCK = os.getenv("DEPOT_RUTA_STOCK", "/getstock")
+DEPOT_CABECERA_TOKEN = os.getenv("DEPOT_CABECERA_TOKEN", "token")
+DEPOT_TTL_HORAS = float(os.getenv("DEPOT_TTL_HORAS", "12"))
 DEPOT_TIMEOUT = float(os.getenv("DEPOT_TIMEOUT", "6"))
+# El maestro completo tarda; una vez al dia es de sobra para un catalogo que
+# cambia cuando se crea un producto nuevo.
 DEPOT_CACHE_TTL = int(os.getenv("DEPOT_CACHE_TTL", "86400"))  # segundos
-DEPOT_ENABLED = bool(DEPOT_BASE_URL)
+# Sin credenciales no hay API: se trabaja contra el espejo local, que es lo que
+# ha estado pasando hasta ahora y no puede dejar de funcionar.
+DEPOT_ENABLED = bool(DEPOT_BASE_URL and DEPOT_USUARIO and DEPOT_CLAVE)
+DEPOT_TOKEN = os.getenv("DEPOT_TOKEN", "")   # token fijo, si algun dia lo hubiera
 
 # --- Reglas de negocio (flujo de validacion fisica) ---------------------------
 # Regla del diagrama: "No caracteres especiales" en las celdas exportadas.

@@ -74,7 +74,30 @@ echo
 echo "── Archivo de entorno (solo root puede leerlo)"
 sudo install -m 600 /dev/null "$ENTORNO" || morir "No se pudo crear $ENTORNO"
 printf 'VAL_DATABASE_URL=%s\n' "$VAL_DATABASE_URL" | sudo tee "$ENTORNO" >/dev/null
+
+# Las credenciales del WMS, si estan definidas en esta terminal, se guardan aqui
+# mismo: es el unico sitio del servidor que solo lee root. Si no estan, el
+# servicio arranca igual y trabaja contra el espejo local; se pueden anadir
+# despues editando este archivo y reiniciando.
+PUESTAS=0
+for V in DEPOT_BASE_URL DEPOT_USUARIO DEPOT_CLAVE DEPOT_CLIENTE \
+         DEPOT_RUTA_TOKEN DEPOT_RUTA_STOCK DEPOT_CABECERA_TOKEN; do
+  eval "VALOR=\${$V:-}"
+  if [ -n "$VALOR" ]; then
+    printf '%s=%s\n' "$V" "$VALOR" | sudo tee -a "$ENTORNO" >/dev/null
+    PUESTAS=$((PUESTAS + 1))
+  fi
+done
 echo "   ✓ $ENTORNO"
+if [ "$PUESTAS" -gt 0 ]; then
+  echo "   ✓ $PUESTAS variable(s) de Depot guardadas (la clave no se imprime)"
+else
+  echo "   · sin credenciales de Depot: el maestro se carga por Excel."
+  echo "     Para la API, anade a $ENTORNO:"
+  echo "       DEPOT_BASE_URL=https://ec.itsanet.com/q_apidepot"
+  echo "       DEPOT_USUARIO=...   DEPOT_CLAVE=..."
+  echo "     y despues: sudo systemctl restart ${SERVICIO}"
+fi
 
 echo
 echo "── Archivo del servicio"

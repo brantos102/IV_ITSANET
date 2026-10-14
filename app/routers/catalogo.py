@@ -103,3 +103,58 @@ def _upsert(db: Session, registros: list[dict]) -> None:
     if viejos:
         db.bulk_update_mappings(Producto, viejos)
     db.flush()
+
+
+# --------------------------------------------------------------------------- #
+# Depot: el maestro directo del WMS, sin pasar por un Excel
+# --------------------------------------------------------------------------- #
+@router.get("/depot/probar")
+def probar_depot(_: Operador = Depends(requiere_supervisor)):
+    """¿Valen las credenciales? Pide solo el token, no baja el inventario.
+
+    Es la primera cosa que hay que poder contestar al instalar en un servidor
+    nuevo, y la única que distingue tres cosas que desde fuera se parecen: que
+    no haya credenciales puestas, que estén mal, y que el WMS no conteste.
+    """
+    api = depot_svc.DepotAPI()
+    if not api.configurada:
+        return {"ok": False, "motivo": "SIN CREDENCIALES",
+                "detalle": "Faltan DEPOT_USUARIO y DEPOT_CLAVE en /etc/iv-itsanet.env"}
+    try:
+        token = api.token(forzar=True)
+    except depot_svc.DepotRechazado as exc:
+        return {"ok": False, "motivo": "CREDENCIALES RECHAZADAS", "detalle": str(exc)}
+    except depot_svc.DepotNoDisponible as exc:
+        return {"ok": False, "motivo": "WMS NO RESPONDE", "detalle": str(exc)}
+    # El token no se devuelve nunca: con él se consulta el inventario entero.
+    return {"ok": True, "motivo": "TOKEN OBTENIDO", "largo_token": len(token),
+            "base_url": api.base_url}
+
+
+@router.post("/depot/sincronizar")
+def sincronizar_depot(
+    cliente: str | None = None,
+    db: Session = Depends(get_db),
+    _: Operador = Depends(requiere_supervisor),
+):
+    """Baja el maestro de productos desde Depot y actualiza el espejo local.
+
+    Lo que antes exigía exportar un Excel del WMS y subirlo a mano. El Excel
+    sigue valiendo —no se quita nada— pero ya no es el único camino.
+    """
+    try:
+        return depot_svc.sincronizar_maestro(db, cliente=cliente)
+    except depot_svc.DepotRechazado as exc:
+        raise HTTPException(502, f"Depot rechazó las credenciales: {exc}") from exc
+    except depot_svc.DepotNoDisponible as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@router.get("/depot/clientes")
+def clientes_depot(db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    """De qué clientes hay data en el espejo, y de cuándo.
+
+    Con una sola credencial el WMS puede devolver varios clientes. Esto no lo
+    adivina: cuenta lo que vino.
+    """
+    return {"clientes": depot_svc.clientes_en_espejo(db)}
