@@ -124,6 +124,31 @@ for (const f of fs.readdirSync(RAIZ)) {
     }
   });
 
+  // Un <form> sin manejador de «submit» es una trampa silenciosa: el botón de
+  // enviar y la tecla «Ir» del teclado del móvil hacen que el navegador envíe
+  // el formulario DE VERDAD. La página se recarga y, si los campos no llevan
+  // «name», la dirección se queda sin sus parámetros. Así se perdía el «?r=»
+  // de la recepción a mitad de una validación, y solo en el móvil, que es
+  // donde se toca el botón en vez de pulsar Intro.
+  const sinComentarios = html.replace(/<!--[\s\S]*?-->/g, '');
+  for (const m of sinComentarios.matchAll(/<form\b([^>]*)>/g)) {
+    const id = (m[1].match(/\sid="([^"]+)"/) || [])[1];
+    if (!id) {
+      malo(`${f}: hay un <form> sin id; no se le puede enganchar el submit`);
+      continue;
+    }
+    const engancha = new RegExp(
+      `\\$\\(\\s*['"]${id}['"]\\s*\\)\\.addEventListener\\(\\s*['"]submit['"]`);
+    const guion = guiones.find((g) => engancha.test(g));
+    if (!guion) {
+      malo(`${f}: el <form id="${id}"> no escucha «submit»; al enviarlo el `
+         + `navegador recarga la página y se pierden los parámetros de la URL`);
+    } else if (!/preventDefault/.test(guion.slice(guion.search(engancha),
+                                                  guion.search(engancha) + 400))) {
+      malo(`${f}: el submit de <form id="${id}"> no llama a preventDefault()`);
+    }
+  }
+
   // Los <script> sueltos solo llevan el registro del service worker. Si crece,
   // es que se coló ahí código del módulo: ese script no ve $ ni esc, y revienta
   // en tiempo de ejecución con un ReferenceError que no aparece en ninguna

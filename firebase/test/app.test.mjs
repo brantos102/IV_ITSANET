@@ -634,4 +634,133 @@ await test('sin lista, el panel los trae todos', () => {
   ok(h.includes('Declarado') && h.includes('PNC') && h.includes('Pallet'));
 });
 
+// =============== Packing lists duplicados =============================== //
+// El mismo archivo llega dos veces con nombres distintos y se valida dos veces:
+// el trabajo se duplica y los informes se contradicen.
+const huella = await cargar('huella.js');
+
+const pl = (lineas, unidades) => ({
+  lineas: lineas.map(([sku, cantidad], i) => ({ linea: i + 1, sku, cantidad })),
+  porSku: Object.fromEntries(lineas.map(([sku, c]) => [sku, c])),
+  unidades: unidades ?? lineas.reduce((a, [, c]) => a + c, 0),
+});
+
+await test('la huella no cambia si el archivo se renombra', () => {
+  const a = huella.resumenDe(pl([['X', 5], ['Y', 3]]), 'VW-29-06.xlsx');
+  const b = huella.resumenDe(pl([['X', 5], ['Y', 3]]), 'copia de VW (2).xlsx');
+  eq(a.huella, b.huella);
+  eq(huella.comparar(a, b).nivel, 'identico');
+});
+
+await test('la huella no cambia si las filas vienen en otro orden', () => {
+  const a = huella.huellaDe(pl([['X', 5], ['Y', 3]]));
+  const b = huella.huellaDe(pl([['Y', 3], ['X', 5]]));
+  eq(a, b, 'dos exportaciones del mismo pedido pueden ordenar distinto');
+});
+
+await test('cambiar una cantidad cambia la huella', () => {
+  const a = huella.huellaDe(pl([['X', 5], ['Y', 3]]));
+  const b = huella.huellaDe(pl([['X', 6], ['Y', 3]]));
+  ok(a !== b, 'no puede dar lo mismo: no es el mismo pedido');
+});
+
+await test('cambiar un producto cambia la huella', () => {
+  ok(huella.huellaDe(pl([['X', 5]])) !== huella.huellaDe(pl([['Z', 5]])));
+});
+
+await test('mismas cifras pero distinto contenido es «probable», no «idéntico»', () => {
+  // Mismas líneas, mismos productos, mismas unidades, pero repartidas distinto.
+  const a = huella.resumenDe(pl([['X', 5], ['Y', 3]]), 'a.xlsx');
+  const b = huella.resumenDe(pl([['X', 3], ['Y', 5]]), 'b.xlsx');
+  const r = huella.comparar(a, b);
+  eq(r.nivel, 'probable');
+  ok(r.motivos.length >= 3, r.motivos.join(', '));
+});
+
+await test('el mismo nombre de archivo basta para pedir que lo revisen', () => {
+  const a = huella.resumenDe(pl([['X', 5]]), 'GAC-01-06.xlsx');
+  const b = huella.resumenDe(pl([['A', 1], ['B', 2], ['C', 3]]), 'GAC-01-06 (1).xlsx');
+  eq(huella.comparar(a, b).nivel, 'revisar');
+});
+
+await test('dos packing lists de verdad distintos no se parecen', () => {
+  const a = huella.resumenDe(pl([['X', 5], ['Y', 3]]), 'uno.xlsx');
+  const b = huella.resumenDe(pl([['A', 1], ['B', 2], ['C', 9], ['D', 4]]), 'otro.xlsx');
+  eq(huella.comparar(a, b).nivel, 'distinto');
+});
+
+await test('nombreLimpio quita la extensión y el «(2)» de las descargas', () => {
+  eq(huella.nombreLimpio('VW-29-06-2026.xlsx'), 'VW-29-06-2026');
+  eq(huella.nombreLimpio('VW-29-06-2026 (2).xlsx'), 'VW-29-06-2026');
+  eq(huella.nombreLimpio('lista.XLSM'), 'LISTA');
+  eq(huella.nombreLimpio(''), '');
+  eq(huella.nombreLimpio(null), '');
+});
+
+await test('comparar aguanta que falte uno de los dos', () => {
+  eq(huella.comparar(null, {}).nivel, 'distinto');
+  eq(huella.comparar({}, null).nivel, 'distinto');
+});
+
+// =============== Sugerir códigos parecidos ============================== //
+// REC0260002 y REC026002 son recepciones distintas a un dígito de distancia.
+const sug = await cargar('sugerir.js');
+
+await test('normalizar ignora guiones, espacios y mayúsculas', () => {
+  eq(sug.normalizar('rec-026 002'), 'REC026002');
+  eq(sug.normalizar(null), '');
+});
+
+await test('la distancia cuenta el dígito de más', () => {
+  eq(sug.distancia('REC026002', 'REC0260002'), 1);
+  eq(sug.distancia('ABC', 'ABC'), 0);
+  eq(sug.distancia('', 'ABC'), 3);
+  eq(sug.distancia('ABC', ''), 3);
+});
+
+await test('lo que se va tecleando encuentra el código entero', () => {
+  const codigos = ['REC0260002', 'REC0260004', 'GYL20261013'];
+  eq(sug.parecidos('REC026', codigos)[0], 'REC0260002');
+  eq(sug.parecidos('gyl', codigos).length, 1);
+});
+
+await test('un dígito mal escrito sigue encontrando el código', () => {
+  const codigos = ['REC0260002', 'GYL20261013'];
+  const cerca = sug.parecidos('REC026002', codigos, { minimo: 0.5 });
+  eq(cerca[0], 'REC0260002', 'un dígito de más no puede dar «sin resultados»');
+});
+
+await test('el código exacto manda sobre el que solo empieza igual', () => {
+  const codigos = ['REC0260002', 'REC026'];
+  eq(sug.parecidos('REC026', codigos)[0], 'REC026');
+});
+
+await test('sin texto devuelve los primeros, no nada', () => {
+  eq(sug.parecidos('', ['A', 'B', 'C'], { max: 2 }).length, 2,
+     'un campo recién abierto enseña lo que hay');
+});
+
+await test('busca dentro de objetos y los devuelve enteros', () => {
+  // Lo que se busca es la recepción, no su código: hay que poder abrirla.
+  const recs = [{ id: '1', codigo: 'REC0260002' }, { id: '2', codigo: 'GYL2026' }];
+  const r = sug.parecidos('REC026', recs, { clave: (x) => x.codigo });
+  eq(r.length, 1);
+  eq(r[0].id, '1');
+  eq(r[0].codigo, 'REC0260002');
+});
+
+await test('no sugiere nada cuando lo escrito ya existe tal cual', () => {
+  eq(sug.avisoDeParecidos('REC0260002', ['REC0260002', 'REC0260004']), '');
+});
+
+await test('avisa del parecido cuando el código no existe', () => {
+  const t = sug.avisoDeParecidos('REC026002', ['REC0260002', 'GYL2026']);
+  ok(t.includes('REC0260002'), t);
+});
+
+await test('no inventa parecidos donde no los hay', () => {
+  eq(sug.avisoDeParecidos('ZZZZ999', ['REC0260002', 'GYL2026']), '');
+  eq(sug.avisoDeParecidos('', ['REC0260002']), '');
+});
+
 resumen();

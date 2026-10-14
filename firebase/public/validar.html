@@ -37,6 +37,23 @@
 
 <div id="avisos"></div>
 
+<!-- Si la dirección llega sin recepción, la pantalla no se queda muerta: se
+     elige aquí mismo. Escribiendo el código se va filtrando, y un dígito de
+     más o de menos sigue encontrándola: REC0260002 y REC026002 se parecen
+     demasiado para exigir que se escriba exacto. -->
+<div class="panel oculto" id="panelElegir">
+  <h3 style="margin:0 0 4px">¿Qué recepción vas a validar?</h3>
+  <p class="mini" style="margin:0 0 14px">
+    Escribe el código o parte de él. También puedes verlas todas en
+    <a href="/recepciones.html">Recepciones</a>.</p>
+  <label class="campo">
+    <span>Código de la recepción</span>
+    <input id="inElegir" class="escaner" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" placeholder="REC…">
+  </label>
+  <div id="listaElegir" style="margin-top:14px"></div>
+</div>
+
 <!-- Paso 1: escanear -->
 <div class="panel">
   <!-- Va dentro de un <form>: en el teclado del móvil, la tecla Intro solo
@@ -224,7 +241,7 @@
 <script type="module">
 import { observarSesion } from './js/auth.js';
 import {
-  obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion,
+  obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
 } from './js/datos.js';
@@ -236,6 +253,7 @@ import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/inf
 import { comprimir, tamanoLegible } from './js/imagen.js';
 import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js';
 import { conectarGlosario } from './js/glosario.js';
+import { parecidos } from './js/sugerir.js';
 import { Proxy } from './js/proxy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -286,6 +304,46 @@ conectarGlosario('bGlosario', 'glosario', [
   'pallet', 'posicionReal', 'pnc', 'adicional',
 ]);
 
+/**
+ * Sin recepción en la dirección: ofrecerlas en vez de mandar al operario de
+ * vuelta al listado. Pasaba a mitad de jornada, con el handheld en la mano.
+ */
+async function elegirRecepcion() {
+  $('panelElegir').classList.remove('oculto');
+  const caja = $('listaElegir');
+  caja.innerHTML = '<p class="mini">Buscando recepciones…</p>';
+
+  let todas = [];
+  try {
+    todas = (await listarRecepciones(80)).filter((r) => r.estado !== 'CERRADA');
+  } catch (err) {
+    caja.innerHTML = '';
+    aviso(err.message, 'err', 'No se pudo leer el listado');
+    return;
+  }
+  if (!todas.length) {
+    caja.innerHTML = '<p class="mini">No hay recepciones abiertas. '
+      + 'Crea una en <a href="/recepciones.html">Recepciones</a>.</p>';
+    return;
+  }
+
+  const pintar = () => {
+    const cerca = parecidos($('inElegir').value, todas, { max: 12, clave: (r) => r.codigo });
+    caja.innerHTML = cerca.length
+      ? `<table class="tabla"><tbody>${cerca.map((r) => `
+          <tr><td><a href="/validar.html?r=${encodeURIComponent(r.id)}"><b>${esc(r.codigo)}</b></a>
+              <div class="mini">${esc(r.cliente || '')} ${esc(r.descripcion || '')}</div></td>
+              <td><span class="pastilla ${{ ABIERTA: 'p-warn', EN_VALIDACION: 'p-ok' }[r.estado] || 'p-off'}">${
+                esc({ ABIERTA: 'Sin empezar', EN_VALIDACION: 'En validación' }[r.estado] || r.estado || '')
+              }</span></td></tr>`).join('')}
+         </tbody></table>`
+      : `<p class="mini">Ninguna recepción se parece a «${esc($('inElegir').value)}».</p>`;
+  };
+  $('inElegir').addEventListener('input', pintar);
+  pintar();
+  $('inElegir').focus();
+}
+
 // --- Arranque ------------------------------------------------------------- //
 observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
@@ -295,7 +353,7 @@ observarSesion(async (e) => {
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
 
   if (!RECEPCION) {
-    aviso('Falta indicar la recepción. Vuelve al listado y elige una.', 'err');
+    await elegirRecepcion();
     return;
   }
 
@@ -518,8 +576,15 @@ $('inCantidad').addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter') { ev.preventDefault(); $('inEscaner').focus(); }
 });
 
-$('inEscaner').addEventListener('keydown', (ev) => {
-  if (ev.key !== 'Enter') return;
+// El botón «Buscar», la pistola y la tecla «Ir» del teclado del móvil hacen lo
+// mismo: ENVIAR el formulario. Sin este manejador el navegador lo enviaba de
+// verdad, y como los campos no llevan «name» la dirección pasaba de
+// «validar.html?r=REC-0001» a «validar.html?»: la recepción desaparecía a mitad
+// de la validación y salía «Falta indicar la recepción». Pasaba sobre todo en
+// el móvil, donde se toca el botón en vez de pulsar Intro.
+//
+// El preventDefault no se quita nunca. Hay una prueba que lo vigila.
+$('formEscaner').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const v = $('inEscaner').value.trim();
   if (v) escanear(v);
