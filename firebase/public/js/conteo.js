@@ -14,6 +14,18 @@
  *
  * El id del evento ES la clave de idempotencia: un reintento escribe el mismo
  * documento, no uno nuevo, así que el doble disparo del lector no suma dos veces.
+ *
+ * NOTA SOBRE EL MAPA DE PALLETS
+ * -----------------------------
+ * Se escribe anidado —`{ pallets: { A1: increment(5) } }`— y no con una clave
+ * con punto. `set()` con `merge` usa las claves TAL CUAL: `'pallets.A1'` crea un
+ * campo que se llama literalmente «pallets.A1» en la raíz del documento, no una
+ * entrada dentro del mapa `pallets`. Solo `update()` interpreta el punto como
+ * separador de ruta.
+ *
+ * El síntoma era mudo: el conteo se guardaba bien, el total subía, y la columna
+ * de pallets salía vacía — con ella, la sugerencia de dónde está ya ese SKU,
+ * que es la mitad del trabajo de buscar algo en un almacén.
  */
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
@@ -179,7 +191,7 @@ export async function registrarConteo(recepcionId, usuario, p) {
       sku: d.sku,
       esperado,
       contado: increment(d.cantidad),
-      [`pallets.${clavePallet(d.pallet)}`]: increment(d.cantidad),
+      pallets: { [clavePallet(d.pallet)]: increment(d.cantidad) },
       estado: estadoDe(esperado, total, verificado),
       verificado,
       enPackingList: actual.enPackingList === true,
@@ -270,7 +282,7 @@ export async function anularConteo(recepcionId, usuario, eventoId, motivo) {
 
     tx.set(refSku, {
       contado: increment(-orig.cantidad),
-      [`pallets.${clavePallet(orig.pallet)}`]: increment(-orig.cantidad),
+      pallets: { [clavePallet(orig.pallet)]: increment(-orig.cantidad) },
       estado: estadoDe(esperado, total, verificado),
       verificado,
       actualizadoEn: serverTimestamp(),

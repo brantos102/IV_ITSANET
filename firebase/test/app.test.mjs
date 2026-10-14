@@ -347,4 +347,57 @@ await test('un SKU repartido entre pallet y posición no abre filas nuevas', () 
   eq(r[0].fisica, 7, 'con el total, venga de donde venga');
 });
 
+// ================ Cómo se escribe el conteo ============================== //
+// `set()` con `merge` usa las claves TAL CUAL: 'pallets.A1' crea un campo que se
+// llama literalmente «pallets.A1» en la raíz, no una entrada dentro del mapa.
+// Solo `update()` interpreta el punto como separador. El síntoma era mudo: el
+// total subía y la columna de pallets salía vacía — y con ella la sugerencia de
+// dónde está ya ese SKU, que es la mitad del trabajo de buscar algo.
+function escrituraDe(ruta) {
+  return (globalThis.__escrituras || []).find((e) => (e.ruta || '').includes(ruta));
+}
+
+await test('el pallet se escribe DENTRO del mapa, no como clave con punto', async () => {
+  globalThis.__documentos = {
+    'recepciones/R1': { estado: 'EN_VALIDACION' },
+    'recepciones/R1/skus/A': { sku: 'A', esperado: 10, contado: 0, enPackingList: true },
+  };
+  await conteo.registrarConteo('R1', { uid: 'u1', email: 'o@itsanet.com' }, {
+    sku: 'A', cantidad: 5, pallet: 'C1', idempotencyKey: 'k1',
+  });
+
+  const w = escrituraDe('skus/A');
+  ok(w, 'debe escribir el agregado del SKU');
+  ok(w.datos.pallets, 'tiene que existir el mapa `pallets`');
+  eq(Object.keys(w.datos.pallets), ['C1']);
+  eq(w.datos.pallets.C1.__inc, 5, 'y dentro, el incremento');
+  ok(!Object.keys(w.datos).some((k) => k.includes('.')),
+     'ninguna clave con punto: ' + Object.keys(w.datos).join(', '));
+});
+
+await test('el subpallet se codifica para no romper el mapa', async () => {
+  globalThis.__documentos = {
+    'recepciones/R1': { estado: 'EN_VALIDACION' },
+    'recepciones/R1/skus/A': { sku: 'A', esperado: 10, contado: 0, enPackingList: true },
+  };
+  await conteo.registrarConteo('R1', { uid: 'u1', email: 'o@itsanet.com' }, {
+    sku: 'A', cantidad: 2, pallet: 'B04.1', idempotencyKey: 'k2',
+  });
+  const w = escrituraDe('skus/A');
+  eq(Object.keys(w.datos.pallets), ['B04~1']);
+  // Y al leerlo vuelve a ser el pallet que escribió el operario.
+  eq(conteo.ubicacionesDe({ pallets: { 'B04~1': 2 } }), [{ pallet: 'B04.1', cantidad: 2 }]);
+});
+
+await test('anular descuenta del mismo pallet, también anidado', async () => {
+  globalThis.__documentos = {
+    'recepciones/R1': { estado: 'EN_VALIDACION' },
+    'recepciones/R1/eventos/e1': { sku: 'A', cantidad: 5, pallet: 'C1', tipo: 'CONTEO' },
+    'recepciones/R1/skus/A': { sku: 'A', esperado: 10, contado: 5, verificado: true },
+  };
+  await conteo.anularConteo('R1', { uid: 'u1', email: 'o@itsanet.com' }, 'e1', 'se contó doble');
+  const w = escrituraDe('skus/A');
+  eq(w.datos.pallets.C1.__inc, -5);
+});
+
 resumen();

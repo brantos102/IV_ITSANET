@@ -29,10 +29,37 @@ export const limit = (...a) => a;
 export const onSnapshot = () => () => {};
 export const writeBatch = () => ({ set() {}, update() {}, delete() {}, commit: async () => {} });
 export const serverTimestamp = () => '@ts';
-export const runTransaction = async (db, fn) => fn({
-  get: async () => ({ exists: () => false, data: () => ({}), get: () => undefined }),
-  set() {}, update() {}, delete() {},
-});
+/*
+ * Transaccion que APUNTA lo que se escribe.
+ *
+ * Sin esto, una prueba solo puede comprobar lo que registrarConteo devuelve, y
+ * el error que dejo la columna de pallets vacia estaba justo en la forma del
+ * documento que se escribia, no en el valor devuelto.
+ *
+ * globalThis.__escrituras recoge cada set/update con su ruta y sus datos, y
+ * globalThis.__documentos simula lo que ya hay en la base.
+ */
+export const runTransaction = async (db, fn) => {
+  globalThis.__escrituras = [];
+  const leer = (ref) => (globalThis.__documentos || {})[ref?.ruta] || null;
+  return fn({
+    get: async (ref) => {
+      const d = leer(ref);
+      return {
+        exists: () => d !== null,
+        data: () => d || {},
+        get: (campo) => (d || {})[campo],
+      };
+    },
+    set(ref, datos, opciones) {
+      globalThis.__escrituras.push({ tipo: 'set', ruta: ref?.ruta, datos, opciones });
+    },
+    update(ref, datos) {
+      globalThis.__escrituras.push({ tipo: 'update', ruta: ref?.ruta, datos });
+    },
+    delete() {},
+  });
+};
 export const increment = (n) => ({ __inc: n });
 export const getFirestore = () => ({});
 export const initializeFirestore = () => ({});
