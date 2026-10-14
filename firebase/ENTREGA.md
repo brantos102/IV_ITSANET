@@ -295,7 +295,7 @@ Como SUPERVISOR, abre **KPIs** desde el inicio:
 - [ ] **Referencias** lista los SKU con incidencia; pulsando una fila se abre su
       historial
 - [ ] **Operarios** muestra a cada uno con sus conteos y unidades
-- [ ] El botón **CSV** descarga y Excel abre las tildes bien
+- [ ] **Excel** y **PDF** descargan, y Excel abre las tildes bien
 - [ ] Escribiendo un código en **Código de recepción** se filtra la tabla al
       teclear, y las cifras de arriba y lo que exporta Excel/PDF filtran igual
 - [ ] Escribiendo el código con un dígito de más dice **«¿Quisiste decir…?»**
@@ -306,6 +306,38 @@ Como OPERADOR:
 - [ ] **No** ve la tarjeta de KPIs, ni Usuarios, ni Administración
 - [ ] **No** ve la comprobación de la instalación
 - [ ] Sí ve la tabla «Qué puedes hacer», con lo suyo en «sí» y el resto en «no»
+
+---
+
+## 5.9 CSV para la carga masiva a Depot
+
+El CSV se usa **solo** para esto: los informes y los indicadores salen en Excel
+o PDF.
+
+Como ADMIN, en `/admin.html` → **Formatos CSV para Depot**:
+
+- [ ] Salen los dos formatos con sus columnas
+- [ ] **Descargar plantilla vacía** baja un `.csv` que Excel abre en columnas
+      separadas *(si sale todo en una, cambia el separador a coma y repite)*
+- [ ] Cambiar un encabezado, **Guardar**, recargar: el cambio sigue ahí
+- [ ] **Volver a los de partida** pide confirmación
+
+> Compara la plantilla con la que pide Depot de verdad. Los encabezados de
+> partida son los nombres que el WMS **devuelve** (`COD. PRODUCTO`,
+> `NRO. LOTE`); el formato de **subida** puede no ser el mismo. Si no coincide,
+> se ajusta aquí, sin esperar a un despliegue.
+
+En `/validar.html` de `PRUEBA-01`, como SUPERVISOR → **CSV para Depot**:
+
+- [ ] **Cantidades contadas**: una fila por producto **y por sitio** — si
+      registraste 12 en una posición real y 18 en un pallet, salen dos filas que
+      suman 30, no una de 30
+- [ ] Un conteo anulado **no** aparece
+- [ ] **Productos nuevos**: solo los adicionales; si no hubo, lo dice en vez de
+      bajar un archivo vacío
+- [ ] **Plantilla vacía** baja los encabezados solos
+- [ ] Las tildes se ven bien al abrirlo en Excel
+- [ ] La descarga queda registrada en la **auditoría** de la recepción
 
 ---
 
@@ -321,7 +353,7 @@ node ..\pruebas.js     # desde la carpeta firebase
 
 No hace falta `npm install`: las pruebas no usan ninguna dependencia externa.
 
-- [ ] Termina en **273 pruebas, todas en verde**
+- [ ] Termina en **287 pruebas, todas en verde**
 
 ---
 

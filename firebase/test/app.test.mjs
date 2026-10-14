@@ -850,4 +850,122 @@ await test('«PL-A» no se guarda como «PLA»: el guion separa listas', async (
   eq(h.ruta, 'huellas/R1__PL-A');
 });
 
+// =============== CSV de alta masiva hacia Depot ========================= //
+const csv = await cargar('csv.js');
+const CANT = csv.FORMATOS_BASE[0];
+const sinBom = (t) => t.replace('﻿', '').trim().split('\r\n');
+
+await test('la plantilla vacía trae solo los encabezados', () => {
+  const lineas = sinBom(csv.plantilla(CANT));
+  eq(lineas.length, 1);
+  ok(lineas[0].startsWith('COD. PRODUCTO;DESCRIPCION;CANTIDAD'), lineas[0]);
+});
+
+await test('lleva BOM: sin él Excel rompe las tildes', () => {
+  ok(csv.plantilla(CANT).startsWith('﻿'));
+});
+
+await test('una descripción con el separador no parte la fila', () => {
+  // Una coma suelta partía la fila en dos y Depot rechazaba el archivo entero.
+  eq(csv.celda('TORNILLO; HEXAGONAL', ';'), '"TORNILLO; HEXAGONAL"');
+  eq(csv.celda('DE 1" NPT', ';'), '"DE 1"" NPT"');
+  eq(csv.celda('NORMAL', ';'), 'NORMAL');
+  eq(csv.celda(null, ';'), '');
+  eq(csv.celda(0, ';'), '0');
+});
+
+await test('la posición se parte en nave, calle, columna y nivel', () => {
+  eq(csv.partesDePosicion('A-01-03-2'),
+     { nave: 'A', calle: '01', columna: '03', nivel: '2' });
+  eq(csv.partesDePosicion(''), { nave: '', calle: '', columna: '', nivel: '' });
+  eq(csv.partesDePosicion('A-01'), { nave: 'A', calle: '01', columna: '', nivel: '' });
+});
+
+await test('cada sitio donde se dejó mercadería es una fila', () => {
+  // De 30 unidades pueden ir 12 a una posición real y 18 a un pallet: cargarlo
+  // como una sola fila mete en el sistema algo que no está donde dice.
+  const filas = csv.agruparConteos([
+    { id: '1', sku: 'X', cantidad: 12, pallet: 'A1', posicionReal: 'A-01-03-2' },
+    { id: '2', sku: 'X', cantidad: 18, pallet: 'B04', posicionReal: '' },
+  ]);
+  eq(filas.length, 2);
+  eq(filas.map((f) => f.cantidad).reduce((a, b) => a + b, 0), 30);
+  eq(filas[0].posicion, 'A-01-03-2', 'lo que ya tiene posición real va primero');
+  eq(filas[1].pallet, 'B04', 'lo que queda por ubicar, detrás');
+});
+
+await test('dos conteos en el mismo sitio se suman en una fila', () => {
+  const filas = csv.agruparConteos([
+    { id: '1', sku: 'X', cantidad: 5, pallet: 'A1', posicionReal: 'A-01' },
+    { id: '2', sku: 'X', cantidad: 7, pallet: 'A1', posicionReal: 'A-01' },
+  ]);
+  eq(filas.length, 1);
+  eq(filas[0].cantidad, 12);
+});
+
+await test('un conteo anulado no se carga', () => {
+  // La anulación no guarda la posición: restarla dejaría la cantidad bien y el
+  // sitio mal. Se descarta el conteo entero.
+  const filas = csv.agruparConteos([
+    { id: 'e1', sku: 'X', cantidad: 9, pallet: 'A1', posicionReal: 'A-01' },
+    { id: 'e2', sku: 'X', cantidad: 4, pallet: 'B1', posicionReal: 'B-02' },
+    { id: 'anula-e1', sku: 'X', cantidad: -9, pallet: 'A1', tipo: 'ANULACION' },
+  ]);
+  eq(filas.length, 1);
+  eq(filas[0].pallet, 'B1');
+  eq(filas[0].cantidad, 4);
+});
+
+await test('un «no apareció» no entra: cargar 0 no es cargar nada', () => {
+  eq(csv.agruparConteos([{ id: '1', sku: 'X', cantidad: 0, tipo: 'CERO' }]).length, 0);
+});
+
+await test('el CSV de cantidades sale con una fila por sitio', () => {
+  const r = csv.csvDeCantidades(CANT, {
+    recepcion: { codigo: 'REC0260002', cliente: 'VENTURA' },
+    skus: [{ sku: 'X', descripcion: 'ARANDELA' }],
+    eventos: [
+      { id: '1', sku: 'X', cantidad: 12, pallet: 'A1', posicionReal: 'A-01-03-2' },
+      { id: '2', sku: 'X', cantidad: 18, pallet: 'B04', posicionReal: '' },
+    ],
+  });
+  eq(r.filas, 2);
+  eq(r.nombre, 'alta-cantidades-REC0260002.csv');
+  const l = sinBom(r.texto);
+  eq(l.length, 3, 'encabezado y dos filas');
+  ok(l[1].startsWith('X;ARANDELA;12;A;01;03;2;A1;'), l[1]);
+  ok(l[1].endsWith(';VENTURA'), l[1]);
+  ok(l[2].startsWith('X;ARANDELA;18;;;;;B04;'), l[2]);
+});
+
+await test('el de productos nuevos sale de los adicionales', () => {
+  const r = csv.csvDeProductos(csv.FORMATOS_BASE[1], {
+    recepcion: { codigo: 'R1', cliente: 'VENTURA' },
+    adicionales: [{ sku: 'NUEVO', descripcion: 'PIEZA', fisica: 3 }],
+  });
+  eq(r.filas, 1);
+  eq(sinBom(r.texto)[1], 'NUEVO;PIEZA;;;VENTURA',
+     'FAMILIA va vacía: la rellena quien da de alta');
+});
+
+await test('sin adicionales sale la plantilla sola, no un archivo roto', () => {
+  const r = csv.csvDeProductos(csv.FORMATOS_BASE[1], { recepcion: {}, adicionales: [] });
+  eq(r.filas, 0);
+  eq(sinBom(r.texto).length, 1);
+});
+
+await test('un formato guardado a medias se completa con el de base', () => {
+  const f = csv.normalizarFormato({ id: 'CANTIDADES', columnas: [] });
+  eq(f.columnas.length, CANT.columnas.length);
+  eq(f.separador, ';');
+});
+
+await test('el administrador puede cambiar columnas y separador', () => {
+  const t = csv.plantilla({
+    columnas: [{ encabezado: 'CODIGO', campo: 'sku' }, { encabezado: 'CANT', campo: 'cantidad' }],
+    separador: ',',
+  });
+  eq(sinBom(t)[0], 'CODIGO,CANT');
+});
+
 resumen();

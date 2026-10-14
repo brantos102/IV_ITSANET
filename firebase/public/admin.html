@@ -226,6 +226,25 @@
     <div id="resultadoPrueba"></div>
   </div>
 
+  <div class="panel">
+    <h2>Formatos CSV para Depot</h2>
+    <p>El CSV se usa <b>solo</b> para la carga masiva hacia Depot: los informes y
+       los indicadores salen en Excel o PDF. Aquí se definen las columnas de cada
+       archivo, para que lo que descarga el supervisor entre en Depot sin
+       retocarlo.</p>
+    <div class="msg warn"><b>Confírmalos contra Depot</b>
+      Los encabezados de partida son los nombres reales que <i>devuelve</i> el WMS
+      («COD. PRODUCTO», «NRO. LOTE»). El formato de <i>subida</i> puede no ser el
+      mismo: descarga la plantilla, compárala con la que pide Depot y ajusta aquí
+      lo que haga falta.</div>
+    <div id="formatosCsv"></div>
+    <div class="acciones">
+      <button class="b-primario" id="bGuardarCsv">Guardar los formatos</button>
+      <button class="b-sec" id="bRestaurarCsv">Volver a los de partida</button>
+    </div>
+    <div id="resCsv"></div>
+  </div>
+
 </div>
 </div>
 
@@ -233,6 +252,9 @@
 import { observarSesion, traducirError, db } from './js/auth.js';
 import { Proxy, obtenerUrlProxy } from './js/proxy.js';
 import { confirmar } from './js/modal.js';
+import {
+  CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv,
+} from './js/csv.js';
 import { doc, getDoc, setDoc }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
@@ -260,9 +282,12 @@ function fecha(iso) {
 }
 
 // --- Sesión --------------------------------------------------------------- //
+let usuarioActual = null;
+
 observarSesion(({ usuario, perfil, error }) => {
   if (error) aviso(error, 'err');
   if (!usuario) { location.href = '/'; return; }
+  usuarioActual = usuario;
 
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
@@ -276,6 +301,118 @@ observarSesion(({ usuario, perfil, error }) => {
   $('panelAdmin').classList.remove('oculto');
   cargarUrlProxy();
   cargar();
+  cargarFormatosCsv();
+});
+
+// --- Formatos CSV --------------------------------------------------------- //
+// Las columnas de la carga masiva a Depot. Van aquí y no en el código porque el
+// día que Depot cambie una columna, el supervisor no puede quedarse esperando
+// un despliegue para poder subir una recepción.
+let formatosCsv = [];
+
+async function cargarFormatosCsv() {
+  formatosCsv = await leerFormatos();
+  pintarFormatosCsv();
+}
+
+function pintarFormatosCsv() {
+  const opciones = (elegido) => Object.entries(CAMPOS)
+    .map(([k, t]) => `<option value="${esc(k)}"${k === elegido ? ' selected' : ''}>${esc(t)}</option>`)
+    .join('');
+
+  $('formatosCsv').innerHTML = formatosCsv.map((f, fi) => `
+    <div class="panel" style="margin:16px 0 0;background:var(--bg)">
+      <h3 style="margin:0 0 4px">${esc(f.nombre)}</h3>
+      <p class="mini" style="margin:0 0 14px">${esc(f.descripcion)}</p>
+      <div class="rejilla">
+        <label class="campo"><span>Nombre del archivo</span>
+          <input data-f="${fi}" data-prop="archivo" value="${esc(f.archivo)}">
+          <span class="mini">Se le añade el código de la recepción y «.csv».</span></label>
+        <label class="campo"><span>Separador</span>
+          <select data-f="${fi}" data-prop="separador">
+            <option value=";"${f.separador === ';' ? ' selected' : ''}>Punto y coma (;)</option>
+            <option value=","${f.separador === ',' ? ' selected' : ''}>Coma (,)</option>
+            <option value="\t"${f.separador === '\t' ? ' selected' : ''}>Tabulador</option>
+          </select>
+          <span class="mini">Excel en español parte por punto y coma. Con coma
+            mete toda la fila en una sola columna.</span></label>
+      </div>
+      <div class="tabla-env"><table>
+        <thead><tr><th>#</th><th>Encabezado, tal cual lo espera Depot</th>
+          <th>Lo rellena</th><th></th></tr></thead>
+        <tbody>${f.columnas.map((c, ci) => `
+          <tr>
+            <td class="mini">${ci + 1}</td>
+            <td><input data-f="${fi}" data-c="${ci}" data-prop="encabezado"
+                       value="${esc(c.encabezado)}" style="width:100%"></td>
+            <td><select data-f="${fi}" data-c="${ci}" data-prop="campo"
+                        style="width:100%">${opciones(c.campo || '')}</select></td>
+            <td><button type="button" class="chip" data-quitar="${fi}:${ci}">Quitar</button></td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="acciones" style="margin-top:12px">
+        <button type="button" class="b-sec" data-anadir="${fi}">+ Columna</button>
+        <button type="button" class="b-sec" data-plantilla="${fi}">Descargar plantilla vacía</button>
+      </div>
+    </div>`).join('');
+}
+
+$('formatosCsv').addEventListener('input', (ev) => {
+  const t = ev.target;
+  if (t.dataset.f === undefined) return;
+  const f = formatosCsv[Number(t.dataset.f)];
+  if (t.dataset.c === undefined) f[t.dataset.prop] = t.value;
+  else f.columnas[Number(t.dataset.c)][t.dataset.prop] = t.value;
+});
+$('formatosCsv').addEventListener('change', (ev) => {
+  if (ev.target.tagName === 'SELECT') $('formatosCsv').dispatchEvent(new Event('input'));
+});
+
+$('formatosCsv').addEventListener('click', (ev) => {
+  const t = ev.target;
+  if (t.dataset.anadir !== undefined) {
+    formatosCsv[Number(t.dataset.anadir)].columnas.push({ encabezado: 'NUEVA', campo: '' });
+    return pintarFormatosCsv();
+  }
+  if (t.dataset.quitar !== undefined) {
+    const [fi, ci] = t.dataset.quitar.split(':').map(Number);
+    formatosCsv[fi].columnas.splice(ci, 1);
+    return pintarFormatosCsv();
+  }
+  if (t.dataset.plantilla !== undefined) {
+    const f = formatosCsv[Number(t.dataset.plantilla)];
+    descargarCsv(plantilla(f), `${f.archivo}-plantilla.csv`);
+  }
+});
+
+$('bGuardarCsv').addEventListener('click', async () => {
+  limpiarAvisos();
+  const vacias = formatosCsv.some((f) => !f.columnas.length);
+  if (vacias) {
+    return aviso('Un formato sin columnas no sirve para nada: añade al menos una.',
+                 'err', 'No se guardó');
+  }
+  $('bGuardarCsv').disabled = true;
+  try {
+    await guardarFormatos(formatosCsv, usuarioActual);
+    aviso('Formatos guardados. Los supervisores ya descargan con estas columnas.',
+          'ok', 'Listo');
+  } catch (e) {
+    aviso(traducirError(e), 'err', 'No se guardó');
+  } finally {
+    $('bGuardarCsv').disabled = false;
+  }
+});
+
+$('bRestaurarCsv').addEventListener('click', async () => {
+  if (!await confirmar({
+    titulo: 'Volver a los formatos de partida',
+    texto: 'Se pierden los cambios que hayas hecho en las columnas. Habrá que '
+         + 'guardar para que el cambio llegue a los supervisores.',
+    aceptar: 'Restaurar',
+  })) return;
+  formatosCsv = FORMATOS_BASE.map((b) => ({ ...b, columnas: b.columnas.map((c) => ({ ...c })) }));
+  pintarFormatosCsv();
 });
 
 // --- Listado -------------------------------------------------------------- //

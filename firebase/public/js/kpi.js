@@ -340,18 +340,3 @@ export function aCsv(filas, columnas) {
   // El BOM es lo que hace que Excel en español abra las tildes bien.
   return '﻿' + lineas.join('\r\n');
 }
-
-/**
- * CSV: reservado a los formatos de alta masiva hacia Depot.
- *
- * Se mantiene porque esos archivos sí van en CSV. Los indicadores NO lo usan:
- * ver `aExcel` y `aPdf`.
- */
-export function descargarCsv(texto, nombre) {
-  const url = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8;' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nombre.endsWith('.csv') ? nombre : nombre + '.csv';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
