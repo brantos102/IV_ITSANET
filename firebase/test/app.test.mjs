@@ -522,4 +522,30 @@ await test('registrosDe no cuenta lo anulado', () => {
   eq(previos.length, 0, 'ni el original ni la reversa');
 });
 
+// ============ El catálogo viejo y el nuevo dicen lo mismo ================ //
+// La ficha decía «sin existencia en bodega» mientras la línea de arriba
+// mostraba «Pos. BM-BB-01-5». Dos afirmaciones contrarias en la misma pantalla,
+// porque el catálogo descargado era anterior al array de posiciones.
+await test('un catálogo antiguo sigue dando su ubicación', () => {
+  eq(datos.ubicacionesDepot({ posicion: 'BM-BB-01-5', stock: 6 }),
+     [{ posicion: 'BM-BB-01-5', stock: 6 }]);
+});
+
+await test('el catálogo nuevo manda sobre el campo suelto', () => {
+  const u = datos.ubicacionesDepot({
+    posicion: 'VIEJA', stock: 1,
+    posiciones: [{ posicion: 'A-01', stock: 4 }, { posicion: 'B-07', stock: 6 }],
+  });
+  eq(u.length, 2);
+  eq(u.map((x) => x.posicion), ['A-01', 'B-07']);
+});
+
+await test('sin ubicación en ninguno de los dos formatos, la lista va vacía', () => {
+  eq(datos.ubicacionesDepot({ stock: 0 }), []);
+  eq(datos.ubicacionesDepot({ posiciones: [] }), []);
+  eq(datos.ubicacionesDepot({ posiciones: [{ posicion: '', stock: 3 }] }), [],
+     'una fila sin posición no es una ubicación');
+  eq(datos.ubicacionesDepot(null), []);
+});
+
 resumen();

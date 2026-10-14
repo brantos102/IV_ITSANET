@@ -500,11 +500,18 @@ function refrescarFicha(s) {
   $('fDesc').textContent = s.descripcion || actual?.producto?.descripcion || '(sin descripción)';
 
   const p = actual?.producto;
-  $('fExtra').textContent = p
-    ? [p.unidad && 'Unidad ' + p.unidad, p.stock != null && 'Stock ' + p.stock,
-       p.posicion && 'Pos. ' + p.posicion, p.cliente && 'Cliente ' + p.cliente]
-      .filter(Boolean).join(' · ')
-    : '';
+  // Lo que identifica al producto, y de qué lista viene: en una recepción
+  // consolidada eso último es tan parte de su identidad como el cliente.
+  const enDepot = ubicacionesDepot(p);
+  const listas = s.origenes || [];
+  $('fExtra').textContent = [
+    p?.unidad && 'Unidad ' + p.unidad,
+    p?.stock != null && 'Stock ' + p.stock,
+    enDepot.length === 1 ? 'Pos. ' + enDepot[0].posicion
+      : enDepot.length > 1 ? `${enDepot.length} ubicaciones` : null,
+    p?.cliente && 'Cliente ' + p.cliente,
+    listas.length ? 'Lista ' + listas.join(' + ') : null,
+  ].filter(Boolean).join(' · ');
 
   $('fEsp').textContent = esperado;
   $('fCont').textContent = contado;
@@ -560,10 +567,30 @@ function pintarOrigen(s) {
   const contado = porOrigenDe(s);
 
   if (listas.length < 2) {
-    caja.classList.add('oculto');
-    $('fOrigen').innerHTML = listas.length
-      ? `<option value="${esc(listas[0])}">${esc(listas[0])}</option>` : '';
+    // Con una sola lista no hay nada que elegir, pero sí que saber: en una
+    // recepción consolidada, de qué packing list sale este producto es parte de
+    // su identidad. Se muestra, sin pedir nada.
+    const unica = listas[0];
+    $('fOrigen').innerHTML = unica
+      ? `<option value="${esc(unica)}">${esc(unica)}</option>` : '';
+
+    const varias = (recepcion?.origenes || []).length > 1;
+    caja.classList.toggle('oculto', !varias || !unica);
+    if (varias && unica) {
+      caja.innerHTML = `<div class="msg info" style="margin:0">
+        <b>Packing list</b>Este producto solo está en <b>${esc(unica)}</b>
+        ${contado[unica] ? ` · lleva ${contado[unica]} contadas` : ''}.</div>
+        <select id="fOrigen" class="oculto">
+          <option value="${esc(unica)}" selected>${esc(unica)}</option></select>`;
+    }
     return;
+  }
+
+  // Volver al selector si antes se había dejado como aviso.
+  if (!caja.querySelector('select:not(.oculto)')) {
+    caja.innerHTML = `<label class="campo">
+      <span>¿De qué packing list es esta cantidad? *</span>
+      <select id="fOrigen"></select></label>`;
   }
 
   caja.classList.remove('oculto');
@@ -640,21 +667,28 @@ document.addEventListener('click', (ev) => {
 function pintarPosicionesDepot() {
   const caja = $('fDepot');
   const p = actual?.producto;
-  const posiciones = (p?.posiciones || []).filter((u) => u.posicion);
+  const posiciones = ubicacionesDepot(p);
 
   if (!posiciones.length) {
     // Que Depot no devuelva ubicaciones es un dato, no la ausencia de un dato:
     // el producto existe en el maestro pero hoy no hay existencia en bodega.
     // Callarlo deja al operario pensando que la consulta falló.
     caja.classList.remove('oculto');
-    caja.innerHTML = p
-      ? `<div class="msg warn" style="margin:0">
+    // Con stock pero sin ubicación, el catálogo está incompleto; decir «sin
+    // existencia» sería afirmar algo que no se sabe.
+    const hayStock = Number(p?.stock) > 0;
+    caja.innerHTML = !p ? '' : hayStock
+      ? `<div class="msg info" style="margin:0">
+           <b>Ubicación no disponible</b>
+           Depot reporta ${esc(String(p.stock))} ${esc(p.unidad || 'u')} de
+           ${esc(p.sku || '')}, pero el catálogo descargado no trae en qué
+           ubicación. Vuelve a descargarlo desde Recepciones para verlas.</div>`
+      : `<div class="msg warn" style="margin:0">
            <b>Sin existencia en bodega</b>
            ${esc(p.sku || '')} está en el maestro de Depot${
              p.cliente ? ` (cliente ${esc(p.cliente)})` : ''}, pero ahora mismo
            no tiene ninguna ubicación con existencia en BM — Bodega Matriz.
-           Lo que registres será su primer ingreso.</div>`
-      : '';
+           Lo que registres será su primer ingreso.</div>`;
     return;
   }
 
@@ -773,7 +807,9 @@ async function registrar(confirmarSobrante) {
       fotosSubidas = await subirFotos(actual.sku);
     }
 
-    if (!$('fOrigenCaja').classList.contains('oculto') && !$('fOrigen').value) {
+    if (!$('fOrigenCaja').classList.contains('oculto')
+        && !$('fOrigen').classList.contains('oculto')
+        && !$('fOrigen').value) {
       $('fOrigen').focus();
       throw new Error('Elige de qué packing list es esta cantidad.');
     }

@@ -546,6 +546,23 @@ export async function guardarCatalogo(productos, alAvanzar) {
   }
 }
 
+/**
+ * Las ubicaciones de un producto, venga como venga del catálogo.
+ *
+ * El catálogo guardaba UNA sola posición por SKU hasta hace poco. Un catálogo
+ * descargado antes de ese cambio no trae el array `posiciones`, solo `posicion`
+ * y `stock`: leyendo únicamente el array, la ficha decía «sin existencia en
+ * bodega» mientras la línea de arriba mostraba la posición. Dos afirmaciones
+ * contrarias en la misma pantalla, y el operario sin saber a cuál hacer caso.
+ */
+export function ubicacionesDepot(producto) {
+  const nuevas = (producto?.posiciones || []).filter((u) => u && u.posicion);
+  if (nuevas.length) return nuevas;
+  return producto?.posicion
+    ? [{ posicion: producto.posicion, stock: aNumero(producto.stock, 0) }]
+    : [];
+}
+
 /** Resuelve un código contra el catálogo local. Una lectura, sin red al WMS. */
 export async function buscarEnCatalogo(codigo) {
   const c = normalizarCodigo(codigo);

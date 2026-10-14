@@ -978,6 +978,19 @@ pallet en `DP`.
 > Sugerirlo sería una opinión disfrazada de dato, y eso es peor que no decir
 > nada.
 
+**Si el catálogo es antiguo** —descargado antes de que se guardaran todas las
+ubicaciones— la app usa la única que tenga, en vez de decir que no hay ninguna.
+Y si el WMS reporta existencia pero el catálogo no trae dónde, lo dice así y
+propone volver a descargarlo: afirmar «sin existencia» sería afirmar algo que
+no se sabe.
+
+#### De qué packing list es
+
+En una recepción consolidada, la ficha **siempre dice de qué lista sale el
+producto**, incluso cuando solo está en una. Saberlo es parte de identificarlo,
+igual que el cliente. Solo cuando está en **más de una** se convierte en una
+pregunta, porque entonces hay algo que decidir.
+
 ### 9.2.ter El pallet `DP` y la posición real
 
 Parte de la mercadería va directa a su ubicación sin armar pallet. Obligar a
@@ -1465,7 +1478,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**228 pruebas automáticas** en verde, con un solo comando:
+**231 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto
