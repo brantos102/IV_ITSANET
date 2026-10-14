@@ -79,9 +79,14 @@
   </div>
 
   <div id="fUbicaciones" class="oculto" style="margin-bottom:14px">
-    <span class="mini" style="font-weight:800;text-transform:uppercase">Ya guardado en</span>
+    <span class="mini" style="font-weight:800;text-transform:uppercase">
+      Ya guardado en esta recepción</span>
     <div class="chips" id="fChips"></div>
   </div>
+
+  <!-- Dónde lo tiene el WMS hoy: para decidir si lo que llega cabe junto a lo
+       que ya hay, o conviene abrir otra ubicación. -->
+  <div id="fDepot" class="oculto" style="margin-bottom:14px"></div>
 
   <div class="rejilla">
     <label class="campo"><span>3 · Cantidad</span>
@@ -439,6 +444,8 @@ function refrescarFicha(s) {
   $('fCont').textContent = contado;
   $('fPend').textContent = Math.max(esperado - contado, 0);
 
+  pintarPosicionesDepot(s);
+
   const ubic = ubicacionesDe(s);
   if (ubic.length) {
     $('fUbicaciones').classList.remove('oculto');
@@ -449,9 +456,69 @@ function refrescarFicha(s) {
   } else {
     $('fUbicaciones').classList.add('oculto');
     $('fChips').innerHTML = '';
+    // Sin ubicación propia todavía: se propone la que más tiene en Depot.
+    const mejor = (actual?.producto?.posiciones || [])
+      .filter((u) => u.posicion)
+      .sort((a, b) => (b.stock || 0) - (a.stock || 0))[0];
+    if (!$('fPallet').value && mejor) $('fPallet').value = '';
     if (!$('fPallet').value) $('fPallet').value = ultimoPallet;
   }
 }
+
+/**
+ * Posiciones del WMS con su existencia actual.
+ *
+ * Depot NO informa de la capacidad de cada ubicación, así que la app no puede
+ * decidir si lo que llega cabe: eso sería inventarse un dato y el operario se
+ * fiaría de él. Lo que sí puede es poner delante lo que necesita para
+ * decidirlo —dónde está hoy, cuánto hay en cada sitio, y cuánto va a sumar lo
+ * que acaba de contar— y señalar cuándo el ingreso es grande respecto a lo que
+ * ya hay ahí.
+ */
+function pintarPosicionesDepot(s) {
+  const caja = $('fDepot');
+  const p = actual?.producto;
+  const posiciones = (p?.posiciones || []).filter((u) => u.posicion);
+
+  if (!posiciones.length) {
+    caja.classList.add('oculto');
+    caja.innerHTML = '';
+    return;
+  }
+
+  const entrante = Math.max(parseFloat($('fCantidad').value) || 0, 0);
+  const total = posiciones.reduce((a, u) => a + (u.stock || 0), 0);
+
+  caja.classList.remove('oculto');
+  caja.innerHTML = `
+    <span class="mini" style="font-weight:800;text-transform:uppercase">
+      En Depot hoy · ${total} ${esc(p.unidad || 'u')} en ${posiciones.length}
+      ${posiciones.length === 1 ? 'ubicación' : 'ubicaciones'}</span>
+    <div class="tabla-env" style="margin-top:7px"><table><tbody>
+      ${posiciones.sort((a, b) => (b.stock || 0) - (a.stock || 0)).map((u) => {
+        // Más del doble de lo que ya hay ahí: merece una mirada antes de
+        // apilarlo todo en el mismo sitio. No es una regla del almacén, es un
+        // aviso para que lo decida quien está delante.
+        const holgado = entrante > 0 && u.stock > 0 && entrante > u.stock * 2;
+        return `<tr>
+          <td class="id" style="font-size:12px">${esc(u.posicion)}</td>
+          <td class="num">${u.stock}</td>
+          <td class="mini">${esc(u.lote || '')}${
+            u.estado && u.estado !== 'BUENO' ? ` · ${esc(u.estado)}` : ''}</td>
+          <td class="mini">${holgado
+            ? `<span class="pastilla p-warn">+${entrante} es mucho para esta</span>`
+            : entrante > 0 ? `quedaría en ${u.stock + entrante}` : ''}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table></div>
+    <p class="mini" style="margin-top:7px">Depot no informa de la capacidad de
+      cada ubicación, así que la decisión es tuya: esto es lo que hay hoy.</p>`;
+}
+
+// Al cambiar la cantidad cambian las proyecciones de arriba.
+$('fCantidad').addEventListener('input', () => {
+  if (actual) pintarPosicionesDepot(skus.find((x) => x.sku === actual.sku) || {});
+});
 
 $('fChips').addEventListener('click', (ev) => {
   const p = ev.target.dataset.pallet;
@@ -557,6 +624,8 @@ function reiniciar() {
   actual = null; claveEnvio = null; fotosSubidas = [];
   $('ficha').classList.add('oculto');
   $('panelNoEncontrado').classList.add('oculto');
+  $('fDepot').classList.add('oculto');
+  $('pistaCodigo').innerHTML = '';
   $('inEscaner').value = '';
   $('inCantidad').value = '1';
   $('fCantidad').value = '1';

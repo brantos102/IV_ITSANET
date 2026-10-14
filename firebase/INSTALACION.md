@@ -959,6 +959,29 @@ contando el mismo SKU suman bien; no se pisan.
 pierde la red y el envío se reintenta, se escribe el mismo registro, no uno
 nuevo.
 
+### 9.2.bis Dónde está hoy en Depot
+
+Al validar un código, debajo de la ficha sale **En Depot hoy**: cada ubicación
+donde el WMS tiene existencia de ese producto, con cuánto hay en cada una, su
+lote, y —según la cantidad que vayas a registrar— en cuánto quedaría.
+
+Esto sale del catálogo precalentado. `getstock` devuelve **una fila por cada
+sitio** donde hay existencia; antes la app se quedaba con la primera y
+descartaba el resto, que es justo lo que hace falta para decidir dónde poner lo
+que acaba de llegar.
+
+> **Lo que la app no hace, y por qué.** Depot no informa de la capacidad de cada
+> ubicación, así que la app **no puede decidir si lo que llega cabe**. Decirlo
+> sería inventarse un dato, y el operario se fiaría de él. Lo que sí hace es
+> poner delante lo necesario para decidirlo, y marcar cuándo el ingreso es
+> grande respecto a lo que ya hay ahí —más del doble— para que alguien lo mire
+> antes de apilarlo todo en el mismo sitio.
+>
+> Si algún día Depot expone la capacidad por ubicación, se conecta y la app sí
+> puede avisar. Dime la ruta si existe.
+
+---
+
 ### 9.3 Código que no existe (paso 8)
 
 Sale un modal con:
@@ -1228,7 +1251,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**191 pruebas automáticas** en verde, con un solo comando:
+**195 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

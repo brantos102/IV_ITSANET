@@ -482,6 +482,40 @@ test('mapea los campos reales del WMS', () => {
   eq(p.ean, null, '/getstock no devuelve código de barras');
 });
 
+// getstock devuelve una fila por cada sitio donde hay existencia. Quedarse con
+// la primera escondía dónde más está el producto, que es lo que el operario
+// necesita para decidir dónde poner lo que acaba de recibir.
+test('un SKU en varias posiciones conserva todas', () => {
+  const e = entorno({ cuentas: {
+    VENTURA: { usuario: 'u', clave: 'p', catalogo: [
+      { 'COD. PRODUCTO': 'X1', 'DESCRIPCION': 'DISCO', 'CANTIDAD': '4',
+        'NAVE': 'A', 'CALLE': '01', 'COLUMNA': '03', 'NIVEL': '2' },
+      { 'COD. PRODUCTO': 'X1', 'DESCRIPCION': 'DISCO', 'CANTIDAD': '6',
+        'NAVE': 'B', 'CALLE': '07', 'COLUMNA': '01', 'NIVEL': '1' },
+    ] },
+  } });
+  pedir(e.ctx, { accion: 'guardarCliente', id: 'VENTURA', usuario: 'u', clave: 'p' });
+
+  const r = pedir(e.ctx, { accion: 'catalogo' });
+  ok(r.exito, r.mensaje);
+  eq(r.productos.length, 1, 'un solo producto');
+  const prod = r.productos[0];
+  eq(prod.posiciones.length, 2, 'las dos ubicaciones');
+  eq(prod.posiciones.map((u) => u.posicion), ['A-01-03-2', 'B-07-01-1']);
+  eq(prod.posiciones.map((u) => u.stock), [4, 6]);
+  eq(prod.stock, 10, 'el stock total es la suma, no el de la primera fila');
+});
+
+test('el mismo codigo en dos clientes sigue siendo ambiguo', () => {
+  const e = conDosClientes();
+  const r = pedir(e.ctx, { accion: 'catalogo' });
+  ok(r.exito, r.mensaje);
+  // No se suman: mezclar existencias de dos clientes seria inventar un dato.
+  ok(r.ambiguos.some((a) => a.sku === 'COMPARTIDO'), JSON.stringify(r.ambiguos));
+  const compartido = r.productos.find((x) => x.sku === 'COMPARTIDO');
+  eq(compartido.stock, 1, 'se queda con el del primer cliente, no con la suma');
+});
+
 console.log('\nSin clientes configurados');
 test('lo dice claro en vez de fallar raro', () => {
   const e = entorno();

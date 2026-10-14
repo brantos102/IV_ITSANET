@@ -331,6 +331,15 @@ export async function guardarCatalogo(productos, alAvanzar) {
         unidad: p.unidad || null,
         stock: p.stock ?? null,
         posicion: p.posicion || null,
+        // Todas las ubicaciones donde el WMS tiene existencia de este producto.
+        // Se recorta a 20: un SKU repartido en más sitios ya no se decide
+        // mirando una lista, y veinte ya llenan la pantalla de un handheld.
+        posiciones: (p.posiciones || []).slice(0, 20).map((u) => ({
+          posicion: u.posicion || '',
+          stock: aNumero(u.stock, 0),
+          lote: u.lote || null,
+          estado: u.estado || null,
+        })),
         familia: p.familia || null,
         cliente: p.cliente || p.codCliente || null,
         actualizadoEn: serverTimestamp(),

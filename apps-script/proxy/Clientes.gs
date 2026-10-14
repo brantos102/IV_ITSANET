@@ -470,13 +470,35 @@ function accionCatalogoMulti_(p, usuario) {
         var m = mapearStock_(filas[j]);
         if (!m || !m.sku) continue;
 
+        // Un SKU aparece una vez POR UBICACIÓN: getstock devuelve una fila por
+        // cada sitio donde hay existencia. Antes se quedaba la primera y se
+        // descartaba el resto, que es justo lo que el operario necesita saber
+        // para decidir dónde poner lo que acaba de recibir.
+        var ubicacion = {
+          posicion: m.posicion || '',
+          stock: m.stock || 0,
+          lote: m.lote || null,
+          serie: m.serie || null,
+          estado: m.estadoMercaderia || null
+        };
+
         if (porSku[m.sku]) {
-          if (porSku[m.sku].cliente !== id && ambiguos.length < 200) {
-            ambiguos.push({ sku: m.sku, clientes: [porSku[m.sku].cliente, id] });
+          var previo = porSku[m.sku];
+          if (previo.cliente !== id) {
+            // Dos clientes distintos con el mismo código: eso sí es ambiguo, y
+            // mezclar sus existencias sería inventar un dato.
+            if (ambiguos.length < 200) {
+              ambiguos.push({ sku: m.sku, clientes: [previo.cliente, id] });
+            }
+            continue;
           }
+          if (ubicacion.posicion) previo.posiciones.push(ubicacion);
+          previo.stock = (previo.stock || 0) + (m.stock || 0);
           continue;
         }
+
         m.cliente = id;
+        m.posiciones = ubicacion.posicion ? [ubicacion] : [];
         porSku[m.sku] = m;
         productos.push(m);
         n++;
