@@ -151,11 +151,26 @@ const ALIAS = {
   PRECIOTOTAL: 'precioTotal', 'PRECIO TOTAL': 'precioTotal',
 };
 
-/** Columnas que genera la app: si vienen en el archivo, se descartan. */
-const COLUMNAS_RESULTADO = new Set([
-  'CANTIDAD FISICA', 'CANTIDADFISICA', 'VALIDACION', 'PALLET',
-  'CODIGO BARRA', 'CODIGOBARRA', 'COD/PROD', 'CODPROD', 'OBSERVACION', 'OK',
-]);
+/**
+ * Columnas que RELLENA la validación.
+ *
+ * El packing list que llega ya las trae vacías: `Cantidad Física`,
+ * `Validación`, `DESFACE`, `PALLET`, `OBSERVACION`… El informe final tiene que
+ * devolver el archivo con esas mismas columnas, en la misma posición y con el
+ * mismo encabezado, solo que llenas. Por eso aquí no se descartan: se marcan,
+ * para saber dónde escribir cada cosa al exportar.
+ */
+export const ROL_COLUMNA = {
+  'CANTIDAD FISICA': 'fisica', 'CANTIDADFISICA': 'fisica',
+  'CANT FISICA': 'fisica', 'CANTIDAD VALIDADA': 'fisica',
+  'VALIDACION': 'validacion', 'ESTADO': 'validacion',
+  'DESFACE': 'desface', 'DESFASE': 'desface', 'DIFERENCIA': 'desface',
+  'PALLET': 'pallet', 'PALETA': 'pallet',
+  'CODIGO BARRA': 'codigoBarra', 'CODIGOBARRA': 'codigoBarra',
+  'OBSERVACION': 'observacion', 'OBSERVACIONES': 'observacion',
+};
+
+const COLUMNAS_RESULTADO = new Set(Object.keys(ROL_COLUMNA));
 
 const sinAcentos = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '');
 const clave = (t) => sinAcentos(limpiar(t)).toUpperCase();
@@ -192,6 +207,19 @@ export function leerPackingList(arrayBuffer) {
       const campos = new Set(Object.values(mapa));
       if (!campos.has('sku') || !campos.has('cantidad')) continue;
 
+      // Los encabezados TAL CUAL. El informe final devuelve el archivo con
+      // estas mismas columnas, en este mismo orden: quien lo recibe lo abre
+      // esperando el suyo, no uno parecido.
+      const encabezados = filas[i].map((c) => (c === null || c === undefined ? '' : String(c)));
+      const anchoReal = encabezados.length;
+
+      // Dónde está cada columna que la validación rellena.
+      const columnas = {};
+      encabezados.forEach((c, idx) => {
+        const rol = ROL_COLUMNA[clave(c)] || ROL_COLUMNA[clave(c).replace(/\s/g, '')];
+        if (rol && columnas[rol] === undefined) columnas[rol] = idx;
+      });
+
       // Encontrada la cabecera: todo lo de abajo son datos.
       const lineas = [];
       let descartadas = 0;
@@ -208,6 +236,13 @@ export function leerPackingList(arrayBuffer) {
         lineas.push({
           linea: lineas.length + 1,
           sku,
+          // La fila completa, para poder devolverla igual. Se normaliza a texto
+          // y al ancho de la cabecera: Firestore no admite arrays irregulares
+          // con huecos, y al exportar tiene que cuadrar columna por columna.
+          cruda: [...Array(anchoReal)].map((_, k) => {
+            const v = cruda[k];
+            return v === null || v === undefined ? '' : String(v);
+          }),
           descripcion: limpiar(d.descripcion).slice(0, 300),
           referencia: limpiar(d.referencia).slice(0, 80),
           factura: limpiar(d.factura).slice(0, 80),
@@ -225,6 +260,8 @@ export function leerPackingList(arrayBuffer) {
 
       return {
         hoja: nombreHoja,
+        encabezados,
+        columnas,
         lineas,
         descartadas,
         skusUnicos: Object.keys(porSku).length,
@@ -365,6 +402,15 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
       unidades: aNumero(yaHabia.unidades, 0) + resultado.unidades,
     },
     origenes: [...origenes, origen],
+    // La cabecera original de cada lista, para devolver el archivo igual.
+    formatos: {
+      ...(previo.formatos || {}),
+      [claveMapa(origen)]: {
+        encabezados: resultado.encabezados || [],
+        columnas: resultado.columnas || {},
+        hoja: resultado.hoja || '',
+      },
+    },
     hoja: resultado.hoja,
     embarques: [...new Set([...(previo.embarques || []), ...resultado.embarques])],
     packingListEn: serverTimestamp(),

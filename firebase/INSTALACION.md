@@ -1129,6 +1129,35 @@ El archivo trae tres hojas:
 | `BITACORA` | Cada conteo con su autor, su hora y sus fotos |
 | `AUDITORIA` | Cada cierre y cada exportación: quién, cuándo y qué archivo salió |
 
+#### El archivo vuelve con el formato que salió
+
+Los packing lists que se mandan a validar **ya traen las columnas de la
+validación en blanco**: `Cantidad Física`, `Validación`, `DESFACE`, `PALLET`,
+`OBSERVACION`. El informe las rellena **en su sitio**, sin tocar nada más:
+mismas columnas, mismas posiciones, mismos encabezados, mismas filas.
+
+Devolver otro formato obliga a rehacer el archivo a mano antes de subirlo al
+sistema, y eso no se descubre hasta que ya está enviado.
+
+La columna **Validación** usa el vocabulario de sus archivos —`Ok`, `Faltante`,
+`Sobrante`—, no los estados internos de la app.
+
+La columna **PALLET** lleva **solo nombres**, separados por guion medio:
+
+```
+A1-B04-C1.3
+```
+
+Sin cantidades ni paréntesis: el sistema no los admite al dar el alta. El
+desglose con cantidades existe, pero vive en la hoja `… DET`, junto a la
+posición real asignada y la lista de la que salió cada unidad.
+
+> **Hay pruebas que lo comprueban contra los archivos reales.** En
+> `firebase/test/muestras/` están dos packing lists del cliente, y las pruebas
+> los leen, simulan un conteo, generan el informe y verifican celda por celda
+> que las columnas que la validación no toca llegan idénticas. Si algún día el
+> formato de salida deja de cuadrar, falla ahí y no en una entrega.
+
 La hoja `AUDITORIA` existe porque el agregado se puede volver a calcular, pero
 lo que se entregó aquel día no. Sin ella, «el informe decía otra cosa» no se
 puede resolver.
@@ -1393,7 +1422,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**214 pruebas automáticas** en verde, con un solo comando:
+**226 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

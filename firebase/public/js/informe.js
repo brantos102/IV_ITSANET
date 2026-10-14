@@ -68,12 +68,18 @@ export async function reunirInforme(recepcionId, recepcion) {
 
   const porSku = {};
   const palletsPorSku = {};
+  const palletsSimplePorSku = {};
   const pncPorSku = {};
   for (const s of skus) {
     porSku[s.sku] = aNumero(s.contado, 0);
-    // Varios pallets se separan con guion medio: es el formato con el que se
-    // leen en el almacén y el que espera quien da el alta en el sistema.
-    palletsPorSku[s.sku] = Object.entries(decodificarPallets(s.pallets))
+    const mapa = decodificarPallets(s.pallets);
+    // Dos formas del mismo dato, y cada una va donde sirve:
+    //   · la hoja original lleva SOLO nombres —«A1-B04»—, que es lo que admite
+    //     el sistema al dar el alta;
+    //   · la de detalle lleva las cantidades, que es lo que hace falta para
+    //     entender cómo quedó repartido.
+    palletsSimplePorSku[s.sku] = soloPallets(mapa);
+    palletsPorSku[s.sku] = Object.entries(mapa)
       .sort((a, b) => b[1] - a[1])
       .map(([p, c]) => `${p}(${c})`)
       .join('-');
@@ -160,6 +166,7 @@ export async function reunirInforme(recepcionId, recepcion) {
   const detalle = repartido.map((l) => ({
     ...l,
     pallets: palletsPorSku[l.sku] || '',
+    palletsSimple: palletsSimplePorSku[l.sku] || '',
     estado: etiquetaEstado(aNumero(l.cantidad, 0), l.fisica),
     pnc: pncPorSku[l.sku] ? 'PNC' : '',
     posicionReal: [...(posPorSku[l.sku] || [])].join(' / ').slice(0, 120),
@@ -188,9 +195,11 @@ export async function reunirInforme(recepcionId, recepcion) {
    * trajo 22 filas y la otra 7, salen 22 y 7, nunca 29 mezcladas. Quien recibe
    * cada archivo espera el suyo.
    */
+  const formatos = recepcion?.formatos || {};
   const origenes = [...new Set(detalle.map((l) => l.origen || 'PRINCIPAL'))];
   const porOrigen = origenes.map((origen) => ({
     origen,
+    formato: formatos[origen] || formatos[origen.replace(/\./g, '~')] || null,
     detalle: detalle.filter((l) => (l.origen || 'PRINCIPAL') === origen),
   }));
 
@@ -200,13 +209,86 @@ export async function reunirInforme(recepcionId, recepcion) {
   };
 }
 
+/**
+ * El vocabulario del cliente, no el mío.
+ *
+ * En sus archivos la columna «Validación» dice Ok, Faltante o Sobrante. Emitir
+ * NO_ENCONTRADO o PENDIENTE obligaría a quien recibe el informe a traducir, y
+ * a la primera lo haría mal.
+ */
+const VALIDACION = {
+  OK: 'Ok',
+  FALTANTE: 'Faltante',
+  NO_ENCONTRADO: 'Faltante',
+  SOBRANTE: 'Sobrante',
+  PENDIENTE: '',
+};
+
+/**
+ * Solo los nombres de pallet, separados por guion medio: `A1-A2-B04.1`.
+ *
+ * Sin cantidades ni paréntesis: el sistema no admite ese formato al dar el
+ * alta, así que escribirlo ahí obliga a limpiarlo a mano fila por fila. El
+ * desglose con cantidades existe, pero vive en la hoja de detalle.
+ */
+export function soloPallets(mapa) {
+  return Object.entries(mapa || {})
+    .filter(([, n]) => n !== 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([p]) => p)
+    .join('-');
+}
+
+/**
+ * Devuelve el packing list como llegó, con las columnas de validación llenas.
+ *
+ * Mismas columnas, mismas posiciones, mismos encabezados. El archivo que se
+ * envía a validar ya trae `Cantidad Física`, `Validación`, `DESFACE`, `PALLET`
+ * y `OBSERVACION` en blanco; el informe las rellena **en su sitio**. Devolver
+ * otro formato obliga a rehacer el archivo a mano antes de subirlo.
+ */
+function hojaOriginal(filas, formato) {
+  const enc = (formato?.encabezados || []).slice();
+  const col = formato?.columnas || {};
+  const ancho = enc.length;
+
+  const matriz = [enc];
+  for (const l of filas) {
+    const fila = (l.cruda || []).slice(0, ancho);
+    while (fila.length < ancho) fila.push('');
+
+    const poner = (rol, valor) => {
+      if (col[rol] !== undefined && col[rol] < ancho) fila[col[rol]] = valor;
+    };
+    poner('fisica', l.fisica);
+    poner('validacion', VALIDACION[l.estado] ?? l.estado ?? '');
+    poner('desface', l.diferencia);
+    poner('pallet', l.palletsSimple || '');
+    poner('observacion', l.observacion || '');
+
+    matriz.push(fila);
+  }
+
+  const hoja = XLSX.utils.aoa_to_sheet(matriz);
+  hoja['!cols'] = enc.map((c) => ({ wch: Math.min(Math.max(String(c).length + 3, 10), 40) }));
+  if (ancho) {
+    hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
+      e: { r: filas.length, c: ancho - 1 } }) };
+  }
+  return hoja;
+}
+
 /** Excel limita el nombre de hoja a 31 caracteres y prohíbe : \ / ? * [ ] */
 export function nombreDeHoja(origen) {
   return String(origen || 'LISTA').replace(/[:\\/?*[\]]/g, '-').slice(0, 31);
 }
 
 /**
- * La hoja de una lista: sus filas, en su orden, con las columnas añadidas.
+ * Hoja de detalle: lo que la validación añade y el formato original no tiene.
+ *
+ * Va aparte justamente para que la hoja original siga siendo el archivo que
+ * esperan. Aquí caben la posición real, el desglose con cantidades y de qué
+ * lista salió cada unidad.
  *
  * Nunca añade ni quita filas. Es la regla que más fácil se rompe sin darse
  * cuenta, y por eso vive en un solo sitio.
@@ -247,14 +329,29 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   }
   const libro = XLSX.utils.book_new();
 
-  // --- Una hoja por packing list, cada una con SUS filas --- //
+  // --- Una hoja por packing list, con SU formato y SUS filas --- //
   const listas = (porOrigen && porOrigen.length)
     ? porOrigen
-    : [{ origen: 'VALIDADA', detalle }];
+    : [{ origen: 'VALIDADA', detalle, formato: null }];
 
   for (const lista of listas) {
-    const nombre = listas.length === 1 ? 'VALIDADA' : nombreDeHoja(lista.origen);
-    XLSX.utils.book_append_sheet(libro, hojaValidada(lista.detalle), nombre);
+    const base = listas.length === 1 ? 'VALIDADA' : nombreDeHoja(lista.origen);
+
+    // Primero el archivo tal como llegó, con sus columnas rellenas. Si no se
+    // guardó el formato original —recepciones anteriores a esto— se cae a las
+    // columnas propias, que es lo que había.
+    XLSX.utils.book_append_sheet(
+      libro,
+      lista.formato?.encabezados?.length
+        ? hojaOriginal(lista.detalle, lista.formato)
+        : hojaValidada(lista.detalle),
+      base);
+
+    // Y aparte, lo que la validación añade.
+    if (lista.formato?.encabezados?.length) {
+      XLSX.utils.book_append_sheet(
+        libro, hojaValidada(lista.detalle), nombreDeHoja(base + ' DET'));
+    }
   }
 
   // --- Adicionales, aparte para no alterar el conteo de filas --- //

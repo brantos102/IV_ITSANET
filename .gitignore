@@ -8,3 +8,6 @@ data/
 *.db-shm
 .pytest_cache/
 .env
+
+# Dependencias de desarrollo (solo xlsx, para las pruebas de formato)
+node_modules/
