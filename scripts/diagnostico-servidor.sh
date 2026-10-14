@@ -48,14 +48,22 @@ echo "IP        : $(hostname -I 2>/dev/null | awk '{print $1}')"
 titulo "Lo que ya esta instalado"
 for p in python3 pip3 git mysql mariadb systemctl nginx node; do
   if command -v "$p" >/dev/null 2>&1; then
-    v=$("$p" --version 2>&1 | head -1)
+    # nginx no entiende --version, solo -v. Con el resto da igual cual se use.
+    if [ "$p" = nginx ]; then v=$(nginx -v 2>&1 | head -1); else v=$("$p" --version 2>&1 | head -1); fi
     printf "%-10s: %s\n" "$p" "$v"
   else
     printf "%-10s: no esta\n" "$p"
   fi
 done
-command -v python3 >/dev/null && python3 -c "import venv" 2>/dev/null \
-  && echo "venv      : SI" || echo "venv      : NO (hace falta python3-venv)"
+# No vale con `import venv`: ese modulo esta en la biblioteca estandar y se
+# importa aunque falte el paquete python3-venv. Lo que de verdad falta entonces
+# es ensurepip, y el fallo no aparece hasta `python3 -m venv`, con un
+# «ensurepip is not available» que no dice que paquete instalar.
+if command -v python3 >/dev/null && python3 -c "import ensurepip" 2>/dev/null; then
+  echo "venv      : SI"
+else
+  echo "venv      : NO — hace falta: sudo apt install python3-venv"
+fi
 
 titulo "Base de datos"
 if command -v mysql >/dev/null 2>&1 || command -v mariadb >/dev/null 2>&1; then
@@ -76,11 +84,14 @@ free -h 2>/dev/null | awk 'NR==1 || NR==2'
 
 titulo "Puertos"
 for puerto in 80 443 3306 8000; do
-  if (command -v ss >/dev/null && ss -ltn 2>/dev/null | grep -q ":$puerto ") || \
-     (command -v netstat >/dev/null && netstat -ltn 2>/dev/null | grep -q ":$puerto "); then
-    echo "$puerto      : OCUPADO"
+  if ss -ltn 2>/dev/null | grep -q ":$puerto "; then
+    # Quien lo ocupa, si se puede saber. «Ocupado» a secas obliga a investigar
+    # aparte, y aqui suele ser un servicio del propio servidor que no hay que
+    # tocar.
+    quien=$(ss -ltnp 2>/dev/null | grep ":$puerto " | grep -o 'users:(("[^"]*"' | head -1 | tr -d '\"' | sed 's/users:((//')
+    printf "%-8s: OCUPADO%s\n" "$puerto" "${quien:+ por $quien}"
   else
-    echo "$puerto      : libre"
+    printf "%-8s: libre\n" "$puerto"
   fi
 done
 
