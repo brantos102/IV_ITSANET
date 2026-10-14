@@ -93,6 +93,29 @@ case "$VAL_DATABASE_URL" in
            "Sin eso el conector negocia latin1 y las tildes se guardan rotas." ;;
 esac
 
+# Una arroba en la contraseña parte la dirección.
+#
+# El formato es usuario:clave@servidor, así que el lector corta en la PRIMERA
+# arroba: con la clave «IVItsa@2026» el servidor pasa a ser «2026@127.0.0.1» y la
+# clave queda en «IVItsa». El error que sale después habla de un servidor que no
+# existe y no menciona la contraseña por ningún lado, así que se busca donde no
+# es. Mejor decirlo aquí.
+sin_esquema="${VAL_DATABASE_URL#*://}"
+credenciales="${sin_esquema%@*}"
+case "$credenciales" in
+  *@*) morir "La contraseña lleva una arroba sin escapar." \
+"El lector corta en la primera arroba, así que toma «${sin_esquema#*@}» por el
+   servidor. Dos salidas:
+
+   1. Cambiar la contraseña por una sin caracteres especiales (recomendado,
+      porque esta dirección se escribe también en .bashrc y en el servicio):
+        sudo mysql -e \"ALTER USER 'itsanet'@'localhost' IDENTIFIED BY 'NUEVACLAVE';\"
+
+   2. O dejarla y escribir la arroba como %40 en la dirección:
+        ...//itsanet:MI%40CLAVE@127.0.0.1:3306/..." ;;
+esac
+bien "la contraseña no rompe la dirección"
+
 # --------------------------------------------------------------------------- #
 paso "4/5  Las tablas"
 
