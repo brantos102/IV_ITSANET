@@ -189,7 +189,7 @@ personas alcanza de sobra; para un contenedor de 800 líneas con 6 personas se
 siente. También hay cuotas diarias (`MailApp` 100 correos/día) y el límite de 6
 minutos por ejecución.
 
-### Opción B — Portar la interfaz sobre el motor de VAL_VENTURA
+### Opción B — Portar la interfaz sobre el motor de IV_ITSANET
 
 El backend del PR anterior ya resuelve los nueve requerimientos y está probado
 contra tu archivo real: libro mayor append-only, validación Depot con caché,

@@ -1,5 +1,5 @@
 {
-  "name": "val-ventura-functions",
+  "name": "iv-itsanet-functions",
   "version": "3.0.0",
   "description": "Cloud Functions de validación física de recepciones",
   "main": "src/index.js",

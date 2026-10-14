@@ -41,7 +41,7 @@ guardan rotas, y eso no se arregla después: hay que volver a importar.
 ```bash
 pip install -r requirements.txt
 
-export VAL_DATABASE_URL="mysql+pymysql://val:LA-CLAVE@127.0.0.1:3306/val_ventura?charset=utf8mb4"
+export VAL_DATABASE_URL="mysql+pymysql://itsanet:LA-CLAVE@127.0.0.1:3306/iv_itsanet?charset=utf8mb4"
 python scripts/preparar_base.py
 ```
 
@@ -74,7 +74,7 @@ En `https://iv-itsanet.web.app/admin.html`, entrando como **ADMIN**:
 
 **Llevar el histórico al servidor local** → *Exportar para el servidor local*.
 
-Baja un `val-ventura-AAAA-MM-DD.json` y enseña unas cifras.
+Baja un `iv-itsanet-AAAA-MM-DD.json` y enseña unas cifras.
 
 - [ ] **Apunta esas cifras.** Son las que hay que cuadrar en el paso 5.
 
@@ -87,7 +87,7 @@ Tarda: son cuatro lecturas por recepción. Deja la pestaña abierta.
 Copia el `.json` al servidor y, primero en seco:
 
 ```bash
-python scripts/importar_firestore.py val-ventura-2026-10-14.json --ensayo
+python scripts/importar_firestore.py iv-itsanet-2026-10-14.json --ensayo
 ```
 
 Hace la importación entera y la deshace al final. Sirve para ver qué entraría y
@@ -98,7 +98,7 @@ qué avisos salen sin tocar nada.
 Cuando cuadre, sin `--ensayo`:
 
 ```bash
-python scripts/importar_firestore.py val-ventura-2026-10-14.json
+python scripts/importar_firestore.py iv-itsanet-2026-10-14.json
 ```
 
 Se puede lanzar las veces que haga falta. Cada conteo conserva la clave de
@@ -193,5 +193,5 @@ Y dos cambios de tipo, que es lo que se arregla aprovechando que se migra:
 | `MySQL server has gone away` | Conexión que MySQL cerró por ociosa. Ya se reciclan cada hora; si sigue, baja `VAL_DB_POOL_RECYCLE` por debajo del `wait_timeout` del servidor. |
 | `Data too long for column` | Modo estricto haciendo su trabajo. El importador recorta lo que no cabe, así que esto viene de otro sitio: mira qué columna nombra. |
 | `Incorrect string value: '\xF0\x9F...'` | La tabla no está en utf8mb4. Paso 1. |
-| `Access denied for user 'val'` | La clave del `GRANT` no es la de `VAL_DATABASE_URL`. |
+| `Access denied for user 'itsanet'` | La clave del `GRANT` no es la de `VAL_DATABASE_URL`. |
 | `No module named 'pymysql'` | Falta `pip install -r requirements.txt`. |

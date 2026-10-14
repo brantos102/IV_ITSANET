@@ -1,4 +1,4 @@
-"""VAL VENTURA - Validacion fisica de recepciones (Impoventura).
+"""ITSANET IMS - Validacion fisica de recepciones.
 
 Arranque:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 """
@@ -20,7 +20,7 @@ from app.security import hash_pin
 from app.services.validation import ErrorValidacion
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-log = logging.getLogger("val_ventura")
+log = logging.getLogger("iv_itsanet")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):

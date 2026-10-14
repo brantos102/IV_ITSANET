@@ -1,4 +1,4 @@
-# Guía de instalación — VAL VENTURA
+# Guía de instalación — ITSANET IMS
 
 De cero a la app funcionando en los handheld, **sin tarjeta de crédito**.
 
@@ -233,7 +233,7 @@ Ya tienes **IV ITSANET** en plan Spark. Solo falta activar Firestore.
 ### 2.2 Registrar la aplicación web
 
 1. **Configuración del proyecto** (el engranaje) → **Tus apps** → icono **`</>`**
-2. Apodo: `val-ventura-pwa`
+2. Apodo: `iv-itsanet-pwa`
 3. Marca **"También configura Firebase Hosting"**
 4. **Registrar app**
 5. **Copia el bloque `firebaseConfig`** que te muestra. Lo necesitas en el paso 4
@@ -300,7 +300,7 @@ riesgo. La protección real son las reglas de Firestore.
 3. Pestaña **Sign-in method**
 4. Clic en **Google**
 5. Activa el interruptor **Habilitar**
-6. **Nombre público del proyecto:** `VAL VENTURA — Itsanet`
+6. **Nombre público del proyecto:** `ITSANET IMS — Itsanet`
    > Es lo que verá el operario en la pantalla de Google. Que se reconozca.
 7. **Correo de asistencia del proyecto:** elige el tuyo del desplegable
 8. **Guardar**
@@ -515,7 +515,7 @@ Hosting URL: https://iv-itsanet.web.app
 
 1. Entra a [script.google.com](https://script.google.com) **con la cuenta
    corporativa**
-2. **Nuevo proyecto** → nómbralo `VAL VENTURA — Proxy Depot`
+2. **Nuevo proyecto** → nómbralo `ITSANET IMS — Proxy Depot`
 3. Borra el contenido de `Código.gs` y pega entero `apps-script/proxy/Proxy.gs`
 4. **Archivo → Nuevo → Secuencia de comandos**, nómbrala `Clientes`, y pega
    entero `apps-script/proxy/Clientes.gs`
@@ -526,7 +526,7 @@ Hosting URL: https://iv-itsanet.web.app
 
 ### 5.2 Carpeta de Drive para las fotos
 
-1. En Drive, crea una carpeta `VAL VENTURA — Evidencias`
+1. En Drive, crea una carpeta `ITSANET IMS — Evidencias`
 2. Ábrela y copia el id de la URL:
    `https://drive.google.com/drive/folders/`**`1a2B3c4D5e6F7g8H`**
 

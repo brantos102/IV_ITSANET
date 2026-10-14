@@ -1,4 +1,4 @@
-# VAL VENTURA
+# ITSANET IMS
 
 App para la validación física de recepciones de Impoventura.
 

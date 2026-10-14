@@ -26,7 +26,7 @@ def main() -> int:
     except Exception as e:                       # noqa: BLE001
         print(f"No se pudo conectar: {e}\n")
         print("Revisa VAL_DATABASE_URL. Para MySQL:")
-        print("  mysql+pymysql://val:CLAVE@127.0.0.1:3306/val_ventura?charset=utf8mb4")
+        print("  mysql+pymysql://itsanet:CLAVE@127.0.0.1:3306/iv_itsanet?charset=utf8mb4")
         return 1
 
     print(f"Motor    : {datos['motor']} {datos.get('version', '')}")
@@ -37,7 +37,7 @@ def main() -> int:
         if datos.get("charset") != "utf8mb4":
             print("\n  AVISO: la base no está en utf8mb4. Las tildes y las eñes se")
             print("  guardarán rotas. Córrelo así y vuelve a intentarlo:")
-            print("    ALTER DATABASE val_ventura CHARACTER SET utf8mb4 "
+            print("    ALTER DATABASE iv_itsanet CHARACTER SET utf8mb4 "
                   "COLLATE utf8mb4_unicode_ci;")
             return 1
     else:
