@@ -96,11 +96,39 @@ service cloud.firestore {
                      && request.resource.data.rol in ['OPERADOR', 'SUPERVISOR', 'ADMIN']
                      && request.resource.data.email is string);
 
-      // Promover, degradar o desactivar: solo un administrador.
-      allow update: if esAdmin()
-                 // Nadie se quita a sí mismo el rol: evita quedarse sin ADMIN.
+      /**
+       * Editar una ficha: aprobar, desactivar, corregir el nombre o el alias.
+       *
+       * Antes esto era `esAdmin()` a secas, y era un agujero de operación: el
+       * registro abierto nace DESACTIVADO esperando que alguien lo apruebe, la
+       * pantalla de usuarios la ven los supervisores... y el botón de aprobar
+       * les fallaba. El supervisor veía la cola de pendientes y no podía
+       * hacer nada con ella; en la práctica nadie entraba hasta que aparecía
+       * un administrador.
+       *
+       * Así que el supervisor aprueba y corrige datos, y el rol se queda donde
+       * estaba: quien reparte permisos es un administrador. Tres cierres:
+       *
+       * - La identidad no se toca nunca: `uid` y `email` son con lo que entra
+       *   la persona. Cambiarle el correo a una ficha sería entregarle la
+       *   cuenta de alguien a otro.
+       * - Un supervisor no edita a un ADMIN: si no, degradar no haría falta
+       *   para dejar al administrador fuera, bastaría con desactivarlo.
+       * - Nadie se quita a sí mismo el rol ni se desactiva: así no se queda
+       *   el sistema sin ningún ADMIN por un descuido.
+       */
+      allow update: if esSupervisor()
+                 && request.resource.data.uid == resource.data.uid
+                 && request.resource.data.email == resource.data.email
+                 && (esAdmin()
+                     || (resource.data.rol != 'ADMIN'
+                         && request.resource.data.rol == resource.data.rol
+                         && request.resource.data.diff(resource.data)
+                                .affectedKeys().hasOnly(['nombre', 'usuario', 'activo'])))
+                 && request.resource.data.rol in ['OPERADOR', 'SUPERVISOR', 'ADMIN']
                  && !(request.auth.uid == uid
-                      && request.resource.data.rol != resource.data.rol);
+                      && (request.resource.data.rol != resource.data.rol
+                          || request.resource.data.activo != true));
       allow delete: if false;
     }
 
@@ -122,10 +150,17 @@ service cloud.firestore {
     match /alias/{usuario} {
       allow get: if true;
       allow list: if false;
-      allow create: if request.auth != null
-                 && request.resource.data.uid == request.auth.uid
-                 && request.resource.data.email == request.auth.token.email;
-      allow update, delete: if esAdmin();
+      allow create: if (request.auth != null
+                        && request.resource.data.uid == request.auth.uid
+                        && request.resource.data.email == request.auth.token.email)
+                 // Un supervisor que corrige el alias de otro tiene que poder
+                 // apuntar el nuevo a su correo: si no, le cambia el nombre de
+                 // usuario en la ficha y la persona se queda sin poder entrar
+                 // con ninguno de los dos.
+                 || (esSupervisor()
+                     && request.resource.data.uid is string
+                     && request.resource.data.email is string);
+      allow update, delete: if esSupervisor();
     }
 
     // ------------------------------------------------------------------ //

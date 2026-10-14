@@ -1109,4 +1109,86 @@ await test('un correo demasiado corto no genera un alias inservible', async () =
   ok(globalThis.__sets.some((x) => x.ruta === 'usuarios/u4'), 'el perfil sí');
 });
 
+// =============== El usuario que se elige al entrar con Google ============= //
+// Dos agujeros juntos: la ficha no llevaba el campo `usuario` —en la lista de
+// usuarios salia un guion y el supervisor no sabia a quien aprobaba— y a la
+// persona no se le preguntaba nunca con que iba a entrar.
+
+await test('la ficha de Google guarda el usuario, no solo el alias', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const p = await autenticacion.asegurarPerfil(googleUid('u5', 'ctorres@itsanet.com'));
+  eq(p.usuario, 'ctorres', 'sin esto la lista de usuarios ensena un guion');
+  const ficha = globalThis.__sets.find((x) => x.ruta === 'usuarios/u5');
+  eq(ficha.datos.usuario, 'ctorres', 'y tiene que quedar escrito, no solo devuelto');
+});
+
+await test('si se le pregunta, manda lo que eligio la persona', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  let preguntado = null;
+  const p = await autenticacion.asegurarPerfil(
+    googleUid('u6', 'daniel.mora@itsanet.com'),
+    { pedirUsuario: async (datos) => { preguntado = datos; return { usuario: 'dmora', nombre: 'Daniel Mora' }; } },
+  );
+  eq(preguntado.sugerido, 'daniel.mora', 'la sugerencia va puesta: aceptar es un toque');
+  eq(preguntado.email, 'daniel.mora@itsanet.com');
+  eq(p.usuario, 'dmora');
+  eq(p.nombre, 'Daniel Mora');
+  ok(globalThis.__sets.some((x) => x.ruta === 'alias/dmora'), 'el alias es el elegido');
+  ok(!globalThis.__sets.some((x) => x.ruta === 'alias/daniel.mora'), 'y no el derivado');
+});
+
+await test('un usuario ya cogido por otro no se le entrega', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = { 'alias/jperez': { uid: 'otro', email: 'juan@itsanet.com' } };
+  const p = await autenticacion.asegurarPerfil(
+    googleUid('u7', 'jose.perez@itsanet.com'),
+    { pedirUsuario: async () => ({ usuario: 'jperez' }) },
+  );
+  ok(p.usuario !== 'jperez', 'seria entregarle la entrada de otra persona');
+  eq(p.usuario, 'jose.perez',
+     'el derivado del correo es mejor segunda opcion que un jperez2: se lee y no se confunde');
+});
+
+await test('cancelar el dialogo no deja a nadie sin usuario', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const p = await autenticacion.asegurarPerfil(
+    googleUid('u8', 'elena.vera@itsanet.com'),
+    { pedirUsuario: async () => null },
+  );
+  eq(p.usuario, 'elena.vera', 'queda la sugerencia: sin usuario es peor');
+});
+
+await test('si el dialogo falla tampoco', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const p = await autenticacion.asegurarPerfil(
+    googleUid('u9', 'fabian.luna@itsanet.com'),
+    { pedirUsuario: async () => { throw new Error('se cerro la pantalla'); } },
+  );
+  eq(p.usuario, 'fabian.luna');
+});
+
+await test('a las fichas viejas sin usuario se les pone al volver a entrar', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const antes = { uid: 'u10', email: 'gloria.saa@itsanet.com', rol: 'OPERADOR', activo: true };
+  const p = await autenticacion.completarPerfil(
+    googleUid('u10', 'gloria.saa@itsanet.com'), antes);
+  eq(p.usuario, 'gloria.saa');
+  const ficha = globalThis.__sets.find((x) => x.ruta === 'usuarios/u10');
+  ok(ficha?.opciones?.merge, 'se completa, no se reescribe la ficha entera');
+});
+
+await test('a quien ya tiene usuario no se le toca', async () => {
+  globalThis.__sets = [];
+  const p = await autenticacion.completarPerfil(
+    googleUid('u11', 'hugo.paz@itsanet.com'),
+    { usuario: 'hpaz', rol: 'ADMIN' });
+  eq(p.usuario, 'hpaz');
+  eq(globalThis.__sets.length, 0, 'ni una escritura por entrar');
+});
+
 resumen();

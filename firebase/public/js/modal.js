@@ -228,3 +228,80 @@ export function confirmarEscribiendo({ titulo, texto = '', exacto,
     },
   ).then((r) => r === true);
 }
+
+/**
+ * Pide varios datos a la vez: un formulario dentro del diálogo.
+ *
+ * Nace de editar un usuario. Con `pedirTexto` harían falta tres diálogos
+ * seguidos —nombre, usuario, rol— y quien los contesta no ve en ningún momento
+ * la ficha completa que está cambiando; además, cancelar el tercero dejaría los
+ * dos primeros ya guardados. Aquí se ve todo junto y se guarda una sola vez.
+ *
+ * `campos`: [{ clave, etiqueta, valor, pista, obligatorio, tipo, opciones }]
+ *   tipo 'lista'   -> <select> con `opciones`: [{ valor, titulo }]
+ *   tipo 'interruptor' -> casilla; el valor viaja como booleano
+ *   cualquier otro -> <input> de texto
+ *
+ * Devuelve un objeto { clave: valor } o null si se canceló. Las claves son las
+ * que se pasaron: quien llama no tiene que volver a leer el DOM.
+ */
+export function pedirDatos({ titulo, texto = '', campos = [],
+                             aceptar = 'Guardar', cancelar = 'Cancelar' } = {}) {
+  const dibujar = (c) => {
+    const id = `modalC_${c.clave}`;
+    if (c.tipo === 'lista') {
+      const ops = (c.opciones || []).map((o) =>
+        `<option value="${esc(o.valor)}"${o.valor === c.valor ? ' selected' : ''}>${esc(o.titulo ?? o.valor)}</option>`).join('');
+      return `<label class="campo"><span>${esc(c.etiqueta)}</span>
+                <select id="${id}" data-clave="${esc(c.clave)}">${ops}</select>
+                ${c.pista ? `<span class="mini">${esc(c.pista)}</span>` : ''}</label>`;
+    }
+    if (c.tipo === 'interruptor') {
+      return `<label class="campo"><span>${esc(c.etiqueta)}</span>
+                <select id="${id}" data-clave="${esc(c.clave)}" data-bool>
+                  <option value="si"${c.valor ? ' selected' : ''}>Sí</option>
+                  <option value="no"${c.valor ? '' : ' selected'}>No</option>
+                </select>
+                ${c.pista ? `<span class="mini">${esc(c.pista)}</span>` : ''}</label>`;
+    }
+    return `<label class="campo"><span>${esc(c.etiqueta)}</span>
+              <input id="${id}" data-clave="${esc(c.clave)}" value="${esc(c.valor ?? '')}"
+                     placeholder="${esc(c.marcador || '')}" autocomplete="off"
+                     ${c.obligatorio ? 'data-obligatorio' : ''}
+                     autocapitalize="none" spellcheck="false">
+              ${c.pista ? `<span class="mini">${esc(c.pista)}</span>` : ''}</label>`;
+  };
+
+  return abrir(
+    `${cabecera(titulo, texto)}
+     <div class="rejilla">${campos.map(dibujar).join('')}</div>
+     <div class="modal-acciones">
+       <button type="button" class="b-sec" data-no>${esc(cancelar)}</button>
+       <button type="button" class="b-primario" data-si>${esc(aceptar)}</button>
+     </div>`,
+    (d, cerrar) => {
+      const entradas = Array.from(d.querySelectorAll('[data-clave]'));
+      const si = d.querySelector('[data-si]');
+      const revisar = () => {
+        si.disabled = entradas.some((e) =>
+          e.hasAttribute('data-obligatorio') && !e.value.trim());
+      };
+
+      entradas.forEach((e) => e.addEventListener('input', revisar));
+      si.onclick = () => {
+        if (si.disabled) return;
+        const datos = {};
+        entradas.forEach((e) => {
+          datos[e.dataset.clave] = e.hasAttribute('data-bool')
+            ? e.value === 'si'
+            : (e.value ?? '').trim();
+        });
+        cerrar(datos);
+      };
+      d.querySelector('[data-no]').onclick = () => cerrar(null);
+
+      revisar();
+      entradas[0]?.focus();
+    },
+  ).then((r) => (r === undefined ? null : r));
+}

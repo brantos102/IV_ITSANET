@@ -16,7 +16,22 @@ const PUBLIC = path.join(AQUI, '..', 'public');
 const STUB_SDK = `
 export const doc = (...a) => ({ ruta: a.slice(1).join('/') });
 export const collection = (...a) => ({ ruta: a.slice(1).join('/') });
-export const getDoc = async () => ({ exists: () => false, data: () => ({}), get: () => undefined });
+/*
+ * Lectura de UN documento.
+ *
+ * Lee de globalThis.__documentos, el mismo mapa que usa la transaccion. Antes
+ * devolvia siempre «no existe», y con eso no se podia probar lo que pasa cuando
+ * el alias que alguien pide ya es de otra persona: justo el caso en el que dos
+ * operarios acaban compartiendo con que entran.
+ */
+export const getDoc = async (ref) => {
+  const d = (globalThis.__documentos || {})[ref?.ruta] || null;
+  return {
+    exists: () => d !== null,
+    data: () => d || {},
+    get: (campo) => (d || {})[campo],
+  };
+};
 /*
  * Lectura de colecciones.
  *

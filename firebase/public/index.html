@@ -292,6 +292,7 @@ import { DOMINIO, SDK, DATABASE_ID } from './js/config.js';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
          normalizarAlias, db, auth } from './js/auth.js';
+import { pedirDatos } from './js/modal.js';
 import { doc, getDoc, collection, getDocs, limit, query }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { listarRecepciones } from './js/datos.js';
@@ -467,6 +468,36 @@ $('btnSalir').addEventListener('click', () => salir());
 // En móvil el login vuelve por redirect, no por popup.
 recogerRedirect().catch((e) => aviso('avisos-login', traducirError(e), 'err', 'Error al volver'));
 
+/**
+ * Lo que se le pregunta a quien entra por primera vez con el botón de Google.
+ *
+ * Google da el correo y, a veces, el nombre; no da con qué va a entrar la
+ * persona en el handheld. Antes se derivaba del correo en silencio y el
+ * operario no llegaba a saber cuál era el suyo: si el botón de Google le
+ * fallaba en el móvil —o simplemente cerraba sesión— no tenía nada que teclear.
+ *
+ * Se pregunta una sola vez, al nacer la ficha, y con la sugerencia ya puesta:
+ * aceptar sin tocar nada es un toque. Cancelar también vale; entonces se queda
+ * la sugerencia, porque quedarse sin usuario es peor que quedarse con uno que
+ * no eligió.
+ */
+async function pedirUsuarioDeGoogle({ email, nombre, sugerido }) {
+  return pedirDatos({
+    titulo: 'Bienvenido: elige tu usuario',
+    texto: `Entraste con ${email}. Este es el usuario con el que podrás entrar `
+         + 'también desde el handheld, escribiéndolo en «Usuario».',
+    campos: [
+      { clave: 'usuario', etiqueta: 'Usuario', valor: sugerido, obligatorio: true,
+        pista: 'Letras, números, punto o guion. Al menos 3 caracteres.' },
+      { clave: 'nombre', etiqueta: 'Nombre y apellido', valor: nombre || '',
+        marcador: 'Juan Pérez',
+        pista: 'Es lo que ve el supervisor en los informes y en la lista de usuarios.' },
+    ],
+    aceptar: 'Continuar',
+    cancelar: 'Usar el sugerido',
+  });
+}
+
 observarSesion(async ({ usuario, perfil, error }) => {
   limpiar('avisos-login');
   limpiar('avisos-sesion');
@@ -558,7 +589,7 @@ observarSesion(async ({ usuario, perfil, error }) => {
     fila('Recepciones', 'bloqueado', false);
   }
 
-});
+}, { pedirUsuario: pedirUsuarioDeGoogle });
 </script>
 <script>
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del

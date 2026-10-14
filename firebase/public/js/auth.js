@@ -338,7 +338,7 @@ export async function esCuentaWorkspace(usuario) {
  * corporativa queda como OPERADOR. Las reglas impiden que alguien se cree a sí
  * mismo como ADMIN; promover a otro es cosa de un administrador.
  */
-export async function asegurarPerfil(usuario) {
+export async function asegurarPerfil(usuario, { pedirUsuario } = {}) {
   const ref = doc(db, 'usuarios', usuario.uid);
   const snap = await getDoc(ref);
 
@@ -367,10 +367,40 @@ export async function asegurarPerfil(usuario) {
     );
   }
 
+  // Se le pregunta el usuario, si quien llama sabe preguntar.
+  //
+  // La pantalla de acceso pasa `pedirUsuario`; el resto de las pantallas no,
+  // porque un diálogo a mitad de una validación no tiene sentido. Sin él se
+  // deriva del correo y ya está: lo importante es que NADIE acabe sin alias.
+  const sugerido = normalizarAlias(String(usuario.email || '').split('@')[0]);
+  let elegido = '', nombreDado = '';
+  if (typeof pedirUsuario === 'function') {
+    try {
+      const r = await pedirUsuario({
+        email: usuario.email,
+        nombre: usuario.displayName || '',
+        sugerido,
+      });
+      if (r) {
+        elegido = normalizarAlias(r.usuario || '');
+        nombreDado = limpiarNombre(r.nombre || '');
+      }
+    } catch {
+      // Que falle el diálogo no puede dejar a nadie fuera: se sigue con la
+      // sugerencia, igual que antes de que existiera esta pregunta.
+    }
+  }
+
+  // Primero el alias, después la ficha: el alias puede estar cogido y hay que
+  // saber cuál quedó para escribirlo en la ficha. Al contrario, la ficha diría
+  // un usuario con el que no se puede entrar.
+  const alias = await asegurarAlias(usuario, elegido);
+
   const perfil = {
     uid: usuario.uid,
     email: usuario.email,
-    nombre: usuario.displayName || usuario.email,
+    usuario: alias || '',
+    nombre: nombreDado || usuario.displayName || usuario.email,
     foto: usuario.photoURL || null,
     rol: 'OPERADOR',
     activo: true,
@@ -379,15 +409,27 @@ export async function asegurarPerfil(usuario) {
   };
   await setDoc(ref, perfil);
 
-  // Y su alias, para que tenga un usuario con el que volver.
-  //
-  // Sin esto, quien entraba con Google quedaba sin nombre de usuario: no
-  // aparecía en ninguna parte y, al cerrar sesión, lo único que le dejaba
-  // volver era el propio botón de Google. Si no caía en eso —o si el botón
-  // fallaba en su móvil— se quedaba fuera de la aplicación sin saber por qué.
-  await asegurarAlias(usuario);
-
   return { ...perfil, nuevo: true };
+}
+
+/**
+ * Rellena lo que falte en la ficha de quien ya existía.
+ *
+ * Las cuentas creadas con Google antes de que la ficha llevara `usuario`
+ * quedaron sin ninguno: en la lista de usuarios salían con un guion y, al
+ * cerrar sesión, no tenían nada que teclear. Esto les pone el alias que ya
+ * tenían reservado —o uno nuevo— la primera vez que vuelven a entrar.
+ */
+export async function completarPerfil(usuario, perfil) {
+  if (!perfil || perfil.usuario || tipoDeAcceso(usuario) !== 'GOOGLE') return perfil;
+  try {
+    const alias = await asegurarAlias(usuario);
+    if (!alias) return perfil;
+    await setDoc(doc(db, 'usuarios', usuario.uid), { usuario: alias }, { merge: true });
+    return { ...perfil, usuario: alias };
+  } catch {
+    return perfil;      // sin permiso o sin red: se queda como estaba
+  }
 }
 
 /**
@@ -402,12 +444,20 @@ export async function asegurarPerfil(usuario) {
  * entrado, y es lo que permite decirle a alguien «esa cuenta entra con Google»
  * en vez de «usuario o contraseña incorrectos».
  */
-async function asegurarAlias(usuario) {
+async function asegurarAlias(usuario, sugerencia = '') {
   const base = normalizarAlias(String(usuario.email || '').split('@')[0]);
-  if (base.length < 3) return null;
+  const pedido = normalizarAlias(sugerencia);
 
-  for (let n = 0; n < 20; n++) {
-    const alias = n === 0 ? base : `${base}${n + 1}`;
+  // El que pidió la persona va primero; el del correo es el respaldo, y los
+  // numerados detrás para cuando los dos están cogidos.
+  const candidatos = [];
+  if (pedido.length >= 3) candidatos.push(pedido);
+  if (base.length >= 3 && base !== pedido) candidatos.push(base);
+  if (!candidatos.length) return null;
+  const raiz = candidatos[0];
+  for (let i = 2; i <= 20; i++) candidatos.push(`${raiz}${i}`);
+
+  for (const alias of candidatos) {
     try {
       const snap = await getDoc(doc(db, 'alias', alias));
       if (snap.exists()) {
@@ -419,8 +469,8 @@ async function asegurarAlias(usuario) {
       });
       return alias;
     } catch {
-      // Que no se pueda reservar no puede impedir entrar: el perfil ya existe y
-      // el botón de Google sigue funcionando. Solo se queda sin alias.
+      // Que no se pueda reservar no puede impedir entrar: el botón de Google
+      // sigue funcionando. Solo se queda sin alias.
       return null;
     }
   }
@@ -433,7 +483,7 @@ async function asegurarAlias(usuario) {
  * @param {(estado: object) => void} alCambiar
  *   Recibe { usuario, perfil, error } — `usuario` null si no hay sesión.
  */
-export function observarSesion(alCambiar) {
+export function observarSesion(alCambiar, { pedirUsuario } = {}) {
   return onAuthStateChanged(auth, async (usuario) => {
     if (!usuario) return alCambiar({ usuario: null, perfil: null });
 
@@ -444,7 +494,7 @@ export function observarSesion(alCambiar) {
     // existe. A cambio, toda cuenta nueva nace desactivada y la activa un
     // administrador: la puerta está, solo que la abre una persona.
     try {
-      const perfil = await asegurarPerfil(usuario);
+      let perfil = await asegurarPerfil(usuario, { pedirUsuario });
       if (perfil.activo === false) {
         await salir();
         return alCambiar({
@@ -453,6 +503,7 @@ export function observarSesion(alCambiar) {
                  'aprobarla; en cuanto lo haga, entras con el mismo usuario y contraseña.',
         });
       }
+      perfil = await completarPerfil(usuario, perfil);
       alCambiar({ usuario, perfil });
     } catch (e) {
       alCambiar({ usuario, perfil: null, error: traducirError(e) });

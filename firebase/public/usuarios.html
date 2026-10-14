@@ -83,7 +83,7 @@
       <table>
         <thead><tr>
           <th>Usuario</th><th>Nombre</th><th>Correo</th><th>Rol</th>
-          <th>Estado</th><th></th>
+          <th>Estado</th><th>Acciones</th>
         </tr></thead>
         <tbody id="tUsuarios"></tbody>
       </table>
@@ -113,11 +113,12 @@ import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
   normalizarAlias, db,
 } from './js/auth.js';
-import { collection, getDocs, doc, updateDoc }
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, getDoc }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { pedirDatos, confirmar } from './js/modal.js';
 
 const $ = (id) => document.getElementById(id);
-let perfil = null, usuario = null;
+let perfil = null, usuario = null, fichas = new Map();
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,
@@ -168,6 +169,7 @@ async function listar() {
       : '';
 
     const esAdmin = perfil.rol === 'ADMIN';
+    fichas = new Map(filas.map((u) => [u.uid, u]));
     $('tUsuarios').innerHTML = filas.length ? filas.map((u) => {
       const yo = u.uid === usuario.uid;
       const clase = { ADMIN: 'p-err', SUPERVISOR: 'p-info', OPERADOR: 'p-off' };
@@ -183,10 +185,11 @@ async function listar() {
           </select>` : `<span class="pastilla ${clase[u.rol] || 'p-off'}">${esc(u.rol || '')}</span>`}</td>
         <td><span class="pastilla ${u.activo === false ? 'p-err' : 'p-ok'}">
             ${u.activo === false ? 'INACTIVO' : 'ACTIVO'}</span></td>
-        <td>${esAdmin && !yo
-          ? `<button class="${u.activo === false ? 'b-primario' : 'b-sec'}"
-                     data-activo="${esc(u.uid)}" data-valor="${u.activo === false}">
-               ${u.activo === false ? 'Aprobar' : 'Desactivar'}</button>`
+        <td>${puedeEditar(u) ? `
+            ${yo ? '' : `<button class="${u.activo === false ? 'b-primario' : 'b-sec'}"
+                    data-activo="${esc(u.uid)}" data-valor="${u.activo === false}">
+              ${u.activo === false ? 'Aprobar' : 'Desactivar'}</button>`}
+            <button class="b-sec" data-editar="${esc(u.uid)}">Editar</button>`
           : ''}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="6" class="mini">Ninguno todavía.</td></tr>';
@@ -207,10 +210,128 @@ $('tUsuarios').addEventListener('change', async (ev) => {
   } catch (e) { aviso(traducirError(e), 'err'); listar(); }
 });
 
+/**
+ * A quién puede tocar cada quien.
+ *
+ * Un supervisor aprueba y corrige a operarios y a otros supervisores, no a un
+ * administrador: si no, desactivar bastaría para dejar fuera a quien reparte
+ * los permisos. Es la misma línea que trazan las reglas de Firestore; aquí solo
+ * se evita enseñar un botón que iba a fallar.
+ */
+function puedeEditar(u) {
+  if (!perfil || !u) return false;
+  return perfil.rol === 'ADMIN' || u.rol !== 'ADMIN';
+}
+
+/**
+ * Editar la ficha de alguien.
+ *
+ * El alias es el caso delicado: con lo que entra la persona vive en dos sitios
+ * —el campo `usuario` de su ficha y el documento `alias/<usuario>` que traduce
+ * ese alias a su correo— y los dos tienen que moverse juntos. Si solo cambiara
+ * la ficha, el operario escribiría su usuario nuevo en el acceso y no existiría
+ * nadie con ese nombre.
+ *
+ * Por eso el alias nuevo se reserva ANTES de guardar la ficha: si ya está
+ * cogido por otra persona, aquí se para y no se ha cambiado nada.
+ */
+async function editar(uid) {
+  const u = fichas.get(uid);
+  if (!u) return;
+  const esAdmin = perfil.rol === 'ADMIN';
+  const yo = u.uid === usuario.uid;
+
+  const campos = [
+    { clave: 'nombre', etiqueta: 'Nombre y apellido', valor: u.nombre || '',
+      obligatorio: true, marcador: 'Juan Pérez' },
+    { clave: 'usuario', etiqueta: 'Usuario', valor: u.usuario || '',
+      pista: u.tipoAcceso === 'CLAVE'
+        ? 'Con lo que entra en el handheld. Cambiarlo cambia lo que teclea.'
+        : 'Entra con el botón de Google; el usuario sirve para identificarlo en la lista.' },
+  ];
+  if (esAdmin && !yo) {
+    campos.push({ clave: 'rol', etiqueta: 'Rol', tipo: 'lista', valor: u.rol || 'OPERADOR',
+      opciones: [
+        { valor: 'OPERADOR', titulo: 'Operario — escanea y cuenta' },
+        { valor: 'SUPERVISOR', titulo: 'Supervisor — además crea y cierra recepciones' },
+        { valor: 'ADMIN', titulo: 'Administrador — además credenciales y usuarios' },
+      ] });
+  }
+  if (!yo) {
+    campos.push({ clave: 'activo', etiqueta: 'Puede entrar', tipo: 'interruptor',
+      valor: u.activo !== false,
+      pista: 'En «No» se le corta el acceso en el acto. Nada de lo que contó se borra.' });
+  }
+
+  const datos = await pedirDatos({
+    titulo: 'Editar usuario',
+    texto: `${u.email || ''} · ${u.tipoAcceso === 'CLAVE' ? 'usuario y contraseña' : 'cuenta de Google'}`,
+    campos,
+  });
+  if (!datos) return;
+
+  const alias = normalizarAlias(datos.usuario || '');
+  if (datos.usuario && alias.length < 3) {
+    aviso('El usuario necesita al menos 3 caracteres: letras, números, punto o guion.', 'err');
+    return;
+  }
+
+  const cambio = {};
+  if ((datos.nombre || '') !== (u.nombre || '')) cambio.nombre = datos.nombre;
+  if (alias !== (u.usuario || '')) cambio.usuario = alias;
+  if ('rol' in datos && datos.rol !== u.rol) cambio.rol = datos.rol;
+  if ('activo' in datos && datos.activo !== (u.activo !== false)) cambio.activo = datos.activo;
+
+  if (!Object.keys(cambio).length) { aviso('No había nada que cambiar.', 'info'); return; }
+
+  limpiarAvisos();
+  try {
+    // 1. El alias nuevo, antes de tocar la ficha.
+    if (cambio.usuario) {
+      const ref = doc(db, 'alias', cambio.usuario);
+      const ya = await getDoc(ref);
+      if (ya.exists() && ya.data().uid !== u.uid) {
+        aviso(`El usuario «${cambio.usuario}» ya está cogido. Elige otro.`, 'err');
+        return;
+      }
+      await setDoc(ref, {
+        email: u.email, uid: u.uid, tipoAcceso: u.tipoAcceso || 'CLAVE',
+      });
+    }
+
+    // 2. La ficha.
+    await updateDoc(doc(db, 'usuarios', uid), cambio);
+
+    // 3. El alias viejo se libera al final: si algo falla antes, la persona
+    //    sigue entrando con el que tenía.
+    if (cambio.usuario && u.usuario && u.usuario !== cambio.usuario) {
+      try { await deleteDoc(doc(db, 'alias', u.usuario)); } catch (e) { /* queda huérfano, no estorba */ }
+    }
+
+    aviso(`Ficha de ${datos.nombre || u.email} guardada.`
+      + (cambio.usuario ? ` Ahora entra como «${cambio.usuario}».` : '')
+      + (cambio.rol ? ` Rol: ${cambio.rol}, surte efecto de inmediato.` : '')
+      + (cambio.activo === false ? ' Acceso cortado.' : ''), 'ok');
+    listar();
+  } catch (e) {
+    aviso(traducirError(e), 'err');
+  }
+}
+
 $('tUsuarios').addEventListener('click', async (ev) => {
+  const porEditar = ev.target.dataset.editar;
+  if (porEditar) { editar(porEditar); return; }
+
   const uid = ev.target.dataset.activo;
   if (!uid) return;
   const activar = ev.target.dataset.valor === 'true';
+  const u = fichas.get(uid);
+  if (!activar && !await confirmar({
+    titulo: '¿Cortar el acceso?',
+    texto: `${u?.nombre || u?.email || ''} no podrá entrar a partir de ahora, sin esperar `
+         + 'a que caduque su sesión. Nada de lo que contó se borra y se puede volver a activar.',
+    aceptar: 'Desactivar', peligro: true,
+  })) return;
   try {
     await updateDoc(doc(db, 'usuarios', uid), { activo: activar });
     limpiarAvisos();
