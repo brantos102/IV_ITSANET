@@ -207,11 +207,28 @@ def _elegir_hoja(wb):
 # --------------------------------------------------------------------------- #
 # Maestro de productos (export del sistema Depot)
 # --------------------------------------------------------------------------- #
+# Los nombres de columna del maestro, en los dos formatos que llegan.
+#
+# Arriba, los de una exportacion directa de la base de Depot: producto_id,
+# unidad_id, familia_id. Abajo, los que devuelve la API del WMS, que van en
+# mayusculas y con puntos — «COD. PRODUCTO», «NRO. LOTE»— y son los mismos que
+# mapea el proxy de Apps Script.
+#
+# Hacian falta los dos. Con solo los primeros, un maestro sacado de la API se
+# rechazaba entero diciendo que le faltaba «producto_id», una columna que ese
+# archivo nunca va a tener.
 MAESTRO_ALIAS = {
+    # Exportacion de la base
     "producto_id": "sku", "codigo_producto": "codigo_alternativo",
     "descripcion": "descripcion", "codigo_barra": "ean", "unidad_id": "unidad",
     "familia_id": "familia", "cliente_id": "cliente", "inactivo": "inactivo",
     "CODIGO_ALTERNATIVO": "codigo_alternativo",
+    # Lo que devuelve el WMS
+    "cod. producto": "sku", "cod.producto": "sku", "cod producto": "sku",
+    "codigo": "sku", "sku": "sku", "item": "sku",
+    "unidad": "unidad", "familia": "familia",
+    "cod. cliente": "cliente", "cod.cliente": "cliente", "cliente": "cliente",
+    "ean": "ean", "codigo de barra": "ean", "cod. barra": "ean",
 }
 
 
@@ -230,8 +247,18 @@ def leer_maestro(ruta, hoja: str | None = None):
             mapa[i] = MAESTRO_ALIAS[k.lower()]
 
     if "sku" not in mapa.values():
+        columnas = [str(h) for h in hdr if limpiar(h)][:12]
         wb.close()
-        raise ValueError("El maestro no tiene la columna 'producto_id'.")
+        # El error dice QUE trae el archivo. «Falta producto_id» manda a buscar
+        # una columna que puede que ese maestro no tenga nunca, en vez de
+        # ensenar como se llaman las suyas.
+        raise ValueError(
+            f"No se encontro la columna del codigo de producto en la hoja "
+            f"'{ws.title}'. Sus columnas son: {', '.join(columnas) or '(ninguna)'}. "
+            "Se aceptan COD. PRODUCTO, CODIGO, SKU, ITEM o producto_id. "
+            "Si el archivo es un packing list y no el maestro, va en el otro "
+            "recuadro, el de «Subir packing list»."
+        )
 
     for raw in it:
         d = {campo: raw[i] for i, campo in mapa.items() if i < len(raw)}
