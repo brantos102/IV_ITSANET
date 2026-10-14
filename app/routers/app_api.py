@@ -226,3 +226,28 @@ def catalogo(codigo: str, db: Session = Depends(get_db),
         "fuente": r.fuente, "degradado": r.degradado,
         "candidatos": r.candidatos, "mensaje": r.mensaje, "accion": r.accion,
     }
+
+
+@router.post("/catalogo/{codigo}/equivalencia")
+def equivalencia(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+                 _: Operador = Depends(usuario_actual)):
+    """Apunta que un código escaneado corresponde a un SKU del maestro.
+
+    Pasa con las etiquetas del proveedor: el código del bulto no es el del
+    producto. La primera vez lo resuelve una persona; a partir de ahí lo resuelve
+    el escáner. Sin esto, cada operario vuelve a resolverlo desde cero.
+    """
+    from app.models import Producto
+    from app.services.normalize import normalizar_sku
+
+    escaneado = normalizar_sku(codigo)
+    sku = normalizar_sku(cuerpo.get("sku"))
+    if not escaneado or not sku:
+        raise HTTPException(422, "Faltan el código escaneado o el SKU")
+    prod = db.get(Producto, sku)
+    if prod is None:
+        raise HTTPException(404, f"{sku} no está en el maestro local")
+    if escaneado != sku:
+        prod.codigo_alternativo = escaneado
+        db.commit()
+    return {"sku": sku, "codigoAlternativo": prod.codigo_alternativo}

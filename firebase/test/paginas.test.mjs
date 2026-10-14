@@ -359,6 +359,71 @@ for (const f of fs.readdirSync(RAIZ)) {
   if (fallos === antes) bien(f);
 }
 
+// ========================================================================== //
+// Los dos destinos tienen que ir al paso
+// ========================================================================== //
+// La aplicación guarda en Firestore cuando se sirve desde iv-itsanet.web.app y
+// en el servidor de la red local cuando se sirve desde él. Cada función de datos
+// delega en `local.js` en su primera línea.
+//
+// El fallo que esta comprobación evita no se ve de ninguna otra forma: alguien
+// añade una función de datos nueva —o cambia una—, la prueba contra la nube,
+// funciona, y en el servidor esa pantalla se queda muda. Nadie lo nota hasta que
+// un operario, en el almacén, pulsa un botón que no hace nada.
+{
+  const antes = fallos;
+  revisiones++;
+  const leer = (f) => fs.readFileSync(path.join(RAIZ, 'js', f), 'utf8');
+  const localJs = leer('local.js');
+  const exportaLocal = new Set(
+    [...localJs.matchAll(/export\s+(?:async\s+)?function\s+(\w+)/g),
+     ...localJs.matchAll(/export\s+const\s+(\w+)\s*=/g)].map((m) => m[1]),
+  );
+
+  // 1. Lo que se delega tiene que existir en el otro lado.
+  for (const archivo of ['datos.js', 'conteo.js', 'informe.js']) {
+    const codigo = sinComentar(leer(archivo));
+    for (const m of codigo.matchAll(/local\.(\w+)\s*\(/g)) {
+      if (m[1] === 'modoLocal') continue;
+      if (!exportaLocal.has(m[1])) {
+        malo(`${archivo}: delega en local.${m[1]}(), que local.js no exporta`);
+      }
+    }
+  }
+
+  // 2. Toda función que toque Firestore tiene que delegar.
+  //
+  // Se mira el cuerpo de cada función exportada: si usa la base —doc(db, …),
+  // collection(db, …), una transacción o un lote— y no tiene la delegación en
+  // sus primeras líneas, en el servidor hablaría con Firestore, que allí no
+  // existe.
+  const TOCA_BASE = /\b(?:doc|collection)\s*\(\s*db\b|runTransaction\s*\(|writeBatch\s*\(|getDocs\s*\(|onSnapshot\s*\(/;
+  for (const archivo of ['datos.js', 'conteo.js']) {
+    const codigo = sinComentar(leer(archivo));
+    const re = /export\s+(?:async\s+)?function\s+(\w+)\s*\(/g;
+    let m;
+    while ((m = re.exec(codigo))) {
+      const desde = m.index + m[0].length;
+      const llave = codigo.indexOf('{', desde);
+      if (llave < 0) continue;
+      // El cuerpo, contando llaves.
+      let nivel = 0, fin = llave;
+      for (let i = llave; i < codigo.length; i++) {
+        if (codigo[i] === '{') nivel++;
+        else if (codigo[i] === '}' && --nivel === 0) { fin = i; break; }
+      }
+      const cuerpo = codigo.slice(llave, fin);
+      if (!TOCA_BASE.test(cuerpo)) continue;
+      if (!/modoLocal\(\)/.test(cuerpo.slice(0, 400))) {
+        malo(`${archivo}: ${m[1]}() habla con Firestore y no delega en local.js; `
+           + 'servida desde el servidor, esa pantalla se queda muda');
+      }
+    }
+  }
+
+  if (fallos === antes) bien('los dos destinos van al paso');
+}
+
 // Mismo formato que el resto de suites, para que el runner lo sume.
 console.log(`\n  ${revisiones - fallos} pasadas, ${fallos} falladas`);
 process.exit(fallos ? 1 : 0);

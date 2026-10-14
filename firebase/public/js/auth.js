@@ -16,6 +16,19 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js';
+import * as local from './local.js';
+
+/**
+ * Dónde se resuelve el acceso.
+ *
+ * Servida desde el servidor de la red local, la sesión es una cookie suya y no
+ * hay Firebase de por medio: entrar con Google necesita Internet, y la razón de
+ * tener el servidor en la bodega es poder trabajar sin depender de él.
+ *
+ * Las pantallas siguen llamando a `observarSesion`, `entrarConClave` y `salir`
+ * sin saber cuál de los dos está contestando.
+ */
+export const modoLocal = local.modoLocal;
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -128,6 +141,7 @@ export async function resolverCorreo(entrada) {
 }
 
 export async function entrarConClave(usuarioOCorreo, clave) {
+  if (modoLocal()) return local.entrarConClave(usuarioOCorreo, clave);
   if (!String(usuarioOCorreo || '').trim()) throw new Error('Escribe tu usuario o tu correo.');
   if (!clave) throw new Error('Escribe tu contraseña.');
 
@@ -323,6 +337,7 @@ const limpiarNombre = (v) => String(v || '').replace(/\s+/g, ' ').trim().slice(0
 
 /** Cambio de contraseña por el propio operario. Google exige la actual. */
 export async function cambiarClave(claveActual, claveNueva) {
+  if (modoLocal()) return local.cambiarClave(claveActual, claveNueva);
   const u = auth.currentUser;
   if (!u) throw new Error('No hay sesión iniciada.');
   if (!claveNueva || claveNueva.length < 6) {
@@ -334,6 +349,10 @@ export async function cambiarClave(claveActual, claveNueva) {
 
 /** Dice si la sesión actual entró con contraseña o con Google. */
 export function tipoDeAcceso(usuario) {
+  // En el servidor no hay proveedores de Google: se entra con usuario y
+  // contraseña y punto. Sin esto la pantalla lo daría por DESCONOCIDO y
+  // escondería el cambio de contraseña a quien sí puede cambiarla.
+  if (modoLocal()) return 'CLAVE';
   const ids = (usuario?.providerData || []).map((p) => p.providerId);
   if (ids.includes('google.com')) return 'GOOGLE';
   if (ids.includes('password')) return 'CLAVE';
@@ -341,6 +360,7 @@ export function tipoDeAcceso(usuario) {
 }
 
 export async function salir() {
+  if (modoLocal()) return local.salir();
   await signOut(auth);
 }
 
@@ -537,6 +557,7 @@ async function asegurarAlias(usuario, sugerencia = '', tipoAcceso = 'GOOGLE') {
  *   Recibe { usuario, perfil, error } — `usuario` null si no hay sesión.
  */
 export function observarSesion(alCambiar, { pedirUsuario } = {}) {
+  if (modoLocal()) return local.observarSesion(alCambiar);
   return onAuthStateChanged(auth, async (usuario) => {
     if (!usuario) return alCambiar({ usuario: null, perfil: null });
 

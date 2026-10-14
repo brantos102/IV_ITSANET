@@ -32,6 +32,7 @@ import {
   query, orderBy, limit, getDocs, arrayUnion,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
+import * as local from './local.js';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
@@ -114,6 +115,7 @@ function validar(p) {
  *                            fotos, idempotencyKey, confirmarSobrante, enPackingList }
  */
 export async function registrarConteo(recepcionId, usuario, p) {
+  if (local.modoLocal()) return local.registrarConteo(recepcionId, usuario, p);
   const d = validar(p);
   const idem = p.idempotencyKey || nuevaClave();
 
@@ -252,6 +254,7 @@ export async function registrarConteo(recepcionId, usuario, p) {
 
 /** Reversa un conteo con un evento compensatorio. El original nunca se borra. */
 export async function anularConteo(recepcionId, usuario, eventoId, motivo) {
+  if (local.modoLocal()) return local.anularConteo(recepcionId, usuario, eventoId, motivo);
   if (!limpiar(motivo)) {
     throw new ErrorConteo('Debe indicar el motivo de la anulación.', 'MOTIVO_REQUERIDO');
   }
@@ -324,6 +327,7 @@ export async function anularConteo(recepcionId, usuario, eventoId, motivo) {
  * «esto hay que reclamarlo».
  */
 export async function declararNoEncontrado(recepcionId, usuario, p) {
+  if (local.modoLocal()) return local.declararNoEncontrado(recepcionId, usuario, p);
   return registrarConteo(recepcionId, usuario, {
     ...p,
     cantidad: 0,
@@ -341,6 +345,7 @@ export async function declararNoEncontrado(recepcionId, usuario, p) {
  * calcular, pero lo que se entregó aquel día no.
  */
 export async function registrarAuditoria(recepcionId, usuario, tipo, detalle = {}) {
+  if (local.modoLocal()) return local.registrarAuditoria(recepcionId, usuario, tipo, detalle);
   const ref = doc(collection(db, 'recepciones', recepcionId, 'auditoria'));
   await setDoc(ref, {
     tipo,                                   // CIERRE | EXPORTACION | CORREO
@@ -355,6 +360,7 @@ export async function registrarAuditoria(recepcionId, usuario, tipo, detalle = {
 
 /** Historial de cierres y exportaciones, el más reciente primero. */
 export async function leerAuditoria(recepcionId, max = 40) {
+  if (local.modoLocal()) return local.leerAuditoria(recepcionId, max);
   const q = query(
     collection(db, 'recepciones', recepcionId, 'auditoria'),
     orderBy('creadoEn', 'desc'),
@@ -366,6 +372,7 @@ export async function leerAuditoria(recepcionId, max = 40) {
 
 /** Historial de conteos, el más reciente primero. */
 export async function leerBitacora(recepcionId, max = 60) {
+  if (local.modoLocal()) return local.leerBitacora(recepcionId, max);
   const q = query(
     collection(db, 'recepciones', recepcionId, 'eventos'),
     orderBy('creadoEn', 'desc'),

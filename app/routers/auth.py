@@ -1,7 +1,7 @@
 """Autenticacion y gestion de operadores."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,42 @@ def logout(response: Response, request_token: str | None = None,
 
 @router.get("/yo")
 def yo(op: Operador = Depends(usuario_actual)):
-    return {"id": op.id, "usuario": op.usuario, "nombre": op.nombre, "rol": op.rol.value}
+    """Quien esta dentro, en el vocabulario de la aplicacion de los operarios.
+
+    `uid`, `email` y `tipoAcceso` estan porque es lo que las pantallas leen del
+    perfil: las mismas que funcionaban contra Firebase tienen que funcionar aqui
+    sin cambiar una linea. Aqui el identificador es el usuario, que es lo que
+    firma los eventos cuando no hay correo.
+    """
+    return {
+        "id": op.id,
+        "uid": op.usuario,
+        "usuario": op.usuario,
+        "email": op.email or op.usuario,
+        "nombre": op.nombre,
+        "rol": op.rol.value,
+        "activo": op.activo,
+        "tipoAcceso": "CLAVE",
+    }
+
+
+@router.post("/clave")
+def cambiar_clave(datos: dict = Body(...), op: Operador = Depends(usuario_actual),
+                  db: Session = Depends(get_db)):
+    """Cambiar la contrasena de uno mismo.
+
+    Hace falta la actual: una sesion abierta en un handheld compartido que se
+    quedo encima de una mesa no puede servir para dejar fuera a su dueno.
+    """
+    actual = str(datos.get("actual") or "")
+    nueva = str(datos.get("nueva") or "")
+    if not verify_pin(actual, op.pin_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "La contrasena actual no es correcta")
+    if len(nueva) < 6:
+        raise HTTPException(422, "La contrasena nueva necesita al menos 6 caracteres")
+    op.pin_hash = hash_pin(nueva)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/operadores")

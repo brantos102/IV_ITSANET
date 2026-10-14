@@ -11,6 +11,20 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
 import { resumenDe, comparar, nombreLimpio } from './huella.js';
+import * as local from './local.js';
+
+/**
+ * Dónde se guardan los datos.
+ *
+ * Cuando la aplicación se sirve desde el servidor de la red local, cada función
+ * de aquí abajo delega en `local.js`, que habla con él por HTTP. Cuando se sirve
+ * desde iv-itsanet.web.app, hace lo de siempre contra Firestore.
+ *
+ * La delegación va en la PRIMERA línea de cada función y devuelve los mismos
+ * documentos: así el resto del archivo —y, sobre todo, las pantallas— no sabe
+ * con qué está hablando, que es lo que permite migrar sin reescribirlas.
+ */
+export const modoLocal = local.modoLocal;
 
 // --------------------------------------------------------------------------- //
 // Normalización — la misma que usa el proxy, para que los cruces coincidan
@@ -320,6 +334,7 @@ export function leerPackingList(arrayBuffer) {
 // --------------------------------------------------------------------------- //
 
 export async function crearRecepcion({ codigo, cliente, descripcion, bultos }, usuario) {
+  if (modoLocal()) return local.crearRecepcion({ codigo, cliente, descripcion, bultos });
   const id = normalizarCodigo(codigo);
   if (!id) throw new Error('El código de la recepción es obligatorio.');
 
@@ -371,6 +386,21 @@ export async function crearRecepcion({ codigo, cliente, descripcion, bultos }, u
  * delante lo sabe y la máquina no.
  */
 export async function buscarPackingListParecido(resultado, archivo, opciones = {}) {
+  if (modoLocal()) {
+    // El servidor devuelve los candidatos; el parecido se calcula aquí, con la
+    // MISMA función que en la nube. Si el criterio viviera en los dos lados,
+    // dos operarios podrían ver avisos distintos del mismo archivo.
+    const mio = resumenDe(resultado, archivo);
+    const excluir = opciones.excluirRecepcion || '';
+    const ORDEN = { identico: 3, probable: 2, revisar: 1, distinto: 0 };
+    return (await local.buscarPackingListParecido(mio, opciones))
+      .map((h) => ({ ...h, recepcionId: h.recepcion || h.recepcionId }))
+      .filter((h) => h.recepcionId && h.recepcionId !== excluir)
+      .map((h) => ({ ...h, ...comparar(mio, h) }))
+      .filter((h) => h.nivel !== 'distinto')
+      .sort((a, b) => ORDEN[b.nivel] - ORDEN[a.nivel])
+      .slice(0, 5);
+  }
   const mio = resumenDe(resultado, archivo);
   const excluir = opciones.excluirRecepcion || '';
   const col = collection(db, 'huellas');
@@ -420,6 +450,11 @@ async function anotarHuella(recepcionId, codigo, origen, resumen) {
 }
 
 export async function guardarPackingList(recepcionId, resultado, alAvanzar, opciones = {}) {
+  if (modoLocal()) {
+    return local.guardarPackingList(recepcionId, resultado, alAvanzar, {
+      ...opciones, resumen: resumenDe(resultado, opciones.archivo),
+    });
+  }
   const refRec = doc(db, 'recepciones', recepcionId);
   const origen = limpiar(opciones.origen).toUpperCase().slice(0, 40) || 'PRINCIPAL';
   const previo = (await getDoc(refRec)).data() || {};
@@ -544,6 +579,7 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
  * puede hacer solo un administrador, y la pantalla exige escribir el código.
  */
 export async function borrarRecepcion(recepcionId, alAvanzar) {
+  if (modoLocal()) return local.borrarRecepcion(recepcionId, alAvanzar);
   // Qué listas trajo, ANTES de borrar el documento. Es lo único que se necesita
   // saber de él después, y sirve para borrar sus huellas por identificador
   // exacto en vez de buscarlas: borrar un documento que se nombra no necesita
@@ -615,6 +651,7 @@ export async function borrarRecepcion(recepcionId, alAvanzar) {
 }
 
 export async function listarRecepciones(max = 50) {
+  if (modoLocal()) return local.listarRecepciones(max);
   const q = query(collection(db, 'recepciones'), orderBy('creadoEn', 'desc'), limit(max));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -631,6 +668,7 @@ export async function listarRecepciones(max = 50) {
  * navegador es gratis.
  */
 export async function listarMisRecepciones(uid, max = 60) {
+  if (modoLocal()) return local.listarMisRecepciones(uid, max);
   if (!uid) return [];
   const snap = await getDocs(query(
     collection(db, 'recepciones'),
@@ -643,6 +681,7 @@ export async function listarMisRecepciones(uid, max = 60) {
 }
 
 export async function obtenerRecepcion(id) {
+  if (modoLocal()) return local.obtenerRecepcion(id);
   const snap = await getDoc(doc(db, 'recepciones', id));
   if (!snap.exists()) throw new Error('La recepción no existe.');
   return { id: snap.id, ...snap.data() };
@@ -650,6 +689,7 @@ export async function obtenerRecepcion(id) {
 
 /** Escucha los SKU en tiempo real: lo que cuenta un operario lo ven los demás. */
 export function escucharSkus(recepcionId, alCambiar, alFallar) {
+  if (modoLocal()) return local.escucharSkus(recepcionId, alCambiar, alFallar);
   return onSnapshot(
     collection(db, 'recepciones', recepcionId, 'skus'),
     (snap) => alCambiar(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -658,6 +698,7 @@ export function escucharSkus(recepcionId, alCambiar, alFallar) {
 }
 
 export async function cerrarRecepcion(recepcionId) {
+  if (modoLocal()) return local.cerrarRecepcion(recepcionId);
   await updateDoc(doc(db, 'recepciones', recepcionId), {
     estado: 'CERRADA',
     cerradoEn: serverTimestamp(),
@@ -675,6 +716,7 @@ export async function cerrarRecepcion(recepcionId) {
  * en la auditoría. Lo que cambia es que vuelve a admitir conteos.
  */
 export async function reabrirRecepcion(recepcionId) {
+  if (modoLocal()) return local.reabrirRecepcion(recepcionId);
   await updateDoc(doc(db, 'recepciones', recepcionId), {
     estado: 'EN_VALIDACION',
     reabiertoEn: serverTimestamp(),
@@ -692,6 +734,7 @@ export async function reabrirRecepcion(recepcionId) {
  * escaneo en la lectura de un documento, en vez de una llamada al WMS.
  */
 export async function guardarCatalogo(productos, alAvanzar) {
+  if (modoLocal()) return local.guardarCatalogo(productos, alAvanzar);
   const TANDA = 200;   // cada producto son 2 escrituras: producto + código
   for (let i = 0; i < productos.length; i += TANDA) {
     const lote = writeBatch(db);
@@ -747,6 +790,7 @@ export function ubicacionesDepot(producto) {
 
 /** Resuelve un código contra el catálogo local. Una lectura, sin red al WMS. */
 export async function buscarEnCatalogo(codigo) {
+  if (modoLocal()) return local.buscarEnCatalogo(codigo);
   const c = normalizarCodigo(codigo);
   if (!c) return null;
 
@@ -760,6 +804,7 @@ export async function buscarEnCatalogo(codigo) {
 
 /** Equivalencia código escaneado → SKU, cuando el WMS no la conoce. */
 export async function registrarEquivalencia(codigo, sku, usuario) {
+  if (modoLocal()) return local.registrarEquivalencia(codigo, sku, usuario);
   const c = normalizarCodigo(codigo);
   if (!c || !sku) return;
   await setDoc(doc(db, 'codigos', c), {

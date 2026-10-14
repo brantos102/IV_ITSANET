@@ -13,11 +13,16 @@
 import { collection, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js';
 import { db } from './auth.js';
+import * as local from './local.js';
 import { aNumero, decodificarPallets } from './datos.js';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
 async function leerColeccion(recepcionId, nombre) {
+  // El informe lee las cinco subcolecciones por aquí, así que es el único sitio
+  // donde hay que elegir destino: contra el servidor de la red local o contra
+  // Firestore. Lo que devuelve tiene la misma forma en los dos casos.
+  if (local.modoLocal()) return local.leerColeccion(recepcionId, nombre);
   const snap = await getDocs(collection(db, 'recepciones', recepcionId, nombre));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }

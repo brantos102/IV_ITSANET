@@ -289,6 +289,7 @@
 
 <script type="module">
 import { DOMINIO, SDK, DATABASE_ID } from './js/config.js';
+import { modoLocal } from './js/local.js';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
          normalizarAlias, db, auth } from './js/auth.js';
@@ -389,15 +390,30 @@ function mostrar(cual) {
   const registro = cual === 'registro';
   $('formClave').classList.toggle('oculto', registro);
   $('formRegistro').classList.toggle('oculto', !registro);
-  // Google solo tiene sentido para entrar: no crea cuentas aquí.
-  $('sepGoogle').classList.toggle('oculto', registro);
-  $('btnEntrar').classList.toggle('oculto', registro);
+  // Google solo tiene sentido para entrar: no crea cuentas aquí. Y en el
+  // servidor de la bodega no tiene sentido en absoluto: entrar con Google
+  // necesita Internet, que es justo de lo que el servidor nos libera. Enseñar
+  // un botón que no puede funcionar es peor que no enseñarlo.
+  $('sepGoogle').classList.toggle('oculto', registro || modoLocal());
+  $('btnEntrar').classList.toggle('oculto', registro || modoLocal());
   $('tabEntrar').classList.toggle('activa', !registro);
   $('tabRegistro').classList.toggle('activa', registro);
   limpiar('avisos-login');
 }
 $('tabEntrar').addEventListener('click', () => mostrar('entrar'));
 $('tabRegistro').addEventListener('click', () => mostrar('registro'));
+
+// Contra el servidor de la bodega el alta la hace un supervisor: no hay registro
+// abierto porque no hay a quién mandarle el correo de aviso. Y se dice en qué
+// servidor se está, que durante la transición es la primera pregunta de todas.
+if (modoLocal()) {
+  $('tabRegistro').classList.add('oculto');
+  const marca = document.createElement('p');
+  marca.className = 'mini';
+  marca.style.cssText = 'text-align:center;margin-top:12px';
+  marca.textContent = `Servidor de la bodega · ${location.host}`;
+  $('vista-login').appendChild(marca);
+}
 
 $('rUsuario').addEventListener('blur', () => {
   $('rUsuario').value = normalizarAlias($('rUsuario').value);
