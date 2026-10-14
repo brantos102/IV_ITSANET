@@ -30,6 +30,17 @@ export function normalizarPallet(v) {
   return limpiar(v).toUpperCase().replace(/[\s_-]/g, '');
 }
 
+/**
+ * Posición del almacén: `A-01-03-2`.
+ *
+ * NO vale `normalizarPallet` aquí: ese borra los guiones, y los guiones son el
+ * separador de nave, calle, columna y nivel. Pasar una posición por él la
+ * convertía en `A01032`, que no se puede buscar en Depot ni leer de un vistazo.
+ */
+export function normalizarPosicion(v) {
+  return limpiar(v).toUpperCase().replace(/\s+/g, '').slice(0, 40);
+}
+
 export function palletValido(c) {
   const p = normalizarPallet(c);
   return !!p && p.length <= 40 && /^[A-Z0-9]+(\.[A-Z0-9]+)*$/.test(p);
@@ -334,10 +345,12 @@ export async function guardarCatalogo(productos, alAvanzar) {
         // Todas las ubicaciones donde el WMS tiene existencia de este producto.
         // Se recorta a 20: un SKU repartido en más sitios ya no se decide
         // mirando una lista, y veinte ya llenan la pantalla de un handheld.
-        posiciones: (p.posiciones || []).slice(0, 20).map((u) => ({
+        posiciones: (p.posiciones || []).slice(0, 30).map((u) => ({
           posicion: u.posicion || '',
           stock: aNumero(u.stock, 0),
           lote: u.lote || null,
+          serie: u.serie || null,
+          partida: u.partida || null,
           estado: u.estado || null,
         })),
         familia: p.familia || null,

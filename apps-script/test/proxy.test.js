@@ -242,6 +242,24 @@ test('cerrar dos veces no pisa el informe anterior', () => {
   eq(r.nombre, 'validacion-VW-29-06 (2).xlsx', 'debe numerar, no pisar');
 });
 
+// Lo natural es copiar la barra de direcciones de Drive y pegarla. Rechazar eso
+// mandaba a buscar un error de configuracion donde solo habia un enlace.
+test('la carpeta de evidencias admite el enlace de Drive, no solo el id', () => {
+  const e = entorno({ props: { CARPETA_EVIDENCIAS:
+    'https://drive.google.com/drive/folders/1spPbedhG4y5FfQso1yJTV_aixPv0KWAr?usp=sharing' } });
+  const r = leer(e.ctx.doPost(peticion({ accion: 'subirFoto', base64: 'QUJD',
+    sku: 'X1', recepcion: 'VW-29-06', tipo: 'image/jpeg' })));
+  ok(r.exito, r.mensaje);
+});
+
+test('sin carpeta configurada, el mensaje dice donde ponerla', () => {
+  const e = entorno({ props: { CARPETA_EVIDENCIAS: '' } });
+  const r = leer(e.ctx.doPost(peticion({ accion: 'subirFoto', base64: 'QUJD',
+    sku: 'X1', recepcion: 'VW-29-06' })));
+  ok(!r.exito);
+  ok(/Propiedades del script/i.test(r.mensaje), r.mensaje);
+});
+
 test('guardarInforme sin archivo se rechaza', () => {
   const { ctx } = entorno();
   const r = leer(ctx.doPost(peticion({ accion: 'guardarInforme', recepcion: 'X' })));

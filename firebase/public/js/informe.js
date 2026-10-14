@@ -75,10 +75,20 @@ export async function reunirInforme(recepcionId, recepcion) {
 
   // Observaciones del operario, por SKU y sin repetir.
   const obsPorSku = {};
+  // Dónde quedó físicamente. Va en su propia columna: el pallet es cómo se
+  // movió, la posición real es dónde está, y para buscarlo después vale la
+  // segunda.
+  const posPorSku = {};
   for (const e of eventos) {
-    if (!e.observacion || e.tipo === 'ANULACION') continue;
-    const set = (obsPorSku[e.sku] = obsPorSku[e.sku] || new Set());
-    set.add(e.observacion);
+    if (e.tipo === 'ANULACION') continue;
+    if (e.observacion) {
+      const set = (obsPorSku[e.sku] = obsPorSku[e.sku] || new Set());
+      set.add(e.observacion);
+    }
+    if (e.posicionReal) {
+      const set = (posPorSku[e.sku] = posPorSku[e.sku] || new Set());
+      set.add(e.posicionReal);
+    }
   }
 
   const detalle = repartirPorLinea(lineas, porSku).map((l) => ({
@@ -86,6 +96,7 @@ export async function reunirInforme(recepcionId, recepcion) {
     pallets: palletsPorSku[l.sku] || '',
     estado: etiquetaEstado(aNumero(l.cantidad, 0), l.fisica),
     pnc: pncPorSku[l.sku] ? 'PNC' : '',
+    posicionReal: [...(posPorSku[l.sku] || [])].join(' / ').slice(0, 120),
     observacion: [...(obsPorSku[l.sku] || [])].join(' | ').slice(0, 300),
   }));
 
@@ -124,14 +135,16 @@ export function construirLibro({ recepcion, detalle, adicionales, eventos }) {
     'DIFERENCIA': l.diferencia,
     'VALIDACION': l.estado,
     'PALLET': l.pallets,
+    'POSICION REAL ASIGNADA': l.posicionReal,
     'ESTADO MERCADERIA': l.pnc || 'BUENO',
     'OBSERVACION': l.observacion,
   }));
   const h1 = XLSX.utils.json_to_sheet(validada);
   h1['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-    { wch: 10 }, { wch: 14 }, { wch: 11 }, { wch: 13 }, { wch: 22 }, { wch: 17 }, { wch: 38 }];
+    { wch: 10 }, { wch: 14 }, { wch: 11 }, { wch: 13 }, { wch: 22 }, { wch: 24 },
+    { wch: 17 }, { wch: 38 }];
   h1['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
-    e: { r: validada.length, c: 11 } }) };
+    e: { r: validada.length, c: 12 } }) };
   XLSX.utils.book_append_sheet(libro, h1, 'VALIDADA');
 
   // --- Hoja 2: adicionales, aparte para no alterar el conteo de filas --- //
@@ -155,6 +168,7 @@ export function construirLibro({ recepcion, detalle, adicionales, eventos }) {
     'CODIGO ESCANEADO': e.codigoEscaneado || e.sku,
     'CANTIDAD': aNumero(e.cantidad, 0),
     'PALLET': e.pallet || '',
+    'POSICION REAL': e.posicionReal || '',
     'ESTADO': e.estadoFisico || '',
     'TIPO': e.tipo || 'CONTEO',
     'OPERARIO': e.operadorNombre || e.operadorEmail || '',
@@ -162,7 +176,7 @@ export function construirLibro({ recepcion, detalle, adicionales, eventos }) {
     'FOTOS': (e.fotos || []).join(' '),
   })));
   h3['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 12 },
-    { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 34 }, { wch: 40 }];
+    { wch: 16 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 34 }, { wch: 40 }];
   XLSX.utils.book_append_sheet(libro, h3, 'BITACORA');
 
   const base64 = XLSX.write(libro, { bookType: 'xlsx', type: 'base64' });

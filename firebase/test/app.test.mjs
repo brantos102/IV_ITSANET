@@ -27,6 +27,18 @@ await test('normalizarPallet conserva el punto del subpallet', () => {
   eq(datos.normalizarPallet('a-1'), 'A1');
 });
 
+// El guion separa nave, calle, columna y nivel: borrarlo convertía A-01-03-2 en
+// A01032, que no se puede buscar en Depot ni leer de un vistazo.
+await test('normalizarPosicion conserva los guiones de la ubicación', () => {
+  eq(datos.normalizarPosicion('a-01-03-2'), 'A-01-03-2');
+  eq(datos.normalizarPosicion('  BM-BB-04-1  '), 'BM-BB-04-1');
+  eq(datos.normalizarPosicion('A 01 03 2'), 'A01032', 'los espacios sí se quitan');
+  eq(datos.normalizarPosicion(''), '');
+  eq(datos.normalizarPosicion(null), '');
+  // Y sigue siendo distinto de lo que hace el normalizador de pallets.
+  eq(datos.normalizarPallet('a-01-03-2'), 'A01032');
+});
+
 await test('palletValido rechaza lo que rompería el informe', () => {
   ok(datos.palletValido('A1'));
   ok(datos.palletValido('B04.1'));
@@ -35,6 +47,8 @@ await test('palletValido rechaza lo que rompería el informe', () => {
   ok(!datos.palletValido('B04.'), 'punto final');
   ok(!datos.palletValido('A/1'), 'carácter especial');
   ok(!datos.palletValido('A'.repeat(41)), 'demasiado largo');
+  // El pallet genérico para lo que va directo a su posición sin armar pallet.
+  ok(datos.palletValido('DP'), 'directo a posición');
 });
 
 await test('aNumero resuelve los dos formatos de miles y decimales', () => {

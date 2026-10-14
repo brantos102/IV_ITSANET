@@ -474,11 +474,15 @@ function accionCatalogoMulti_(p, usuario) {
         // cada sitio donde hay existencia. Antes se quedaba la primera y se
         // descartaba el resto, que es justo lo que el operario necesita saber
         // para decidir dónde poner lo que acaba de recibir.
+        // Una misma posición puede traer VARIAS filas del mismo código, y lo
+        // que las distingue —lote, serie, partida, estado— es justo lo que el
+        // operario mira para decidir. Se conservan todas, sin agrupar.
         var ubicacion = {
           posicion: m.posicion || '',
           stock: m.stock || 0,
           lote: m.lote || null,
           serie: m.serie || null,
+          partida: m.partida || null,
           estado: m.estadoMercaderia || null
         };
 

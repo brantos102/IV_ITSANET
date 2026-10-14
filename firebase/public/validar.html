@@ -92,15 +92,24 @@
     <label class="campo"><span>3 · Cantidad</span>
       <input id="fCantidad" class="cantidad" type="number" inputmode="decimal" step="any" value="1"></label>
     <label class="campo"><span>4 · Pallet / subpallet *</span>
-      <input id="fPallet" placeholder="B04 o B04.1" autocapitalize="characters"></label>
+      <input id="fPallet" placeholder="B04, B04.1 o DP" autocapitalize="characters">
+      <span class="mini">Para lo que va directo a su posición, usa
+        <b>DP</b> y anota abajo la posición real.</span></label>
     <label class="campo"><span>6 · Estado físico</span>
       <select id="fEstado">
         <option value="BUENO">Buen estado</option>
         <option value="PNC">PNC — no conforme</option>
       </select></label>
   </div>
+  <div class="chips" style="margin-top:9px">
+    <button type="button" class="chip" data-pallet-rapido="DP">DP · directo a posición</button>
+  </div>
+
   <div class="rejilla" style="margin-top:13px">
-    <label class="campo" style="grid-column:1/-1"><span>5 · Observación</span>
+    <label class="campo"><span>Posición real asignada</span>
+      <input id="fPosReal" placeholder="A-01-03-2" autocapitalize="characters"
+             autocomplete="off"></label>
+    <label class="campo" style="grid-column:span 2"><span>5 · Observación</span>
       <input id="fObs" placeholder="Ej. PRODUCTO DOBLADO" style="font-family:var(--font-ui)"></label>
   </div>
   <div class="rejilla oculto" id="filaFotos" style="margin-top:13px">
@@ -408,6 +417,7 @@ async function escanear(codigo) {
     ? cantidadPrevia
     : Math.max((s.esperado || 0) - (s.contado || 0), 1) || 1;
   $('fObs').value = '';
+  $('fPosReal').value = '';
   $('fEstado').value = 'BUENO';
   $('filaFotos').classList.add('oculto');
   $('fFotos').value = '';
@@ -444,7 +454,7 @@ function refrescarFicha(s) {
   $('fCont').textContent = contado;
   $('fPend').textContent = Math.max(esperado - contado, 0);
 
-  pintarPosicionesDepot(s);
+  pintarPosicionesDepot();
 
   const ubic = ubicacionesDe(s);
   if (ubic.length) {
@@ -466,16 +476,27 @@ function refrescarFicha(s) {
 }
 
 /**
- * Posiciones del WMS con su existencia actual.
+ * Dónde está hoy el producto en Depot.
  *
- * Depot NO informa de la capacidad de cada ubicación, así que la app no puede
- * decidir si lo que llega cabe: eso sería inventarse un dato y el operario se
- * fiaría de él. Lo que sí puede es poner delante lo que necesita para
- * decidirlo —dónde está hoy, cuánto hay en cada sitio, y cuánto va a sumar lo
- * que acaba de contar— y señalar cuándo el ingreso es grande respecto a lo que
- * ya hay ahí.
+ * Solo información. La app NO opina sobre si lo que llega cabe: no ve la
+ * ubicación, no conoce su capacidad y no sabe el volumen de la mercadería.
+ * Quien está delante del pallet sí. Sugerirlo sería una opinión disfrazada de
+ * dato, y es peor que no decir nada.
+ *
+ * Una misma posición puede traer varias filas del mismo código. No se agrupan:
+ * lo que las distingue —lote, serie, partida, estado— es justo lo que se mira
+ * para decidir dónde va lo que acaba de llegar.
  */
-function pintarPosicionesDepot(s) {
+// Tocar una posición de Depot la copia al campo: es la que se va a usar en la
+// mayoría de los casos, y teclearla con guantes es donde aparecen los errores.
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-posicion]');
+  if (!b) return;
+  $('fPosReal').value = b.dataset.posicion;
+  if (!$('fPallet').value) $('fPallet').value = 'DP';
+});
+
+function pintarPosicionesDepot() {
   const caja = $('fDepot');
   const p = actual?.producto;
   const posiciones = (p?.posiciones || []).filter((u) => u.posicion);
@@ -486,39 +507,49 @@ function pintarPosicionesDepot(s) {
     return;
   }
 
-  const entrante = Math.max(parseFloat($('fCantidad').value) || 0, 0);
   const total = posiciones.reduce((a, u) => a + (u.stock || 0), 0);
+  const sitios = new Set(posiciones.map((u) => u.posicion)).size;
+  const hayDetalle = posiciones.some((u) => u.lote || u.serie || u.partida);
 
   caja.classList.remove('oculto');
   caja.innerHTML = `
     <span class="mini" style="font-weight:800;text-transform:uppercase">
-      En Depot hoy · ${total} ${esc(p.unidad || 'u')} en ${posiciones.length}
-      ${posiciones.length === 1 ? 'ubicación' : 'ubicaciones'}</span>
-    <div class="tabla-env" style="margin-top:7px"><table><tbody>
-      ${posiciones.sort((a, b) => (b.stock || 0) - (a.stock || 0)).map((u) => {
-        // Más del doble de lo que ya hay ahí: merece una mirada antes de
-        // apilarlo todo en el mismo sitio. No es una regla del almacén, es un
-        // aviso para que lo decida quien está delante.
-        const holgado = entrante > 0 && u.stock > 0 && entrante > u.stock * 2;
-        return `<tr>
-          <td class="id" style="font-size:12px">${esc(u.posicion)}</td>
+      En Depot hoy · ${total} ${esc(p.unidad || 'u')} en ${sitios}
+      ${sitios === 1 ? 'ubicación' : 'ubicaciones'}</span>
+    <div class="tabla-env" style="margin-top:7px"><table>
+      <thead><tr><th>Posición</th><th class="num">Cant.</th>
+        ${hayDetalle ? '<th>Lote</th><th>Serie</th><th>Partida</th>' : ''}
+        <th>Estado</th></tr></thead>
+      <tbody>${posiciones
+        .sort((a, b) => String(a.posicion).localeCompare(String(b.posicion))
+                     || (b.stock || 0) - (a.stock || 0))
+        .map((u) => `<tr>
+          <td><button type="button" class="chip" style="padding:5px 11px;font-size:12px"
+                data-posicion="${esc(u.posicion)}">${esc(u.posicion)}</button></td>
           <td class="num">${u.stock}</td>
-          <td class="mini">${esc(u.lote || '')}${
-            u.estado && u.estado !== 'BUENO' ? ` · ${esc(u.estado)}` : ''}</td>
-          <td class="mini">${holgado
-            ? `<span class="pastilla p-warn">+${entrante} es mucho para esta</span>`
-            : entrante > 0 ? `quedaría en ${u.stock + entrante}` : ''}</td>
-        </tr>`;
-      }).join('')}
-    </tbody></table></div>
-    <p class="mini" style="margin-top:7px">Depot no informa de la capacidad de
-      cada ubicación, así que la decisión es tuya: esto es lo que hay hoy.</p>`;
+          ${hayDetalle ? `
+            <td class="mini">${esc(u.lote || '')}</td>
+            <td class="mini">${esc(u.serie || '')}</td>
+            <td class="mini">${esc(u.partida || '')}</td>` : ''}
+          <td class="mini">${esc(u.estado || '')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
 }
 
-// Al cambiar la cantidad cambian las proyecciones de arriba.
-$('fCantidad').addEventListener('input', () => {
-  if (actual) pintarPosicionesDepot(skus.find((x) => x.sku === actual.sku) || {});
-});
+/**
+ * Pallet genérico para lo que no pasa por un pallet.
+ *
+ * Parte de la mercadería va directa a su ubicación sin armar pallet. Obligar a
+ * inventarse uno ensucia el dato: queda un «A1» que no existe en el almacén.
+ * `DP` dice exactamente eso —directo a posición— y el sitio real se anota en
+ * «Posición real asignada», que viaja al informe final en su propia columna.
+ */
+for (const b of document.querySelectorAll('[data-pallet-rapido]')) {
+  b.addEventListener('click', () => {
+    $('fPallet').value = b.dataset.palletRapido;
+    $('fPosReal').focus();
+  });
+}
 
 $('fChips').addEventListener('click', (ev) => {
   const p = ev.target.dataset.pallet;
@@ -559,6 +590,7 @@ async function registrar(confirmarSobrante) {
       cantidad: parseFloat($('fCantidad').value),
       pallet: $('fPallet').value,
       estadoFisico: $('fEstado').value,
+      posicionReal: $('fPosReal').value,
       observacion: $('fObs').value,
       fotos: fotosSubidas,
       descripcion: actual.producto?.descripcion || '',

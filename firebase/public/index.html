@@ -126,6 +126,25 @@
                    animation:latir 1.3s ease-in-out infinite; }
   .cargando span:nth-child(2) { animation-delay:.18s; }
   .cargando span:nth-child(3) { animation-delay:.36s; }
+  #fBuscarRec { width:100%; padding:11px 13px; border:1px solid var(--border);
+                border-radius:10px; font-family:var(--font-data); font-size:13px;
+                font-weight:700; background:var(--bg); color:var(--primary);
+                outline:none; margin-bottom:12px; }
+  #fBuscarRec:focus { border-color:var(--accent); }
+  .rec { display:flex; align-items:center; gap:11px; padding:12px 13px;
+         border:1px solid var(--border); border-radius:12px; margin-bottom:9px;
+         text-decoration:none; color:var(--primary); background:var(--bg);
+         transition:.15s; }
+  .rec:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .rec .cod { font-family:var(--font-data); font-weight:800; font-size:14px; }
+  .rec .det { flex:1; min-width:0; }
+  .rec .sub2 { font-size:11px; color:var(--secondary); font-weight:600; }
+  .rec .est { font-size:9.5px; font-weight:900; padding:3px 9px; border-radius:50px;
+              white-space:nowrap; letter-spacing:.3px; }
+  details summary::-webkit-details-marker { display:none; }
+  details summary { list-style:none; }
+  details summary::before { content:'▸ '; }
+  details[open] summary::before { content:'▾ '; }
   @keyframes latir { 0%,80%,100% { opacity:.25; transform:scale(.8); }
                      40% { opacity:1; transform:scale(1); } }
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
@@ -251,8 +270,17 @@
       </a>
     </div>
 
-    <h2 class="sec">Qué puedes hacer</h2>
-    <table class="diag"><tbody id="tPermisos"></tbody></table>
+    <h2 class="sec">Recepciones de los últimos 15 días</h2>
+    <div id="buscadorRec">
+      <input id="fBuscarRec" placeholder="Buscar por código o cliente"
+             autocapitalize="characters" spellcheck="false">
+    </div>
+    <div id="listaRec"><p class="mini">Cargando…</p></div>
+
+    <details style="margin-top:20px">
+      <summary class="sec" style="cursor:pointer">Qué puedes hacer</summary>
+      <table class="diag"><tbody id="tPermisos"></tbody></table>
+    </details>
 
     <div id="bloqueDiag" class="oculto">
       <h2 class="sec">Comprobación de la instalación</h2>
@@ -270,6 +298,7 @@ import { entrar, entrarConClave, registrarse, salir, observarSesion,
          normalizarAlias, db, auth } from './js/auth.js';
 import { doc, getDoc, collection, getDocs, limit, query }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { listarRecepciones } from './js/datos.js';
 
 const $ = (id) => document.getElementById(id);
 $('dominioTxt').textContent = '@' + DOMINIO;
@@ -289,6 +318,74 @@ function fila(etiqueta, valor, bien) {
     (bien === true ? 'ok-txt' : bien === false ? 'err-txt' : '') + '">' + valor + '</td>';
   $('tDiag').appendChild(tr);
 }
+
+/**
+ * Recepciones recientes, en la primera pantalla.
+ *
+ * Es lo que el operario viene a hacer. Antes aquí había once filas de
+ * configuración que no puede ni debe tocar, y para llegar a su trabajo tenía
+ * que navegar a otra pantalla.
+ *
+ * Quince días: lo de hace tres semanas ya está cerrado y entregado, y una lista
+ * larga en un handheld no se lee.
+ */
+const DIAS_RECIENTES = 15;
+let recepcionesRecientes = [];
+
+async function cargarRecepciones() {
+  try {
+    const desde = new Date(Date.now() - DIAS_RECIENTES * 86400000);
+    const todas = await listarRecepciones(80);
+    recepcionesRecientes = todas.filter((r) => {
+      const f = r.creadoEn?.toDate ? r.creadoEn.toDate() : null;
+      return f && f >= desde;
+    });
+    pintarRecepciones();
+  } catch (e) {
+    $('listaRec').innerHTML =
+      '<p class="mini">No se pudieron leer las recepciones. ' + traducirError(e) + '</p>';
+  }
+}
+
+function pintarRecepciones() {
+  const q = $('fBuscarRec').value.trim().toUpperCase();
+  const filas = recepcionesRecientes.filter((r) =>
+    !q || (r.codigo || '').includes(q) || (r.cliente || '').toUpperCase().includes(q));
+
+  if (!filas.length) {
+    $('listaRec').innerHTML = recepcionesRecientes.length
+      ? '<p class="mini">Ninguna coincide con esa búsqueda.</p>'
+      : `<p class="mini">No hay recepciones de los últimos ${DIAS_RECIENTES} días.</p>`;
+    return;
+  }
+
+  const color = {
+    ABIERTA: 'background:rgba(100,116,139,.15);color:var(--secondary)',
+    EN_VALIDACION: 'background:rgba(14,165,233,.15);color:#0ea5e9',
+    CERRADA: 'background:rgba(16,185,129,.15);color:#10b981',
+  };
+
+  $('listaRec').innerHTML = filas.map((r) => {
+    const t = r.totales || {};
+    const f = r.creadoEn?.toDate ? r.creadoEn.toDate().toLocaleDateString('es-EC') : '';
+    const cerrada = r.estado === 'CERRADA';
+    return `<a class="rec" href="/validar.html?r=${encodeURIComponent(r.id)}">
+      <div class="det">
+        <div class="cod">${esc2(r.codigo || r.id)}</div>
+        <div class="sub2">${esc2(r.cliente || '')}${r.cliente ? ' · ' : ''}${f}
+          ${t.skus ? ` · ${t.skus} SKU · ${t.unidades || 0} u.` : ''}</div>
+      </div>
+      <span class="est" style="${color[r.estado] || color.ABIERTA}">
+        ${esc2((r.estado || '').replace('_', ' '))}</span>
+      ${cerrada ? '' : '<span class="mini">→</span>'}
+    </a>`;
+  }).join('');
+}
+
+const esc2 = (v) => String(v ?? '').replace(/[&<>"']/g,
+  (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+$('fBuscarRec').addEventListener('input', pintarRecepciones);
 
 // --- Entrar / Registrarse ------------------------------------------------ //
 function mostrar(cual) {
@@ -407,6 +504,8 @@ observarSesion(async ({ usuario, perfil, error }) => {
       '"rol" a ADMIN en Firestore → usuarios → tu documento, y recarga.',
       'warn', 'Primera vez');
   }
+
+  cargarRecepciones();
 
   // --- Qué puede hacer este rol ---
   // En pantalla y no solo en el manual: así nadie descubre a mitad de turno

@@ -58,13 +58,38 @@ var CFG = {
   get cliente() { return PROPS.getProperty('DEPOT_CLIENTE') || ''; },
   get apiKey() { return PROPS.getProperty('FIREBASE_API_KEY') || ''; },
   get dominio() { return PROPS.getProperty('DOMINIO_PERMITIDO') || ''; },
-  get carpeta() { return PROPS.getProperty('CARPETA_EVIDENCIAS') || ''; },
+  get carpeta() { return idDeCarpeta_(PROPS.getProperty('CARPETA_EVIDENCIAS')); },
   get rutaToken() { return PROPS.getProperty('DEPOT_RUTA_TOKEN') || '/gettoken'; },
   get rutaStock() { return PROPS.getProperty('DEPOT_RUTA_STOCK') || '/getstock'; },
   get cabeceraToken() { return PROPS.getProperty('DEPOT_CABECERA_TOKEN') || 'token'; }
 };
 
 var TTL_TOKEN_SEG = 6 * 60 * 60;    // tope del caché de Apps Script
+
+/**
+ * Admite el enlace de Drive, no solo el id.
+ *
+ * Lo natural es copiar la barra de direcciones y pegarla, y entonces la
+ * propiedad guarda
+ * `https://drive.google.com/drive/folders/1spP…?usp=sharing`.
+ * Rechazar eso y responder «falta CARPETA_EVIDENCIAS» manda a buscar un error
+ * de configuración donde solo hay un enlace en vez de un id.
+ */
+function idDeCarpeta_(valor) {
+  var v = String(valor || '').trim();
+  if (!v) return '';
+  var m = v.match(/[-\w]{25,}/);        // el id de Drive dentro del enlace
+  return m ? m[0] : v;
+}
+
+/** Mensaje único, para no repetirlo en cada acción que escribe en Drive. */
+function exigirCarpeta_() {
+  if (CFG.carpeta) return CFG.carpeta;
+  throw new Error(
+    'La carpeta de evidencias no está configurada. En el Apps Script: ' +
+    'Configuración del proyecto → Propiedades del script → CARPETA_EVIDENCIAS, ' +
+    'y pega ahí el enlace de la carpeta de Drive o su id.');
+}
 
 // ========================================================================== //
 // Punto de entrada
@@ -338,10 +363,10 @@ function accionEstadoToken_() {
  * Reemplaza a Cloud Storage, que desde febrero de 2026 exige el plan Blaze.
  */
 function accionSubirFoto_(p, usuario) {
-  if (!CFG.carpeta) throw new Error('Falta CARPETA_EVIDENCIAS en las propiedades del script.');
+  var carpeta = exigirCarpeta_();
   if (!p.base64) throw new Error('Falta la imagen.');
 
-  var raiz = DriveApp.getFolderById(CFG.carpeta);
+  var raiz = DriveApp.getFolderById(carpeta);
   var sub = carpetaDe_(raiz, String(p.recepcion || 'sin-recepcion'));
 
   var tipo = p.tipo || 'image/jpeg';
@@ -369,10 +394,10 @@ function accionSubirFoto_(p, usuario) {
  * seguir estando en algún sitio de la empresa, con su fecha.
  */
 function accionGuardarInforme_(p, usuario) {
-  if (!CFG.carpeta) throw new Error('Falta CARPETA_EVIDENCIAS en las propiedades del script.');
+  var carpeta = exigirCarpeta_();
   if (!p.base64) throw new Error('Falta el archivo.');
 
-  var raiz = DriveApp.getFolderById(CFG.carpeta);
+  var raiz = DriveApp.getFolderById(carpeta);
   var sub = carpetaDe_(raiz, String(p.recepcion || 'sin-recepcion'));
 
   // Si la recepción se cierra más de una vez, se numera como haría el

@@ -542,7 +542,7 @@ En el editor de Apps Script: **Configuración del proyecto** (engranaje) →
 | `FIREBASE_PROJECT_ID` | `iv-itsanet` | Sí |
 | `FIREBASE_DATABASE_ID` | `bd-iv-itsanet` | Sí |
 | `DOMINIO_PERMITIDO` | `itsanet.com` | Sí |
-| `CARPETA_EVIDENCIAS` | El id del paso 5.2 | Para fotos |
+| `CARPETA_EVIDENCIAS` | El **enlace o el id** de la carpeta del paso 5.2 | Para fotos e informes |
 | `DEPOT_RUTA_TOKEN` | `/gettoken` | No (ya es el valor por defecto) |
 | `DEPOT_RUTA_STOCK` | `/getstock` | No (ya es el valor por defecto) |
 
@@ -961,26 +961,41 @@ nuevo.
 
 ### 9.2.bis Dónde está hoy en Depot
 
-Al validar un código, debajo de la ficha sale **En Depot hoy**: cada ubicación
-donde el WMS tiene existencia de ese producto, con cuánto hay en cada una, su
-lote, y —según la cantidad que vayas a registrar— en cuánto quedaría.
+Al validar un código, debajo de la ficha sale **En Depot hoy**: cada fila que el
+WMS tiene de ese producto, con su posición, su cantidad, su lote, su serie, su
+partida y su estado.
 
-Esto sale del catálogo precalentado. `getstock` devuelve **una fila por cada
-sitio** donde hay existencia; antes la app se quedaba con la primera y
-descartaba el resto, que es justo lo que hace falta para decidir dónde poner lo
-que acaba de llegar.
+`getstock` devuelve **una fila por cada sitio** donde hay existencia, y una
+misma posición puede traer varias filas del mismo código. No se agrupan: lo que
+las distingue es justo lo que se mira para decidir dónde va lo que acaba de
+llegar. Antes la app se quedaba con la primera fila y descartaba el resto.
 
-> **Lo que la app no hace, y por qué.** Depot no informa de la capacidad de cada
-> ubicación, así que la app **no puede decidir si lo que llega cabe**. Decirlo
-> sería inventarse un dato, y el operario se fiaría de él. Lo que sí hace es
-> poner delante lo necesario para decidirlo, y marcar cuándo el ingreso es
-> grande respecto a lo que ya hay ahí —más del doble— para que alguien lo mire
-> antes de apilarlo todo en el mismo sitio.
->
-> Si algún día Depot expone la capacidad por ubicación, se conecta y la app sí
-> puede avisar. Dime la ruta si existe.
+**Tocar una posición la copia** al campo «Posición real asignada» y pone el
+pallet en `DP`.
 
----
+> **La app no opina sobre si cabe.** No ve la ubicación, no conoce su capacidad
+> y no sabe el volumen de la mercadería. Quien está delante del pallet sí.
+> Sugerirlo sería una opinión disfrazada de dato, y eso es peor que no decir
+> nada.
+
+### 9.2.ter El pallet `DP` y la posición real
+
+Parte de la mercadería va directa a su ubicación sin armar pallet. Obligar a
+inventarse uno ensucia el dato: queda un `A1` que no existe en el almacén.
+
+Para eso está **`DP` — directo a posición**, con su botón al lado del campo de
+pallet. El sitio donde quedó de verdad se anota en **Posición real asignada**.
+
+Son dos datos distintos y por eso van en columnas distintas del informe:
+
+| Columna | Qué dice |
+|---|---|
+| `PALLET` | Cómo se movió la mercadería |
+| `POSICION REAL ASIGNADA` | Dónde está físicamente |
+
+Para buscar algo después vale la segunda. La posición conserva sus guiones
+(`A-01-03-2`): separan nave, calle, columna y nivel, y sin ellos no se puede
+buscar en Depot.
 
 ### 9.3 Código que no existe (paso 8)
 
@@ -1083,6 +1098,19 @@ Una referencia que falló 40 unidades una vez es un incidente. Una que falla 2
 unidades en cinco recepciones seguidas es un problema del proveedor o del
 proceso. La segunda es la que hay que llevar a la reunión, y es la que sale
 arriba.
+
+---
+
+### 9.0 La pantalla de inicio
+
+Lo primero que ve cualquiera al entrar son las **recepciones de los últimos 15
+días**, con su estado y un buscador por código o cliente. Es a lo que viene.
+
+Quince días porque lo de hace tres semanas ya está cerrado y entregado, y una
+lista larga en un handheld no se lee.
+
+Debajo, plegado, **qué puede hacer** con su rol. Y la comprobación de la
+instalación solo la ve un ADMIN.
 
 ---
 
@@ -1251,7 +1279,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**195 pruebas automáticas** en verde, con un solo comando:
+**198 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

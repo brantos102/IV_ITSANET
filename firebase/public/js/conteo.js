@@ -21,8 +21,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
 import {
-  normalizarCodigo, normalizarPallet, palletValido, limpiar, aNumero,
-  clavePallet, decodificarPallets, estadoDe,
+  normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
+  limpiar, aNumero, clavePallet, decodificarPallets, estadoDe,
 } from './datos.js';
 
 export class ErrorConteo extends Error {
@@ -70,6 +70,10 @@ function validar(p) {
     sku, cantidad, pallet, estadoFisico, fotos,
     observacion: limpiar(p.observacion).slice(0, 500) || null,
     codigoEscaneado: normalizarCodigo(p.codigoEscaneado) || sku,
+    // Dónde quedó de verdad en el almacén. Es información del almacén, no del
+    // packing list, así que no se valida contra nada: se registra tal cual y
+    // viaja al informe en su propia columna.
+    posicionReal: normalizarPosicion(p.posicionReal) || null,
   };
 }
 
@@ -145,6 +149,7 @@ export async function registrarConteo(recepcionId, usuario, p) {
       codigoEscaneado: d.codigoEscaneado,
       cantidad: d.cantidad,
       pallet: d.pallet,
+      posicionReal: d.posicionReal,
       estadoFisico: d.estadoFisico,
       tipo: p.tipo || 'CONTEO',
       observacion: d.observacion,
