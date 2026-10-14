@@ -900,7 +900,8 @@ Son tres pantallas. El enlace es el mismo para todos:
 | Pantalla | Quién | Para qué |
 |---|---|---|
 | `/` | todos | Entrar y comprobar la instalación |
-| `/recepciones.html` | supervisor | Crear la recepción, subir el packing list, bajar el catálogo |
+| `/recepciones.html` | todos | Buscar recepciones; el supervisor además crea y sube el packing list |
+| `/recepciones.html?mias=1` | operario | Lo que ha validado él, para seguir donde lo dejó |
 | `/validar.html?r=CODIGO` | operario | Escanear y contar |
 | `/kpis.html` | supervisor / admin | Indicadores y trazabilidad |
 | `/usuarios.html` | supervisor / admin | Dar de alta operarios y asignar roles |
@@ -1118,6 +1119,30 @@ el cierre anterior y el motivo de la reapertura quedan en la auditoría.
 Las dos son del supervisor. El operario entra y sale de las recepciones en curso
 cuantas veces quiera —contar es su trabajo y no bloquea a nadie—, pero no cierra
 ni reabre.
+
+### 9.2.octies Escanear con la cámara
+
+Junto al campo de escaneo hay un botón **📷 Cámara**. Enfoca el código y lo
+registra, y **se queda encendida**: se escanea una caja tras otra sin volver a
+pulsar nada, igual que con la pistola.
+
+Es para cuando no hay pistola a mano, o cuando el código está donde la pistola
+no llega: una caja al fondo de un pallet, una etiqueta impresa pequeña.
+
+- El mismo código delante de la cámara no se cuenta dos veces: hay que
+  apartarlo y volver, o esperar unos segundos.
+- Se apaga sola al salir de la pantalla o al cambiar de aplicación. Una cámara
+  encendida se come la batería de un handheld en una jornada.
+- Lee Code 128, Code 39, Code 93, Codabar, EAN, UPC, ITF, Data Matrix y QR.
+
+> **Dónde funciona.** Usa el lector que trae el propio navegador, así que no
+> carga ninguna librería: en Chrome de Android va sin instalar nada. Donde no
+> está —Safari de iPhone, hoy— el botón no aparece y la app lo dice si se
+> pregunta: se sigue con la pistola o escribiendo, que es lo que ya funciona.
+>
+> Es deliberado no cargar un motor de respaldo: son unos 800 KB por cada
+> dispositivo y cada recarga, y el WiFi del almacén es el que es. Si hiciera
+> falta en iPhone, se añade.
 
 ### 9.3 Código que no existe (paso 8)
 
@@ -1478,7 +1503,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**231 pruebas automáticas** en verde, con un solo comando:
+**235 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

@@ -548,4 +548,46 @@ await test('sin ubicación en ninguno de los dos formatos, la lista va vacía', 
   eq(datos.ubicacionesDepot(null), []);
 });
 
+// ========================= La cámara ===================================== //
+const camara = await cargar('camara.js');
+
+/** Node trae su propio `navigator` de solo lectura; aquí se sustituye entero. */
+function conEntorno(window, mediaDevices, fn) {
+  const antesW = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const antesN = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'window', { value: window, configurable: true });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { mediaDevices }, configurable: true,
+  });
+  try { fn(); } finally {
+    if (antesW) Object.defineProperty(globalThis, 'window', antesW);
+    else delete globalThis.window;
+    if (antesN) Object.defineProperty(globalThis, 'navigator', antesN);
+  }
+}
+
+// Donde no hay lector en el navegador se dice y se sigue con la pistola, que es
+// lo que ya funciona; no se carga un motor de respaldo de 800 KB por el camino.
+await test('sin BarcodeDetector la cámara no se ofrece, y se explica', () => {
+  conEntorno({}, { getUserMedia: () => {} }, () => {
+    ok(!camara.camaraDisponible());
+    const m = camara.motivoNoDisponible();
+    ok(/Chrome/i.test(m) && /pistola|escribe/i.test(m), 'tiene que decir qué hacer: ' + m);
+  });
+});
+
+await test('sin acceso a la cámara se explica que hace falta HTTPS', () => {
+  conEntorno({ BarcodeDetector: function () {} }, undefined, () => {
+    ok(!camara.camaraDisponible());
+    ok(/HTTPS/i.test(camara.motivoNoDisponible()), camara.motivoNoDisponible());
+  });
+});
+
+await test('con las dos cosas, se ofrece y no hay nada que explicar', () => {
+  conEntorno({ BarcodeDetector: function () {} }, { getUserMedia: () => {} }, () => {
+    ok(camara.camaraDisponible());
+    eq(camara.motivoNoDisponible(), '');
+  });
+});
+
 resumen();

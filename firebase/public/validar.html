@@ -54,8 +54,19 @@
       </label>
       <button type="submit" class="b-primario" id="bBuscar"
               style="padding:16px 22px">Buscar</button>
+      <button type="button" class="b-sec oculto" id="bCamara"
+              style="padding:16px 18px">📷 Cámara</button>
     </div>
   </form>
+  <div id="visorCamara" class="oculto" style="margin-top:14px">
+    <video id="video" muted playsinline
+           style="width:100%;max-height:300px;background:#000;border-radius:12px;
+                  object-fit:cover"></video>
+    <p class="mini" style="margin-top:7px">
+      Acerca el código al centro. Cada lectura suma la cantidad del campo.
+      <button type="button" class="chip" id="bCerrarCamara">Apagar</button>
+    </p>
+  </div>
   <div id="pistaCodigo"></div>
   <p class="mini" style="margin-top:9px">
     Cada escaneo suma 1 unidad. Si ya contó varias, escriba aquí la cantidad
@@ -212,6 +223,7 @@ import {
 } from './js/conteo.js';
 import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
 import { comprimir, tamanoLegible } from './js/imagen.js';
+import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js';
 import { Proxy } from './js/proxy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -402,6 +414,53 @@ function pintarTabla() {
 
 $('fFiltro').addEventListener('input', pintarTabla);
 $('fEstadoFiltro').addEventListener('change', () => { pintarKpis(); pintarTabla(); });
+
+// --- La cámara como lector ------------------------------------------------ //
+let cerrarCamara = null;
+
+if (camaraDisponible()) $('bCamara').classList.remove('oculto');
+
+$('bCamara').addEventListener('click', async () => {
+  if (cerrarCamara) return apagarCamara();
+  limpiarAvisos();
+
+  if (!camaraDisponible()) {
+    return aviso(motivoNoDisponible(), 'warn', 'Sin cámara');
+  }
+
+  try {
+    $('visorCamara').classList.remove('oculto');
+    cerrarCamara = await abrirCamara($('video'), (codigo) => {
+      // La cámara se queda encendida: se escanea una caja tras otra sin volver
+      // a pulsar nada, que es como se trabaja con la pistola.
+      $('inEscaner').value = codigo;
+      escanear(codigo);
+    });
+    $('bCamara').textContent = '📷 Apagar';
+  } catch (e) {
+    $('visorCamara').classList.add('oculto');
+    aviso(e.name === 'NotAllowedError'
+      ? 'No diste permiso a la cámara. Tócalo en el candado de la barra de ' +
+        'direcciones y vuelve a intentarlo.'
+      : 'No se pudo abrir la cámara: ' + e.message,
+      'warn', 'Sin cámara');
+  }
+});
+
+function apagarCamara() {
+  if (cerrarCamara) cerrarCamara();
+  cerrarCamara = null;
+  $('visorCamara').classList.add('oculto');
+  $('bCamara').textContent = '📷 Cámara';
+}
+
+$('bCerrarCamara').addEventListener('click', apagarCamara);
+
+// Una cámara encendida se come la batería del handheld en una jornada.
+addEventListener('pagehide', apagarCamara);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) apagarCamara();
+});
 
 // --- Paso 1 y 2: escanear y validar --------------------------------------- //
 // La pistola manda Enter: desde el campo de cantidad el foco vuelve al escáner.
