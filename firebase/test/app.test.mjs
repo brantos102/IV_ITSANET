@@ -968,4 +968,96 @@ await test('el administrador puede cambiar columnas y separador', () => {
   eq(sinBom(t)[0], 'CODIGO,CANT');
 });
 
+// =============== Cómo se llaman las cosas en Drive ====================== //
+// Un archivo llamado «validacion.xlsx» es inencontrable a los tres meses, y es
+// justo lo que hay que sacar cuando alguien reclama.
+const nom = await cargar('nombres.js');
+const REC = { codigo: 'REC0260002', cliente: 'VENTURA', creadoEn: '2026-03-01T13:00:00Z' };
+
+await test('la carpeta empieza por la fecha, para que Drive la ordene sola', () => {
+  eq(nom.carpetaDeRecepcion(REC), '2026-03-01_VENTURA_REC0260002');
+});
+
+await test('dos clientes el mismo día quedan separados', () => {
+  const a = nom.carpetaDeRecepcion(REC);
+  const b = nom.carpetaDeRecepcion({ ...REC, cliente: 'BELIA', codigo: 'REC0260003' });
+  ok(a !== b);
+  ok(a.startsWith('2026-03-01') && b.startsWith('2026-03-01'), 'las dos del mismo día');
+});
+
+await test('dos recepciones del mismo cliente el mismo día, también', () => {
+  const a = nom.carpetaDeRecepcion(REC);
+  const b = nom.carpetaDeRecepcion({ ...REC, codigo: 'REC0260003' });
+  ok(a !== b, 'el código es lo único único de verdad');
+});
+
+await test('la fecha es la de la recepción, no la de hoy', () => {
+  // Una recepción del viernes que se cierra el lunes pertenece al viernes: es
+  // cuando llegó la mercadería.
+  eq(nom.fechaDeRecepcion(REC), '2026-03-01');
+  eq(nom.carpetaDeMes(REC), '2026-03');
+});
+
+await test('sin fecha no se rompe: usa la de hoy', () => {
+  eq(nom.fechaDeRecepcion({}).length, 10);
+  eq(nom.fechaDeRecepcion({ creadoEn: 'vaya texto' }).length, 10);
+});
+
+await test('entiende las fechas de Firestore', () => {
+  const t = { toDate: () => new Date('2026-07-09T10:00:00Z') };
+  eq(nom.fechaDeRecepcion({ creadoEn: t }), '2026-07-09');
+});
+
+await test('un código con barras no crea carpetas que no existen', () => {
+  // «REC/02» en Drive no es un nombre: es una ruta.
+  eq(nom.limpiarNombre('REC/0260002'), 'REC0260002');
+  eq(nom.limpiarNombre('VW 29 06 2026'), 'VW-29-06-2026');
+  eq(nom.limpiarNombre('  a??b  '), 'ab');
+  eq(nom.limpiarNombre(null), '');
+});
+
+await test('una recepción con una sola lista da un informe sin sufijos', () => {
+  eq(nom.nombreDeInforme(REC), '2026-03-01_VENTURA_REC0260002');
+  eq(nom.nombreDeInforme(REC, { origen: 'PRINCIPAL' }), '2026-03-01_VENTURA_REC0260002');
+});
+
+await test('consolidada, cada lista tiene su archivo y se sabe cuál es', () => {
+  // Quien recibe dos adjuntos no puede abrirlos para saber cuál es cuál.
+  eq(nom.nombreDeInforme(REC, { origen: 'PL-A' }), '2026-03-01_VENTURA_REC0260002_PL-A');
+  eq(nom.nombreDeInforme(REC, { origen: 'PL-B' }), '2026-03-01_VENTURA_REC0260002_PL-B');
+});
+
+await test('cerrar otra vez no pisa el informe que ya se entregó', () => {
+  eq(nom.nombreDeInforme(REC, { version: 2 }), '2026-03-01_VENTURA_REC0260002_v2');
+  eq(nom.nombreDeInforme(REC, { origen: 'PL-A', version: 3 }),
+     '2026-03-01_VENTURA_REC0260002_PL-A_v3');
+});
+
+await test('el auditable se distingue del que se manda al cliente', () => {
+  eq(nom.nombreDeInforme(REC, { auditable: true }),
+     '2026-03-01_VENTURA_REC0260002_AUDITABLE');
+});
+
+await test('la foto lleva el código delante, para verificarla de un vistazo', () => {
+  eq(nom.nombreDeFoto('2H0525345'), '2H0525345-1.jpg');
+  eq(nom.nombreDeFoto('2H0525345', 2), '2H0525345-2.jpg');
+  eq(nom.nombreDeFoto('2H0525345', 1, 'image/png'), '2H0525345-1.png');
+  eq(nom.nombreDeFoto('', 1), 'SIN-CODIGO-1.jpg');
+});
+
+await test('la segunda foto de un producto se numera, no pisa a la primera', () => {
+  eq(nom.siguienteFoto('ABC', []), 1);
+  eq(nom.siguienteFoto('ABC', ['ABC-1.jpg']), 2);
+  eq(nom.siguienteFoto('ABC', ['ABC-1.jpg', 'ABC-2.jpg']), 3);
+});
+
+await test('si se borró una foto intermedia, no se reutiliza su número', () => {
+  // Reutilizar el 2 pisaría a la 3, que sí está.
+  eq(nom.siguienteFoto('ABC', ['ABC-1.jpg', 'ABC-3.jpg']), 4);
+});
+
+await test('las fotos de otro producto no cuentan', () => {
+  eq(nom.siguienteFoto('ABC', ['OTRO-1.jpg', 'ABCD-1.jpg']), 1);
+});
+
 resumen();

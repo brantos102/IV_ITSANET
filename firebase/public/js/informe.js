@@ -11,6 +11,7 @@
  * auditor tenga el detalle en el mismo archivo.
  */
 import { collection, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js';
 import { db } from './auth.js';
 import { aNumero, decodificarPallets } from './datos.js';
 
@@ -437,7 +438,41 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
 }
 
 const nombreArchivo = (recepcion, sufijo) =>
-  `${recepcion?.codigo || 'recepcion'}-${sufijo}-${new Date().toISOString().slice(0, 10)}`;
+  nombreDeInforme(recepcion, { auditable: sufijo === 'auditable' });
+
+/**
+ * Un archivo POR PACKING LIST cuando la recepción consolida varios.
+ *
+ * Consolidar ahorra recorrer el almacén dos veces, pero cada lista vuelve a su
+ * destinatario tal como llegó: si entraron 22 filas y 7, salen un archivo de 22
+ * y otro de 7. Mandar un solo libro con dos hojas obliga a quien lo recibe a
+ * separarlas a mano, y a la primera manda la hoja equivocada.
+ *
+ * La versión auditable no se parte: es para analizar la validación entera, y
+ * repartir la bitácora entre dos archivos solo la haría más difícil de leer.
+ */
+export function construirLibros(datos, opciones = {}) {
+  const listas = datos.porOrigen || [];
+  if (opciones.version !== 'envio' || listas.length <= 1) {
+    return [construirLibro(datos, opciones)];
+  }
+
+  return listas.map((lista) => {
+    const libro = construirLibro(
+      { ...datos, porOrigen: [lista], detalle: lista.detalle }, opciones);
+    return {
+      ...libro,
+      origen: lista.origen,
+      nombre: nombreDeInforme(datos.recepcion, { origen: lista.origen }),
+    };
+  });
+}
+
+/** Dónde va esto en Drive. Lo decide aquí, que es donde está probado. */
+export const destinoEnDrive = (recepcion) => ({
+  carpetaMes: carpetaDeMes(recepcion),
+  carpetaRecepcion: carpetaDeRecepcion(recepcion),
+});
 
 /** Descarga local del mismo archivo, por si el correo falla o no se quiere enviar. */
 export function descargarLibro(libro) {

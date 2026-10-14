@@ -162,9 +162,20 @@
     <label class="campo" style="grid-column:span 2"><span>5 · Observación</span>
       <input id="fObs" placeholder="Ej. PRODUCTO DOBLADO" style="font-family:var(--font-ui)"></label>
   </div>
-  <div class="rejilla oculto" id="filaFotos" style="margin-top:13px">
-    <label class="campo" style="grid-column:1/-1"><span>Fotos de la evidencia</span>
-      <input type="file" id="fFotos" accept="image/*" capture="environment" multiple></label>
+  <!-- Las fotos se acumulan de una en una.
+       En el handheld, un <input capture> abre la cámara y devuelve UNA foto:
+       el «multiple» lo ignora. Por eso hay un botón que se puede pulsar varias
+       veces en vez de confiar en que el navegador deje elegir dos de golpe. -->
+  <div class="oculto" id="filaFotos" style="margin-top:13px">
+    <label class="campo"><span>Fotos de la evidencia</span></label>
+    <div class="acciones" style="margin:0">
+      <button type="button" class="b-sec" id="bTomarFoto">📷 Tomar foto</button>
+      <button type="button" class="b-sec" id="bElegirFoto">Elegir de la galería</button>
+      <span class="mini" id="contadorFotos">Se recomiendan 2: una del bulto y otra del detalle.</span>
+    </div>
+    <input type="file" id="fCamara" accept="image/*" capture="environment" class="oculto">
+    <input type="file" id="fFotos" accept="image/*" multiple class="oculto">
+    <div id="listaFotos" style="margin-top:10px"></div>
   </div>
 
   <div class="acciones">
@@ -250,7 +261,9 @@ import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
 } from './js/conteo.js';
-import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
+import {
+  reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
+} from './js/informe.js';
 import { comprimir, tamanoLegible } from './js/imagen.js';
 import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js';
 import { conectarGlosario } from './js/glosario.js';
@@ -272,6 +285,7 @@ let claveEnvio = null;         // idempotencia por intento
 let ultimoPallet = '';
 let eventosCache = [];
 let fotosSubidas = [];
+let fotosElegidas = [];   // las que el operario tomó, antes de subirlas
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,
@@ -661,6 +675,9 @@ async function escanear(codigo) {
   $('fEstado').value = 'BUENO';
   $('filaFotos').classList.add('oculto');
   $('fFotos').value = '';
+  $('fCamara').value = '';
+  fotosElegidas = [];
+  pintarFotos();
 
   if (!enLista) {
     aviso(`${sku} existe en Depot pero NO está en el packing list. ` +
@@ -997,7 +1014,7 @@ async function registrar(confirmarSobrante) {
   $('bRegistrar').disabled = true;
 
   try {
-    if ($('fEstado').value === 'PNC' && $('fFotos').files.length && !fotosSubidas.length) {
+    if ($('fEstado').value === 'PNC' && fotosElegidas.length && !fotosSubidas.length) {
       fotosSubidas = await subirFotos(actual.sku);
     }
 
@@ -1059,9 +1076,62 @@ async function registrar(confirmarSobrante) {
  * no alcanza a procesar dentro de su tiempo, y el operario ve «el proxy tardó
  * demasiado» justo cuando acaba de documentar un producto dañado.
  */
+// Más de cinco fotos por producto no aportan nada y multiplican el tiempo de
+// subida con el WiFi del almacén, que es donde esto se cae.
+const MAX_FOTOS = 5;
+
+function pintarFotos() {
+  const n = fotosElegidas.length;
+  $('contadorFotos').textContent = n
+    ? `${n} foto${n === 1 ? '' : 's'}${n >= MAX_FOTOS ? ' (es el máximo)' : ''}`
+    : 'Se recomiendan 2: una del bulto y otra del detalle.';
+
+  $('listaFotos').innerHTML = fotosElegidas.map((f, i) => `
+    <span class="pastilla p-info" style="margin:3px 5px 0 0;display:inline-block">
+      ${i + 1} · ${esc(f.name || 'foto')} (${esc(tamanoLegible(f.size))})
+      <button type="button" class="chip" data-quitar-foto="${i}"
+              style="padding:1px 7px;margin-left:6px">quitar</button></span>`).join('');
+  $('bTomarFoto').disabled = n >= MAX_FOTOS;
+  $('bElegirFoto').disabled = n >= MAX_FOTOS;
+}
+
+const anadirFotos = (lista) => {
+  for (const f of lista) {
+    if (fotosElegidas.length >= MAX_FOTOS) break;
+    fotosElegidas.push(f);
+  }
+  // Cualquier cambio invalida lo ya subido: si se añade una foto después de
+  // haber subido, hay que volver a subirlas todas o se registraría de menos.
+  fotosSubidas = [];
+  pintarFotos();
+};
+
+$('bTomarFoto').addEventListener('click', () => $('fCamara').click());
+$('bElegirFoto').addEventListener('click', () => $('fFotos').click());
+
+// Se limpia el valor para que tomar dos veces la misma foto vuelva a disparar
+// el evento: sin esto, la segunda captura idéntica no se notaba.
+$('fCamara').addEventListener('change', (ev) => {
+  anadirFotos(ev.target.files);
+  ev.target.value = '';
+});
+$('fFotos').addEventListener('change', (ev) => {
+  anadirFotos(ev.target.files);
+  ev.target.value = '';
+});
+
+$('listaFotos').addEventListener('click', (ev) => {
+  const i = ev.target.dataset.quitarFoto;
+  if (i === undefined) return;
+  fotosElegidas.splice(Number(i), 1);
+  fotosSubidas = [];
+  pintarFotos();
+});
+
 async function subirFotos(sku) {
-  const archivos = [...$('fFotos').files].slice(0, 5);
+  const archivos = fotosElegidas.slice(0, MAX_FOTOS);
   const subidas = [];
+  const destino = destinoEnDrive(recepcion);
 
   for (let i = 0; i < archivos.length; i++) {
     const d = aviso(`Preparando la foto ${i + 1} de ${archivos.length}…`, 'info');
@@ -1072,8 +1142,10 @@ async function subirFotos(sku) {
         : '');
 
     try {
+      // El nombre lo pone el servidor: lleva el código del producto y el número
+      // siguiente, y solo él sabe qué hay ya en la carpeta.
       const r = await Proxy.subirFoto({
-        base64: img.base64, sku, recepcion: RECEPCION, tipo: img.tipo,
+        base64: img.base64, sku, recepcion: RECEPCION, tipo: img.tipo, ...destino,
       });
       if (r.url) subidas.push(r.url);
     } finally {
@@ -1247,9 +1319,11 @@ $('bExportar').addEventListener('click', async () => {
   const d = aviso('Armando el informe…', 'info');
   try {
     const datos = await reunirInforme(RECEPCION, recepcion);
-    const libro = construirLibro(datos, { version: versionElegida });
+    const libros = construirLibros(datos, { version: versionElegida });
     d.remove();
-    descargarLibro(libro);
+    libros.forEach(descargarLibro);
+    const libro = { filas: libros.reduce((a, l) => a + l.filas, 0),
+                    nombre: libros.map((l) => l.nombre).join(', ') };
 
     const r = resumir(skus);
     aviso(`${libro.filas} filas, ${r.avance}% verificado.` +
@@ -1429,7 +1503,12 @@ $('bCerrar').addEventListener('click', async () => {
     // El archivo se arma ANTES de cerrar: si algo falla, la recepción sigue
     // abierta y se puede reintentar sin haber perdido nada.
     const datos = await reunirInforme(RECEPCION, recepcion);
-    const libro = construirLibro(datos, { version });
+    // Un archivo POR packing list: si la recepción consolidó dos listas, salen
+    // dos archivos, cada uno con las filas de la suya. Quien recibe cada uno
+    // espera el suyo, no un libro con las dos hojas que tenga que separar.
+    const libros = construirLibros(datos, { version });
+    const filas = libros.reduce((a, l) => a + l.filas, 0);
+    const destino = destinoEnDrive(recepcion);
     d.remove();
 
     await cerrarRecepcion(RECEPCION);
@@ -1439,30 +1518,40 @@ $('bCerrar').addEventListener('click', async () => {
     // Qué se cerró, con qué cifras y quién. El agregado se puede volver a
     // calcular; lo que se entregó aquel día, no.
     await registrarAuditoria(RECEPCION, usuario, 'CIERRE', {
-      filas: libro.filas,
+      filas,
       unidadesEsperadas: r.unidadesEsperadas,
       unidadesFisicas: r.unidadesFisicas,
       ok: r.ok, faltante: r.faltante, noEncontrado: r.noEncontrado,
       sobrante: r.sobrante, adicionales: datos.adicionales.length,
       exactitud: r.exactitud,
-      archivo: libro.nombre,
+      archivos: libros.map((l) => l.nombre),
+      carpeta: destino.carpetaRecepcion,
       version,
     }).catch(() => {});
-    aviso(`Recepción cerrada. El archivo entrega ${libro.filas} filas, ` +
-          `las mismas del packing list original.`, 'ok', 'Cerrada');
+    aviso(libros.length === 1
+      ? `Recepción cerrada. El archivo entrega ${filas} filas, las mismas del `
+        + 'packing list original.'
+      : `Recepción cerrada. ${libros.length} archivos, uno por packing list: `
+        + libros.map((l) => `${l.origen} (${l.filas} filas)`).join(' · '),
+      'ok', 'Cerrada');
 
-    descargarLibro(libro);
+    libros.forEach(descargarLibro);
 
     // Archivar en Drive antes del correo: el correo se borra y la descarga se
     // pierde con el equipo. Si falla, no se tumba el cierre.
     try {
-      const g = await Proxy.guardarInforme({
-        base64: libro.base64, nombre: libro.nombre, recepcion: recepcion.codigo,
-      });
-      aviso(`Archivado en Drive como ${g.nombre}, junto a las fotos de esta recepción.`,
-            'ok', 'Copia guardada');
-      registrarAuditoria(RECEPCION, usuario, 'EXPORTACION',
-        { destino: 'DRIVE', archivo: g.nombre, enlace: g.enlace || null }).catch(() => {});
+      const guardados = [];
+      for (const libro of libros) {
+        const g = await Proxy.guardarInforme({
+          base64: libro.base64, nombre: libro.nombre,
+          recepcion: recepcion.codigo, ...destino,
+        });
+        guardados.push(g.nombre);
+        registrarAuditoria(RECEPCION, usuario, 'EXPORTACION',
+          { destino: 'DRIVE', archivo: g.nombre, enlace: g.enlace || null }).catch(() => {});
+      }
+      aviso(`En Drive, carpeta ${destino.carpetaRecepcion}: ${guardados.join(', ')}. `
+          + 'Las fotos están en su subcarpeta «imagenes».', 'ok', 'Copia guardada');
     } catch (e) {
       // El detalle del proxy puede ser una URL larga de Google: no le dice nada
       // a quien está cerrando una recepción, y tapa lo único que importa.
@@ -1478,8 +1567,7 @@ $('bCerrar').addEventListener('click', async () => {
         destinatarios: destinatarios.trim(),
         recepcion: recepcion.codigo,
         duracion: duracionDe(recepcion),
-        adjuntoBase64: libro.base64,
-        nombreAdjunto: libro.nombre,
+        adjuntos: libros.map((l) => ({ base64: l.base64, nombre: l.nombre })),
         fotos: fotosDe(datos.eventos),
         resumen: {
           unidadesEsperadas: r.unidadesEsperadas, unidadesFisicas: r.unidadesFisicas,
@@ -1489,11 +1577,13 @@ $('bCerrar').addEventListener('click', async () => {
         },
       });
       d.remove();
-      aviso(`Informe enviado a ${env.enviadoA}.` +
-            (env.cuotaRestante != null ? ` Quedan ${env.cuotaRestante} correos hoy.` : ''),
+      aviso(`Informe enviado a ${env.enviadoA} con `
+          + `${(env.adjuntos || []).length || libros.length} archivo(s) adjunto(s).`
+          + (env.cuotaRestante != null ? ` Quedan ${env.cuotaRestante} correos hoy.` : ''),
             'ok', 'Enviado');
       registrarAuditoria(RECEPCION, usuario, 'CORREO',
-        { destinatarios: env.enviadoA, archivo: libro.nombre }).catch(() => {});
+        { destinatarios: env.enviadoA, archivos: env.adjuntos || libros.map((l) => l.nombre) })
+        .catch(() => {});
     }
   } catch (e) {
     d.remove();

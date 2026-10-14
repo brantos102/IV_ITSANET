@@ -366,12 +366,15 @@ function accionSubirFoto_(p, usuario) {
   var carpeta = exigirCarpeta_();
   if (!p.base64) throw new Error('Falta la imagen.');
 
-  var raiz = DriveApp.getFolderById(carpeta);
-  var sub = carpetaDe_(raiz, String(p.recepcion || 'sin-recepcion'));
+  var sub = carpetaDeImagenes_(DriveApp.getFolderById(carpeta), p);
 
+  // El nombre lo decide el servidor y no el navegador: el numero depende de lo
+  // que YA hay en la carpeta, y dos operarios fotografiando el mismo producto a
+  // la vez elegirian los dos el mismo numero y uno pisaria al otro.
   var tipo = p.tipo || 'image/jpeg';
   var ext = tipo.indexOf('png') > -1 ? 'png' : 'jpg';
-  var nombre = [p.sku || 'sku', Date.now()].join('_') + '.' + ext;
+  var base = limpiarNombre_(p.sku) || 'SIN-CODIGO';
+  var nombre = base + '-' + siguienteFoto_(sub, base) + '.' + ext;
 
   var blob = Utilities.newBlob(Utilities.base64Decode(p.base64), tipo, nombre);
   var archivo = sub.createFile(blob);
@@ -381,9 +384,28 @@ function accionSubirFoto_(p, usuario) {
   return {
     exito: true,
     fileId: archivo.getId(),
+    nombre: nombre,
     url: 'https://drive.google.com/uc?id=' + archivo.getId(),
     enlace: archivo.getUrl()
   };
+}
+
+/**
+ * El siguiente numero libre para las fotos de un producto.
+ *
+ * Se mira el numero de cada archivo, no cuantos hay: si se borro la 1, la
+ * siguiente tiene que ser la 3 y no otra 2, que pisaria a la que queda.
+ */
+function siguienteFoto_(carpeta, base) {
+  var patron = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+                          '-(\\d+)\\.', 'i');
+  var mayor = 0;
+  var it = carpeta.getFiles();
+  while (it.hasNext()) {
+    var m = patron.exec(it.next().getName());
+    if (m && Number(m[1]) > mayor) mayor = Number(m[1]);
+  }
+  return mayor + 1;
 }
 
 /**
@@ -397,15 +419,15 @@ function accionGuardarInforme_(p, usuario) {
   var carpeta = exigirCarpeta_();
   if (!p.base64) throw new Error('Falta el archivo.');
 
-  var raiz = DriveApp.getFolderById(carpeta);
-  var sub = carpetaDe_(raiz, String(p.recepcion || 'sin-recepcion'));
+  var sub = carpetaDeRecepcion_(DriveApp.getFolderById(carpeta), p);
 
-  // Si la recepción se cierra más de una vez, se numera como haría el
-  // explorador de archivos en vez de pisar el informe anterior.
-  var base = String(p.nombre || 'validacion');
+  // Si la recepcion se reabre y se vuelve a cerrar, el informe anterior NO se
+  // pisa: puede que ya se haya entregado. Se numera v2, v3... en vez de «(2)»,
+  // que es lo que pone el explorador cuando algo se duplico sin querer.
+  var base = limpiarNombre_(p.nombre) || 'validacion';
   var nombre = base + '.xlsx';
   for (var n = 2; n < 100 && sub.getFilesByName(nombre).hasNext(); n++) {
-    nombre = base + ' (' + n + ').xlsx';
+    nombre = base + '_v' + n + '.xlsx';
   }
 
   var archivo = sub.createFile(Utilities.newBlob(
@@ -418,9 +440,43 @@ function accionGuardarInforme_(p, usuario) {
   return { exito: true, fileId: archivo.getId(), nombre: nombre, enlace: archivo.getUrl() };
 }
 
+/**
+ * La carpeta de una recepcion: CARPETA_EVIDENCIAS/AAAA-MM/AAAA-MM-DD_CLIENTE_CODIGO
+ *
+ * El nombre lo calcula el navegador (js/nombres.js, que es donde esta probado) y
+ * aqui solo se limpia: una barra en un codigo de cliente no es un nombre, es una
+ * ruta, y crearia carpetas que nadie busco.
+ *
+ * El nivel del mes existe porque sin el, al ano y medio hay trescientas carpetas
+ * al mismo nivel y encontrar una es imposible.
+ */
+function carpetaDeRecepcion_(raiz, p) {
+  var mes = limpiarNombre_(p.carpetaMes);
+  var propia = limpiarNombre_(p.carpetaRecepcion) ||
+               limpiarNombre_(p.recepcion) || 'sin-recepcion';
+  var donde = mes ? carpetaDe_(raiz, mes) : raiz;
+  return carpetaDe_(donde, propia);
+}
+
+/** Dentro de cada recepcion, las fotos aparte de los documentos. */
+function carpetaDeImagenes_(raiz, p) {
+  return carpetaDe_(carpetaDeRecepcion_(raiz, p), 'imagenes');
+}
+
 function carpetaDe_(padre, nombre) {
   var it = padre.getFoldersByName(nombre);
   return it.hasNext() ? it.next() : padre.createFolder(nombre);
+}
+
+/** Lo mismo que limpiarNombre de js/nombres.js. Sin barras ni comodines. */
+function limpiarNombre_(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/[\\\/:*?"<>|#%{}~\[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^\s|\s$/g, '')
+    .replace(/\s/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 /** Envía el informe final de la recepción. */
@@ -449,6 +505,21 @@ function accionEnviarInforme_(p, usuario) {
            'border:1px solid #cbd5e1;"></a>';
   }).join('');
 
+  // Cuantos archivos van y como se llaman, dentro del propio correo: quien lo
+  // recibe tiene que poder comprobar que no falta ninguno sin contar adjuntos.
+  var listaAdjuntos = (p.adjuntos || []).map(function (a) {
+    return '<li style="margin:3px 0;font-family:monospace;font-size:13px;">' +
+           limpiarNombre_(a.nombre) + '.xlsx</li>';
+  }).join('');
+  var bloqueAdjuntos = listaAdjuntos
+    ? '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;' +
+      'padding:14px;margin-top:20px;">' +
+      '<b>' + (p.adjuntos || []).length + ' packing list' +
+      ((p.adjuntos || []).length === 1 ? '' : 's') + ' adjunto' +
+      ((p.adjuntos || []).length === 1 ? '' : 's') + ':</b>' +
+      '<ul style="margin:8px 0 0 18px;padding:0;">' + listaAdjuntos + '</ul></div>'
+    : '';
+
   var html =
     '<div style="font-family:Segoe UI,sans-serif;max-width:680px;margin:0 auto;' +
     'border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;">' +
@@ -473,21 +544,44 @@ function accionEnviarInforme_(p, usuario) {
             '<th style="padding:12px;text-align:center;">Físico</th>' +
             '<th style="padding:12px;text-align:center;">Diferencia</th>' +
           '</tr></thead><tbody>' + filas + '</tbody></table>' +
+        bloqueAdjuntos +
         (fotos ? '<h3 style="border-bottom:2px solid #2563eb;padding-bottom:8px;margin-top:30px;">' +
                  'Evidencias</h3><div>' + fotos + '</div>' : '') +
       '</div></div>';
 
-  var opciones = { to: p.destinatarios, subject: 'Informe de Recepción: ' + (p.recepcion || ''),
-                   htmlBody: html };
-  if (p.adjuntoBase64) {
-    opciones.attachments = [Utilities.newBlob(
-      Utilities.base64Decode(p.adjuntoBase64),
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      (p.nombreAdjunto || 'packing-list-final') + '.xlsx')];
+  // Un adjunto POR PACKING LIST.
+  //
+  // Una recepcion puede consolidar varias listas para no recorrer el almacen
+  // dos veces, pero cada lista vuelve a su destinatario tal como llego. Mandar
+  // un solo archivo con dos hojas obliga a quien lo recibe a separarlas a mano,
+  // y a la primera manda la hoja equivocada.
+  var adjuntos = p.adjuntos || [];
+  if (!adjuntos.length && p.adjuntoBase64) {
+    adjuntos = [{ base64: p.adjuntoBase64, nombre: p.nombreAdjunto || 'packing-list-final' }];
+  }
+
+  var opciones = {
+    to: p.destinatarios,
+    subject: 'Informe de Recepción: ' + (p.recepcion || '') +
+             (adjuntos.length > 1 ? ' (' + adjuntos.length + ' packing lists)' : ''),
+    htmlBody: html
+  };
+  if (adjuntos.length) {
+    opciones.attachments = adjuntos.map(function (a) {
+      return Utilities.newBlob(
+        Utilities.base64Decode(a.base64),
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        limpiarNombre_(a.nombre) + '.xlsx');
+    });
   }
   MailApp.sendEmail(opciones);
 
-  return { exito: true, enviadoA: p.destinatarios, cuotaRestante: MailApp.getRemainingDailyQuota() };
+  return {
+    exito: true,
+    enviadoA: p.destinatarios,
+    adjuntos: adjuntos.map(function (a) { return limpiarNombre_(a.nombre) + '.xlsx'; }),
+    cuotaRestante: MailApp.getRemainingDailyQuota()
+  };
 }
 
 // ========================================================================== //

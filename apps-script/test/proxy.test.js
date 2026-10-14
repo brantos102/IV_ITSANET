@@ -29,6 +29,7 @@ function entorno(opciones = {}) {
   const cache = new Map();
   const estado = {
     gettoken: 0, getstock: 0, lookups: 0, correos: [], archivos: [], existentes: [],
+    carpetas: [],
     tokenActual: null, revocado: false,
     perfil: opciones.perfil === null ? null
       : (opciones.perfil || { rol: opciones.rol || 'OPERADOR', activo: true }),
@@ -80,18 +81,51 @@ function entorno(opciones = {}) {
       sendEmail: (o) => estado.correos.push(o),
       getRemainingDailyQuota: () => 1400,
     },
-    DriveApp: {
-      getFolderById: () => ({
-        getFoldersByName: () => ({ hasNext: () => false }),
-        createFolder: () => ({
-          // `estado.existentes` simula los archivos que ya hay en la carpeta.
-          getFilesByName: (n) => ({ hasNext: () => estado.existentes.includes(n) }),
-          createFile: (b) => { estado.archivos.push(b); return {
-            getId: () => 'file-1', getUrl: () => 'https://drive/file-1', setDescription() {},
-          }; },
-        }),
-      }),
-    },
+    // Un Drive de mentira, pero con carpetas de verdad: anidadas y recordando lo
+    // que hay dentro. El anterior devolvia una carpeta plana sin hijas, y con el
+    // no se podia comprobar lo unico que importa aqui — en que ruta acaba cada
+    // archivo y como se llama.
+    DriveApp: (() => {
+      const nuevaCarpeta = (ruta) => {
+        const hijas = new Map();
+        const archivos = [];
+        const carpeta = {
+          ruta,
+          getFoldersByName(n) {
+            const h = hijas.get(n);
+            return { hasNext: () => !!h, next: () => h };
+          },
+          createFolder(n) {
+            const h = nuevaCarpeta(ruta ? ruta + '/' + n : n);
+            hijas.set(n, h);
+            estado.carpetas.push(h.ruta);
+            return h;
+          },
+          getFilesByName: (n) => ({
+            hasNext: () => archivos.includes(n) || estado.existentes.includes(n),
+          }),
+          getFiles: () => {
+            let i = 0;
+            return {
+              hasNext: () => i < archivos.length,
+              next: () => ({ getName: () => archivos[i++] }),
+            };
+          },
+          createFile(b) {
+            archivos.push(b.nombre);
+            estado.archivos.push({ ...b, ruta: ruta + '/' + b.nombre });
+            return {
+              getId: () => 'file-' + estado.archivos.length,
+              getUrl: () => 'https://drive/file-' + estado.archivos.length,
+              setDescription() {},
+            };
+          },
+        };
+        return carpeta;
+      };
+      const raiz = nuevaCarpeta('');
+      return { getFolderById: () => raiz };
+    })(),
     UrlFetchApp: {
       fetch(url, opts = {}) {
         // Verificación de sesión contra Firebase
@@ -239,7 +273,117 @@ test('cerrar dos veces no pisa el informe anterior', () => {
   const r = leer(ctx.doPost(peticion({ accion: 'guardarInforme', base64: 'QUJD',
     nombre: 'validacion-VW-29-06', recepcion: 'VW-29-06' })));
   ok(r.exito, r.mensaje);
-  eq(r.nombre, 'validacion-VW-29-06 (2).xlsx', 'debe numerar, no pisar');
+  // «_v2» y no «(2)»: el parentesis es lo que pone el explorador cuando algo se
+  // duplico sin querer, y aqui es una version nueva a proposito.
+  eq(r.nombre, 'validacion-VW-29-06_v2.xlsx', 'debe versionar, no pisar');
+});
+
+// --- Como queda organizado Drive ---------------------------------------- //
+// Lo que se guarda aqui es lo que hay que sacar cuando alguien reclama: meses
+// despues, por telefono, sin saber el codigo de memoria.
+
+const DESTINO = {
+  carpetaMes: '2026-03',
+  carpetaRecepcion: '2026-03-01_VENTURA_REC0260002',
+};
+
+test('cada recepcion tiene su carpeta, dentro de la de su mes', () => {
+  const { ctx, estado } = entorno();
+  leer(ctx.doPost(peticion({ accion: 'guardarInforme', base64: 'QUJD',
+    nombre: '2026-03-01_VENTURA_REC0260002', recepcion: 'REC0260002', ...DESTINO })));
+  eq(estado.archivos[0].ruta,
+     '2026-03/2026-03-01_VENTURA_REC0260002/2026-03-01_VENTURA_REC0260002.xlsx');
+});
+
+test('las fotos van a una subcarpeta «imagenes», no sueltas con el informe', () => {
+  const { ctx, estado } = entorno();
+  leer(ctx.doPost(peticion({ accion: 'subirFoto', base64: 'QUJD', sku: '2H0525345',
+    recepcion: 'REC0260002', tipo: 'image/jpeg', ...DESTINO })));
+  eq(estado.archivos[0].ruta,
+     '2026-03/2026-03-01_VENTURA_REC0260002/imagenes/2H0525345-1.jpg');
+});
+
+test('la foto lleva el codigo del producto, para poder verificarla', () => {
+  const { ctx, estado } = entorno();
+  const r = leer(ctx.doPost(peticion({ accion: 'subirFoto', base64: 'QUJD',
+    sku: '2H0525345', recepcion: 'REC0260002', tipo: 'image/jpeg', ...DESTINO })));
+  eq(r.nombre, '2H0525345-1.jpg');
+  eq(estado.archivos[0].nombre, '2H0525345-1.jpg');
+});
+
+test('la segunda foto del mismo producto se numera y no pisa a la primera', () => {
+  const { ctx, estado } = entorno();
+  const una = (n) => leer(ctx.doPost(peticion({ accion: 'subirFoto', base64: 'QUJD',
+    sku: 'X1', recepcion: 'REC0260002', tipo: 'image/jpeg', ...DESTINO })));
+  eq(una().nombre, 'X1-1.jpg');
+  eq(una().nombre, 'X1-2.jpg');
+  eq(estado.archivos.length, 2, 'dos archivos distintos, no uno pisado');
+});
+
+test('las fotos de otro producto no corren el numero', () => {
+  const { ctx } = entorno();
+  const una = (sku) => leer(ctx.doPost(peticion({ accion: 'subirFoto', base64: 'QUJD',
+    sku, recepcion: 'REC0260002', tipo: 'image/jpeg', ...DESTINO })));
+  una('X1');
+  eq(una('OTRO').nombre, 'OTRO-1.jpg');
+});
+
+test('una barra en el codigo no crea carpetas que nadie busco', () => {
+  const { ctx, estado } = entorno();
+  leer(ctx.doPost(peticion({ accion: 'guardarInforme', base64: 'QUJD',
+    nombre: 'informe', recepcion: 'R1',
+    carpetaMes: '2026-03', carpetaRecepcion: '2026-03-01_VEN/TURA_R1' })));
+  ok(!estado.archivos[0].ruta.includes('VEN/TURA'), estado.archivos[0].ruta);
+});
+
+// --- El correo lleva un archivo por packing list ------------------------- //
+// Consolidar ahorra recorrer el almacen dos veces, pero cada lista vuelve a su
+// destinatario tal como llego.
+
+test('dos packing lists consolidados se envian como dos adjuntos', () => {
+  const { ctx, estado } = entorno();
+  const r = leer(ctx.doPost(peticion({
+    accion: 'enviarInforme', destinatarios: 'jefe@itsanet.com', recepcion: 'REC0260002',
+    adjuntos: [
+      { base64: 'QUJD', nombre: '2026-03-01_VENTURA_REC0260002_PL-A' },
+      { base64: 'QUJD', nombre: '2026-03-01_VENTURA_REC0260002_PL-B' },
+    ],
+  })));
+  ok(r.exito, r.mensaje);
+  eq(estado.correos[0].attachments.length, 2);
+  eq(r.adjuntos, ['2026-03-01_VENTURA_REC0260002_PL-A.xlsx',
+                  '2026-03-01_VENTURA_REC0260002_PL-B.xlsx']);
+});
+
+test('el correo dice cuantos packing lists van y como se llaman', () => {
+  const { ctx, estado } = entorno();
+  leer(ctx.doPost(peticion({
+    accion: 'enviarInforme', destinatarios: 'jefe@itsanet.com', recepcion: 'REC0260002',
+    adjuntos: [{ base64: 'QUJD', nombre: 'A' }, { base64: 'QUJD', nombre: 'B' }],
+  })));
+  const correo = estado.correos[0];
+  ok(/2 packing lists/.test(correo.subject), correo.subject);
+  ok(/2 packing lists adjuntos/.test(correo.htmlBody), 'tiene que poder contarlos sin abrir el correo');
+});
+
+test('con una sola lista el correo no habla en plural', () => {
+  const { ctx, estado } = entorno();
+  leer(ctx.doPost(peticion({
+    accion: 'enviarInforme', destinatarios: 'jefe@itsanet.com', recepcion: 'R1',
+    adjuntos: [{ base64: 'QUJD', nombre: 'A' }],
+  })));
+  ok(!/packing lists/.test(estado.correos[0].subject), estado.correos[0].subject);
+});
+
+test('sigue aceptando el adjunto unico de antes', () => {
+  // Una pestana abierta desde ayer manda el formato viejo.
+  const { ctx, estado } = entorno();
+  const r = leer(ctx.doPost(peticion({
+    accion: 'enviarInforme', destinatarios: 'jefe@itsanet.com', recepcion: 'R1',
+    adjuntoBase64: 'QUJD', nombreAdjunto: 'validacion-R1',
+  })));
+  ok(r.exito, r.mensaje);
+  eq(estado.correos[0].attachments.length, 1);
 });
 
 // Lo natural es copiar la barra de direcciones de Drive y pegarla. Rechazar eso
