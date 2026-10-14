@@ -806,6 +806,8 @@ pierde, se genera otra.
 | Registrar PNC con fotos | sí | sí | sí |
 | Anular sus propios conteos | sí | sí | sí |
 | Crear recepciones y subir el packing list | — | sí | sí |
+| Consolidar otro packing list en una recepción | — | sí | sí |
+| Borrar una recepción entera | — | — | sí |
 | Descargar el catálogo de Depot | — | sí | sí |
 | Anular el conteo de cualquiera | — | sí | sí |
 | Cerrar y enviar el informe | — | sí | sí |
@@ -1503,7 +1505,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**235 pruebas automáticas** en verde, con un solo comando:
+**237 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

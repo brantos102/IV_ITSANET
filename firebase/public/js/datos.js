@@ -443,22 +443,37 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
  * puede hacer solo un administrador, y la pantalla exige escribir el código.
  */
 export async function borrarRecepcion(recepcionId, alAvanzar) {
+  // La recepción PRIMERO.
+  //
+  // Lo que el supervisor quiere es que desaparezca de la lista y que nadie
+  // pueda entrar a contar en ella. Si se limpiaran antes las subcolecciones y
+  // algo fallara a mitad, la recepción seguiría ahí, accesible, y con parte de
+  // sus datos ya borrados: lo peor de los dos mundos.
+  //
+  // Borrando el documento primero, un fallo posterior solo deja registros
+  // huérfanos, que no estorban a nadie y se informan.
+  await deleteDoc(doc(db, 'recepciones', recepcionId));
+
   const subcolecciones = ['eventos', 'lineas', 'skus', 'adicionales', 'auditoria'];
   let borrados = 0;
+  const huerfanas = [];
 
   for (const nombre of subcolecciones) {
-    const snap = await getDocs(collection(db, 'recepciones', recepcionId, nombre));
-    for (let i = 0; i < snap.docs.length; i += 400) {
-      const lote = writeBatch(db);
-      snap.docs.slice(i, i + 400).forEach((d) => lote.delete(d.ref));
-      await lote.commit();
-      borrados += Math.min(400, snap.docs.length - i);
-      if (alAvanzar) alAvanzar(borrados, nombre);
+    try {
+      const snap = await getDocs(collection(db, 'recepciones', recepcionId, nombre));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const lote = writeBatch(db);
+        snap.docs.slice(i, i + 400).forEach((d) => lote.delete(d.ref));
+        await lote.commit();
+        borrados += Math.min(400, snap.docs.length - i);
+        if (alAvanzar) alAvanzar(borrados, nombre);
+      }
+    } catch {
+      huerfanas.push(nombre);
     }
   }
 
-  await deleteDoc(doc(db, 'recepciones', recepcionId));
-  return borrados;
+  return { borrados, huerfanas };
 }
 
 export async function listarRecepciones(max = 50) {

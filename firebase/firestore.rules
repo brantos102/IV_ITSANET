@@ -258,7 +258,8 @@ service cloud.firestore {
                    && recepcionAbierta()
                    && request.resource.data.esperado == resource.data.esperado
                    && request.resource.data.sku == resource.data.sku;
-        allow delete: if false;
+        // Solo para el borrado en cascada de una recepción entera.
+        allow delete: if esAdmin();
       }
 
       // ---- Libro mayor: append-only, firmado por quien está autenticado ---- //

@@ -306,16 +306,25 @@ $('tRecepciones').addEventListener('click', async (ev) => {
   limpiarAvisos();
   const prog = aviso('Borrando…', 'info');
   try {
-    const n = await borrarRecepcion(id, (hechos, donde) => {
+    const r = await borrarRecepcion(id, (hechos, donde) => {
       prog.innerHTML = `<b>Borrando</b>${hechos} registros · ${donde}`;
     });
     prog.remove();
-    aviso(`Recepción ${id} borrada, con sus ${n} registros.`, 'ok', 'Borrada');
+    aviso(`Recepción ${id} borrada, con sus ${r.borrados} registros.`, 'ok', 'Borrada');
+    if (r.huerfanas.length) {
+      aviso(`Quedaron registros sueltos en ${r.huerfanas.join(', ')}. La recepción ` +
+            'ya no existe ni aparece en ningún listado; esos registros no estorban, ' +
+            'pero dímelo para limpiarlos.', 'warn', 'Limpieza incompleta');
+    }
     cargarListado();
   } catch (e) {
     prog.remove();
-    aviso(/permission/i.test(e.message || '')
-      ? 'Solo un administrador puede borrar recepciones.'
+    // Distinguir «no tienes permiso» de «las reglas no están desplegadas» es
+    // la diferencia entre buscar en el sitio correcto y no encontrar nada.
+    aviso(/permission|insufficient/i.test(e.message || '')
+      ? `Firestore rechazó el borrado. Si eres ADMIN —y lo eres: ${esc(perfil?.rol)}—, ` +
+        'lo que falta es desplegar las reglas:\n' +
+        'cd firebase && firebase deploy --only firestore:rules'
       : e.message, 'err', 'No se borró');
   }
 });
@@ -323,6 +332,9 @@ $('tRecepciones').addEventListener('click', async (ev) => {
 $('tRecepciones').addEventListener('click', (ev) => {
   const id = ev.target.dataset.anadir;
   if (!id) return;
+  if (!['SUPERVISOR', 'ADMIN'].includes(perfil?.rol)) {
+    return aviso('Consolidar packing lists es cosa del supervisor.', 'warn');
+  }
   recepcionActual = id;
   $('lblRecepcion').textContent = id;
   $('panelArchivo').classList.remove('oculto');
@@ -416,6 +428,9 @@ function pintarListado() {
       return;
     }
     const esAdmin = perfil?.rol === 'ADMIN';
+    // Consolidar listas es decidir contra qué se valida: eso es del supervisor.
+    // El operario entra a contar, y verlo le ofrecería algo que no puede hacer.
+    const puedeConsolidar = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
 
     $('tRecepciones').innerHTML = recs.map((r) => {
       const t = r.totales || {};
@@ -436,8 +451,10 @@ function pintarListado() {
         <td class="num">${t.unidades ?? 0}</td>
         <td class="num" id="fis_${esc(r.id)}">—</td>
         <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}"></i></div></td>
-        <td><button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
-          ${vacia ? 'Cargar packing list' : '+ Lista'}</button></td>
+        <td>${puedeConsolidar
+          ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
+               ${vacia ? 'Cargar packing list' : '+ Lista'}</button>`
+          : vacia ? '<span class="mini">sin packing list</span>' : ''}</td>
         <td>${vacia ? '' : `<a href="/validar.html?r=${encodeURIComponent(r.id)}">
           <button class="b-primario">Validar →</button></a>`}</td>
         <td>${esAdmin

@@ -47,6 +47,46 @@ for (const f of fs.readdirSync(path.join(RAIZ, 'js'))) {
   exportados['/js/' + f] = nombres;
 }
 
+/**
+ * Usar algo de un módulo sin importarlo.
+ *
+ * Es el error que se cuela: se añade una llamada a `decodificarPallets(...)` y
+ * se olvida la línea del import. No falla al cargar la página —solo cuando se
+ * ejecuta esa función—, así que aparece delante del operario a mitad de turno
+ * y no en ninguna comprobación.
+ *
+ * Se mira solo contra los nombres que de verdad exportan los módulos del
+ * proyecto, así que no hay falsos positivos con variables locales.
+ */
+function usaSinImportar(etiqueta, codigo) {
+  const importados = new Set();
+  for (const m of codigo.matchAll(/import\s*\{([^}]+)\}\s*from/g)) {
+    m[1].split(',').forEach((n) => {
+      const nombre = n.trim().split(/\s+as\s+/).pop();
+      if (nombre) importados.add(nombre);
+    });
+  }
+
+  // Lo que el propio script define no necesita importarse.
+  const propios = new Set();
+  for (const m of codigo.matchAll(/(?:^|\n)\s*(?:async\s+)?function\s+(\w+)/g)) propios.add(m[1]);
+  for (const m of codigo.matchAll(/(?:^|\n)\s*(?:const|let|var)\s+(\w+)/g)) propios.add(m[1]);
+
+  const todosLosExportados = new Set();
+  for (const nombres of Object.values(exportados)) {
+    for (const n of nombres) todosLosExportados.add(n);
+  }
+
+  for (const nombre of todosLosExportados) {
+    if (importados.has(nombre) || propios.has(nombre)) continue;
+    // Como llamada o como referencia, pero no dentro de otra palabra.
+    const usa = new RegExp(`(^|[^\\w.$'"\`])${nombre}\\s*\\(`, 'm');
+    if (usa.test(codigo)) {
+      malo(`${etiqueta}: usa ${nombre}() sin importarlo`);
+    }
+  }
+}
+
 function revisarImports(etiqueta, codigo, base) {
   for (const m of codigo.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
     const ruta = m[2];
@@ -78,6 +118,7 @@ for (const f of fs.readdirSync(RAIZ)) {
   guiones.forEach((g, i) => {
     sintaxis(`${f}#${i}`, g);
     revisarImports(`${f}#${i}`, g);
+    usaSinImportar(`${f}#${i}`, g);
     for (const m of g.matchAll(/(?:getElementById|\$)\(\s*['"]([\w-]+)['"]\s*\)/g)) {
       if (!ids.has(m[1])) malo(`${f}: $('${m[1]}') no existe en el HTML`);
     }
