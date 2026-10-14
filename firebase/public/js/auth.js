@@ -8,6 +8,7 @@ import {
   getRedirectResult, signOut, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential,
+  sendPasswordResetEmail,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore, doc, getDoc, setDoc, serverTimestamp,
@@ -256,7 +257,27 @@ export async function crearOperario({ usuario, correo, clave, nombre, rol = 'OPE
   const secundaria = initializeApp(firebaseConfig, 'alta-' + Date.now());
   try {
     const authSec = getAuth(secundaria);
-    const cred = await createUserWithEmailAndPassword(authSec, email, clave);
+    let cred;
+    try {
+      cred = await createUserWithEmailAndPassword(authSec, email, clave);
+    } catch (e) {
+      // La cuenta de acceso ya existe. No es «ya está dado de alta»: lo que
+      // suele faltar es la ficha, y desde aquí no se puede escribir porque el
+      // identificador de esa cuenta no se puede consultar desde el navegador.
+      // El camino es que la persona entre una vez; al hacerlo, su ficha nace y
+      // queda esperando aprobación.
+      if (e?.code === 'auth/email-already-in-use') {
+        const aviso = new Error(
+          `Ya existe una cuenta de acceso para ${email}, pero puede que le falte ` +
+          'la ficha. Envíale el correo para que ponga su contraseña: al entrar, ' +
+          'su ficha aparecerá aquí esperando aprobación.',
+        );
+        aviso.code = 'CUENTA_EXISTENTE';
+        aviso.email = email;
+        throw aviso;
+      }
+      throw e;
+    }
     const nombreFinal = limpiarNombre(nombre) || alias;
     await updateProfile(cred.user, { displayName: nombreFinal });
 
@@ -281,6 +302,21 @@ export async function crearOperario({ usuario, correo, clave, nombre, rol = 'OPE
   } finally {
     await deleteApp(secundaria).catch(() => {});
   }
+}
+
+/**
+ * Manda el correo para poner una contraseña nueva.
+ *
+ * Es la salida del callejón: una cuenta de acceso que existe sin ficha. La
+ * persona pone su contraseña, entra, y al entrar nace su ficha —desactivada— en
+ * la cola de aprobación. Nadie tiene que saber la contraseña anterior, que es
+ * lo que lo hacía irresoluble desde el panel.
+ */
+export async function enviarRestablecimiento(correo) {
+  const email = String(correo || '').trim().toLowerCase();
+  if (!pareceCorreo(email)) throw new Error('Escribe un correo electrónico válido.');
+  await sendPasswordResetEmail(auth, email);
+  return email;
 }
 
 const limpiarNombre = (v) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 80);
@@ -346,15 +382,32 @@ export async function asegurarPerfil(usuario, { pedirUsuario } = {}) {
     return { ...snap.data(), nuevo: false };
   }
 
-  // Quien entra con contraseña no puede darse de alta a sí mismo: las reglas
-  // exigen un correo verificado por Google para el alta automática, y una
-  // contraseña no verifica nada. Sin esto, el operario vería un error de
-  // permisos en bruto en vez de saber qué le falta.
+  // Quien entra con contraseña y no tiene ficha pasa a la cola de aprobación.
+  //
+  // Antes esto era un error sin salida, y la salida tampoco estaba por el otro
+  // lado: el administrador intentaba darlo de alta y Firebase le respondía «ya
+  // existe un usuario con ese correo», porque la cuenta de acceso SÍ existía —
+  // lo que faltaba era la ficha—. La persona no podía entrar y el administrador
+  // no podía crearla. Callejón sin salida por los dos extremos.
+  //
+  // Una contraseña no verifica quién es nadie, así que la ficha nace
+  // DESACTIVADA: entra en la misma cola que el registro abierto y la aprueba un
+  // supervisor, que es quien puede comprobarlo.
   if (tipoDeAcceso(usuario) === 'CLAVE') {
-    throw new Error(
-      `La cuenta ${usuario.email} existe pero no está dada de alta en la ` +
-      'aplicación. Pídele a un administrador que te registre en Usuarios.',
-    );
+    const alias = await asegurarAlias(usuario, '', 'CLAVE');
+    const pendiente = {
+      uid: usuario.uid,
+      email: usuario.email,
+      usuario: alias || '',
+      nombre: limpiarNombre(usuario.displayName) || usuario.email,
+      foto: null,
+      rol: 'OPERADOR',
+      activo: false,
+      tipoAcceso: 'CLAVE',
+      creadoEn: serverTimestamp(),
+    };
+    await setDoc(ref, pendiente);
+    return { ...pendiente, nuevo: true };
   }
 
   // Alta automática al entrar con Google, solo para el dominio corporativo: ahí
@@ -421,9 +474,9 @@ export async function asegurarPerfil(usuario, { pedirUsuario } = {}) {
  * tenían reservado —o uno nuevo— la primera vez que vuelven a entrar.
  */
 export async function completarPerfil(usuario, perfil) {
-  if (!perfil || perfil.usuario || tipoDeAcceso(usuario) !== 'GOOGLE') return perfil;
+  if (!perfil || perfil.usuario) return perfil;
   try {
-    const alias = await asegurarAlias(usuario);
+    const alias = await asegurarAlias(usuario, '', tipoDeAcceso(usuario));
     if (!alias) return perfil;
     await setDoc(doc(db, 'usuarios', usuario.uid), { usuario: alias }, { merge: true });
     return { ...perfil, usuario: alias };
@@ -444,7 +497,7 @@ export async function completarPerfil(usuario, perfil) {
  * entrado, y es lo que permite decirle a alguien «esa cuenta entra con Google»
  * en vez de «usuario o contraseña incorrectos».
  */
-async function asegurarAlias(usuario, sugerencia = '') {
+async function asegurarAlias(usuario, sugerencia = '', tipoAcceso = 'GOOGLE') {
   const base = normalizarAlias(String(usuario.email || '').split('@')[0]);
   const pedido = normalizarAlias(sugerencia);
 
@@ -465,7 +518,7 @@ async function asegurarAlias(usuario, sugerencia = '') {
         continue;                                            // de otra persona
       }
       await setDoc(doc(db, 'alias', alias), {
-        email: usuario.email, uid: usuario.uid, tipoAcceso: 'GOOGLE',
+        email: usuario.email, uid: usuario.uid, tipoAcceso,
       });
       return alias;
     } catch {

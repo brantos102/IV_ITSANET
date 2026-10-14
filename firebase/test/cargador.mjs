@@ -116,8 +116,22 @@ export const getRedirectResult = async () => null;
 export const signOut = async () => {};
 export const onAuthStateChanged = () => () => {};
 export const signInWithEmailAndPassword = async () => ({ user: null });
-export const createUserWithEmailAndPassword = async () => ({ user: null });
+/* El alta puede fallar porque la cuenta ya exista: globalThis.__fallarAlta
+ * pone ese codigo para poder probar la salida que se le ofrece. */
+export const createUserWithEmailAndPassword = async (_auth, email) => {
+  if (globalThis.__fallarAlta) {
+    const e = new Error('simulado');
+    e.code = globalThis.__fallarAlta;
+    throw e;
+  }
+  return { user: { uid: 'nuevo', email } };
+};
 export const updatePassword = async () => {};
+/* El correo de restablecimiento: se apunta a quien se mando, que es lo unico
+ * comprobable sin un servidor de correo. */
+export const sendPasswordResetEmail = async (_auth, email) => {
+  (globalThis.__correos = globalThis.__correos || []).push(email);
+};
 export const updateProfile = async () => {};
 export const reauthenticateWithCredential = async () => {};
 export const EmailAuthProvider = { credential: () => ({}) };

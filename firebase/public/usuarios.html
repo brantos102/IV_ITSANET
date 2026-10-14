@@ -111,7 +111,7 @@
 <script type="module">
 import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
-  normalizarAlias, db,
+  normalizarAlias, enviarRestablecimiento, db,
 } from './js/auth.js';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, getDoc }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
@@ -388,7 +388,34 @@ $('bCrear').addEventListener('click', async () => {
     $('fCorreo').value = ''; $('fClave').value = '';
     listar();
   } catch (e) {
-    aviso(traducirError(e), 'err', 'No se creó');
+    // La cuenta de acceso ya existía. Eso no es el final: casi siempre lo que
+    // falta es la ficha, y hay una salida concreta. Se ofrece, en vez de dejar
+    // al administrador con «ya existe un usuario con ese correo» y nada que
+    // hacer con esa frase.
+    if (e?.code === 'CUENTA_EXISTENTE') {
+      const d = aviso(e.message, 'warn', 'La cuenta ya existe');
+      const b = document.createElement('button');
+      b.className = 'b-primario';
+      b.style.marginTop = '10px';
+      b.textContent = 'Enviar correo para poner contraseña';
+      b.onclick = async () => {
+        b.disabled = true;
+        try {
+          await enviarRestablecimiento(e.email);
+          b.replaceWith(Object.assign(document.createElement('div'), {
+            className: 'mini',
+            textContent: `Enviado a ${e.email}. Cuando entre, su ficha aparecerá `
+                       + 'abajo esperando aprobación.',
+          }));
+        } catch (err) {
+          b.disabled = false;
+          aviso(traducirError(err), 'err');
+        }
+      };
+      d.appendChild(b);
+    } else {
+      aviso(traducirError(e), 'err', 'No se creó');
+    }
   } finally {
     $('bCrear').disabled = false;
   }

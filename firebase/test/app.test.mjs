@@ -1191,4 +1191,78 @@ await test('a quien ya tiene usuario no se le toca', async () => {
   eq(globalThis.__sets.length, 0, 'ni una escritura por entrar');
 });
 
+// =============== El callejon sin salida de las dos puertas =============== //
+// Una cuenta de acceso que existe sin ficha cerraba las dos puertas a la vez:
+// la persona entraba y le decian «no estas dada de alta»; el administrador
+// intentaba darla de alta y Firebase le decia «ya existe un usuario con ese
+// correo». Ninguno de los dos podia hacer nada con esa frase.
+
+const conClave = (uid, email, nombre = '') => ({
+  uid, email, displayName: nombre,
+  providerData: [{ providerId: 'password' }],
+});
+
+await test('quien entra con clave y no tiene ficha entra a la cola, no a un error', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const p = await autenticacion.asegurarPerfil(conClave('c1', 'dochoa@itsanet.com', 'Danny Ochoa'));
+  eq(p.activo, false, 'una contrasena no verifica quien es nadie: la aprueba un supervisor');
+  eq(p.rol, 'OPERADOR', 'nadie se elige su propio rol');
+  eq(p.tipoAcceso, 'CLAVE');
+  eq(p.nombre, 'Danny Ochoa');
+  ok(globalThis.__sets.some((x) => x.ruta === 'usuarios/c1'), 'la ficha se escribe');
+});
+
+await test('y con su usuario puesto, no con un guion', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const p = await autenticacion.asegurarPerfil(conClave('c2', 'jperez@itsanet.com'));
+  eq(p.usuario, 'jperez', 'sin esto sale «—» en la lista y no tiene nada que teclear');
+  const alias = globalThis.__sets.find((x) => x.ruta === 'alias/jperez');
+  eq(alias.datos.tipoAcceso, 'CLAVE', 'el alias dice con que se entra');
+});
+
+await test('a una ficha vieja sin usuario tambien se le pone, entre con lo que entre', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  const p = await autenticacion.completarPerfil(
+    conClave('c3', 'mruiz@itsanet.com'),
+    { uid: 'c3', email: 'mruiz@itsanet.com', rol: 'OPERADOR', activo: true });
+  eq(p.usuario, 'mruiz');
+});
+
+await test('el alta avisa de que la cuenta existe y por donde se sale', async () => {
+  globalThis.__sets = [];
+  globalThis.__documentos = {};
+  globalThis.__fallarAlta = 'auth/email-already-in-use';
+  let fallo = null;
+  try {
+    await autenticacion.crearOperario({
+      usuario: 'dochoa', correo: 'dochoa@itsanet.com',
+      clave: '123456', nombre: 'Danny Ochoa',
+    });
+  } catch (e) { fallo = e; }
+  globalThis.__fallarAlta = null;
+  ok(fallo, 'tiene que fallar: la cuenta ya existe');
+  eq(fallo.code, 'CUENTA_EXISTENTE', 'con un codigo propio, para poder ofrecer la salida');
+  eq(fallo.email, 'dochoa@itsanet.com');
+  ok(/esperando aprobaci/i.test(fallo.message), fallo.message);
+});
+
+await test('el correo para poner contrasena se manda a quien toca', async () => {
+  globalThis.__correos = [];
+  eq(await autenticacion.enviarRestablecimiento(' Dochoa@Itsanet.COM '),
+     'dochoa@itsanet.com', 'el correo se normaliza antes de mandarlo');
+  eq(globalThis.__correos, ['dochoa@itsanet.com']);
+});
+
+await test('y no a cualquier cosa que parezca un correo', async () => {
+  globalThis.__correos = [];
+  let fallo = null;
+  try { await autenticacion.enviarRestablecimiento('dochoa@itsanet'); }
+  catch (e) { fallo = e.message; }
+  ok(fallo, 'un dominio sin punto no es un buzon');
+  eq(globalThis.__correos.length, 0);
+});
+
 resumen();
