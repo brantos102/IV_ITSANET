@@ -81,13 +81,27 @@ await test('decodificarPallets descarta los que quedaron en cero', () => {
 });
 
 // ============================ Estados ===================================== //
-await test('estadoDe cubre los cuatro casos', () => {
-  eq(datos.estadoDe(10, 0), 'PENDIENTE');
+await test('estadoDe cubre los cinco casos', () => {
+  eq(datos.estadoDe(10, 0), 'PENDIENTE', 'nadie lo ha buscado');
   eq(datos.estadoDe(10, 10), 'OK');
   eq(datos.estadoDe(10, 4), 'FALTANTE');
   eq(datos.estadoDe(10, 12), 'SOBRANTE');
   eq(datos.estadoDe(0, 0), 'OK', 'línea declarada en 0 y sin contar');
   eq(datos.estadoDe(0, 3), 'SOBRANTE', 'adicional');
+});
+
+// «Nadie lo ha buscado» y «se buscó y no apareció» son cosas distintas: la
+// primera es trabajo pendiente, la segunda un faltante que ya se reclama.
+await test('un cero declarado no es lo mismo que un SKU sin tocar', () => {
+  eq(datos.estadoDe(10, 0, false), 'PENDIENTE');
+  eq(datos.estadoDe(10, 0, true), 'NO_ENCONTRADO');
+  eq(datos.estadoDe(0, 0, true), 'OK', 'declarada en 0 y confirmada en 0 cuadra');
+});
+
+await test('cada estado tiene su etiqueta para el operario', () => {
+  for (const e of ['OK', 'FALTANTE', 'NO_ENCONTRADO', 'SOBRANTE', 'PENDIENTE']) {
+    ok(datos.ETIQUETA_ESTADO[e], 'falta la etiqueta de ' + e);
+  }
 });
 
 // ========================== Ubicaciones =================================== //
@@ -112,12 +126,25 @@ await test('resumir cuenta estados, unidades y exactitud', () => {
   eq(r.faltante, 2, 'B y C');
   eq(r.sobrante, 2, 'D y E');
   eq(r.sinContar, 1, 'solo C');
+  eq(r.noEncontrado, 0, 'nadie ha declarado todavía que no aparece');
   eq(r.unidadesEsperadas, 18);
   eq(r.unidadesFisicas, 23);
   eq(r.diferencia, 5);
   eq(r.adicionales, 1);
   eq(r.discrepancias.length, 4);
   eq(r.exactitud, 20);
+});
+
+await test('resumir separa lo que falta buscar de lo que no apareció', () => {
+  const r = conteo.resumir([
+    { sku: 'A', esperado: 5, contado: 0 },                      // nadie lo buscó
+    { sku: 'B', esperado: 5, contado: 0, verificado: true },    // buscado, no está
+    { sku: 'C', esperado: 5, contado: 2 },                      // faltan 3
+  ]);
+  eq(r.faltante, 3, 'los tres son faltantes');
+  eq(r.sinContar, 1, 'solo A queda por buscar');
+  eq(r.noEncontrado, 1, 'solo B está confirmado como ausente');
+  eq(r.sinVerificar, 1, 'lo que bloquea el cierre');
 });
 
 await test('resumir no divide por cero con la recepción vacía', () => {
@@ -295,6 +322,29 @@ await test('tamanoLegible se lee de un vistazo', () => {
   eq(imagen.tamanoLegible(6 * 1024 * 1024), '6,0 MB');
   eq(imagen.tamanoLegible(0), '0 B');
   eq(imagen.tamanoLegible(undefined), '0 B');
+});
+
+// ====================== El archivo no crece ============================== //
+// La regla es literal y no admite excepciones: entren 1, 22, 30 o 300 filas,
+// salen las mismas. Todo lo demás —destinos, posiciones, desgloses— va dentro
+// de una celda.
+await test('el informe entrega exactamente las filas que entraron', () => {
+  for (const n of [1, 2, 3, 22, 30, 100, 207]) {
+    const lineas = [...Array(n)].map((_, i) => ({
+      linea: i + 1, sku: 'SKU' + (i % 7), cantidad: (i % 4) + 1,
+    }));
+    const totales = {};
+    lineas.forEach((l) => { totales[l.sku] = (totales[l.sku] || 0) + l.cantidad * 2; });
+    eq(informe.repartirPorLinea(lineas, totales).length, n, `con ${n} filas`);
+  }
+});
+
+await test('un SKU repartido entre pallet y posición no abre filas nuevas', () => {
+  // 7 unidades: 5 quedan en el pallet B04 y 2 van directas a su posición.
+  const lineas = [{ linea: 1, sku: 'A', cantidad: 7 }];
+  const r = informe.repartirPorLinea(lineas, { A: 7 });
+  eq(r.length, 1, 'sigue siendo una fila');
+  eq(r[0].fisica, 7, 'con el total, venga de donde venga');
 });
 
 resumen();

@@ -119,6 +119,7 @@
 
   <div class="acciones">
     <button class="b-primario" id="bRegistrar">7 · Registrar</button>
+    <button class="b-peligro" id="bNoApareció">No apareció</button>
     <button class="b-sec" id="bCancelar">Cancelar (Esc)</button>
   </div>
 </div>
@@ -147,9 +148,10 @@
            style="flex:2;min-width:180px;font-family:var(--font-ui)">
     <select id="fEstadoFiltro" style="flex:1;min-width:140px">
       <option value="">Todos</option>
-      <option value="PENDIENTE">Sin contar</option>
-      <option value="FALTANTE">Faltantes</option>
-      <option value="SOBRANTE">Sobrantes</option>
+      <option value="PENDIENTE">Sin buscar</option>
+      <option value="FALTANTE">Faltan unidades</option>
+      <option value="NO_ENCONTRADO">No aparecieron</option>
+      <option value="SOBRANTE">Sobran unidades</option>
       <option value="OK">Completos</option>
     </select>
     <button class="b-sec" id="bBitacora">Bitácora</button>
@@ -186,10 +188,11 @@
 import { observarSesion } from './js/auth.js';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion,
-  registrarEquivalencia, normalizarCodigo,
+  registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
 } from './js/datos.js';
 import {
-  registrarConteo, anularConteo, leerBitacora, ubicacionesDe, resumir, nuevaClave,
+  registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
+  ubicacionesDe, resumir, nuevaClave, registrarAuditoria,
 } from './js/conteo.js';
 import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
 import { comprimir, tamanoLegible } from './js/imagen.js';
@@ -295,9 +298,11 @@ function pintarKpis() {
   $('kpis').innerHTML =
     tarjeta('', r.skus, 'SKU') +
     tarjeta('OK', r.ok, 'Completos', 'var(--success)') +
-    tarjeta('FALTANTE', r.faltante, 'Faltantes', 'var(--warning)') +
-    tarjeta('SOBRANTE', r.sobrante, 'Sobrantes', 'var(--info)') +
-    tarjeta('PENDIENTE', r.sinContar, 'Sin contar', 'var(--secondary)') +
+    tarjeta('PENDIENTE', r.sinContar, 'Sin buscar', 'var(--secondary)') +
+    tarjeta('NO_ENCONTRADO', r.noEncontrado, 'No aparecieron', 'var(--danger)') +
+    tarjeta('FALTANTE', r.faltante - r.noEncontrado - r.sinContar,
+            'Faltan unidades', 'var(--warning)') +
+    tarjeta('SOBRANTE', r.sobrante, 'Sobran unidades', 'var(--info)') +
     tarjeta(null, r.unidadesEsperadas, 'Unid. sistema') +
     tarjeta(null, r.unidadesFisicas, 'Unid. físicas', 'var(--accent)') +
     tarjeta(null, r.avance + '%', 'Verificado');
@@ -325,7 +330,8 @@ function pintarTabla() {
     return s.sku.includes(filtro) || (s.descripcion || '').toUpperCase().includes(filtro);
   });
 
-  const clase = { OK: 'p-ok', FALTANTE: 'p-warn', SOBRANTE: 'p-info', PENDIENTE: 'p-off' };
+  const clase = { OK: 'p-ok', FALTANTE: 'p-warn', NO_ENCONTRADO: 'p-err',
+                  SOBRANTE: 'p-info', PENDIENTE: 'p-off' };
   $('tSkus').innerHTML = filas.length ? filas.map((s) => {
     const dif = (s.contado || 0) - (s.esperado || 0);
     const pallets = ubicacionesDe(s).map((u) =>
@@ -340,7 +346,8 @@ function pintarTabla() {
       <td class="num" style="color:${dif === 0 ? 'var(--secondary)' : dif > 0 ? 'var(--info)' : 'var(--warning)'}">
         ${dif > 0 ? '+' + dif : dif}</td>
       <td class="mini">${pallets || '—'}</td>
-      <td><span class="pastilla ${clase[s.estado] || 'p-off'}">${esc(s.estado || '')}</span></td>
+      <td><span class="pastilla ${clase[s.estado] || 'p-off'}">
+        ${esc(ETIQUETA_ESTADO[s.estado] || s.estado || '')}</span></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" class="mini">Sin resultados.</td></tr>';
 }
@@ -571,6 +578,44 @@ $('fPallet').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); registrar(false); }
 });
 $('bRegistrar').addEventListener('click', () => registrar(false));
+
+/**
+ * Lo busqué y no está.
+ *
+ * Ningún SKU puede quedarse sin dato: dejarlo en blanco significa «no sé», y
+ * en el informe eso es indistinguible de «no llegó». Declararlo cambia el
+ * estado a NO APARECIÓ, que sí se puede reclamar, y deja la traza de quién lo
+ * buscó. Se puede anular desde la bitácora si luego aparece.
+ */
+$('bNoApareció').addEventListener('click', async () => {
+  if (!actual) return;
+  limpiarAvisos();
+  if (!$('fObs').value.trim()) {
+    $('fObs').focus();
+    return aviso('Escribe en la observación dónde buscaste o qué viste. Un ' +
+                 'faltante sin motivo no se le puede reclamar a nadie.',
+                 'warn', 'Falta la nota');
+  }
+  $('bNoApareció').disabled = true;
+  try {
+    const r = await declararNoEncontrado(RECEPCION, usuario, {
+      sku: actual.sku,
+      codigoEscaneado: actual.sku,
+      observacion: $('fObs').value,
+      descripcion: actual.producto?.descripcion || '',
+      idempotencyKey: claveEnvio,
+    });
+    bip('ok');
+    aviso(`${r.sku} queda como NO APARECIÓ. Si aparece después, anula este ` +
+          'registro desde la bitácora.', 'ok', 'Declarado');
+    reiniciar();
+  } catch (e) {
+    bip('error');
+    aviso(e.message, 'err', 'No se registró');
+  } finally {
+    $('bNoApareció').disabled = false;
+  }
+});
 $('bCancelar').addEventListener('click', reiniciar);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') reiniciar(); });
 
@@ -767,11 +812,25 @@ $('bCerrar').addEventListener('click', async () => {
     return aviso('Solo un supervisor puede cerrar la validación.', 'warn');
   }
   const r = resumir(skus);
+
+  // Ningún SKU puede quedarse sin dato. Dejarlo en blanco significa «no sé», y
+  // en el informe eso es indistinguible de «no llegó»: quien reciba el archivo
+  // no puede saber cuál de las dos cosas pasó.
+  if (r.sinVerificar > 0) {
+    $('fEstadoFiltro').value = 'PENDIENTE';
+    pintarKpis(); pintarTabla();
+    return aviso(
+      `Quedan ${r.sinVerificar} ${r.sinVerificar === 1 ? 'referencia' : 'referencias'} ` +
+      'sin buscar. Cuéntalas, o declara «No apareció» con su nota. La tabla ya ' +
+      'está filtrada por las que faltan.',
+      'warn', 'No se puede cerrar todavía');
+  }
+
   const texto =
     `¿Cerrar ${recepcion.codigo}?\n\n` +
     `${r.unidadesFisicas} de ${r.unidadesEsperadas} unidades\n` +
-    `${r.ok} Ok · ${r.faltante} faltantes · ${r.sobrante} sobrantes\n` +
-    (r.sinContar ? `\n${r.sinContar} SKU sin contar se reportarán como faltantes.\n` : '') +
+    `${r.ok} completos · ${r.noEncontrado} no aparecieron · ` +
+    `${r.faltante - r.noEncontrado} con faltante · ${r.sobrante} con sobrante\n` +
     '\nDespués no se podrán registrar más conteos.';
   if (!confirm(texto)) return;
 
@@ -792,6 +851,18 @@ $('bCerrar').addEventListener('click', async () => {
 
     await cerrarRecepcion(RECEPCION);
     $('inEscaner').disabled = true;
+
+    // Qué se cerró, con qué cifras y quién. El agregado se puede volver a
+    // calcular; lo que se entregó aquel día, no.
+    await registrarAuditoria(RECEPCION, usuario, 'CIERRE', {
+      filas: libro.filas,
+      unidadesEsperadas: r.unidadesEsperadas,
+      unidadesFisicas: r.unidadesFisicas,
+      ok: r.ok, faltante: r.faltante, noEncontrado: r.noEncontrado,
+      sobrante: r.sobrante, adicionales: datos.adicionales.length,
+      exactitud: r.exactitud,
+      archivo: libro.nombre,
+    }).catch(() => {});
     aviso(`Recepción cerrada. El archivo entrega ${libro.filas} filas, ` +
           `las mismas del packing list original.`, 'ok', 'Cerrada');
 
@@ -805,6 +876,8 @@ $('bCerrar').addEventListener('click', async () => {
       });
       aviso(`Archivado en Drive como ${g.nombre}, junto a las fotos de esta recepción.`,
             'ok', 'Copia guardada');
+      registrarAuditoria(RECEPCION, usuario, 'EXPORTACION',
+        { destino: 'DRIVE', archivo: g.nombre, enlace: g.enlace || null }).catch(() => {});
     } catch (e) {
       // El detalle del proxy puede ser una URL larga de Google: no le dice nada
       // a quien está cerrando una recepción, y tapa lo único que importa.
@@ -834,6 +907,8 @@ $('bCerrar').addEventListener('click', async () => {
       aviso(`Informe enviado a ${env.enviadoA}.` +
             (env.cuotaRestante != null ? ` Quedan ${env.cuotaRestante} correos hoy.` : ''),
             'ok', 'Enviado');
+      registrarAuditoria(RECEPCION, usuario, 'CORREO',
+        { destinatarios: env.enviadoA, archivo: libro.nombre }).catch(() => {});
     }
   } catch (e) {
     d.remove();

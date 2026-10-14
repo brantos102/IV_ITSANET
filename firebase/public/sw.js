@@ -10,7 +10,7 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-2026-10-14-3';
+const VERSION = 'iv-2026-10-14-4';
 
 /** Lo mínimo para que la app arranque sin red. */
 const CONCHA = [

@@ -997,6 +997,52 @@ Para buscar algo después vale la segunda. La posición conserva sus guiones
 (`A-01-03-2`): separan nave, calle, columna y nivel, y sin ellos no se puede
 buscar en Depot.
 
+### 9.2.quater Ningún SKU se queda sin dato
+
+Hay **cinco** estados, no cuatro, y la diferencia entre dos de ellos es la que
+más confunde si se mezclan:
+
+| Estado | Qué significa |
+|---|---|
+| **Completo** | Cuadró con el packing list |
+| **Sin buscar** | Nadie lo ha tocado todavía — es trabajo pendiente |
+| **No apareció** | Se buscó, no estaba, y alguien lo declaró — se reclama |
+| **Faltan unidades** | Apareció, pero menos de las declaradas |
+| **Sobran unidades** | Apareció de más |
+
+«Sin buscar» y «No apareció» son cosas distintas. Mezcladas, el operario no
+sabe qué le queda por hacer y el supervisor no sabe qué reclamar.
+
+Para declarar el segundo está el botón **No apareció**, al lado de Registrar.
+Pide una nota —dónde se buscó, qué se vio— porque **un faltante sin motivo no
+se le puede reclamar a nadie**. Queda como un conteo de cero en la bitácora,
+con su firma, y se anula igual si el producto aparece después.
+
+> **No se puede cerrar con referencias sin buscar.** El botón Finalizar lo
+> impide, filtra la tabla por las que faltan y dice cuántas son. Dejar una en
+> blanco significa «no sé», y en el informe eso es indistinguible de «no
+> llegó»: quien reciba el archivo no puede saber cuál de las dos pasó.
+
+### 9.2.quinquies Cuando la cantidad se reparte
+
+De lo validado puede que solo unas unidades vayan a su posición definitiva y el
+resto se quede en un pallet. Eso se registra en **dos conteos** del mismo SKU,
+cada uno con su pallet y su posición.
+
+En el informe van en una celda, no en filas nuevas:
+
+```
+DESGLOSE PALLET → POSICION
+B04(5) DP→A-01-03-2(2)
+```
+
+Cinco unidades en el pallet B04, dos directas a la posición A-01-03-2.
+
+> **El archivo nunca crece.** Entren 1, 22, 30, 100 o 300 filas, salen las
+> mismas y en el mismo orden. Hay una prueba automática que lo comprueba con
+> siete tamaños distintos, porque es la regla que más fácil se rompe sin darse
+> cuenta.
+
 ### 9.3 Código que no existe (paso 8)
 
 Sale un modal con:
@@ -1018,6 +1064,11 @@ El archivo trae tres hojas:
 | `VALIDADA` | El packing list con las columnas de validación añadidas |
 | `ADICIONALES` | Lo que llegó sin estar en la lista |
 | `BITACORA` | Cada conteo con su autor, su hora y sus fotos |
+| `AUDITORIA` | Cada cierre y cada exportación: quién, cuándo y qué archivo salió |
+
+La hoja `AUDITORIA` existe porque el agregado se puede volver a calcular, pero
+lo que se entregó aquel día no. Sin ella, «el informe decía otra cosa» no se
+puede resolver.
 
 > **La regla de las filas se respeta.** Si el archivo que recibiste tiene 22
 > filas, `VALIDADA` entrega 22 filas, en el mismo orden. No se añade ninguna.
@@ -1279,7 +1330,7 @@ cambia lo que sirve la URL; hace falta la versión nueva.
 
 ## Qué está construido
 
-**198 pruebas automáticas** en verde, con un solo comando:
+**203 pruebas automáticas** en verde, con un solo comando:
 
 ```powershell
 node pruebas.js        # desde la raíz del proyecto

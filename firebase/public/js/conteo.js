@@ -16,8 +16,8 @@
  * documento, no uno nuevo, así que el doble disparo del lector no suma dos veces.
  */
 import {
-  doc, collection, runTransaction, increment, serverTimestamp,
-  query, orderBy, limit, getDocs, where,
+  doc, collection, runTransaction, increment, serverTimestamp, setDoc,
+  query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { db } from './auth.js';
 import {
@@ -41,8 +41,12 @@ function validar(p) {
   const sku = normalizarCodigo(p.sku);
   if (!sku) throw new ErrorConteo('Código de producto vacío.', 'CODIGO_INVALIDO');
 
+  // El cero solo vale declarándolo: «lo busqué y no está» es un dato, un cero
+  // por descuido no lo es.
   const cantidad = aNumero(p.cantidad, 0);
-  if (cantidad === 0) throw new ErrorConteo('La cantidad no puede ser 0.', 'CANTIDAD_INVALIDA');
+  if (cantidad === 0 && p.tipo !== 'CERO') {
+    throw new ErrorConteo('La cantidad no puede ser 0.', 'CANTIDAD_INVALIDA');
+  }
   if (Math.abs(cantidad) > 100000) {
     throw new ErrorConteo(
       'Cantidad fuera de rango. ¿Se escaneó dentro del campo de cantidad?',
@@ -64,6 +68,14 @@ function validar(p) {
   // Un producto no conforme sin evidencia no sirve para reclamar al proveedor.
   if (estadoFisico === 'PNC' && !limpiar(p.observacion)) {
     throw new ErrorConteo('Un producto no conforme requiere observación.', 'OBSERVACION_REQUERIDA');
+  }
+
+  // Lo mismo con un faltante: sin motivo no se puede reclamar a nadie.
+  if (p.tipo === 'CERO' && !limpiar(p.observacion)) {
+    throw new ErrorConteo(
+      'Declarar que no apareció requiere una nota: dónde se buscó, o qué se vio.',
+      'OBSERVACION_REQUERIDA',
+    );
   }
 
   return {
@@ -124,6 +136,8 @@ export async function registrarConteo(recepcionId, usuario, p) {
     const esperado = aNumero(actual.esperado, 0);
     const previo = aNumero(actual.contado, 0);
     const total = previo + d.cantidad;
+    // Verificado = alguien ya lo buscó. Un cero declarado también lo marca.
+    const verificado = actual.verificado === true || d.cantidad !== 0 || p.tipo === 'CERO';
 
     if (total < 0) {
       throw new ErrorConteo(
@@ -166,7 +180,8 @@ export async function registrarConteo(recepcionId, usuario, p) {
       esperado,
       contado: increment(d.cantidad),
       [`pallets.${clavePallet(d.pallet)}`]: increment(d.cantidad),
-      estado: estadoDe(esperado, total),
+      estado: estadoDe(esperado, total, verificado),
+      verificado,
       enPackingList: actual.enPackingList === true,
       tienePnc: d.estadoFisico === 'PNC' ? true : (actual.tienePnc || false),
       descripcion: actual.descripcion || p.descripcion || '',
@@ -198,7 +213,7 @@ export async function registrarConteo(recepcionId, usuario, p) {
       cantidadRegistrada: d.cantidad, pallet: d.pallet,
       esperado, contado: total,
       pendiente: Math.max(esperado - total, 0),
-      estado: estadoDe(esperado, total),
+      estado: estadoDe(esperado, total, verificado),
       esAdicional: !actual.enPackingList && esperado === 0,
     };
   });
@@ -249,15 +264,69 @@ export async function anularConteo(recepcionId, usuario, eventoId, motivo) {
       creadoEn: serverTimestamp(),
     });
 
+    // Anular no «des-verifica»: alguien ya buscó ese producto, y eso no se
+    // deshace. Vuelve a PENDIENTE solo si se anula el único registro que había.
+    const verificado = snapSku.get('verificado') === true && total !== 0;
+
     tx.set(refSku, {
       contado: increment(-orig.cantidad),
       [`pallets.${clavePallet(orig.pallet)}`]: increment(-orig.cantidad),
-      estado: estadoDe(esperado, total),
+      estado: estadoDe(esperado, total, verificado),
+      verificado,
       actualizadoEn: serverTimestamp(),
     }, { merge: true });
 
     return { sku: orig.sku, contado: total, esperado };
   });
+}
+
+/**
+ * Declara que un SKU se buscó y no apareció.
+ *
+ * Es un conteo de cero con su firma y su motivo, no una marca aparte: así
+ * queda en el mismo libro que todo lo demás y se puede anular igual. La
+ * diferencia con no haber hecho nada es la que separa «me queda trabajo» de
+ * «esto hay que reclamarlo».
+ */
+export async function declararNoEncontrado(recepcionId, usuario, p) {
+  return registrarConteo(recepcionId, usuario, {
+    ...p,
+    cantidad: 0,
+    tipo: 'CERO',
+    pallet: p.pallet || 'NA',
+    confirmarSobrante: true,
+  });
+}
+
+/**
+ * Deja constancia de un cierre o de una exportación.
+ *
+ * Quién cerró, cuándo, con qué cifras y qué archivo salió. Sin esto, «el
+ * informe decía otra cosa» no se puede resolver: el agregado se puede volver a
+ * calcular, pero lo que se entregó aquel día no.
+ */
+export async function registrarAuditoria(recepcionId, usuario, tipo, detalle = {}) {
+  const ref = doc(collection(db, 'recepciones', recepcionId, 'auditoria'));
+  await setDoc(ref, {
+    tipo,                                   // CIERRE | EXPORTACION | CORREO
+    detalle,
+    usuarioUid: usuario.uid,
+    usuarioEmail: usuario.email,
+    usuarioNombre: usuario.displayName || null,
+    creadoEn: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+/** Historial de cierres y exportaciones, el más reciente primero. */
+export async function leerAuditoria(recepcionId, max = 40) {
+  const q = query(
+    collection(db, 'recepciones', recepcionId, 'auditoria'),
+    orderBy('creadoEn', 'desc'),
+    limit(max),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 /** Historial de conteos, el más reciente primero. */
@@ -284,7 +353,7 @@ export function ubicacionesDe(skuDoc) {
 
 /** Totales de la recepción, para el cierre y el informe. */
 export function resumir(skus) {
-  let ok = 0, faltante = 0, sobrante = 0, pendiente = 0;
+  let ok = 0, faltante = 0, sobrante = 0, pendiente = 0, noEncontrado = 0;
   let unidadesEsperadas = 0, unidadesFisicas = 0;
   // Unidades que ya están verificadas: lo contado de cada SKU SIN pasarse de lo
   // que declara el packing list.
@@ -298,11 +367,19 @@ export function resumir(skus) {
     unidadesFisicas += f;
     unidadesCubiertas += Math.min(f, e);
 
-    // Al cerrar, lo no contado ya es faltante confirmado.
+    // Haber contado algo ya implica haberlo buscado. El campo explícito existe
+    // para el otro caso: se buscó, no apareció, y se declaró el cero.
+    const verificado = s.verificado === true || f !== 0;
+
     const estado = f === e ? 'Ok' : (f < e ? 'Faltante' : 'Sobrante');
     if (estado === 'Ok') ok++;
-    else if (estado === 'Faltante') { faltante++; if (f === 0) pendiente++; }
-    else sobrante++;
+    else if (estado === 'Faltante') {
+      faltante++;
+      // Sin buscar todavía frente a buscado y no encontrado: lo primero es
+      // trabajo que queda, lo segundo es un faltante que ya se puede reclamar.
+      if (!verificado) pendiente++;
+      else if (f === 0) noEncontrado++;
+    } else sobrante++;
 
     if (e !== f) {
       discrepancias.push({ sku: s.sku, esperado: e, fisico: f, diferencia: f - e, estado });
@@ -311,7 +388,9 @@ export function resumir(skus) {
 
   const total = skus.length;
   return {
-    skus: total, ok, faltante, sobrante, sinContar: pendiente,
+    skus: total, ok, faltante, sobrante, sinContar: pendiente, noEncontrado,
+    // Lo que de verdad bloquea el cierre: ningún SKU puede quedarse sin dato.
+    sinVerificar: pendiente,
     unidadesEsperadas, unidadesFisicas,
     diferencia: unidadesFisicas - unidadesEsperadas,
     exactitud: total ? Math.round((ok / total) * 1000) / 10 : 0,

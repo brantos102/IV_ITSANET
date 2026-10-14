@@ -238,12 +238,31 @@ service cloud.firestore {
                    && request.resource.data.operadorUid == request.auth.uid
                    && request.resource.data.operadorEmail == request.auth.token.email
                    && request.resource.data.cantidad is number
-                   && request.resource.data.cantidad != 0
+                   // El 0 solo vale declarándolo: «lo busqué y no está» es un
+                   // dato; un 0 por descuido, no.
+                   && (request.resource.data.cantidad != 0
+                       || request.resource.data.tipo == 'CERO')
                    && request.resource.data.sku is string
                    && request.resource.data.pallet is string
                    // La hora la pone el servidor: el dispositivo no la decide.
                    && request.resource.data.creadoEn == request.time;
         // Nada se modifica ni se borra: corregir es registrar una reversa.
+        allow update, delete: if false;
+      }
+
+      /**
+       * Cierres y exportaciones.
+       *
+       * Quién cerró, cuándo, con qué cifras y qué archivo salió. El agregado se
+       * puede volver a calcular; lo que se entregó aquel día, no. Por eso esto
+       * tampoco se modifica ni se borra.
+       */
+      match /auditoria/{registroId} {
+        allow read: if activo();
+        allow create: if activo()
+                   && request.resource.data.usuarioUid == request.auth.uid
+                   && request.resource.data.usuarioEmail == request.auth.token.email
+                   && request.resource.data.creadoEn == request.time;
         allow update, delete: if false;
       }
 

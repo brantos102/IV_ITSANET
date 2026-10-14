@@ -96,11 +96,32 @@ export function decodificarPallets(mapa) {
   return out;
 }
 
-export function estadoDe(esperado, contado) {
-  if (contado === 0) return esperado > 0 ? 'PENDIENTE' : 'OK';
+/**
+ * Estado de un SKU. Cinco, no cuatro, y la diferencia importa.
+ *
+ * «Nadie lo ha buscado todavía» y «se buscó y no apareció» son cosas
+ * distintas: la primera es trabajo pendiente, la segunda es un faltante
+ * confirmado que hay que reclamar. Mezcladas en PENDIENTE, el operario no sabe
+ * qué le queda por hacer y el supervisor no sabe qué reclamar.
+ *
+ * `verificado` se marca cuando alguien registra algo de ese SKU, incluido un
+ * cero explícito.
+ */
+export function estadoDe(esperado, contado, verificado = contado !== 0) {
+  if (!verificado) return esperado > 0 ? 'PENDIENTE' : 'OK';
   if (contado === esperado) return 'OK';
+  if (contado === 0) return esperado > 0 ? 'NO_ENCONTRADO' : 'OK';
   return contado < esperado ? 'FALTANTE' : 'SOBRANTE';
 }
+
+/** Lo que se le muestra al operario, en su idioma. */
+export const ETIQUETA_ESTADO = {
+  OK: 'Completo',
+  FALTANTE: 'Faltan unidades',
+  NO_ENCONTRADO: 'No apareció',
+  SOBRANTE: 'Sobran unidades',
+  PENDIENTE: 'Sin buscar',
+};
 
 // --------------------------------------------------------------------------- //
 // Lectura del packing list
