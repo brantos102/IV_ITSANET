@@ -114,28 +114,52 @@ export const TERMINOS = {
   },
 };
 
-/** Marca un elemento para que al tocarlo explique el término. */
-export function ayudaDe(clave) {
-  const t = TERMINOS[clave];
-  if (!t) return '';
-  return ` <button type="button" class="ayuda" data-termino="${clave}"
-            aria-label="Qué significa ${t.titulo}" title="${t.ayuda}">?</button>`;
+/**
+ * Un panel con las definiciones, no un «?» en cada sitio.
+ *
+ * Primero puse un botón de ayuda junto a cada cifra. Metidos dentro de las
+ * tarjetas de una rejilla, descuadraban las alturas y la fila de indicadores
+ * —que es lo que se mira de un vistazo— dejaba de leerse de un vistazo. La
+ * explicación tiene que estar disponible sin estorbar a lo que explica.
+ *
+ * Un enlace debajo, y el glosario se despliega cuando hace falta.
+ */
+export function panelGlosario(claves) {
+  const terminos = (claves || Object.keys(TERMINOS))
+    .map((k) => TERMINOS[k])
+    .filter(Boolean);
+
+  return `<div class="glosario">
+    ${terminos.map((t) => `<div class="termino">
+      <b>${t.titulo}</b><span>${t.ayuda}</span>
+    </div>`).join('')}
+  </div>`;
 }
 
 /**
- * Conecta la ayuda de la página.
+ * Conecta el enlace que abre y cierra el glosario.
  *
- * Un solo oyente en el documento: los términos aparecen y desaparecen al
- * repintar tablas, y reconectarlos uno a uno acaba olvidando alguno.
+ * @param {string} idBoton   el enlace
+ * @param {string} idPanel   dónde se escribe
+ * @param {string[]} claves  qué términos, en orden
  */
-export function conectarAyuda(mostrar) {
-  document.addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-termino]');
-    if (!b) return;
-    const t = TERMINOS[b.dataset.termino];
-    if (t) mostrar(t.titulo, t.ayuda);
+export function conectarGlosario(idBoton, idPanel, claves) {
+  const boton = document.getElementById(idBoton);
+  const panel = document.getElementById(idPanel);
+  if (!boton || !panel) return;
+
+  boton.addEventListener('click', () => {
+    const abierto = !panel.classList.contains('oculto');
+    if (abierto) {
+      panel.classList.add('oculto');
+      boton.textContent = '¿Qué significa cada cifra?';
+      return;
+    }
+    panel.innerHTML = panelGlosario(claves);
+    panel.classList.remove('oculto');
+    boton.textContent = 'Ocultar explicación';
   });
 }
 
-/** Todo el glosario, para la pantalla de ayuda. */
+/** Todo el glosario, para listarlo o comprobarlo. */
 export const listaGlosario = () => Object.values(TERMINOS);

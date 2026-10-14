@@ -613,12 +613,25 @@ await test('están los términos que más confunden', () => {
   }
 });
 
-await test('ayudaDe genera el botón, y calla si el término no existe', () => {
-  const h = glosario.ayudaDe('declarado');
-  ok(h.includes('data-termino="declarado"'), h);
-  ok(h.includes('class="ayuda"'));
-  eq(glosario.ayudaDe('noExiste'), '');
-  eq(glosario.ayudaDe(''), '');
+// El panel va FUERA de las tarjetas. Un «?» dentro de cada una descuadraba las
+// alturas, y la fila de indicadores —que es lo que se mira de un vistazo—
+// dejaba de leerse de un vistazo.
+await test('el panel incluye los términos pedidos, y solo esos', () => {
+  const h = glosario.panelGlosario(['declarado', 'contado']);
+  ok(h.includes('Declarado') && h.includes('Contado'), h);
+  ok(!h.includes('PNC'), 'no debe colar términos que no se pidieron');
+  ok(h.includes('class="glosario"'));
+});
+
+await test('el panel ignora términos que no existen', () => {
+  const h = glosario.panelGlosario(['declarado', 'inventado']);
+  ok(h.includes('Declarado'));
+  ok(!h.includes('undefined'), h);
+});
+
+await test('sin lista, el panel los trae todos', () => {
+  const h = glosario.panelGlosario();
+  ok(h.includes('Declarado') && h.includes('PNC') && h.includes('Pallet'));
 });
 
 resumen();

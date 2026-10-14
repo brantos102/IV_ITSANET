@@ -30,6 +30,9 @@
 <div class="panel">
   <div class="kpis" id="kpis"></div>
   <div class="barra" style="margin-top:14px"><i id="barraAvance"></i></div>
+  <button type="button" class="enlace-ayuda" id="bGlosario">
+    ¿Qué significa cada cifra?</button>
+  <div id="glosario" class="oculto"></div>
 </div>
 
 <div id="avisos"></div>
@@ -232,7 +235,7 @@ import {
 import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
 import { comprimir, tamanoLegible } from './js/imagen.js';
 import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js';
-import { ayudaDe, conectarAyuda } from './js/glosario.js';
+import { conectarGlosario } from './js/glosario.js';
 import { Proxy } from './js/proxy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -278,10 +281,10 @@ function bip(tipo) {
   } catch { /* el audio nunca debe cortar el escaneo */ }
 }
 
-conectarAyuda((titulo, texto) => {
-  limpiarAvisos();
-  aviso(texto, 'info', titulo);
-});
+conectarGlosario('bGlosario', 'glosario', [
+  'declarado', 'contado', 'verificado', 'sinBuscar', 'noAparecio', 'sobrante',
+  'pallet', 'posicionReal', 'pnc', 'adicional',
+]);
 
 // --- Arranque ------------------------------------------------------------- //
 observarSesion(async (e) => {
@@ -405,17 +408,14 @@ function pintarKpis() {
   $('kpis').innerHTML =
     tarjeta('', r.skus, 'Referencias') +
     tarjeta('OK', r.ok, 'Completos', 'var(--success)') +
-    tarjeta('PENDIENTE', r.sinContar, 'Sin buscar' + ayudaDe('sinBuscar'),
-            'var(--secondary)') +
-    tarjeta('NO_ENCONTRADO', r.noEncontrado, 'No aparecieron' + ayudaDe('noAparecio'),
-            'var(--danger)') +
+    tarjeta('PENDIENTE', r.sinContar, 'Sin buscar', 'var(--secondary)') +
+    tarjeta('NO_ENCONTRADO', r.noEncontrado, 'No aparecieron', 'var(--danger)') +
     tarjeta('FALTANTE', r.faltante - r.noEncontrado - r.sinContar,
             'Faltan unidades', 'var(--warning)') +
-    tarjeta('SOBRANTE', r.sobrante, 'Sobran unidades' + ayudaDe('sobrante'),
-            'var(--info)') +
-    tarjeta(null, r.unidadesEsperadas, 'Declarado' + ayudaDe('declarado')) +
-    tarjeta(null, r.unidadesFisicas, 'Contado' + ayudaDe('contado'), 'var(--accent)') +
-    tarjeta(null, r.avance + '%', 'Verificado' + ayudaDe('verificado'));
+    tarjeta('SOBRANTE', r.sobrante, 'Sobran unidades', 'var(--info)') +
+    tarjeta(null, r.unidadesEsperadas, 'Declarado') +
+    tarjeta(null, r.unidadesFisicas, 'Contado', 'var(--accent)') +
+    tarjeta(null, r.avance + '%', 'Verificado');
 
   $('barraAvance').style.width = r.avance + '%';
 }
