@@ -139,13 +139,27 @@ paso "4/5  Las tablas"
 # --------------------------------------------------------------------------- #
 paso "5/5  Las pruebas"
 
-if "$PY" -m pytest tests -q 2>&1 | tail -3; then
+# El resultado se guarda y se mira APARTE del pipe.
+#
+# Antes esto era `if pytest ... | tail -3; then bien "en verde"`. El estado de
+# una tuberia es el del ULTIMO mandato, y `tail` siempre termina bien: decia «en
+# verde» con 24 errores en pantalla. Un comprobador que miente es peor que no
+# tenerlo.
+salida_pruebas="$("$PY" -m pytest tests -q 2>&1)"
+estado_pruebas=$?
+echo "$salida_pruebas" | tail -3
+
+if [ "$estado_pruebas" -eq 0 ]; then
   bien "en verde"
 else
   echo
-  echo "   Alguna prueba falla. La aplicación puede arrancar igual, pero antes"
-  echo "   de usarla conviene mirar por qué: pásale la salida de arriba a quien"
-  echo "   lleve el proyecto."
+  echo "   ✗ Hay pruebas que fallan. La aplicación puede arrancar igual, pero"
+  echo "   antes de usarla conviene saber por qué."
+  echo
+  echo "   Para ver el detalle:"
+  echo "     .venv/bin/python -m pytest tests -q"
+  echo
+  echo "   Pásale esa salida a quien lleve el proyecto."
 fi
 
 # --------------------------------------------------------------------------- #
