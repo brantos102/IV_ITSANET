@@ -10,7 +10,7 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-2026-10-14-13';
+const VERSION = 'iv-2026-10-14-14';
 
 /** Lo mínimo para que la app arranque sin red. */
 const CONCHA = [
@@ -18,7 +18,7 @@ const CONCHA = [
   '/usuarios.html', '/kpis.html',
   '/css/app.css', '/manifest.webmanifest', '/icono.svg',
   '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
-  '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js',
+  '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js', '/js/glosario.js',
 ];
 
 self.addEventListener('install', (e) => {

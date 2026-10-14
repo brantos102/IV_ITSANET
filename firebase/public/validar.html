@@ -84,9 +84,12 @@
       <div class="mini" id="fExtra" style="margin-top:4px"></div>
     </div>
     <div class="kpis" style="flex:3;min-width:220px">
-      <div class="kpi"><div class="v" id="fEsp">0</div><div class="e">Sistema</div></div>
-      <div class="kpi"><div class="v" id="fCont" style="color:var(--info)">0</div><div class="e">Contado</div></div>
-      <div class="kpi"><div class="v" id="fPend" style="color:var(--warning)">0</div><div class="e">Pendiente</div></div>
+      <div class="kpi"><div class="v" id="fEsp">0</div>
+        <div class="e">Declarado</div></div>
+      <div class="kpi"><div class="v" id="fCont" style="color:var(--info)">0</div>
+        <div class="e">Contado</div></div>
+      <div class="kpi"><div class="v" id="fPend" style="color:var(--warning)">0</div>
+        <div class="e">Falta</div></div>
     </div>
   </div>
 
@@ -124,7 +127,7 @@
     <label class="campo"><span>6 · Estado físico</span>
       <select id="fEstado">
         <option value="BUENO">Buen estado</option>
-        <option value="PNC">PNC — no conforme</option>
+        <option value="PNC">PNC — producto no conforme</option>
       </select></label>
   </div>
   <div class="chips" style="margin-top:9px">
@@ -189,7 +192,9 @@
   <div class="tabla-env">
     <table>
       <thead><tr>
-        <th>Referencia</th><th class="num">Sistema</th><th class="num">Físico</th>
+        <th>Referencia</th>
+        <th class="num">Declarado</th>
+        <th class="num">Contado</th>
         <th class="num">Dif.</th><th>Pallets</th><th>Estado</th>
       </tr></thead>
       <tbody id="tSkus"></tbody>
@@ -227,6 +232,7 @@ import {
 import { reunirInforme, construirLibro, descargarLibro, fotosDe } from './js/informe.js';
 import { comprimir, tamanoLegible } from './js/imagen.js';
 import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js';
+import { ayudaDe, conectarAyuda } from './js/glosario.js';
 import { Proxy } from './js/proxy.js';
 
 const $ = (id) => document.getElementById(id);
@@ -271,6 +277,11 @@ function bip(tipo) {
     if (navigator.vibrate) navigator.vibrate(tipo === 'error' ? [60, 50, 60] : 40);
   } catch { /* el audio nunca debe cortar el escaneo */ }
 }
+
+conectarAyuda((titulo, texto) => {
+  limpiarAvisos();
+  aviso(texto, 'info', titulo);
+});
 
 // --- Arranque ------------------------------------------------------------- //
 observarSesion(async (e) => {
@@ -392,16 +403,19 @@ function pintarKpis() {
       <div class="e">${etiqueta}</div></button>`;
 
   $('kpis').innerHTML =
-    tarjeta('', r.skus, 'SKU') +
+    tarjeta('', r.skus, 'Referencias') +
     tarjeta('OK', r.ok, 'Completos', 'var(--success)') +
-    tarjeta('PENDIENTE', r.sinContar, 'Sin buscar', 'var(--secondary)') +
-    tarjeta('NO_ENCONTRADO', r.noEncontrado, 'No aparecieron', 'var(--danger)') +
+    tarjeta('PENDIENTE', r.sinContar, 'Sin buscar' + ayudaDe('sinBuscar'),
+            'var(--secondary)') +
+    tarjeta('NO_ENCONTRADO', r.noEncontrado, 'No aparecieron' + ayudaDe('noAparecio'),
+            'var(--danger)') +
     tarjeta('FALTANTE', r.faltante - r.noEncontrado - r.sinContar,
             'Faltan unidades', 'var(--warning)') +
-    tarjeta('SOBRANTE', r.sobrante, 'Sobran unidades', 'var(--info)') +
-    tarjeta(null, r.unidadesEsperadas, 'Unid. sistema') +
-    tarjeta(null, r.unidadesFisicas, 'Unid. físicas', 'var(--accent)') +
-    tarjeta(null, r.avance + '%', 'Verificado');
+    tarjeta('SOBRANTE', r.sobrante, 'Sobran unidades' + ayudaDe('sobrante'),
+            'var(--info)') +
+    tarjeta(null, r.unidadesEsperadas, 'Declarado' + ayudaDe('declarado')) +
+    tarjeta(null, r.unidadesFisicas, 'Contado' + ayudaDe('contado'), 'var(--accent)') +
+    tarjeta(null, r.avance + '%', 'Verificado' + ayudaDe('verificado'));
 
   $('barraAvance').style.width = r.avance + '%';
 }

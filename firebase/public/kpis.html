@@ -106,6 +106,7 @@
 
 <script type="module">
 import { observarSesion, traducirError } from './js/auth.js';
+import { ayudaDe, conectarAyuda } from './js/glosario.js';
 import {
   recepcionesDesde, detalleDe, indicadoresDe, consolidar, porOperario,
   skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf,
@@ -133,6 +134,8 @@ const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
 const num = (n) => (n || 0).toLocaleString('es-EC');
 
 // --- Arranque ------------------------------------------------------------- //
+conectarAyuda((titulo, texto) => { limpiarAvisos(); aviso(texto, 'info', titulo); });
+
 observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
   if (!e.usuario) { location.href = '/'; return; }
@@ -209,9 +212,9 @@ function pintarKpis() {
     <div class="kpi"><div class="v">${num(t.recepciones)}</div><div class="e">Recepciones</div></div>
     <div class="kpi"><div class="v">${num(t.skus)}</div><div class="e">Referencias</div></div>
     <div class="kpi"><div class="v" style="color:${color(t.exactitud, 95)}">${t.exactitud}%</div>
-      <div class="e">Exactitud</div></div>
+      <div class="e">Exactitud${ayudaDe('exactitud')}</div></div>
     <div class="kpi"><div class="v" style="color:${color(t.avance, 99)}">${t.avance}%</div>
-      <div class="e">Verificado</div></div>
+      <div class="e">Verificado${ayudaDe('verificado')}</div></div>
     <div class="kpi"><div class="v" style="color:var(--warning)">${num(t.faltante)}</div>
       <div class="e">Faltantes</div></div>
     <div class="kpi"><div class="v" style="color:var(--info)">${num(t.sobrante)}</div>
@@ -285,7 +288,7 @@ function pRecepciones() {
     <p>Una fila por recepción. «Verificado» y «exactitud» salen de las mismas
        cifras que ve el operario en pantalla.</p>` +
     tabla([{ t: 'Código' }, { t: 'Cliente' }, { t: 'Estado' }, { t: 'SKU', num: 1 },
-           { t: 'Sistema', num: 1 }, { t: 'Físico', num: 1 }, { t: 'Dif.', num: 1 },
+           { t: 'Declarado', num: 1 }, { t: 'Contado', num: 1 }, { t: 'Dif.', num: 1 },
            { t: 'Exactitud', num: 1 }, { t: 'Unid./h', num: 1 }, { t: 'Operarios', num: 1 },
            { t: '' }], filas);
 }

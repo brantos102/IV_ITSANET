@@ -30,17 +30,38 @@
 
 <!-- Crear -->
 <div class="panel" id="panelCrear">
+  <details style="margin-bottom:18px">
+    <summary class="mini" style="cursor:pointer;font-weight:800">
+      ▸ Cómo nombrar una recepción</summary>
+    <div class="msg info" style="margin-top:10px">
+      <b>El código es el nombre corto</b>
+      Conviene <b>cliente + fecha</b>: <code>VW-29-06-2026</code>,
+      <code>GAC-01-06-2026</code>. Sin espacios ni acentos, y no se puede
+      repetir: si el cliente manda dos embarques el mismo día, añade algo que
+      los distinga (<code>VW-29-06-2026-B</code>) o cárgalos como dos listas de
+      la misma recepción con <b>+ Lista</b>.<br><br>
+      <b>La descripción</b> es texto libre para quien la lea después: los
+      embarques que incluye, o cualquier cosa que convenga recordar. No se usa
+      para buscar.
+    </div>
+  </details>
   <h2>Nueva recepción</h2>
   <p>Crea la recepción y sube el packing list. A partir de ahí los operarios
      pueden empezar a validar desde sus dispositivos.</p>
 
   <div class="rejilla">
     <label class="campo"><span>Código de recepción *</span>
-      <input id="fCodigo" placeholder="VW-29-06-2026" autocapitalize="characters"></label>
+      <input id="fCodigo" placeholder="VW-29-06-2026" autocapitalize="characters">
+      <span class="mini">Cliente y fecha. Es el nombre con el que la buscarás
+        después, y no se puede repetir ni cambiar.</span></label>
     <label class="campo"><span>Cliente</span>
-      <input id="fCliente" placeholder="VENTURA" autocapitalize="characters"></label>
+      <input id="fCliente" placeholder="VENTURA" autocapitalize="characters">
+      <span class="mini">El mismo nombre con el que está dado de alta en
+        Administración.</span></label>
     <label class="campo"><span>N° de bultos</span>
-      <input id="fBultos" type="number" inputmode="numeric" min="0"></label>
+      <input id="fBultos" type="number" inputmode="numeric" min="0">
+      <span class="mini">Cajas o pallets que llegaron. Opcional, sirve para
+        cuadrar con el transporte.</span></label>
     <label class="campo" style="grid-column:1/-1"><span>Descripción</span>
       <input id="fDescripcion" placeholder="Embarques RB48529 / RB48688"
              style="font-family:var(--font-ui)"></label>
@@ -101,8 +122,8 @@
   <div class="tabla-env">
     <table>
       <thead><tr>
-        <th>Código</th><th>Estado</th><th class="num">SKU</th>
-        <th class="num">Sistema</th><th class="num">Físico</th>
+        <th>Código</th><th>Estado</th><th class="num">Referencias</th>
+        <th class="num">Declarado</th><th class="num">Contado</th>
         <th>Avance</th><th></th><th></th><th></th>
       </tr></thead>
       <tbody id="tRecepciones"></tbody>
@@ -287,20 +308,28 @@ $('tRecepciones').addEventListener('click', async (ev) => {
   const lineas = Number(b.dataset.lineas) || 0;
   const cerrada = b.dataset.estado === 'CERRADA';
 
+  // El código va en la ÚLTIMA línea, que es la que se lee antes de escribir.
+  // Puesto arriba, la gente escribe el nombre que tiene en la cabeza —la
+  // descripción— y el borrado se rechaza sin que quede claro por qué.
   const texto =
-    `Se borrará la recepción ${id} y TODO lo que cuelga de ella:\n` +
-    `${lineas} líneas, los conteos, la bitácora y la auditoría.\n\n` +
+    `Se borrará TODO lo de esta recepción: ${lineas} líneas, los conteos,\n` +
+    'la bitácora y la auditoría. No se puede deshacer.\n' +
     (cerrada
-      ? 'OJO: esta recepción está CERRADA. Si su informe ya se entregó, borrarla\n' +
-        'deja ese informe sin respaldo.\n\n'
+      ? '\nOJO: está CERRADA. Si su informe ya se entregó, borrarla lo deja\n' +
+        'sin respaldo.\n'
       : '') +
-    'No se puede deshacer.\n\nEscribe el código para confirmar:';
+    '\nEscribe exactamente este código:\n\n' +
+    `        ${id}`;
 
-  const escrito = prompt(texto);
+  const escrito = prompt(texto, '');
   if (escrito === null) return;
-  if (escrito.trim().toUpperCase() !== id.toUpperCase()) {
-    return aviso(`Escribiste «${escrito}» y la recepción es «${id}». No se borró nada.`,
-                 'warn', 'No coincide');
+
+  const limpio = String(escrito).trim().toUpperCase().replace(/\s+/g, '');
+  if (limpio !== id.toUpperCase().replace(/\s+/g, '')) {
+    return aviso(
+      `Hay que escribir el CÓDIGO «${id}», no su descripción. ` +
+      `Escribiste «${escrito}». No se borró nada.`,
+      'warn', 'No coincide');
   }
 
   limpiarAvisos();

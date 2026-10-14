@@ -100,6 +100,14 @@ tbody tr:hover td { background:var(--bg); }
 .p-off { background:rgba(100,116,139,.15); color:var(--secondary); }
 
 .mini { font-size:11px; color:var(--secondary); font-weight:600; }
+
+/* El «?» que explica un término. Pequeño pero tocable con guantes. */
+.ayuda { display:inline-flex; align-items:center; justify-content:center;
+         width:16px; height:16px; padding:0; margin-left:4px; border-radius:50%;
+         border:1px solid var(--border); background:var(--surface);
+         color:var(--secondary); font-size:10px; font-weight:900; cursor:pointer;
+         vertical-align:middle; line-height:1; }
+.ayuda:hover { border-color:var(--accent); color:var(--accent); }
 .oculto { display:none !important; }
 
 .barra { height:7px; background:var(--border); border-radius:50px; overflow:hidden; }

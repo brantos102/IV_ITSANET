@@ -590,4 +590,35 @@ await test('con las dos cosas, se ofrece y no hay nada que explicar', () => {
   });
 });
 
+// ====================== El vocabulario ================================== //
+// «Unid. sistema» no le dice nada a quien esta delante de un pallet. Si el
+// glosario y las pantallas se separan, acaban conviviendo dos palabras para lo
+// mismo y nadie sabe si significan igual.
+const glosario = await cargar('glosario.js');
+
+await test('cada término tiene nombre y explicación', () => {
+  const todos = glosario.listaGlosario();
+  ok(todos.length >= 10, 'son ' + todos.length);
+  for (const t of todos) {
+    ok(t.titulo && t.titulo.length > 2, JSON.stringify(t));
+    ok(t.ayuda && t.ayuda.length > 20, 'sin explicación útil: ' + t.titulo);
+  }
+});
+
+await test('están los términos que más confunden', () => {
+  for (const clave of ['declarado', 'contado', 'verificado', 'pallet',
+                       'posicionReal', 'sinBuscar', 'noAparecio', 'pnc',
+                       'adicional', 'codigoRecepcion']) {
+    ok(glosario.TERMINOS[clave], 'falta ' + clave);
+  }
+});
+
+await test('ayudaDe genera el botón, y calla si el término no existe', () => {
+  const h = glosario.ayudaDe('declarado');
+  ok(h.includes('data-termino="declarado"'), h);
+  ok(h.includes('class="ayuda"'));
+  eq(glosario.ayudaDe('noExiste'), '');
+  eq(glosario.ayudaDe(''), '');
+});
+
 resumen();
