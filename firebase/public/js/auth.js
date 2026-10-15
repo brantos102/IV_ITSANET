@@ -62,6 +62,7 @@ function esMovil() {
 }
 
 export async function entrar() {
+  if (modoLocal()) { location.assign('/api/auth/google/iniciar'); return null; }
   if (esMovil()) {
     await signInWithRedirect(auth, proveedor);
     return null;   // la página se recarga y vuelve por getRedirectResult
@@ -71,6 +72,7 @@ export async function entrar() {
 }
 
 export async function recogerRedirect() {
+  if (modoLocal()) return null;
   try {
     const cred = await getRedirectResult(auth);
     return cred ? cred.user : null;

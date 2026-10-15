@@ -456,7 +456,7 @@ $('bCatalogo').addEventListener('click', async () => {
       const res = await fetch('/api/catalogo/depot/sincronizar', { method: 'POST', credentials: 'same-origin' });
       const r = await res.json();
       if (!res.ok) throw new Error(r.detail || 'No se pudo sincronizar el maestro local');
-      $('resCatalogo').textContent = `${r.productos} productos actualizados en el servidor. Ya están disponibles para los operarios.`;
+      $('resCatalogo').textContent = `${r.productos} productos actualizados en el servidor.` + (r.ambiguos?.length ? ` ${r.ambiguos.length} SKU compartidos conservaron el cliente original; revisa esos códigos antes de operar.` : '') + (r.errores?.length ? ` Clientes sin respuesta: ${r.errores.join(', ')}.` : '');
       return;
     }
     const r = await Proxy.catalogo();

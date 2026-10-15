@@ -10,6 +10,7 @@
   "devDependencies": {
     "esbuild": "0.28.2",
     "firebase": "10.14.1",
+    "jsbarcode": "3.12.1",
     "jspdf": "3.0.4",
     "jspdf-autotable": "5.0.2",
     "xlsx": "^0.18.5"

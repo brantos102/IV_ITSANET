@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import AppArchivo, AppConfig, AppEntrega, AppRecepcion, AppEvento, Operador, Producto, Rol, utcnow
+from app.models import AppArchivo, AppConfig, AppEntrega, AppRecepcion, AppEvento, AppSku, Operador, Producto, Rol, utcnow
 from app.security import requiere_supervisor, usuario_actual
 from app.services import app_modelo as m
 from app.services import depot as depot_svc
@@ -40,7 +40,7 @@ def estado_local(db: Session = Depends(get_db), _: Operador = Depends(requiere_s
             'recepciones': db.scalar(select(func.count()).select_from(AppRecepcion)),
             'productos': db.scalar(select(func.count()).select_from(Producto)),
             'archivos': db.scalar(select(func.count()).select_from(AppArchivo)),
-            'firebase_requerido': False, 'correo_configurado': entregas.configurado()}
+            'firebase_requerido': False, 'correo_configurado': entregas.configurado(db)}
 
 
 @router.get('/entregas')
@@ -194,6 +194,17 @@ def subcoleccion(codigo: str, coleccion: str, max: int = Query(0, ge=0, le=5000)
         return m.leer_coleccion(db, codigo, coleccion, max)
     except m.ErrorApp as exc:
         raise _traducir(exc) from exc
+
+
+@router.get('/recepciones/{codigo}/estado-sku/{sku}')
+def estado_sku(codigo: str, sku: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services.normalize import normalizar_sku
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    s = db.scalar(select(AppSku).where(AppSku.recepcion == r.codigo, AppSku.sku == normalizar_sku(sku)))
+    return m.doc_sku(s) if s else None
 
 
 # --------------------------------------------------------------------------- #

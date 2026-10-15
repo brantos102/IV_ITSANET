@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login")
-def login(datos: LoginIn, response: Response, db: Session = Depends(get_db)):
+def login(datos: LoginIn, response: Response, request: Request, db: Session = Depends(get_db)):
     entrada = datos.usuario.strip().lower()
     campo = func.lower(Operador.email) if "@" in entrada else func.lower(Operador.usuario)
     candidatos = db.scalars(select(Operador).where(campo == entrada).limit(2)).all()
@@ -33,7 +33,7 @@ def login(datos: LoginIn, response: Response, db: Session = Depends(get_db)):
                                  "mensaje": "Tu cuenta esta desactivada o espera aprobacion de un supervisor."})
     token = crear_sesion(db, op)
     response.set_cookie(
-        COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_HOURS * 3600
+        COOKIE, token, httponly=True, secure=request.url.scheme == "https", samesite="lax", max_age=SESSION_HOURS * 3600
     )
     return {"token": token, "operador": {"id": op.id, "nombre": op.nombre, "rol": op.rol.value}}
 

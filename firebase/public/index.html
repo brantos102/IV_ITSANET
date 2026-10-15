@@ -228,7 +228,7 @@
       </svg>
       <span id="txtEntrar">Entrar con Google</span>
     </button>
-    <p class="mini" style="text-align:center;margin-top:16px;">
+    <p class="mini" id="notaAcceso" style="text-align:center;margin-top:16px;">
       Solo cuentas <code id="dominioTxt">@itsanet.com</code>.
       ¿No tienes usuario? Pídeselo a tu supervisor.
     </p>
@@ -250,11 +250,11 @@
     <div class="menu">
       <a class="acceso" href="./recepciones.html">
         <b>Recepciones</b>
-        <span>Subir el packing list y abrir una validación</span>
+        <span>Buscar y abrir una recepción</span>
       </a>
-      <a class="acceso" href="./recepciones.html?mias=1">
+      <a class="acceso" href="./validar.html">
         <b>Validar</b>
-        <span>Lo que has validado, y seguir donde lo dejaste</span>
+        <span>Escanear y continuar una recepción</span>
       </a>
       <a class="acceso oculto" id="accesoKpis" href="./kpis.html">
         <b>KPIs</b>
@@ -270,7 +270,7 @@
       </a>
     </div>
 
-    <h2 class="sec">Recepciones de los últimos 15 días</h2>
+    <div style="display:flex;align-items:center;gap:12px"><h2 class="sec" style="flex:1">Recepciones de los últimos 15 días</h2><button type="button" class="btn-sec" id="bActualizarRecepciones" style="width:auto;padding:8px 12px" aria-label="Actualizar recepciones">↻</button></div>
     <div id="buscadorRec">
       <input id="fBuscarRec" placeholder="Buscar por código o cliente"
              autocapitalize="characters" spellcheck="false">
@@ -288,6 +288,7 @@
 </div>
 
 <script type="module">
+import { fechaDe, recientes } from './js/fechas.js';
 import { DOMINIO, SDK, DATABASE_ID } from './js/config.js';
 import { modoLocal, estadoServidor } from './js/local.js';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
@@ -332,12 +333,8 @@ let recepcionesRecientes = [];
 
 async function cargarRecepciones() {
   try {
-    const desde = new Date(Date.now() - DIAS_RECIENTES * 86400000);
-    const todas = await listarRecepciones(80);
-    recepcionesRecientes = todas.filter((r) => {
-      const f = r.creadoEn?.toDate ? r.creadoEn.toDate() : null;
-      return f && f >= desde;
-    });
+    const todas = await listarRecepciones(500);
+    recepcionesRecientes = recientes(todas, DIAS_RECIENTES);
     pintarRecepciones();
   } catch (e) {
     $('listaRec').innerHTML =
@@ -365,7 +362,7 @@ function pintarRecepciones() {
 
   $('listaRec').innerHTML = filas.map((r) => {
     const t = r.totales || {};
-    const f = r.creadoEn?.toDate ? r.creadoEn.toDate().toLocaleDateString('es-EC') : '';
+    const f = fechaDe(r.creadoEn)?.toLocaleDateString('es-EC') || '';
     const cerrada = r.estado === 'CERRADA';
     return `<a class="rec" href="./validar.html?r=${encodeURIComponent(r.id)}">
       <div class="det">
@@ -384,6 +381,7 @@ const esc2 = (v) => String(v ?? '').replace(/[&<>"']/g,
   (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 $('fBuscarRec').addEventListener('input', pintarRecepciones);
+$('bActualizarRecepciones').addEventListener('click', cargarRecepciones);
 
 // --- Entrar / Registrarse ------------------------------------------------ //
 function mostrar(cual) {
@@ -394,12 +392,15 @@ function mostrar(cual) {
   // servidor de la bodega no tiene sentido en absoluto: entrar con Google
   // necesita Internet, que es justo de lo que el servidor nos libera. Enseñar
   // un botón que no puede funcionar es peor que no enseñarlo.
-  $('sepGoogle').classList.toggle('oculto', registro || modoLocal());
-  $('btnEntrar').classList.toggle('oculto', registro || modoLocal());
+  $('sepGoogle').classList.toggle('oculto', registro);
+  $('btnEntrar').classList.toggle('oculto', registro);
   $('tabEntrar').classList.toggle('activa', !registro);
   $('tabRegistro').classList.toggle('activa', registro);
   limpiar('avisos-login');
 }
+mostrar('entrar');
+if (modoLocal()) $('notaAcceso').textContent = 'Correo corporativo o Gmail: usa la contraseña de esta app. Las cuentas nuevas requieren aprobación.';
+
 $('tabEntrar').addEventListener('click', () => mostrar('entrar'));
 $('tabRegistro').addEventListener('click', () => mostrar('registro'));
 
@@ -468,6 +469,7 @@ $('btnEntrar').addEventListener('click', async () => {
   $('btnEntrar').disabled = true;
   $('txtEntrar').textContent = 'Abriendo Google...';
   try {
+    if (modoLocal()) { location.assign('/api/auth/google/iniciar'); return; }
     await entrar();
   } catch (e) {
     aviso('avisos-login', traducirError(e), 'err', 'No se pudo entrar');
@@ -478,6 +480,15 @@ $('btnEntrar').addEventListener('click', async () => {
 });
 
 $('btnSalir').addEventListener('click', () => salir());
+if (modoLocal()) {
+  $('btnEntrar').disabled = true;
+  fetch('/api/auth/metodos', {credentials:'same-origin'}).then(r => r.json()).then(m => {
+    $('btnEntrar').disabled = !m.googleDisponible;
+    if (!m.googleDisponible) $('txtEntrar').textContent = m.googleConfigurado ? 'Google: usa la URL HTTPS configurada' : 'Google: pendiente de configurar';
+  }).catch(() => { $('btnEntrar').disabled = true; });
+
+}
+
 
 // En móvil el login vuelve por redirect, no por popup.
 recogerRedirect().catch((e) => aviso('avisos-login', traducirError(e), 'err', 'Error al volver'));
@@ -524,6 +535,10 @@ observarSesion(async ({ usuario, perfil, error }) => {
   if (!usuario) {
     $('vista-login').classList.remove('oculto');
     $('vista-sesion').classList.add('oculto');
+  const resultado = new URLSearchParams(location.search).get('google');
+  if (resultado) aviso('avisos-login', resultado === 'pendiente'
+    ? 'Cuenta Google registrada. Un supervisor debe aprobarla antes de entrar.'
+    : 'No se pudo completar Google. Reintenta o entra con tu correo y contraseña.', 'warn');
     return;
   }
 

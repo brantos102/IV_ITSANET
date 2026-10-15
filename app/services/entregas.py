@@ -24,8 +24,13 @@ from app.services import app_modelo as m, archivos
 log = logging.getLogger('iv_itsanet.entregas')
 
 
-def configurado():
-    return bool(config.VAL_GOOGLE_PROXY_URL and len(config.VAL_GOOGLE_PROXY_SECRET) >= 32)
+def configurado(db=None):
+    from app.services.integraciones import google
+    if db is None:
+        with SessionLocal() as sesion:
+            return configurado(sesion)
+    g = google(db)
+    return bool(g['url'] and len(g['secreto']) >= 32)
 
 
 def documento(e):
@@ -75,7 +80,7 @@ def preparar(db, codigo, datos, usuario):
             'recepcion': cierre, 'skus': skus,
             'lineas': m.leer_coleccion(db, r.codigo, 'lineas', actual=True),
             'eventos': eventos},
-        error=None if configurado() else 'Pendiente de configurar el puente con Google')
+        error=None if configurado(db) else 'Pendiente de configurar el puente con Google')
     db.add(e)
     db.commit()
     return documento(e)
@@ -89,10 +94,13 @@ def llamar(operacion, clave, datos):
     """El HMAC firma el texto exacto, incluida accion, clave y caducidad."""
     payload = json.dumps({'operacion': operacion, 'clave': clave,
         'fecha': int(time.time()), 'datos': datos}, ensure_ascii=False, separators=(',', ':'))
-    firma = hmac.new(config.VAL_GOOGLE_PROXY_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    from app.services.integraciones import google
+    with SessionLocal() as db:
+        destino = google(db)
+    firma = hmac.new(destino['secreto'].encode(), payload.encode(), hashlib.sha256).hexdigest()
     # Solo el servidor contacta Google; nunca se envia esta clave al navegador.
     with httpx.Client(timeout=120, follow_redirects=True) as cliente:
-        respuesta = cliente.post(config.VAL_GOOGLE_PROXY_URL,
+        respuesta = cliente.post(destino['url'],
             json={'accion': 'entregaServidor', 'payload': payload, 'firma': firma})
         respuesta.raise_for_status()
         r = respuesta.json()

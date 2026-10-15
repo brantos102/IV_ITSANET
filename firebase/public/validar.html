@@ -6,12 +6,14 @@
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET IMS</title>
 <link rel="stylesheet" href="./css/app.css">
+<link rel="stylesheet" href="./css/operacion.css">
+<script src="./vendor/JsBarcode.all.min.js" defer></script>
 <script src="./vendor/xlsx.full.min.js" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
 </head>
-<body>
+<body class="operacion-movil">
 <div class="envoltorio">
 
 <header>
@@ -25,14 +27,21 @@
   <a href="./recepciones.html"><button class="b-sec">Recepciones</button></a>
 </header>
 
+<div class="estado-red"><span id="redOperacion" role="status">Conectando con el servidor…</span><span id="progresoOperacion"></span></div>
+<nav class="vistas-operacion" aria-label="Vistas de validación">
+  <button type="button" data-vista="contar" aria-pressed="true">Contar</button>
+  <button type="button" data-vista="inventario" aria-pressed="false">Inventario</button>
+  <button type="button" data-vista="novedades" aria-pressed="false">Novedades</button>
+</nav>
+<div class="resumen-operacion" id="resumenOperacion"></div>
 <!-- Avance -->
-<div class="panel">
+<details class="panel detalle-indicadores"><summary>Ver todos los indicadores y su explicación</summary>
   <div class="kpis" id="kpis"></div>
   <div class="barra" style="margin-top:14px"><i id="barraAvance"></i></div>
   <button type="button" class="enlace-ayuda" id="bGlosario">
     ¿Qué significa cada cifra?</button>
   <div id="glosario" class="oculto"></div>
-</div>
+</details>
 
 <div id="avisos"></div>
 
@@ -54,17 +63,19 @@
 </div>
 
 <!-- Paso 1: escanear -->
-<div class="panel">
+<div class="panel" id="panelEscaneo">
+  <div class="herramientas-conteo"><b>Escanea y valida</b><button type="button" class="b-sec" id="bCaceria" aria-pressed="true">Cacería activa</button></div>
+  <p class="mini" id="ayudaCaceria">Consulta el estado antes de registrar.</p>
   <!-- Va dentro de un <form>: en el teclado del móvil, la tecla Intro solo
        envía si el campo pertenece a un formulario. Sin esto, el operario
        escribía el código, pulsaba Intro y no pasaba nada. -->
   <form id="formEscaner" autocomplete="off">
     <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
       <label class="campo" style="flex:3;min-width:180px">
-        <span>1 · Escanee o escriba el código</span>
+        <span>Código o referencia</span>
         <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
                autocorrect="off" spellcheck="false" enterkeyhint="go"
-               inputmode="text" placeholder="▌" list="sugerencias">
+               inputmode="text" placeholder="Escanear…" list="sugerencias">
         <datalist id="sugerencias"></datalist>
       </label>
       <label class="campo" style="flex:1;min-width:100px">
@@ -88,14 +99,15 @@
     </p>
   </div>
   <div id="pistaCodigo"></div>
-  <p class="mini" style="margin-top:9px">
-    Cada escaneo suma 1 unidad. Si ya contó varias, escriba aquí la cantidad
-    <b>antes</b> de escanear y ese escaneo registra esa cantidad completa.
-  </p>
+  <details class="ayuda-conteo"><summary>¿Cómo registrar?</summary><p>Escanea, revisa el producto, indica cantidad y pallet, y guarda. La cantidad predeterminada es 1. Escanear no guarda por sí solo.</p></details>
 </div>
 
 <!-- Pasos 2-7: la ficha -->
-<div class="panel oculto" id="ficha" style="border:2px solid var(--accent)">
+<div class="panel oculto" id="ficha" role="region" aria-label="Producto escaneado" style="border:2px solid var(--accent)">
+  <div class="cabecera-ficha"><span>Validación física</span><button type="button" class="b-sec" id="bEtiquetaFicha" title="Imprimir etiqueta 100 × 50 mm">Etiqueta</button><button type="button" class="b-sec" id="bCerrarFicha" aria-label="Cerrar producto">✕</button></div>
+  <div id="avisosFicha" aria-live="polite"></div>
+  <div id="estadoCaceria" role="status"></div>
+  <button type="button" class="b-primario" id="bContarFicha">Registrar conteo</button>
   <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
     <div style="flex:2;min-width:200px">
       <div class="id" style="font-size:22px" id="fSku"></div>
@@ -137,13 +149,13 @@
   <div id="fDepot" class="oculto" style="margin-bottom:14px"></div>
 
   <div class="rejilla">
-    <label class="campo"><span>3 · Cantidad</span>
+    <label class="campo"><span>Cantidad a registrar</span>
       <input id="fCantidad" class="cantidad" type="number" inputmode="decimal" step="any" value="1"></label>
-    <label class="campo"><span>4 · Pallet / subpallet *</span>
+    <label class="campo"><span>Pallet / subpallet *</span>
       <input id="fPallet" placeholder="B04, B04.1 o DP" autocapitalize="characters">
       <span class="mini">Para lo que va directo a su posición, usa
         <b>DP</b> y anota abajo la posición real.</span></label>
-    <label class="campo"><span>6 · Estado físico</span>
+    <label class="campo"><span>Estado físico</span>
       <select id="fEstado">
         <option value="BUENO">Buen estado</option>
         <option value="PNC">PNC — producto no conforme</option>
@@ -158,7 +170,7 @@
     <label class="campo"><span>Posición real asignada</span>
       <input id="fPosReal" placeholder="A-01-03-2" autocapitalize="characters"
              autocomplete="off"></label>
-    <label class="campo" style="grid-column:span 2"><span>5 · Observación</span>
+    <label class="campo" style="grid-column:span 2"><span>Observación</span>
       <input id="fObs" placeholder="Ej. PRODUCTO DOBLADO" style="font-family:var(--font-ui)"></label>
   </div>
   <!-- Las fotos se acumulan de una en una.
@@ -178,9 +190,9 @@
   </div>
 
   <div class="acciones">
-    <button class="b-primario" id="bRegistrar">7 · Registrar</button>
+    <button class="b-primario" id="bRegistrar">Guardar conteo</button>
     <button class="b-peligro" id="bNoApareció">No apareció</button>
-    <button class="b-sec" id="bCancelar">Cancelar (Esc)</button>
+    <button class="b-sec" id="bCancelar">Cancelar</button>
   </div>
 </div>
 
@@ -202,7 +214,7 @@
 </div>
 
 <!-- Tabla -->
-<div class="panel">
+<div class="panel oculto" id="panelInventario">
   <div class="acciones" style="margin:0 0 14px">
     <input id="fFiltro" placeholder="Filtrar por SKU o descripción"
            style="flex:2;min-width:180px;font-family:var(--font-ui)">
@@ -250,7 +262,8 @@
 </div>
 
 <script type="module">
-import { finalizarConEntrega } from './js/local.js';
+import { abrirEtiqueta } from './js/etiquetas.js';
+import { consultarSku, finalizarConEntrega } from './js/local.js';
 
 import { observarSesion } from './js/auth.js';
 import {
@@ -297,13 +310,19 @@ function aviso(texto, tipo = 'info', titulo = '') {
   const d = document.createElement('div');
   d.className = 'msg ' + tipo;
   d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
-  $('avisos').appendChild(d);
+  const destinoAviso = document.body.classList.contains('ficha-activa') && tipo !== 'ok' ? $('avisosFicha') : $('avisos');
+  destinoAviso.appendChild(d);
+  if (destinoAviso.id === 'avisosFicha') d.scrollIntoView({block:'nearest'});
   return d;
 }
-const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; $('avisosFicha').innerHTML = ''; };
 
 /* --- Sonido y vibración: el operario trabaja sin mirar la pantalla --- */
 let audioCtx = null;
+let buscandoCodigo = false;
+let modoCaceria = true;
+try { modoCaceria = localStorage.getItem("itsanet.caceria") !== "0"; } catch {}
+let vistaOperacion = "contar";
 function bip(tipo) {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -365,6 +384,66 @@ async function elegirRecepcion() {
   $('inElegir').focus();
 }
 
+// Vistas y ficha progresiva: conservan los campos y la logica de conteo.
+const detallesFicha = document.createElement('details'); detallesFicha.id = 'detallesProducto';
+detallesFicha.innerHTML = '<summary>Detalle, ubicaciones e historial</summary>';
+$('ficha').insertBefore(detallesFicha, $('fOrigenCaja'));
+$('ficha').insertBefore($('bContarFicha'), detallesFicha);
+for (const id of ['fExtra','fHistorial','fUbicaciones','fDepot']) detallesFicha.append($(id));
+const filaPosicion = $('fPosReal').closest('.rejilla');
+const detallesConteo = document.createElement('details'); detallesConteo.id = 'detallesConteo'; detallesConteo.className = 'controles-conteo';
+detallesConteo.innerHTML = '<summary>Posición y observaciones</summary>';
+filaPosicion.before(detallesConteo); detallesConteo.append(filaPosicion);
+const ayudaPallet = $('fPallet').parentElement.querySelector('.mini'); if (ayudaPallet) detallesConteo.append(ayudaPallet);
+const chipDP = document.querySelector('[data-pallet-rapido=DP]'); if (chipDP) detallesConteo.append(chipDP);
+$('fCantidad').closest('.rejilla').classList.add('controles-conteo');
+$('bRegistrar').closest('.acciones').classList.add('controles-conteo','acciones-guardar');
+$('fOrigenCaja').classList.add('controles-conteo');
+$('filaFotos').classList.add('controles-conteo');
+$('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
+$('fEstado').addEventListener('change', () => { if ($('fEstado').value === 'PNC') detallesConteo.open = true; });
+$('bNoApareció').addEventListener('click', () => { detallesConteo.open = true; }, {capture:true});
+$('bCerrarFicha').onclick = reiniciar;
+$('bContarFicha').onclick = () => { $('ficha').classList.remove('solo-consulta'); $('bContarFicha').classList.add('oculto'); $('fCantidad').focus(); };
+function presentarFicha(s) {
+  document.body.classList.add('ficha-activa');
+  if (matchMedia('(max-width:600px)').matches) for (const el of $('ficha').parentElement.children) { if (el !== $('ficha')) el.inert = true; }
+  $('ficha').classList.toggle('solo-consulta', modoCaceria);
+  $('bContarFicha').classList.toggle('oculto', !modoCaceria);
+  $('bContarFicha').textContent = s.verificado ? 'Agregar otro conteo' : 'Contar este producto';
+  $('estadoCaceria').className = s.verificado && s.estado === 'OK' && !s.tienePnc ? 'consulta-validada' : 'consulta-pendiente';
+  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${s.contado || 0} de ${s.esperado || 0} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC' : ''}` : `Por validar · faltan ${Math.max((s.esperado || 0) - (s.contado || 0), 0)} unidades`;
+  detallesConteo.open = false; detallesFicha.open = false;
+  if (!modoCaceria) $('fCantidad').focus();
+  else $('bContarFicha').focus();
+  $('ficha').scrollIntoView({block:'nearest'});
+}
+function etiquetaDe(s, cantidad) {
+  abrirEtiqueta({sku:s.sku,descripcion:s.descripcion || actual?.producto?.descripcion || '',cliente:recepcion?.cliente || 'ITSANET',
+    cantidad:cantidad || s.contado || 1,estado:s.tienePnc ? 'PNC' : 'NUV',responsable:perfil?.nombre || usuario?.displayName || usuario?.email || ''});
+}
+$('bEtiquetaFicha').onclick = () => { if (actual) etiquetaDe(skus.find(s => s.sku === actual.sku) || actual); };
+$('tSkus').addEventListener('click', ev => {
+  const ver = ev.target.closest('[data-ver]'); if (ver) escanear(ver.dataset.ver);
+  const etiqueta = ev.target.closest('[data-etiqueta]'); if (etiqueta) etiquetaDe(skus.find(s => s.sku === etiqueta.dataset.etiqueta));
+});
+function pintarModo() {
+  $('bCaceria').textContent = modoCaceria ? 'Cacería activa' : 'Conteo directo';
+  $('bCaceria').setAttribute('aria-pressed', String(modoCaceria));
+  $('ayudaCaceria').textContent = modoCaceria ? 'Escanea para consultar. Decide después si agregar un conteo.' : 'Escanea, indica cantidad y pallet, y guarda.';
+}
+$('bCaceria').onclick = () => { modoCaceria = !modoCaceria; try {localStorage.setItem('itsanet.caceria',modoCaceria ? '1' : '0');} catch {} pintarModo(); };
+pintarModo();
+for (const b of document.querySelectorAll('[data-vista]')) b.onclick = () => {
+  vistaOperacion = b.dataset.vista;
+  document.querySelectorAll('[data-vista]').forEach(x => x.setAttribute('aria-pressed',String(x === b)));
+  $('panelEscaneo').classList.toggle('oculto',vistaOperacion !== 'contar');
+  $('panelInventario').classList.toggle('oculto',vistaOperacion === 'contar');
+  $('fEstadoFiltro').value = '';
+  if (actual) reiniciar();
+  pintarTabla();
+};
+
 // --- Arranque ------------------------------------------------------------- //
 observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
@@ -395,6 +474,8 @@ observarSesion(async (e) => {
   refrescarEventos();
 
   escucharSkus(RECEPCION, (lista) => {
+    $('redOperacion').textContent = '● Servidor conectado';
+    $('redOperacion').dataset.estado = 'ok';
     skus = lista.sort((a, b) => (a.sku < b.sku ? -1 : 1));
     // El <datalist> del escáner: al teclear a mano, el navegador va ofreciendo
     // los códigos de esta recepción. Con la pistola no estorba.
@@ -406,7 +487,7 @@ observarSesion(async (e) => {
       const s = skus.find((x) => x.sku === actual.sku);
       if (s) refrescarFicha(s);
     }
-  }, (err) => aviso(err.message, 'err', 'Se perdió la conexión en vivo'));
+  }, (err) => { $('redOperacion').textContent = '● Sin conexión con el servidor'; $('redOperacion').dataset.estado = 'error'; aviso(err.message, 'err', 'Sin conexión'); });
 
   $('inEscaner').focus();
 });
@@ -455,6 +536,8 @@ function aplicarEstado() {
   const cerrada = recepcion.estado === 'CERRADA';
 
   $('inEscaner').disabled = cerrada;
+  $('bContarFicha').disabled = cerrada;
+  $('bRegistrar').disabled = cerrada;
   $('bBuscar').disabled = cerrada;
   $('bExportar').classList.toggle('oculto', !manda);
   $('bCsvDepot').classList.toggle('oculto', !manda);
@@ -502,6 +585,8 @@ function pintarKpis() {
     tarjeta(null, r.avance + '%', 'Verificado');
 
   $('barraAvance').style.width = r.avance + '%';
+  $('progresoOperacion').textContent = `${r.avance}% verificado`;
+  $('resumenOperacion').innerHTML = `<div><b>${r.ok}</b><span>Completas</span></div><div><b>${r.sinVerificar}</b><span>Por validar</span></div><div><b>${r.unidadesFisicas}</b><span>Unidades</span></div>`;
 }
 
 $('kpis').addEventListener('click', (ev) => {
@@ -519,6 +604,7 @@ function pintarTabla() {
   const filtro = $('fFiltro').value.trim().toUpperCase();
   const estado = $('fEstadoFiltro').value;
   const filas = skus.filter((s) => {
+    if (vistaOperacion === 'novedades' && (!s.verificado || (s.estado === 'OK' && !s.tienePnc))) return false;
     if (estado && s.estado !== estado) return false;
     if (!filtro) return true;
     return s.sku.includes(filtro) || (s.descripcion || '').toUpperCase().includes(filtro);
@@ -530,8 +616,8 @@ function pintarTabla() {
     const dif = (s.contado || 0) - (s.esperado || 0);
     const pallets = ubicacionesDe(s).map((u) =>
       `${esc(u.pallet)}<span class="mini">(${u.cantidad})</span>`).join(' · ');
-    return `<tr>
-      <td class="id">${esc(s.sku)}
+    return `<tr data-estado="${esc(s.estado)}">
+      <td class="id"><button type="button" class="referencia-operacion" data-ver="${esc(s.sku)}">${esc(s.sku)}</button>
         ${s.enPackingList === false ? '<br><span class="pastilla p-info">ADICIONAL</span>' : ''}
         ${s.tienePnc ? '<br><span class="pastilla p-err">PNC</span>' : ''}
         <br><span class="mini">${esc((s.descripcion || '').slice(0, 42))}</span></td>
@@ -541,7 +627,7 @@ function pintarTabla() {
         ${dif > 0 ? '+' + dif : dif}</td>
       <td class="mini">${pallets || '—'}</td>
       <td><span class="pastilla ${clase[s.estado] || 'p-off'}">
-        ${esc(ETIQUETA_ESTADO[s.estado] || s.estado || '')}</span></td>
+        ${esc(ETIQUETA_ESTADO[s.estado] || s.estado || '')}</span><button type="button" class="b-sec etiqueta-fila" data-etiqueta="${esc(s.sku)}" title="Etiqueta 100 × 50 mm">Etiqueta</button></td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" class="mini">Sin resultados.</td></tr>';
 }
@@ -617,6 +703,9 @@ $('formEscaner').addEventListener('submit', (ev) => {
 });
 
 async function escanear(codigo) {
+  if (buscandoCodigo || $('bRegistrar').disabled || !recepcion) return;
+  buscandoCodigo = true; $('bBuscar').disabled = true;
+  try {
   limpiarAvisos();
   $('panelNoEncontrado').classList.add('oculto');
   const c = normalizarCodigo(codigo);
@@ -625,7 +714,7 @@ async function escanear(codigo) {
   // vez, se registran 5. Si no tocó nada, 1.
   const cantidadPrevia = parseFloat($('inCantidad').value);
 
-  const enLista = skus.find((s) => s.sku === c);
+  let enLista = skus.find((s) => s.sku === c);
   let producto = null;
   try {
     producto = await buscarEnCatalogo(c);
@@ -657,10 +746,12 @@ async function escanear(codigo) {
   }
 
   const sku = producto?.sku || c;
-  const s = skus.find((x) => x.sku === sku) || enLista ||
+  enLista = skus.find((s) => s.sku === sku) || enLista;
+  let s = skus.find((x) => x.sku === sku) || enLista ||
             { sku, esperado: 0, contado: 0, descripcion: producto?.descripcion || '' };
 
-  actual = { sku, producto, enPackingList: !!enLista };
+  if (modoLocal()) { const vigente = await consultarSku(RECEPCION, sku); if (vigente) s = vigente; }
+  actual = { sku, producto, enPackingList: s.enPackingList !== false && !!enLista };
   claveEnvio = nuevaClave();
   fotosSubidas = [];
 
@@ -668,9 +759,7 @@ async function escanear(codigo) {
   refrescarFicha(s);
 
   // Si pre-digitó una cantidad, manda esa. Si no, se propone lo que falta.
-  $('fCantidad').value = cantidadPrevia > 1
-    ? cantidadPrevia
-    : Math.max((s.esperado || 0) - (s.contado || 0), 1) || 1;
+  $('fCantidad').value = Number.isFinite(cantidadPrevia) && cantidadPrevia > 0 ? cantidadPrevia : 1;
   $('fPallet').value = '';
   $('fObs').value = '';
   $('fPosReal').value = '';
@@ -692,13 +781,15 @@ async function escanear(codigo) {
 
   bip('ok');
   $('inEscaner').value = '';
-  $('fCantidad').focus();
-  $('fCantidad').select();
+  presentarFicha(s);
+  } catch(e) { aviso(e.message, 'err', 'No se pudo consultar'); }
+  finally { buscandoCodigo = false; $('bBuscar').disabled = recepcion?.estado === 'CERRADA'; }
 }
 
 function refrescarFicha(s) {
   const esperado = s.esperado || 0;
   const contado = s.contado || 0;
+  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${contado} de ${esperado} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC' : ''}` : `Por validar · faltan ${Math.max(esperado - contado,0)} unidades`;
   $('fSku').textContent = s.sku;
   $('fDesc').textContent = s.descripcion || actual?.producto?.descripcion || '(sin descripción)';
 
@@ -974,6 +1065,7 @@ $('fChips').addEventListener('click', (ev) => {
   $('fCantidad').select();
 });
 
+$('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
 $('fEstado').addEventListener('change', () => {
   $('filaFotos').classList.toggle('oculto', $('fEstado').value !== 'PNC');
 });
@@ -1073,11 +1165,17 @@ async function registrar(confirmarSobrante) {
       confirmarSobrante,
     });
 
+    const actualizado = skus.find(s => s.sku === r.sku);
+    if (actualizado) { actualizado.contado = r.contado; actualizado.estado = r.estado; actualizado.verificado = true; }
+    pintarKpis(); pintarTabla();
     bip('ok');
     ultimoPallet = r.pallet || ultimoPallet;   // solo para el chip de «el mismo»
     refrescarEventos();
-    aviso(`${r.sku} · ${r.cantidadRegistrada} u. en ${r.pallet} — contado ${r.contado} de ${r.esperado}`,
+    const mensajeGuardado = aviso(`${r.sku} · ${r.cantidadRegistrada} u. en ${r.pallet} — contado ${r.contado} de ${r.esperado}`,
           'ok', r.duplicado ? 'Ya estaba registrado (no se duplicó)' : 'Registrado');
+    const paraEtiqueta = {...(actualizado || {}), sku:r.sku, contado:r.contado, descripcion:actualizado?.descripcion || actual?.producto?.descripcion || '', tienePnc:$('fEstado').value === 'PNC' || actualizado?.tienePnc};
+    const imprimir = document.createElement('button'); imprimir.className = 'b-sec'; imprimir.textContent = 'Imprimir etiqueta';
+    imprimir.onclick = () => etiquetaDe(paraEtiqueta, r.cantidadRegistrada); mensajeGuardado.append(imprimir);
     reiniciar();
   } catch (e) {
     bip('error');
@@ -1190,6 +1288,8 @@ async function subirFotos(sku) {
 
 // --- Paso 9: volver al escáner -------------------------------------------- //
 function reiniciar() {
+  document.body.classList.remove('ficha-activa');
+  for (const el of $('ficha').parentElement.children) el.inert = false;
   actual = null; claveEnvio = null; fotosSubidas = [];
   $('ficha').classList.add('oculto');
   $('panelNoEncontrado').classList.add('oculto');
@@ -1260,6 +1360,8 @@ $('bAdicional').addEventListener('click', () => {
   $('ficha').classList.remove('oculto');
   refrescarFicha({ sku: actual.sku, esperado: 0, contado: 0, descripcion: '' });
   $('fCantidad').value = 1;
+  presentarFicha({sku:actual.sku,esperado:0,contado:0});
+  $('ficha').classList.remove('solo-consulta'); $('bContarFicha').classList.add('oculto');
   aviso('Se registrará como ADICIONAL. No se añade al packing list: va en una ' +
         'pestaña aparte del informe final.', 'warn', 'Adicional');
   $('fCantidad').focus();

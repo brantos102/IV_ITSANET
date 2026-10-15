@@ -109,14 +109,14 @@ def _upsert(db: Session, registros: list[dict]) -> None:
 # Depot: el maestro directo del WMS, sin pasar por un Excel
 # --------------------------------------------------------------------------- #
 @router.get("/depot/probar")
-def probar_depot(_: Operador = Depends(requiere_supervisor)):
+def probar_depot(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
     """¿Valen las credenciales? Pide solo el token, no baja el inventario.
 
     Es la primera cosa que hay que poder contestar al instalar en un servidor
     nuevo, y la única que distingue tres cosas que desde fuera se parecen: que
     no haya credenciales puestas, que estén mal, y que el WMS no conteste.
     """
-    api = depot_svc.DepotAPI()
+    api = depot_svc.DepotAPI.desde_db(db)
     if not api.configurada:
         return {"ok": False, "motivo": "SIN CREDENCIALES",
                 "detalle": "Faltan DEPOT_USUARIO y DEPOT_CLAVE en /etc/iv-itsanet.env"}
@@ -143,7 +143,20 @@ def sincronizar_depot(
     sigue valiendo —no se quita nada— pero ya no es el único camino.
     """
     try:
-        return depot_svc.sincronizar_maestro(db, cliente=cliente)
+        from app.services.integraciones import credenciales
+        registros = credenciales(db)
+        if not registros:
+            return depot_svc.sincronizar_maestro(db, cliente=cliente)
+        resultados, errores = [], []
+        for c in registros:
+            try:
+                resultados.append(depot_svc.sincronizar_maestro(db, api=depot_svc.DepotAPI.desde_db(db, c['id']), cliente=cliente, evitar_conflictos=True))
+            except (depot_svc.DepotRechazado, depot_svc.DepotNoDisponible):
+                db.rollback()
+                errores.append(c['id'])
+        if not resultados:
+            raise HTTPException(503, 'Ningun cliente respondio. Revisa las conexiones en Administracion')
+        return {'productos': sum(r['productos'] for r in resultados), 'clientes': len(resultados), 'errores': errores, 'ambiguos': sorted({sku for r in resultados for sku in r.get('ambiguos', [])})}
     except depot_svc.DepotRechazado as exc:
         raise HTTPException(502, f"Depot rechazó las credenciales: {exc}") from exc
     except depot_svc.DepotNoDisponible as exc:

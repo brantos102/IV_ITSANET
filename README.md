@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Vista movil, Google, credenciales ADMIN y etiquetas Zebra](docs/MEJORAS_MOVIL.md).
+
 **Operacion local actual (MySQL, puerto 3002):** seguir
 [docs/OPERACION_LOCAL.md](docs/OPERACION_LOCAL.md). Incluye actualizacion de la
 rama operativa, Drive/correo sin Firebase y Sheets solo como exportacion

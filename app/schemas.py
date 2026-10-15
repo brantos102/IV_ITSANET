@@ -52,7 +52,7 @@ class RecepcionIn(BaseModel):
 class OperadorIn(BaseModel):
     usuario: str = Field(min_length=3, max_length=50)
     nombre: str = Field(min_length=2, max_length=120)
-    pin: str = Field(min_length=4, max_length=20)
+    pin: str = Field(min_length=4, max_length=128)
     rol: str = "OPERADOR"
     email: str | None = Field(default=None, max_length=160)
 

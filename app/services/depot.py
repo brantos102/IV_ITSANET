@@ -113,14 +113,27 @@ class DepotAPI:
 
     def __init__(self, base_url: str | None = None, usuario: str | None = None,
                  clave: str | None = None, cliente: str | None = None,
-                 transporte=None):
+                 transporte=None, ruta_token=None, ruta_stock=None, cabecera_token=None):
         self.base_url = (base_url if base_url is not None else DEPOT_BASE_URL).rstrip("/")
         self.usuario = DEPOT_USUARIO if usuario is None else usuario
         self.clave = DEPOT_CLAVE if clave is None else clave
         self.cliente = DEPOT_CLIENTE if cliente is None else cliente
         self.transporte = transporte
+        self.ruta_token = ruta_token or DEPOT_RUTA_TOKEN
+        self.ruta_stock = ruta_stock or DEPOT_RUTA_STOCK
+        self.cabecera_token = cabecera_token or DEPOT_CABECERA_TOKEN
         self._token: str | None = None
         self._vence: float = 0.0
+
+    @classmethod
+    def desde_db(cls, db, ident=None):
+        from app.services.integraciones import credenciales
+        filas = credenciales(db, ident)
+        if not filas:
+            return None if ident else cls()
+        c = filas[0]
+        return cls(base_url=c['baseUrl'], usuario=c['usuario'], clave=c['clave'], cliente=c['cliente'],
+                   ruta_token=c['rutaToken'], ruta_stock=c['rutaStock'], cabecera_token=c['cabeceraToken'])
 
     # -- token -------------------------------------------------------------- #
     @property
@@ -146,7 +159,7 @@ class DepotAPI:
 
         try:
             with self._cliente_http() as http:
-                r = http.get(self.base_url + DEPOT_RUTA_TOKEN, headers=cab)
+                r = http.get(self.base_url + self.ruta_token, headers=cab)
         except httpx.HTTPError as exc:
             _breaker.fallo()
             raise DepotNoDisponible(f"no se pudo pedir el token: {exc}") from exc
@@ -155,12 +168,12 @@ class DepotAPI:
             raise DepotRechazado("Depot rechazo las credenciales al pedir el token")
         if r.status_code != 200:
             _breaker.fallo()
-            raise DepotNoDisponible(f"Depot respondio {r.status_code} en {DEPOT_RUTA_TOKEN}")
+            raise DepotNoDisponible(f"Depot respondio {r.status_code} en {self.ruta_token}")
 
         token = extraer_token(r.text)
         if not token:
             raise DepotNoDisponible(
-                f"Depot respondio sin un token reconocible en {DEPOT_RUTA_TOKEN}: "
+                f"Depot respondio sin un token reconocible en {self.ruta_token}: "
                 f"{r.text[:120]}"
             )
         self._token = token
@@ -175,7 +188,7 @@ class DepotAPI:
         """GET con el token puesto. Devuelve el JSON, o None si no hay nada."""
         cab = {
             "Accept": "application/json, text/plain, */*",
-            DEPOT_CABECERA_TOKEN: self.token(),
+            self.cabecera_token: self.token(),
         }
         try:
             with self._cliente_http() as http:
@@ -209,7 +222,7 @@ class DepotAPI:
 
     def stock(self, ruta: str | None = None) -> list[dict]:
         """El inventario, ya traducido. Las filas que no se entienden se saltan."""
-        cuerpo = self.pedir(ruta or DEPOT_RUTA_STOCK)
+        cuerpo = self.pedir(ruta or self.ruta_stock)
         return [m for m in (mapear_stock(f) for f in filas_de(cuerpo)) if m]
 
 
@@ -310,7 +323,7 @@ def mapear_stock(fila: dict) -> dict | None:
 # Del WMS al espejo local
 # --------------------------------------------------------------------------- #
 def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
-                        cliente: str | None = None) -> dict:
+                        cliente: str | None = None, evitar_conflictos: bool = False) -> dict:
     """Baja el stock de Depot y actualiza el espejo local de productos.
 
     Devuelve el recuento por cliente, que es lo que hay que leer antes de dar
@@ -322,7 +335,7 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
     repetido en varias ubicaciones. Aqui se consolida por SKU, que es lo que
     necesita el escaneo.
     """
-    api = api or DepotAPI()
+    api = api or DepotAPI.desde_db(db)
     if not api.configurada:
         raise DepotNoDisponible(
             "Faltan las credenciales de Depot: DEPOT_USUARIO y DEPOT_CLAVE. "
@@ -330,6 +343,20 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
         )
 
     filas = api.stock()
+    ambiguos = set()
+    propietarios = {}
+    if evitar_conflictos:
+        propietarios = dict(db.execute(select(Producto.sku, Producto.cliente).where(Producto.cliente.is_not(None))).all())
+        aceptadas = []
+        for f in filas:
+            previo, actual = propietarios.get(f['sku']), f.get('cliente') or api.cliente
+            if previo and actual and previo != actual:
+                ambiguos.add(f['sku'])
+                continue
+            if actual:
+                propietarios[f['sku']] = actual
+            aceptadas.append(f)
+        filas = aceptadas
     por_sku: dict[str, dict] = {}
     por_cliente: dict[str, int] = {}
     for f in filas:
@@ -369,6 +396,7 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
         "productos": len(registros),
         "por_cliente": dict(sorted(por_cliente.items())),
         "sincronizado_en": ahora.isoformat(timespec="seconds"),
+        "ambiguos": sorted(ambiguos),
     }
 
 
@@ -449,7 +477,7 @@ def resolver_codigo(db: Session, codigo: str, usar_api: bool = True) -> Resultad
     # asi que solo se baja cuando el espejo no sirve —esta vacio o lleva mas de
     # DEPOT_CACHE_TTL sin actualizarse— y despues se vuelve a mirar en el.
     degradado = False
-    if usar_api and DEPOT_ENABLED and not _breaker.abierto and espejo_caducado(db):
+    if usar_api and not _breaker.abierto and espejo_caducado(db) and DepotAPI.desde_db(db).configurada:
         try:
             sincronizar_maestro(db)
             prod = db.get(Producto, sku)
@@ -496,28 +524,29 @@ def guardar_producto_api(db: Session, sku: str, data: dict) -> Producto:
 
 
 def estado_integracion(db: Session) -> dict:
+    api = DepotAPI.desde_db(db)
     total = db.scalar(select(func.count()).select_from(Producto)) or 0
     ultima = db.scalar(select(func.max(Producto.actualizado_en)))
     return {
-        "api_configurada": DEPOT_ENABLED,
-        "base_url": DEPOT_BASE_URL or None,
-        "usuario": DEPOT_USUARIO or None,       # el usuario si; la clave nunca
-        "clave_puesta": bool(DEPOT_CLAVE),
-        "cliente": DEPOT_CLIENTE or None,
-        "ruta_token": DEPOT_RUTA_TOKEN,
-        "ruta_stock": DEPOT_RUTA_STOCK,
-        "cabecera_token": DEPOT_CABECERA_TOKEN,
+        "api_configurada": api.configurada,
+        "base_url": api.base_url or None,
+        "usuario": "configurado" if api.usuario else None,       # nunca se expone la credencial
+        "clave_puesta": bool(api.clave),
+        "cliente": api.cliente or None,
+        "ruta_token": api.ruta_token,
+        "ruta_stock": api.ruta_stock,
+        "cabecera_token": api.cabecera_token,
         "circuito_abierto": _breaker.abierto,
         "fallos_consecutivos": _breaker.fallos,
         "productos_en_cache": total,
         "actualizado_en": ultima.isoformat(timespec="seconds") if ultima else None,
         "espejo_caducado": espejo_caducado(db),
         "clientes": clientes_en_espejo(db),
-        "modo": "API + ESPEJO" if DEPOT_ENABLED else "SOLO ESPEJO LOCAL",
-        "falta": [] if DEPOT_ENABLED else [
-            c for c, v in (("DEPOT_BASE_URL", DEPOT_BASE_URL),
-                           ("DEPOT_USUARIO", DEPOT_USUARIO),
-                           ("DEPOT_CLAVE", DEPOT_CLAVE)) if not v
+        "modo": "API + ESPEJO" if api.configurada else "SOLO ESPEJO LOCAL",
+        "falta": [] if api.configurada else [
+            c for c, v in (("DEPOT_BASE_URL", api.base_url),
+                           ("DEPOT_USUARIO", api.usuario),
+                           ("DEPOT_CLAVE", api.clave)) if not v
         ],
     }
 

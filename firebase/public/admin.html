@@ -121,6 +121,41 @@
 
 <!-- Panel principal -->
 <div id="panelAdmin" class="oculto">
+  <div class="panel oculto" id="panelIntegraciones">
+    <h2>Conexiones del servidor · solo ADMIN</h2>
+    <p>Credenciales cifradas. Los campos secretos vacíos conservan el valor guardado.</p>
+    <details open><summary>Depot / WMS por cliente</summary>
+      <div id="clientesServidor" class="acciones"></div>
+      <form id="formDepotLocal" class="rejilla" style="margin-top:16px">
+        <label class="campo"><span>ID del cliente</span><input id="iClienteId" required maxlength="32" placeholder="VENTURA"></label>
+        <label class="campo"><span>Nombre</span><input id="iNombre" required placeholder="Ventura"></label>
+        <label class="campo"><span>URL de la API</span><input id="iBaseUrl" required type="url" placeholder="https://ec.itsanet.com/q_apidepot"></label>
+        <label class="campo"><span>Cliente en Depot</span><input id="iCliente" placeholder="VENTURA"></label>
+        <label class="campo"><span>Usuario API</span><input id="iUsuario" autocomplete="off" placeholder="Conservar guardado"></label>
+        <label class="campo"><span>Clave API</span><input id="iClave" type="password" autocomplete="new-password" placeholder="Conservar guardada"></label>
+        <label class="campo"><span>Estado</span><select id="iActivo"><option value="1">Activo</option><option value="0">Desactivado</option></select></label>
+        <button class="b-primario" type="submit">Guardar conexión</button>
+      </form>
+    </details>
+    <details style="margin-top:18px"><summary>Drive y envío de correo</summary>
+      <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
+        <label class="campo"><span>Apps Script /exec</span><input id="iGoogleUrl" type="url" required></label>
+        <label class="campo"><span>Clave compartida SERVIDOR_HMAC</span><input id="iGoogleSecret" type="password" autocomplete="new-password" placeholder="Conservar guardada"></label>
+        <button type="submit" class="b-primario">Guardar puente</button>
+      </form>
+    </details>
+    <details style="margin-top:18px"><summary>Entrar con Google · OAuth</summary>
+      <p>Cliente OAuth web del proyecto Google Cloud. Autoriza el callback exacto. Para móviles se necesita HTTPS; localhost sirve para la prueba en computador.</p>
+      <form id="formOAuthLocal" class="rejilla">
+        <label class="campo"><span>Client ID</span><input id="iOAuthId" required placeholder="…apps.googleusercontent.com"></label>
+        <label class="campo"><span>Client secret</span><input id="iOAuthSecret" type="password" autocomplete="new-password" placeholder="Conservar guardado"></label>
+        <label class="campo"><span>URI de redirección autorizada</span><input id="iOAuthRedirect" type="url" required></label>
+        <label class="campo"><span>Estado</span><select id="iOAuthActivo"><option value="1">Activo</option><option value="0">Desactivado</option></select></label>
+        <button type="submit" class="b-primario">Guardar acceso Google</button>
+      </form>
+      <p class="mini">Google verifica el correo; la aprobación y los roles los controla este servidor.</p>
+    </details>
+  </div>
   <div class="panel oculto" id="panelLocal">
     <h2>Servidor de bodega</h2>
     <h3>Entregas al ejecutivo</h3>
@@ -128,8 +163,7 @@
     <button class="b-sec" id="bEntregas">Actualizar entregas</button>
     <div id="entregasLocales"></div>
     <p id="estadoLocal">Comprobando la base de datos…</p>
-    <p>El maestro local permite validar aunque Depot no responda. Las credenciales
-       de conexión en vivo las administra el responsable del servidor.</p>
+    <p>El maestro local permite validar aunque Depot no responda. Las conexiones se configuran en este panel por un administrador.</p>
     <label class="campo"><span>Maestro de productos (.xlsx)</span>
       <input id="fMaestroLocal" type="file" accept=".xlsx,.xlsm"></label>
     <button class="b-primario" id="bMaestroLocal">Cargar maestro local</button>
@@ -281,7 +315,7 @@
 <script type="module">
 import { observarSesion, traducirError, db } from './js/auth.js';
 import { Proxy, obtenerUrlProxy } from './js/proxy.js';
-import { modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js';
 import { confirmar } from './js/modal.js';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv,
@@ -334,6 +368,8 @@ observarSesion(({ usuario, perfil, error }) => {
   if (modoLocal()) {
     for (const id of ['panelProxy', 'panelClientes', 'panelClienteForm', 'panelPruebaCliente', 'panelMigracion']) $(id).classList.add('oculto');
     $('panelLocal').classList.remove('oculto');
+    $('panelIntegraciones').classList.remove('oculto');
+    cargarIntegraciones();
     actualizarEstadoLocal();
   } else {
     cargarUrlProxy();
@@ -341,6 +377,48 @@ observarSesion(({ usuario, perfil, error }) => {
   }
   cargarFormatosCsv();
 });
+
+async function cargarIntegraciones() {
+  try {
+    const datos = await pedir('/integraciones');
+    const lista = $('clientesServidor'); lista.replaceChildren();
+    for (const c of datos.clientes) {
+      const editar = document.createElement('button'); editar.className = 'b-sec';
+      editar.textContent = `${c.nombre} · ${c.activo ? 'Activo' : 'Desactivado'}`;
+      editar.onclick = () => {
+        for (const [id, campo] of [['iClienteId','id'],['iNombre','nombre'],['iBaseUrl','baseUrl'],['iCliente','cliente']]) $(id).value = c[campo] || '';
+        $('iUsuario').value = ''; $('iClave').value = ''; $('iActivo').value = c.activo ? '1' : '0';
+      };
+      lista.append(editar);
+      const probar = document.createElement('button'); probar.className = 'b-sec'; probar.textContent = `Probar ${c.id}`;
+      probar.onclick = async () => { probar.disabled = true;
+        try { const r = await pedir(`/integraciones/depot/${encodeURIComponent(c.id)}/probar`, {cuerpo:{}}); aviso(r.mensaje, 'ok'); }
+        catch(e) { aviso(e.message, 'err'); } finally { probar.disabled = false; } };
+      lista.append(probar);
+    }
+    $('iGoogleUrl').value = datos.google.url || '';
+    $('iOAuthId').value = datos.oauth.clientId || '';
+    $('iOAuthRedirect').value = datos.oauth.redirectUri || new URL('/api/auth/google/callback', location.origin).href;
+    $('iOAuthActivo').value = datos.oauth.activo === false ? '0' : '1';
+  } catch(e) { aviso(e.message, 'err'); }
+}
+const guardadoresIntegracion = {};
+for (const [formulario, destino, construir, secretos] of [
+  ['formDepotLocal', () => '/integraciones/depot/' + encodeURIComponent($('iClienteId').value.trim().toUpperCase()),
+    () => ({nombre:$('iNombre').value,baseUrl:$('iBaseUrl').value,cliente:$('iCliente').value,usuario:$('iUsuario').value,clave:$('iClave').value,activo:$('iActivo').value === '1'}), ['iUsuario','iClave']],
+  ['formGoogleLocal', () => '/integraciones/google', () => ({url:$('iGoogleUrl').value,secreto:$('iGoogleSecret').value}), ['iGoogleSecret']],
+  ['formOAuthLocal', () => '/integraciones/oauth-google', () => ({clientId:$('iOAuthId').value,clientSecret:$('iOAuthSecret').value,redirectUri:$('iOAuthRedirect').value,activo:$('iOAuthActivo').value === '1'}), ['iOAuthSecret']],
+]) {
+  guardadoresIntegracion[formulario] = async ev => {
+    ev.preventDefault(); const boton = ev.submitter; boton.disabled = true;
+    try { await pedir(destino(), {metodo:'PUT',cuerpo:construir()}); secretos.forEach(id => $(id).value = '');
+      aviso('Configuración guardada en el servidor.', 'ok'); await cargarIntegraciones(); await actualizarEstadoLocal(); }
+    catch(e) { aviso(e.message, 'err'); } finally { boton.disabled = false; }
+  };
+}
+$('formDepotLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formDepotLocal(ev); });
+$('formGoogleLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formGoogleLocal(ev); });
+$('formOAuthLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formOAuthLocal(ev); });
 
 async function actualizarEstadoLocal() {
   try {

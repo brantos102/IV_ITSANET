@@ -112,7 +112,7 @@ def test_arrendamiento_recupera_un_reinicio_y_finaliza(cliente, db, monkeypatch,
     assert not entregas.procesar_uno()
 
 
-def test_firma_solo_servidor_sin_exponer_el_secreto(monkeypatch):
+def test_firma_solo_servidor_sin_exponer_el_secreto(db, monkeypatch):
     import hashlib, hmac, json
     capturado = {}
     class Cliente:

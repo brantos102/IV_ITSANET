@@ -101,8 +101,9 @@ export async function pedir(ruta, opciones = {}) {
     if (d && typeof d === 'object') {
       throw new ErrorServidor(d.mensaje || 'Error del servidor', d.codigo, r.status);
     }
+    const validacion = Array.isArray(d) ? d.map(e => String(e.msg || '').replace(/^Value error, /, '')).join('. ') : null;
     throw new ErrorServidor(
-      typeof d === 'string' ? d : `El servidor respondió ${r.status}.`,
+      validacion || (typeof d === 'string' ? d : `El servidor respondió ${r.status}.`),
       'ERROR', r.status,
     );
   }
@@ -414,3 +415,5 @@ export async function proxyLocal(accion, datos = {}) {
 export const entregasServidor = () => pedir('/entregas');
 export const reintentarEntrega = (id) => pedir(`/entregas/${encodeURIComponent(id)}/reintentar`, { cuerpo: {} });
 export const finalizarConEntrega = (codigo, datos) => pedir(`/recepciones/${encodeURIComponent(codigo)}/entrega`, { cuerpo: datos });
+
+export const consultarSku = (codigo, sku) => pedir(`/recepciones/${encodeURIComponent(codigo)}/estado-sku/${encodeURIComponent(sku)}`);

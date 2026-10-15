@@ -19,4 +19,5 @@ await copyFile(path.join(raiz, 'node_modules/xlsx/dist/xlsx.full.min.js'),
                path.join(destino, 'xlsx.full.min.js'));
 await copyFile(path.join(raiz, 'node_modules/jspdf/dist/jspdf.umd.min.js'), path.join(destino, 'jspdf.umd.min.js'));
 await copyFile(path.join(raiz, 'node_modules/jspdf-autotable/dist/jspdf.plugin.autotable.min.js'), path.join(destino, 'jspdf.plugin.autotable.min.js'));
+await copyFile(path.join(raiz, 'node_modules/jsbarcode/dist/JsBarcode.all.min.js'), path.join(destino, 'JsBarcode.all.min.js'));
 console.log('SDK y lector Excel preparados para servir desde la bodega.');

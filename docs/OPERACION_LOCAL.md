@@ -1,5 +1,10 @@
 # Operacion completa en el servidor (3002)
 
+La interfaz para credenciales, Google y validacion movil se documenta en
+[MEJORAS_MOVIL.md](MEJORAS_MOVIL.md). El panel ADMIN ahora permite configurar
+las conexiones sin editar el archivo de entorno; sus valores prevalecen
+sobre las variables cuando hay configuracion guardada.
+
 La aplicacion existente se conserva. `/` abre `/app/`; el prototipo anterior
 queda disponible en `/prototipo`. La ruta `/app/` usa la sesion y la API local,
 aunque el navegador conserve una antigua preferencia `itsanet.modo=nube`.
