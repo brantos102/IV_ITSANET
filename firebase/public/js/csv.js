@@ -18,8 +18,9 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+} from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
+import * as local from './local.js';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -282,8 +283,11 @@ export function descargarCsv(texto, nombre) {
 export async function leerFormatos() {
   let guardados = [];
   try {
-    const snap = await getDoc(doc(db, 'config', 'csv'));
-    guardados = snap.exists() ? (snap.data().formatos || []) : [];
+    if (local.modoLocal()) guardados = (await local.leerFormatosCsv()).formatos || [];
+    else {
+      const snap = await getDoc(doc(db, 'config', 'csv'));
+      guardados = snap.exists() ? (snap.data().formatos || []) : [];
+    }
   } catch { /* se siguen usando los de base */ }
 
   return FORMATOS_BASE.map((base) =>
@@ -292,6 +296,8 @@ export async function leerFormatos() {
 
 /** Guarda los formatos. Solo un administrador puede, por las reglas. */
 export async function guardarFormatos(formatos, usuario) {
+  if (local.modoLocal()) return local.guardarFormatosCsv(formatos.map((f) =>
+    normalizarFormato(f, FORMATOS_BASE.find((b) => b.id === f.id))));
   await setDoc(doc(db, 'config', 'csv'), {
     formatos: formatos.map((f) => normalizarFormato(f,
       FORMATOS_BASE.find((b) => b.id === f.id))),

@@ -2,18 +2,18 @@
  * Autenticación con Google corporativo y alta automática del operario.
  */
 import { initializeApp, deleteApp }
-  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+  from '../vendor/firebase-sdk.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   getRedirectResult, signOut, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential,
   sendPasswordResetEmail,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+} from '../vendor/firebase-sdk.js';
 import {
   initializeFirestore, doc, getDoc, setDoc, serverTimestamp,
   persistentLocalCache, persistentMultipleTabManager, writeBatch,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+} from '../vendor/firebase-sdk.js';
 
 import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js';
 import * as local from './local.js';
@@ -30,8 +30,8 @@ import * as local from './local.js';
  */
 export const modoLocal = local.modoLocal;
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+export const app = modoLocal() ? null : initializeApp(firebaseConfig);
+export const auth = modoLocal() ? null : getAuth(app);
 
 /**
  * Firestore con caché local, y con el ÚLTIMO argumento: la base es nombrada,
@@ -45,7 +45,7 @@ export const auth = getAuth(app);
  * validación a la vez— y dejaba ese dispositivo sin modo sin conexión, con un
  * aviso en la consola que nadie mira.
  */
-export const db = initializeFirestore(app, {
+export const db = modoLocal() ? null : initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 }, DATABASE_ID);
 

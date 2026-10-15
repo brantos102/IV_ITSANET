@@ -98,6 +98,7 @@ function exigirCarpeta_() {
 function doPost(e) {
   try {
     var peticion = JSON.parse(e.postData.contents || '{}');
+    if (peticion.accion === 'entregaServidor') return responder_(entregaServidor_(peticion));
     var usuario = verificarSesion_(peticion.idToken);
 
     var acciones = {
@@ -544,6 +545,8 @@ function accionEnviarInforme_(p, usuario) {
             '<th style="padding:12px;text-align:center;">Físico</th>' +
             '<th style="padding:12px;text-align:center;">Diferencia</th>' +
           '</tr></thead><tbody>' + filas + '</tbody></table>' +
+        (p.carpetaUrl ? '<p><a href="' + p.carpetaUrl + '">Carpeta de la recepcion en Drive</a></p>' : '') +
+        (p.sheetUrl ? '<p><a href="' + p.sheetUrl + '">Datos validados y bitacora en Sheets</a></p>' : '') +
         bloqueAdjuntos +
         (fotos ? '<h3 style="border-bottom:2px solid #2563eb;padding-bottom:8px;margin-top:30px;">' +
                  'Evidencias</h3><div>' + fotos + '</div>' : '') +

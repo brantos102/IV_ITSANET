@@ -1,5 +1,10 @@
 # ITSANET IMS
 
+**Operacion local actual (MySQL, puerto 3002):** seguir
+[docs/OPERACION_LOCAL.md](docs/OPERACION_LOCAL.md). Incluye actualizacion de la
+rama operativa, Drive/correo sin Firebase y Sheets solo como exportacion
+opcional. No requiere importar historicos ni reinstalar otros servicios.
+
 App para la validación física de recepciones de Impoventura.
 
 Recibe el packing list del sistema, guía el conteo físico de varios operadores

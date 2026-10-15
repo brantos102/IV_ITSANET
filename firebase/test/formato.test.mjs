@@ -41,6 +41,20 @@ if (!archivos.length) {
 const datos = await cargar('datos.js');
 const informe = await cargar('informe.js');
 
+await test('ITEM numerico no reemplaza COD. PRODUCTO y se conserva la fila original', () => {
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([
+    ['ITEM', 'COD. PRODUCTO', 'DESCRIPCION', 'CANTIDAD'],
+    [1, '10070071560001', 'PIEZA', 3],
+  ]), 'PACKING');
+  const bruto = XLSX.write(libro, {type: 'array', bookType: 'xlsx'});
+  const leido = datos.leerPackingList(bruto);
+  eq(leido.lineas[0].sku, '10070071560001');
+  eq(leido.encabezados[0], 'ITEM');
+  eq(leido.lineas[0].cantidad, 3);
+});
+
+
 for (const nombre of archivos) {
   const buf = fs.readFileSync(path.join(MUESTRAS, nombre));
   const leido = datos.leerPackingList(new Uint8Array(buf).buffer);

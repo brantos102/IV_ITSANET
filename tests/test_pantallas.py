@@ -18,7 +18,7 @@ from app.main import app
 from app.models import Recepcion
 
 PANTALLAS_PUBLICAS = ["/login"]
-PANTALLAS_PRIVADAS = ["/", "/kpi"]
+PANTALLAS_PRIVADAS = ["/prototipo", "/kpi"]
 
 
 @pytest.mark.parametrize("ruta", PANTALLAS_PUBLICAS)

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
@@ -101,7 +102,7 @@ def estado_de(esperado: float, contado: float, verificado: bool | None = None) -
 # De la base al documento que espera el navegador
 # --------------------------------------------------------------------------- #
 def _iso(f: datetime | None) -> str | None:
-    return f.isoformat(timespec="milliseconds") if f else None
+    return (f.isoformat(timespec="milliseconds") + ("Z" if f.tzinfo is None else "")) if f else None
 
 
 def doc_recepcion(r: AppRecepcion, operarios: list[str] | None = None) -> dict:
@@ -193,8 +194,19 @@ def doc_adicional(s: AppSku) -> dict:
 # --------------------------------------------------------------------------- #
 # Consultas
 # --------------------------------------------------------------------------- #
-def obtener(db: Session, codigo: str) -> AppRecepcion:
-    r = db.get(AppRecepcion, limpiar(codigo).upper())
+def obtener(db: Session, codigo: str, bloquear: bool = False) -> AppRecepcion:
+    codigo = limpiar(codigo).upper()
+    if bloquear:
+        if db.get_bind().dialect.name == 'sqlite':
+            # SQLite no tiene FOR UPDATE. Se toma el bloqueo de escritura
+            # antes de leer el total; sirve tambien entre procesos distintos.
+            cx = db.connection()
+            if not cx.connection.driver_connection.in_transaction:
+                cx.exec_driver_sql('BEGIN IMMEDIATE')
+        r = db.scalar(select(AppRecepcion).where(AppRecepcion.codigo == codigo)
+                      .with_for_update().execution_options(populate_existing=True))
+    else:
+        r = db.get(AppRecepcion, codigo)
     if r is None:
         raise ErrorApp(f"La recepción {codigo} no existe.", "NO_ENCONTRADA")
     return r
@@ -227,20 +239,20 @@ def listar_recepciones(db: Session, max_filas: int = 50,
     return [doc_recepcion(r) for r in db.execute(q).scalars().all()]
 
 
-def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0) -> list[dict]:
+def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0, *, actual: bool = False) -> list[dict]:
     """Las subcolecciones que la aplicación lee de una recepción."""
     codigo = limpiar(codigo).upper()
     if nombre == "lineas":
         q = select(AppLinea).where(AppLinea.recepcion == codigo).order_by(AppLinea.orden)
-        return [doc_linea(x) for x in db.execute(q).scalars().all()]
+        return [doc_linea(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
     if nombre == "skus":
         q = select(AppSku).where(AppSku.recepcion == codigo).order_by(AppSku.sku)
-        return [doc_sku(x) for x in db.execute(q).scalars().all()]
+        return [doc_sku(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
     if nombre == "adicionales":
         q = (select(AppSku)
              .where(AppSku.recepcion == codigo, AppSku.en_packing_list.is_(False))
              .order_by(AppSku.sku))
-        return [doc_adicional(x) for x in db.execute(q).scalars().all()]
+        return [doc_adicional(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
     if nombre in ("eventos", "auditoria"):
         q = select(AppEvento).where(AppEvento.recepcion == codigo)
         if nombre == "auditoria":
@@ -249,7 +261,7 @@ def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0) ->
         q = q.order_by(AppEvento.creado_en.desc())
         if max_filas:
             q = q.limit(max_filas)
-        return [doc_evento(x) for x in db.execute(q).scalars().all()]
+        return [doc_evento(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
     raise ErrorApp(f"No existe la colección «{nombre}».", "COLECCION_DESCONOCIDA")
 
 
@@ -281,7 +293,7 @@ def crear_recepcion(db: Session, datos: dict, usuario: str | None) -> dict:
 def borrar_recepcion(db: Session, codigo: str) -> dict:
     """Se lleva por delante líneas, SKU, eventos y huellas. Es irreversible."""
     codigo = limpiar(codigo).upper()
-    r = obtener(db, codigo)
+    r = obtener(db, codigo, bloquear=True)
     cuentas = {}
     for modelo, nombre in ((AppLinea, "lineas"), (AppSku, "skus"),
                            (AppEvento, "eventos"), (AppHuella, "huellas")):
@@ -309,7 +321,7 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
     Se puede cargar más de una lista en la misma recepción. Lo esperado se
     acumula: el mismo SKU en dos listas se cuenta una vez, contra la suma.
     """
-    r = obtener(db, codigo)
+    r = obtener(db, codigo, bloquear=True)
     origen = limpiar(origen).upper()[:40] or "PRINCIPAL"
     origenes = list(r.origenes or [])
 
@@ -344,7 +356,7 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
     # 2. Lo esperado por SKU, acumulando sobre lo que ya hubiera.
     existentes = {
         s.sku: s for s in db.execute(
-            select(AppSku).where(AppSku.recepcion == r.codigo)).scalars().all()
+            select(AppSku).with_for_update().execution_options(populate_existing=True).where(AppSku.recepcion == r.codigo)).scalars().all()
     }
     ahora = utcnow().replace(tzinfo=None)
     compartidos = []
@@ -513,11 +525,12 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
         raise ErrorApp("Falta la clave del evento.", "CLAVE_REQUERIDA")
 
     codigo = limpiar(codigo).upper()
+    r = obtener(db, codigo, bloquear=True)
 
     # 1. ¿Ya estaba escrito? Entonces la red se cortó DESPUÉS de guardar y el
     #    operario está repitiendo. No se cuenta dos veces.
-    if db.get(AppEvento, idem) is not None:
-        s = db.execute(select(AppSku).where(
+    if db.scalar(select(AppEvento).where(AppEvento.id == idem).with_for_update()) is not None:
+        s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
             AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
         esperado = a_numero(s.esperado, 0) if s else 0
         contado = a_numero(s.contado, 0) if s else 0
@@ -527,12 +540,11 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
             "estado": (s.estado if s else estado_de(esperado, contado)),
         }
 
-    r = obtener(db, codigo)
     if r.estado not in ABIERTAS:
         raise ErrorApp(
             f"La recepción está {r.estado}: no admite más conteos.", "RECEPCION_CERRADA")
 
-    s = db.execute(select(AppSku).where(
+    s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
         AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
     esperado = a_numero(s.esperado, 0) if s else 0
     previo = a_numero(s.contado, 0) if s else 0
@@ -616,18 +628,18 @@ def anular_conteo(db: Session, codigo: str, usuario: str | None,
         raise ErrorApp("Debe indicar el motivo de la anulación.", "MOTIVO_REQUERIDO")
 
     codigo = limpiar(codigo).upper()
-    original = db.get(AppEvento, limpiar(evento_id))
+    r = obtener(db, codigo, bloquear=True)
+    original = db.scalar(select(AppEvento).with_for_update().where(AppEvento.id == limpiar(evento_id)))
     if original is None or original.recepcion != codigo:
         raise ErrorApp("Ese movimiento no existe en esta recepción.", "NO_ENCONTRADO")
     if original.tipo == "ANULACION":
         raise ErrorApp("Ese movimiento ya es una anulación.", "YA_ANULADO")
 
-    ya = db.execute(select(AppEvento).where(
+    ya = db.execute(select(AppEvento).with_for_update().where(
         AppEvento.anula_a == original.id)).scalar_one_or_none()
     if ya is not None:
         raise ErrorApp("Ese movimiento ya estaba anulado.", "YA_ANULADO")
 
-    r = obtener(db, codigo)
     if r.estado not in ABIERTAS:
         raise ErrorApp(
             f"La recepción está {r.estado}: no admite anulaciones.", "RECEPCION_CERRADA")
@@ -642,7 +654,7 @@ def anular_conteo(db: Session, codigo: str, usuario: str | None,
     )
     db.add(compensacion)
 
-    s = db.execute(select(AppSku).where(
+    s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
         AppSku.recepcion == codigo, AppSku.sku == original.sku)).scalar_one_or_none()
     if s is not None:
         _aplicar_al_sku(s, {
@@ -676,7 +688,7 @@ def declarar_no_encontrado(db: Session, codigo: str, usuario: str | None,
 def registrar_auditoria(db: Session, codigo: str, usuario: str | None,
                         tipo: str, detalle: dict | None = None) -> dict:
     ahora = utcnow().replace(tzinfo=None)
-    ident = f"aud_{limpiar(codigo).upper()}_{tipo}_{ahora.timestamp():.3f}"
+    ident = "aud_" + uuid4().hex
     db.add(AppEvento(
         id=ident, recepcion=limpiar(codigo).upper(), tipo=limpiar(tipo).upper() or "AUDITORIA",
         sku=None, cantidad=0, usuario=usuario, datos=detalle or {}, creado_en=ahora,
@@ -688,8 +700,8 @@ def registrar_auditoria(db: Session, codigo: str, usuario: str | None,
 # --------------------------------------------------------------------------- #
 # Cierre y reapertura
 # --------------------------------------------------------------------------- #
-def cerrar_recepcion(db: Session, codigo: str, usuario: str | None) -> dict:
-    r = obtener(db, codigo)
+def cerrar_recepcion(db: Session, codigo: str, usuario: str | None, *, confirmar: bool = True) -> dict:
+    r = obtener(db, codigo, bloquear=True)
     if r.estado == "CERRADA":
         raise ErrorApp("La recepción ya estaba cerrada.", "YA_CERRADA")
     ahora = utcnow().replace(tzinfo=None)
@@ -701,13 +713,19 @@ def cerrar_recepcion(db: Session, codigo: str, usuario: str | None) -> dict:
         cantidad=0, usuario=usuario, creado_en=ahora,
         datos={"totales": r.totales or {}},
     ))
-    db.commit()
+    if confirmar:
+        db.commit()
+    else:
+        db.flush()
+        # MySQL conserva milisegundos; usar el valor realmente persistido
+        # para la clave idempotente del cierre y su instantanea.
+        db.refresh(r, attribute_names=["cerrada_en"])
     return doc_recepcion(r, operarios_de(db, r.codigo))
 
 
 def reabrir_recepcion(db: Session, codigo: str, usuario: str | None,
                       motivo: str = "") -> dict:
-    r = obtener(db, codigo)
+    r = obtener(db, codigo, bloquear=True)
     if r.estado != "CERRADA":
         raise ErrorApp("La recepción no está cerrada.", "NO_CERRADA")
     ahora = utcnow().replace(tzinfo=None)
@@ -731,13 +749,14 @@ def recalcular_sku(db: Session, codigo: str, sku: str) -> dict:
     acuerdo, y una prueba puede comprobar que no discrepaban.
     """
     codigo, sku = limpiar(codigo).upper(), normalizar_codigo(sku)
-    s = db.execute(select(AppSku).where(
+    obtener(db, codigo, bloquear=True)
+    s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
         AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
     if s is None:
         raise ErrorApp(f"{sku} no está en la recepción {codigo}.", "NO_ENCONTRADO")
 
     eventos = db.execute(
-        select(AppEvento).where(AppEvento.recepcion == codigo, AppEvento.sku == sku)
+        select(AppEvento).with_for_update().where(AppEvento.recepcion == codigo, AppEvento.sku == sku)
         .order_by(AppEvento.creado_en)
     ).scalars().all()
 

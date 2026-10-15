@@ -1,6 +1,6 @@
 /** Solicitudes y aprobaciones en el mismo destino donde entra el operario. */
 import { collection, getDocs, doc, onSnapshot, runTransaction }
-  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+  from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
 import * as local from './local.js';
 

@@ -20,6 +20,8 @@ _TMP = Path(tempfile.mkdtemp(prefix="itsanet-test-"))
 # Para probar contra un MySQL de verdad se usa VAL_TEST_DATABASE_URL, que hay
 # que escribir a proposito y apuntando a OTRA base. Un nombre distinto es lo que
 # impide que pase por descuido.
+os.environ["VAL_GOOGLE_PROXY_URL"] = ""
+os.environ["VAL_GOOGLE_PROXY_SECRET"] = ""
 os.environ["VAL_DATA_DIR"] = str(_TMP)
 os.environ["VAL_DATABASE_URL"] = os.getenv(
     "VAL_TEST_DATABASE_URL", f"sqlite:///{_TMP / 'test.db'}")

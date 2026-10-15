@@ -16,19 +16,106 @@ al prototipo y a sus KPIs.
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import FileResponse, RedirectResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Operador, Rol
+from app.models import AppArchivo, AppConfig, AppEntrega, AppRecepcion, AppEvento, Operador, Producto, Rol, utcnow
 from app.security import requiere_supervisor, usuario_actual
 from app.services import app_modelo as m
 from app.services import depot as depot_svc
+from app.services import entregas
 
 router = APIRouter(prefix="/api/app", tags=["app-operarios"])
 
 # El código de la recepción ES su identificador, como en Firestore. Las rutas
 # lo llevan tal cual: /api/app/recepciones/REC0260002.
 COLECCIONES = ("lineas", "skus", "adicionales", "eventos", "auditoria")
+
+
+@router.get('/estado')
+def estado_local(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    return {'destino': 'servidor', 'motor': db.get_bind().dialect.name,
+            'recepciones': db.scalar(select(func.count()).select_from(AppRecepcion)),
+            'productos': db.scalar(select(func.count()).select_from(Producto)),
+            'archivos': db.scalar(select(func.count()).select_from(AppArchivo)),
+            'firebase_requerido': False, 'correo_configurado': entregas.configurado()}
+
+
+@router.get('/entregas')
+def listar_entregas(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    return [entregas.documento(e) for e in db.scalars(select(AppEntrega).order_by(AppEntrega.creado_en.desc()).limit(100))]
+
+
+@router.post('/entregas/{ident}/reintentar')
+def reintentar_entrega(ident: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    e = db.get(AppEntrega, ident)
+    if not e:
+        raise HTTPException(404, 'Entrega no encontrada')
+    if e.estado != 'PENDIENTE':
+        raise HTTPException(409, 'Solo se reintentan entregas pendientes. Las que requieren revision se comprueban con el administrador de Google')
+    e.proximo_en = utcnow()
+    db.commit()
+    return entregas.documento(e)
+
+
+@router.post('/recepciones/{codigo}/entrega', status_code=201)
+def cerrar_con_entrega(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                      op: Operador = Depends(requiere_supervisor)):
+    try:
+        return entregas.preparar(db, codigo, datos, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get('/config/csv')
+def leer_csv(db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    config = db.get(AppConfig, 'csv')
+    return config.datos if config else {'formatos': []}
+
+
+@router.put('/config/csv')
+def guardar_csv(datos: dict = Body(...), db: Session = Depends(get_db),
+                op: Operador = Depends(requiere_supervisor)):
+    if op.rol != Rol.ADMIN:
+        raise HTTPException(403, 'Solo un administrador configura los formatos')
+    import json
+    if not isinstance(datos.get('formatos'), list) or len(json.dumps(datos)) > 100_000:
+        raise HTTPException(422, 'Formatos CSV invalidos o demasiado grandes')
+    config = db.get(AppConfig, 'csv') or AppConfig(clave='csv')
+    config.datos = {'formatos': datos['formatos']}
+    config.usuario, config.modificado_en = _quien(op), utcnow()
+    db.add(config)
+    db.commit()
+    return config.datos
+
+
+@router.post('/recepciones/{codigo}/archivos/{tipo}', status_code=201)
+def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                   op: Operador = Depends(usuario_actual)):
+    from app.services import archivos
+    if tipo == 'informe' and op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
+        raise HTTPException(403, 'Solo un supervisor archiva informes')
+    a = archivos.guardar(db, codigo, tipo, datos, _quien(op))
+    url = f'/api/app/archivos/{a.id}'
+    return {'id': a.id, 'nombre': a.nombre, 'url': url, 'enlace': url,
+            'bytes': a.bytes, 'sha256': a.sha256, 'destino': 'SERVIDOR'}
+
+
+@router.get('/archivos/{archivo_id}')
+def archivo_local(archivo_id: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services import archivos
+    a = db.get(AppArchivo, archivo_id)
+    if a is None:
+        raise HTTPException(404, 'Archivo no encontrado')
+    if not archivos.ruta(a).is_file():
+        if a.drive_id:
+            return RedirectResponse(f'https://drive.google.com/uc?export=view&id={a.drive_id}', headers={'Cache-Control': 'private, no-store'})
+        raise HTTPException(404, 'Archivo no encontrado')
+    return FileResponse(archivos.ruta(a), media_type=a.mime, filename=a.nombre,
+        content_disposition_type='inline' if a.tipo == 'foto' else 'attachment',
+        headers={'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 def _quien(op: Operador) -> str:

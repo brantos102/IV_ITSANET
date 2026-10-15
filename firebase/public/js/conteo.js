@@ -30,7 +30,7 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+} from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
 import * as local from './local.js';
 import {

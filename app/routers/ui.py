@@ -29,6 +29,11 @@ def _ctx(op: Operador | None, **extra) -> dict:
 
 
 @router.get("/", response_class=HTMLResponse)
+def entrada_operativa():
+    return RedirectResponse('/app/', status_code=302)
+
+
+@router.get('/prototipo', response_class=HTMLResponse)
 def inicio(request: Request, op: Operador | None = Depends(usuario_opcional)):
     if not op:
         return RedirectResponse("/login", status_code=302)

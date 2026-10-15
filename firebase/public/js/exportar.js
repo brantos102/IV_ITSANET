@@ -16,7 +16,7 @@
  */
 import {
   collection, getDocs, query, orderBy,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+} from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
 
 export const VERSION = 1;

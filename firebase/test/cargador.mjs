@@ -171,7 +171,7 @@ export function preparar() {
     if (!f.endsWith('.js')) continue;
     const codigo = fs.readFileSync(path.join(PUBLIC, 'js', f), 'utf8')
       .replace(/'https:\/\/www\.gstatic\.com\/firebasejs\/[^']+'/g, "'./sdk-stub.mjs'");
-    fs.writeFileSync(path.join(dir, f), codigo);
+    fs.writeFileSync(path.join(dir, f), codigo.replace(/'\.\.\/vendor\/firebase-sdk\.js'/g, "'./sdk-stub.mjs'"));
   }
   return dir;
 }

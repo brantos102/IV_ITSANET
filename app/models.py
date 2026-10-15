@@ -485,3 +485,45 @@ class AppHuella(Base):
     skus: Mapped[int] = mapped_column(Integer, default=0)
     unidades: Mapped[float] = mapped_column(CANTIDAD, default=0)
     creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppArchivo(Base):
+    """Fotos e informes retenidos por el servidor, con contenido inmutable."""
+    __tablename__ = 'app_archivos'
+    __table_args__ = (UniqueConstraint('recepcion', 'tipo', 'sha256', name='uq_app_archivo_contenido'),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    tipo: Mapped[str] = mapped_column(String(20))
+    nombre: Mapped[str] = mapped_column(String(200))
+    mime: Mapped[str] = mapped_column(String(80))
+    drive_id: Mapped[str | None] = mapped_column(String(128))
+    drive_url: Mapped[str | None] = mapped_column(String(300))
+    sha256: Mapped[str] = mapped_column(String(64))
+    bytes: Mapped[int] = mapped_column(Integer)
+    usuario: Mapped[str | None] = mapped_column(String(120))
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppConfig(Base):
+    """Preferencias operativas; nunca contiene credenciales del WMS."""
+    __tablename__ = 'app_config'
+    clave: Mapped[str] = mapped_column(String(40), primary_key=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA)
+    usuario: Mapped[str | None] = mapped_column(String(120))
+    modificado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppEntrega(Base):
+    """Instantanea de cierre y cola durable hacia Drive, Sheets y correo."""
+    __tablename__ = 'app_entregas'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    clave: Mapped[str] = mapped_column(String(64), unique=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    estado: Mapped[str] = mapped_column(String(20), default='PENDIENTE', index=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA)
+    resultado: Mapped[dict | None] = mapped_column(JSON_MAPA)
+    intentos: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(String(300))
+    usuario: Mapped[str] = mapped_column(String(120))
+    proximo_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)

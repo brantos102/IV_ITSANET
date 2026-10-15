@@ -1,5 +1,11 @@
 # Proxy de Depot en Apps Script
 
+Para el servidor MySQL, consultar [la guia local](../../docs/OPERACION_LOCAL.md).
+`Proxy.gs` corresponde a **Codigo.gs** y `Clientes.gs` a **Clientes.gs** en
+el proyecto existente. Agregar `Servidor.gs` para entregas HMAC desde el
+servidor; no requiere Firebase ni registra conteos en Sheets. La autenticacion
+Firebase anterior se conserva mientras se comprueba la retirada del hosting.
+
 Pieza de servidor para el plan Spark de Firebase, que no incluye Cloud Functions
 ni Cloud Storage.
 

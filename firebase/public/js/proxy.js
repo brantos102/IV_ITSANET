@@ -5,8 +5,9 @@
  * Script, que es quien guarda las credenciales de cada cliente. Este módulo
  * solo sabe pedirle cosas.
  */
-import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { doc, getDoc } from '../vendor/firebase-sdk.js';
 import { auth, db } from './auth.js';
+import * as local from './local.js';
 
 let urlProxy = null;
 
@@ -51,6 +52,7 @@ const MENSAJE_TIEMPO = {
 };
 
 export async function llamarProxy(accion, datos = {}, { timeoutMs = 120000 } = {}) {
+  if (local.modoLocal()) return local.proxyLocal(accion, datos);
   const url = await obtenerUrlProxy();
   const usuario = auth.currentUser;
   if (!usuario) throw new Error('No hay sesión iniciada.');

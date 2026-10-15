@@ -9,8 +9,9 @@
  * el operario. Lo que se ve en la tabla es lo mismo que está en Firestore.
  */
 import { collection, getDocs, query, orderBy, limit }
-  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+  from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
+import * as local from './local.js';
 import { aNumero, listarRecepciones } from './datos.js';
 
 /** Fecha de un campo de Firestore, venga como Timestamp o como texto. */
@@ -36,6 +37,13 @@ export async function recepcionesDesde(desde, hasta) {
 
 /** SKU y eventos de una recepción. Dos lecturas de colección. */
 export async function detalleDe(recepcionId) {
+  if (local.modoLocal()) {
+    const [skus, eventos] = await Promise.all([
+      local.leerColeccion(recepcionId, 'skus'), local.leerColeccion(recepcionId, 'eventos'),
+    ]);
+    eventos.sort((a, b) => (aFecha(a.creadoEn)?.getTime() || 0) - (aFecha(b.creadoEn)?.getTime() || 0));
+    return { skus, eventos };
+  }
   const [skus, eventos] = await Promise.all([
     getDocs(collection(db, 'recepciones', recepcionId, 'skus'))
       .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),

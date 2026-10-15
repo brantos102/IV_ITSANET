@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{% block titulo %}{{ APP_NAME }}{% endblock %}</title>
 <link rel="stylesheet" href="/static/app.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📦</text></svg>">
+<link rel="icon" type="image/png" href="/app/icono.png">
 </head>
 <body>
 {% if operador %}
 <header>
-  <span class="marca">📦 {{ APP_NAME }}</span>
+  <span class="marca"><img src="/app/logo-itsa.png" alt="ITSA" style="width:120px;vertical-align:middle"> IMS</span>
   <nav>
     <a href="/" class="{{ 'on' if activo == 'recepciones' }}">Recepciones</a>
     <a href="/kpi" class="{{ 'on' if activo == 'kpi' }}">Indicadores</a>

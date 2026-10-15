@@ -4,9 +4,14 @@
   "description": "Validación física de recepciones — Itsanet",
   "private": true,
   "scripts": {
-    "test": "node pruebas.js"
+    "test": "node pruebas.js",
+    "build:frontend": "node scripts/preparar_frontend.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
+    "firebase": "10.14.1",
+    "jspdf": "3.0.4",
+    "jspdf-autotable": "5.0.2",
     "xlsx": "^0.18.5"
   }
 }

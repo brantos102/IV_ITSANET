@@ -5,6 +5,8 @@ Arranque:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 from __future__ import annotations
 
 import logging
+import asyncio
+from contextlib import suppress
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -35,7 +37,14 @@ async def lifespan(_app: FastAPI):
             db.commit()
             log.warning("Usuario inicial creado: admin / PIN 1234 -- CAMBIELO.")
     log.info("%s v%s iniciado", APP_NAME, APP_VERSION)
-    yield
+    from app.services.entregas import trabajador
+    tarea = asyncio.create_task(trabajador())
+    try:
+        yield
+    finally:
+        tarea.cancel()
+        with suppress(asyncio.CancelledError):
+            await tarea
 
 
 app = FastAPI(
@@ -53,10 +62,8 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), na
 # packing list, los duplicados, los CSV para Depot. Ocho mil líneas que ya
 # funcionan y que NO se reescriben.
 #
-# Hoy sus datos siguen viniendo de Firestore, así que el handheld necesita
-# internet igual que ahora. Lo que cambia es que se sirve desde la red local y
-# bajo una sola dirección: la misma que seguirá valiendo cuando la capa de datos
-# pase a hablar con este servidor. Los operarios no verán el cambio.
+# Bajo /app/ la sesion, los conteos, informes y evidencias usan el servidor.
+# Google solo interviene en la copia y entrega posterior al ejecutivo.
 _APP_OPERARIOS = BASE_DIR / "firebase" / "public"
 if _APP_OPERARIOS.is_dir():
     app.mount("/app", StaticFiles(directory=str(_APP_OPERARIOS), html=True), name="operarios")

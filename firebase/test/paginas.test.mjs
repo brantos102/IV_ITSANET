@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chk-'));
 let fallos = 0, revisiones = 0;
@@ -51,6 +51,11 @@ for (const f of fs.readdirSync(path.join(RAIZ, 'js'))) {
   exportados['./' + f] = nombres;
   exportados['/js/' + f] = nombres;
 }
+
+// Comprobar los exports reales del SDK retenido, sin invocar sus servicios.
+const sdkLocal = path.join(RAIZ, 'vendor/firebase-sdk.js');
+sintaxis('vendor/firebase-sdk.js', fs.readFileSync(sdkLocal, 'utf8'));
+exportados['../vendor/firebase-sdk.js'] = new Set(Object.keys(await import(pathToFileURL(sdkLocal).href)));
 
 /**
  * Usar algo de un módulo sin importarlo.

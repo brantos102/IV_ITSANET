@@ -5,19 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET IMS</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./css/app.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="./vendor/xlsx.full.min.js" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icono.svg">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📷</text></svg>">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
 </head>
 <body>
 <div class="envoltorio">
 
 <header>
   <div>
-    <div class="marca">ITSANET <span>IMS</span></div>
+    <div class="marca"><img class="logo-empresa" src="./logo-itsa.png" alt="ITSA"><span>IMS</span></div>
     <div class="sub" id="lblRecepcion">—</div>
     <div class="mini" id="lblListas"></div>
   </div>
@@ -251,6 +250,8 @@
 </div>
 
 <script type="module">
+import { finalizarConEntrega } from './js/local.js';
+
 import { observarSesion } from './js/auth.js';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
@@ -273,6 +274,7 @@ import {
   leerFormatos, csvDeCantidades, csvDeProductos, plantilla, descargarCsv,
 } from './js/csv.js';
 import { Proxy } from './js/proxy.js';
+import { modoLocal } from './js/local.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -631,7 +633,7 @@ async function escanear(codigo) {
 
   // Si el catálogo no lo conoce, se pregunta al WMS en vivo. Es la consulta
   // lenta (≈1-3 s), así que solo ocurre cuando el precalentado no alcanzó.
-  if (!producto) {
+  if (!producto && !modoLocal()) {
     const d = aviso('Consultando Depot…', 'info');
     try {
       const r = await Proxy.producto(c);
@@ -1520,12 +1522,14 @@ $('bCerrar').addEventListener('click', async () => {
   const destinatarios = await pedirTexto({
     titulo: '¿A quién se le envía?',
     texto: 'Se manda el informe adjunto con el resumen y las fotos de novedades. '
-         + 'Déjalo vacío para solo descargarlo.',
+         + 'Déjalo vacío para guardar en Drive sin enviar correo.',
     etiqueta: 'Correos, separados por coma',
     valor: usuario.email,
     aceptar: 'Cerrar y enviar',
   });
   if (destinatarios === null) return;
+
+  const exportarSheet = modoLocal() && await confirmar({ titulo: '¿Crear también una copia en Google Sheets?', texto: 'Es opcional para presentar esta recepción. Los datos oficiales permanecen en MySQL.', aceptar: 'Crear copia en Sheets', cancelar: 'Continuar sin Sheets' });
 
   limpiarAvisos();
   $('bCerrar').disabled = true;
@@ -1541,6 +1545,30 @@ $('bCerrar').addEventListener('click', async () => {
     const filas = libros.reduce((a, l) => a + l.filas, 0);
     const destino = destinoEnDrive(recepcion);
     d.remove();
+
+    if (modoLocal()) {
+      d = aviso('Guardando informes y preparando la entrega al ejecutivo…', 'info');
+      const entrega = await finalizarConEntrega(RECEPCION, {
+        destinatarios: destinatarios.trim(), ...destino,
+        eventos: datos.eventos.map((e) => e.id), exportarSheet,
+        duracion: duracionDe(recepcion),
+        adjuntos: libros.map((l) => ({ base64: l.base64, nombre: l.nombre })),
+        resumen: {
+          unidadesEsperadas: r.unidadesEsperadas, unidadesFisicas: r.unidadesFisicas,
+          exactitud: r.exactitud, ok: r.ok, faltante: r.faltante,
+          sobrante: r.sobrante, adicionales: datos.adicionales.length, discrepancias: r.discrepancias,
+        },
+      });
+      recepcion.estado = 'CERRADA';
+      aplicarEstado();
+      libros.forEach(descargarLibro);
+      d.remove();
+      aviso('Recepción cerrada. Informes y fotos guardados en el servidor. ' +
+        'La copia a Drive' + (destinatarios.trim() ? ' y el correo' : '') +
+        ' quedan pendientes de confirmación. Consulta su estado en Administración → Entregas. ' +
+        (entrega.mensaje || ''), 'warn', 'Entrega pendiente');
+      return;
+    }
 
     await cerrarRecepcion(RECEPCION);
     recepcion.estado = 'CERRADA';
@@ -1579,16 +1607,17 @@ $('bCerrar').addEventListener('click', async () => {
         });
         guardados.push(g.nombre);
         registrarAuditoria(RECEPCION, usuario, 'EXPORTACION',
-          { destino: 'DRIVE', archivo: g.nombre, enlace: g.enlace || null }).catch(() => {});
+          { destino: modoLocal() ? 'SERVIDOR' : 'DRIVE', archivo: g.nombre, enlace: g.enlace || null }).catch(() => {});
       }
-      aviso(`En Drive, carpeta ${destino.carpetaRecepcion}: ${guardados.join(', ')}. `
-          + 'Las fotos están en su subcarpeta «imagenes».', 'ok', 'Copia guardada');
+      aviso(modoLocal()
+        ? `Copia guardada en el servidor de bodega: ${guardados.join(', ')}.`
+        : `En Drive, carpeta ${destino.carpetaRecepcion}: ${guardados.join(', ')}. Las fotos están en su subcarpeta «imagenes».`,
+        'ok', 'Copia guardada');
     } catch (e) {
       // El detalle del proxy puede ser una URL larga de Google: no le dice nada
       // a quien está cerrando una recepción, y tapa lo único que importa.
-      aviso('El informe se descargó en este equipo y se envió por correo, pero no ' +
-            'se pudo guardar la copia en Drive. La recepción sí quedó cerrada.',
-            'warn', 'Copia en Drive pendiente');
+      aviso('El informe se descargó en este equipo, pero no se pudo archivar la copia. La recepción sí quedó cerrada. Conserva el archivo descargado.',
+            'warn', 'Copia pendiente');
       console.warn('guardarInforme:', e);
     }
 

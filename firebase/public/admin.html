@@ -5,10 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET IMS</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icono.svg">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🔑</text></svg>">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
 <style>
   :root {
     --primary:#0f172a; --secondary:#64748b; --accent:#2563eb;
@@ -96,13 +95,14 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
+<link rel="stylesheet" href="./css/marca.css">
 </head>
 <body>
 <div class="envoltorio">
 
 <header>
   <div>
-    <div class="marca">ITSANET <span>IMS</span></div>
+    <div class="marca"><img class="logo-empresa" src="./logo-itsa.png" alt="ITSA"><span>IMS</span></div>
     <div class="sub">Administración</div>
   </div>
   <div class="sp"></div>
@@ -121,9 +121,22 @@
 
 <!-- Panel principal -->
 <div id="panelAdmin" class="oculto">
+  <div class="panel oculto" id="panelLocal">
+    <h2>Servidor de bodega</h2>
+    <h3>Entregas al ejecutivo</h3>
+    <p id="estadoPuente"></p>
+    <button class="b-sec" id="bEntregas">Actualizar entregas</button>
+    <div id="entregasLocales"></div>
+    <p id="estadoLocal">Comprobando la base de datos…</p>
+    <p>El maestro local permite validar aunque Depot no responda. Las credenciales
+       de conexión en vivo las administra el responsable del servidor.</p>
+    <label class="campo"><span>Maestro de productos (.xlsx)</span>
+      <input id="fMaestroLocal" type="file" accept=".xlsx,.xlsm"></label>
+    <button class="b-primario" id="bMaestroLocal">Cargar maestro local</button>
+  </div>
 
   <!-- Diagnóstico del proxy: sin esto, todo lo demás falla igual -->
-  <div class="panel" style="border:2px solid var(--accent)">
+  <div class="panel" id="panelProxy" style="border:2px solid var(--accent)">
     <h2>Conexión con el proxy</h2>
     <p>Todo lo de esta página pasa por el Apps Script. Si no responde, ni las
        credenciales ni la prueba de Depot pueden funcionar.</p>
@@ -143,7 +156,7 @@
     <div id="resProxy"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="panelClientes">
     <h2>Credenciales por cliente</h2>
     <p>Cada cliente tiene su propio usuario y contraseña en Depot, y su propio
        token. Un packing list puede necesitar varios a la vez: la app consulta
@@ -167,7 +180,7 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="panelClienteForm">
     <h2 id="tituloForm">Agregar cliente</h2>
     <p>El identificador es el nombre corto con el que la app se refiere al
        cliente. Una vez creado no se cambia.</p>
@@ -205,7 +218,7 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="panelPruebaCliente">
     <h2>Probar la conexión</h2>
     <p>Prueba <code>gettoken</code> y <code>getstock</code> por separado, para
        saber cuál de los dos falla. Imprime además los nombres de campo reales
@@ -245,7 +258,7 @@
     <div id="resCsv"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="panelMigracion">
     <h2>Llevar el histórico al servidor local</h2>
     <p>Descarga en un archivo todo lo validado hasta ahora —recepciones, líneas,
        conteos y auditoría— para importarlo en la base MySQL del servidor de la
@@ -268,13 +281,14 @@
 <script type="module">
 import { observarSesion, traducirError, db } from './js/auth.js';
 import { Proxy, obtenerUrlProxy } from './js/proxy.js';
+import { modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js';
 import { confirmar } from './js/modal.js';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv,
 } from './js/csv.js';
 import { reunirTodo, contar, descargarJson } from './js/exportar.js';
 import { doc, getDoc, setDoc }
-  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+  from './vendor/firebase-sdk.js';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -317,9 +331,61 @@ observarSesion(({ usuario, perfil, error }) => {
   }
   $('sinPermiso').classList.add('oculto');
   $('panelAdmin').classList.remove('oculto');
-  cargarUrlProxy();
-  cargar();
+  if (modoLocal()) {
+    for (const id of ['panelProxy', 'panelClientes', 'panelClienteForm', 'panelPruebaCliente', 'panelMigracion']) $(id).classList.add('oculto');
+    $('panelLocal').classList.remove('oculto');
+    actualizarEstadoLocal();
+  } else {
+    cargarUrlProxy();
+    cargar();
+  }
   cargarFormatosCsv();
+});
+
+async function actualizarEstadoLocal() {
+  try {
+    const e = await estadoServidor();
+    $('estadoPuente').textContent = e.correo_configurado ? 'Puente con Google configurado. Cada entrega confirma su resultado por separado.' : 'Falta configurar el puente con Google. Las entregas permanecen guardadas y pendientes.';
+    await pintarEntregasLocales();
+    $('estadoLocal').textContent = `${e.motor.toUpperCase()} · ${e.productos} productos · ${e.recepciones} recepciones · ${e.archivos} archivos guardados`;
+  } catch (e) { aviso(e.message, 'err'); }
+}
+async function pintarEntregasLocales() {
+  const contenedor = $('entregasLocales');
+  contenedor.replaceChildren();
+  for (const e of await entregasServidor()) {
+    const fila = document.createElement('p');
+    fila.textContent = `${e.recepcion} · ${e.estado} · ${e.destinatarios || 'Sin correo'} · ${e.mensaje || ''} `;
+    for (const [campo, etiqueta] of [['carpeta', 'Drive'], ['sheet', 'Sheets']]) {
+      const url = e.resultado?.[campo];
+      if (url && /^https:\/\/(drive|docs)\.google\.com\//.test(url)) {
+        const a = document.createElement('a'); a.href = url; a.textContent = ` ${etiqueta} `;
+        a.target = '_blank'; a.rel = 'noopener'; fila.append(a);
+      }
+    }
+    if (e.estado === 'PENDIENTE') {
+      const b = document.createElement('button'); b.className = 'b-sec'; b.textContent = 'Reintentar';
+      b.onclick = async () => { b.disabled = true; try { await reintentarEntrega(e.id); await pintarEntregasLocales(); }
+        catch (err) { aviso(err.message, 'err'); b.disabled = false; } };
+      fila.append(b);
+    }
+    contenedor.append(fila);
+  }
+}
+$('bEntregas').addEventListener('click', () => actualizarEstadoLocal());
+$('bMaestroLocal').addEventListener('click', async () => {
+  const archivo = $('fMaestroLocal').files[0];
+  if (!archivo) return aviso('Selecciona el archivo del maestro.', 'warn');
+  $('bMaestroLocal').disabled = true;
+  try {
+    const datos = new FormData(); datos.append('archivo', archivo);
+    const res = await fetch('/api/catalogo/maestro', { method: 'POST', body: datos, credentials: 'same-origin' });
+    const r = await res.json();
+    if (!res.ok) throw new Error(typeof r.detail === 'string' ? r.detail : 'No se pudo cargar el maestro');
+    aviso(`Maestro actualizado: ${r.total_en_cache} productos.`, 'ok');
+    await actualizarEstadoLocal();
+  } catch (e) { aviso(e.message, 'err'); }
+  finally { $('bMaestroLocal').disabled = false; }
 });
 
 // --- Formatos CSV --------------------------------------------------------- //

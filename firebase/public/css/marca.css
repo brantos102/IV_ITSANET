@@ -1,0 +1,4 @@
+.marca { display:flex; align-items:center; gap:8px; }
+.logo-empresa { display:block; width:140px; height:auto; max-width:40vw; object-fit:contain; }
+.marca > span { font-size:14px; letter-spacing:.06em; }
+@media(max-width:480px) { .logo-empresa { width:112px; } }

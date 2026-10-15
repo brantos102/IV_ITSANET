@@ -10,7 +10,7 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js';
 import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js';
 import { db } from './auth.js';
 import * as local from './local.js';
@@ -63,8 +63,10 @@ export async function reunirInforme(recepcionId, recepcion) {
     leerColeccion(recepcionId, 'lineas'),
     leerColeccion(recepcionId, 'skus'),
     leerColeccion(recepcionId, 'adicionales'),
-    getDocs(query(collection(db, 'recepciones', recepcionId, 'eventos'), orderBy('creadoEn', 'asc')))
-      .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    leerColeccion(recepcionId, 'eventos').then((eventos) => {
+      const ms = (v) => v?.toMillis ? v.toMillis() : (new Date(v || 0).getTime() || 0);
+      return eventos.sort((a, b) => ms(a.creadoEn) - ms(b.creadoEn));
+    }),
     leerColeccion(recepcionId, 'auditoria').catch(() => []),
   ]);
 

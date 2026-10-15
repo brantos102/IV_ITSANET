@@ -8,7 +8,7 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+} from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
 import { resumenDe, comparar, nombreLimpio } from './huella.js';
 import * as local from './local.js';
@@ -195,9 +195,15 @@ function mapearEncabezado(fila) {
   fila.forEach((celda, i) => {
     const k = clave(celda);
     if (!k || COLUMNAS_RESULTADO.has(k)) return;
-    const campo = ALIAS[k] || ALIAS[k.replace(/\s/g, '')];
+    const campo = ALIAS[k] || ALIAS[k.replace(/\./g, '')] || ALIAS[k.replace(/\s/g, '')];
     if (campo) mapa[i] = campo;
   });
+  // ITEM a veces es solo el numero de fila. Si existe un codigo explicito,
+  // ese identifica el producto y ITEM se conserva como columna original.
+  const explicita = Object.keys(mapa).some((i) => mapa[i] === 'sku' && clave(fila[i]) !== 'ITEM');
+  if (explicita) for (const i of Object.keys(mapa)) {
+    if (mapa[i] === 'sku' && clave(fila[i]) === 'ITEM') delete mapa[i];
+  }
   return mapa;
 }
 

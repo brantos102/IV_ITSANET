@@ -70,3 +70,8 @@ PALLET_SEPARADOR = os.getenv("VAL_PALLET_SEPARADOR", " / ")
 
 APP_NAME = "ITSANET IMS"
 APP_VERSION = "1.0.0"
+
+
+# Puente de entrega: secretos exclusivamente en /etc/iv-itsanet.env.
+VAL_GOOGLE_PROXY_URL = os.getenv('VAL_GOOGLE_PROXY_URL', '')
+VAL_GOOGLE_PROXY_SECRET = os.getenv('VAL_GOOGLE_PROXY_SECRET', '')

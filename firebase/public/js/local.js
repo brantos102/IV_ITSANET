@@ -33,6 +33,9 @@ const CLAVE_MODO = 'itsanet.modo';
  * hace falta durante la transición.
  */
 export function modoLocal() {
+  // La ruta operativa siempre escribe en el servidor, incluso si quedo una
+  // preferencia antigua de pruebas en el navegador.
+  if (typeof location !== 'undefined' && String(location.pathname || '').startsWith('/app/')) return true;
   try {
     const forzado = localStorage.getItem(CLAVE_MODO);
     if (forzado === 'local') return true;
@@ -200,8 +203,10 @@ export const leerBitacora = (recepcionId, max = 60) =>
 // ========================================================================== //
 // Catálogo
 // ========================================================================== //
-export const buscarEnCatalogo = (codigo) =>
-  pedir(`/catalogo/${encodeURIComponent(codigo)}`);
+export const buscarEnCatalogo = async (codigo) => {
+  const producto = await pedir(`/catalogo/${encodeURIComponent(codigo)}`);
+  return producto.existe ? producto : null;
+};
 
 // ========================================================================== //
 // Lo que en Firestore daba la base y aquí hay que preguntar
@@ -388,3 +393,24 @@ export async function salir() {
 /** Cambiar la propia contraseña. Hace falta la actual, también aquí. */
 export const cambiarClave = (claveActual, claveNueva) =>
   pedir('/clave', { base: BASE_SESION, cuerpo: { actual: claveActual, nueva: claveNueva } });
+
+/** Archivos y preferencias de la instalacion local. */
+export const estadoServidor = () => pedir('/estado');
+export const leerFormatosCsv = () => pedir('/config/csv');
+export const guardarFormatosCsv = (formatos) => pedir('/config/csv', { metodo: 'PUT', cuerpo: { formatos } });
+export async function proxyLocal(accion, datos = {}) {
+  if (accion === 'producto') return { exito: true, producto: await buscarEnCatalogo(datos.codigo) };
+  if (accion === 'subirFoto' || accion === 'guardarInforme') {
+    const tipo = accion === 'subirFoto' ? 'foto' : 'informe';
+    const r = await pedir(`/recepciones/${encodeURIComponent(datos.recepcion)}/archivos/${tipo}`, { cuerpo: datos });
+    const origen = typeof location !== 'undefined' ? location.origin : null;
+    if (origen) { r.url = new URL(r.url, origen).href; r.enlace = r.url; }
+    return r;
+  }
+  throw new ErrorServidor('Esta opcion requiere configuracion adicional del servidor. El conteo y los archivos locales siguen disponibles.', 'NO_CONFIGURADO');
+}
+
+
+export const entregasServidor = () => pedir('/entregas');
+export const reintentarEntrega = (id) => pedir(`/entregas/${encodeURIComponent(id)}/reintentar`, { cuerpo: {} });
+export const finalizarConEntrega = (codigo, datos) => pedir(`/recepciones/${encodeURIComponent(codigo)}/entrega`, { cuerpo: datos });

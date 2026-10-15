@@ -15,6 +15,7 @@ const RAIZ = __dirname;
 const SUITES = [
   ['Apps Script — lógica de la app anterior', 'apps-script/test/run-tests.js'],
   ['Apps Script — credenciales y token por cliente', 'apps-script/test/clientes.test.js'],
+  ['Apps Script — puente autenticado del servidor', 'apps-script/test/servidor.test.js'],
   ['Apps Script — contrato de Depot', 'apps-script/test/proxy.test.js'],
   ['Navegador — acceso, normalización e informe', 'firebase/test/app.test.mjs'],
   ['Usuarios — registro y aprobación en nube y servidor', 'firebase/test/usuarios.test.mjs'],
