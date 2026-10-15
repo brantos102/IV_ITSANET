@@ -85,6 +85,26 @@ await test('una contraseña mal puesta se distingue de una sesión caducada', as
   galleta = guardada;
 });
 
+await test('solicitud pendiente, aprobacion por supervisor y acceso por correo', async () => {
+  const r = await local.registrarse({ nombre: 'Ana', apellido: 'Torres', usuario: 'ana',
+    correo: 'ana@itsanet.com', clave: 'prueba123' });
+  eq(r.activo, false);
+  const sesionSupervisor = galleta;
+  galleta = '';
+  let codigo;
+  try { await local.entrarConClave('ana@itsanet.com', 'prueba123'); }
+  catch (e) { codigo = e.codigo; }
+  eq(codigo, 'PENDIENTE_APROBACION');
+  galleta = sesionSupervisor;
+  const fila = (await local.listarUsuarios()).find((u) => u.usuario === 'ana');
+  eq(fila.email, 'ana@itsanet.com');
+  await local.actualizarUsuario(fila, { activo: true });
+  await local.entrarConClave(' ANA@ITSANET.COM ', 'prueba123');
+  eq((await local.sesionLocal()).usuario, 'ana');
+  await local.salir();
+  await local.entrarConClave(USUARIO, CLAVE);
+});
+
 await test('se crea una recepción y se lee por su código', async () => {
   eq(await local.crearRecepcion({ codigo: REC, cliente: 'VENTURA' }), REC);
   const doc = await local.obtenerRecepcion(REC);

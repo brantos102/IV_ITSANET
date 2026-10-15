@@ -7,6 +7,9 @@ pase a hablar con este servidor en vez de con Firestore.
 """
 from __future__ import annotations
 
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlsplit
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -47,3 +50,27 @@ def test_no_estorba_a_la_aplicacion_del_servidor():
     c = TestClient(app)
     assert c.get("/login").status_code == 200
     assert c.get("/api/catalogo/estado").status_code in (200, 401, 403)
+
+
+@sin_app
+@pytest.mark.parametrize("pagina", ["index.html", "usuarios.html", "recepciones.html", "validar.html"])
+def test_los_enlaces_y_recursos_conservan_el_destino_local(pagina):
+    class Enlaces(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.rutas = []
+
+        def handle_starttag(self, tag, atributos):
+            for nombre, valor in atributos:
+                if nombre in ("href", "src") and valor and not urlsplit(valor).scheme:
+                    self.rutas.append(valor)
+
+    c = TestClient(app)
+    base = f"/app/{pagina}"
+    enlaces = Enlaces()
+    enlaces.feed(c.get(base).text)
+    assert enlaces.rutas
+    for referencia in enlaces.rutas:
+        ruta = urljoin(base, referencia)
+        assert ruta.startswith("/app/"), (pagina, referencia)
+        assert c.get(ruta).status_code == 200, (pagina, ruta)

@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#2563eb">
 <title>KPIs — ITSANET IMS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="./css/app.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" defer></script>
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📊</text></svg>">
 <style>
   .filtros { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
@@ -43,7 +43,7 @@
   </div>
   <div class="sp"></div>
   <div class="usuario" id="uUsuario"></div>
-  <a href="/"><button class="b-sec">Inicio</button></a>
+  <a href="./"><button class="b-sec">Inicio</button></a>
 </header>
 
 <div id="avisos"></div>
@@ -150,7 +150,7 @@ conectarGlosario('bGlosario', 'glosario', [
 
 observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
-  if (!e.usuario) { location.href = '/'; return; }
+  if (!e.usuario) { location.href = './'; return; }
   usuario = e.usuario; perfil = e.perfil;
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
@@ -321,7 +321,7 @@ function pRecepciones() {
       <td class="num">${r.exactitud}%</td>
       <td class="num">${num(r.unidadesHora)}</td>
       <td class="num">${num(r.operarios)}</td>
-      <td><a href="/validar.html?r=${encodeURIComponent(r.id)}">
+      <td><a href="./validar.html?r=${encodeURIComponent(r.id)}">
         <button class="b-sec">Ver</button></a></td>
     </tr>`).join('');
 
@@ -629,7 +629,7 @@ $('bPdf').addEventListener('click', () => {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 </script>
 </body>

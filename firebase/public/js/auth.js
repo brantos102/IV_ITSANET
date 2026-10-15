@@ -12,7 +12,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   initializeFirestore, doc, getDoc, setDoc, serverTimestamp,
-  persistentLocalCache, persistentMultipleTabManager,
+  persistentLocalCache, persistentMultipleTabManager, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js';
@@ -198,6 +198,7 @@ async function entraConGoogle(entrada, correo) {
  * puerta a nadie. Hasta que lo activen, la cuenta existe pero no ve ni un dato.
  */
 export async function registrarse({ nombre, apellido, usuario, correo, clave }) {
+  if (modoLocal()) return local.registrarse({ nombre, apellido, usuario, correo, clave });
   const alias = normalizarAlias(usuario);
   const email = String(correo || '').trim().toLowerCase();
   const nom = limpiarNombre(nombre);
@@ -217,27 +218,29 @@ export async function registrarse({ nombre, apellido, usuario, correo, clave }) 
     throw new Error(`El usuario «${alias}» ya está tomado. Prueba con otro.`);
   }
 
-  const cred = await createUserWithEmailAndPassword(auth, email, clave);
-  const completo = `${nom} ${ape}`;
-  await updateProfile(cred.user, { displayName: completo });
-
-  // El perfil y el alias se escriben con la sesión recién creada, que es la
-  // única que las reglas permiten para su propio documento.
-  await setDoc(doc(db, 'usuarios', cred.user.uid), {
-    uid: cred.user.uid,
-    email,
-    usuario: alias,
-    nombre: completo,
-    foto: null,
-    rol: 'OPERADOR',
-    activo: false,
-    tipoAcceso: 'CLAVE',
-    creadoEn: serverTimestamp(),
-  });
-  await setDoc(doc(db, 'alias', alias), { email, uid: cred.user.uid });
-
-  await signOut(auth);
-  return { usuario: alias, email, nombre: completo };
+  // Una sesion separada evita que observarSesion() intente completar la
+  // ficha y cerrar la sesion ANTES de que termine este registro.
+  const appRegistro = initializeApp(firebaseConfig, 'registro-' + Date.now());
+  const authRegistro = getAuth(appRegistro);
+  const dbRegistro = initializeFirestore(appRegistro, {}, DATABASE_ID);
+  try {
+    const cred = await createUserWithEmailAndPassword(authRegistro, email, clave);
+    const completo = `${nom} ${ape}`;
+    await updateProfile(cred.user, { displayName: completo });
+    // Ficha y alias se confirman juntos. Si otro registro toma el alias,
+    // las reglas rechazan el lote entero: nunca se le entrega otra identidad.
+    const lote = writeBatch(dbRegistro);
+    lote.set(doc(dbRegistro, 'usuarios', cred.user.uid), {
+      uid: cred.user.uid, email, usuario: alias, nombre: completo, foto: null,
+      rol: 'OPERADOR', activo: false, tipoAcceso: 'CLAVE',
+      creadoEn: serverTimestamp(),
+    });
+    lote.set(doc(dbRegistro, 'alias', alias), { email, uid: cred.user.uid, tipoAcceso: 'CLAVE' });
+    await lote.commit();
+    return { usuario: alias, email, nombre: completo };
+  } finally {
+    try { await signOut(authRegistro); } finally { await deleteApp(appRegistro); }
+  }
 }
 
 /**
@@ -250,6 +253,7 @@ export async function registrarse({ nombre, apellido, usuario, correo, clave }) 
  * instancia. La sesión del administrador ni se entera.
  */
 export async function crearOperario({ usuario, correo, clave, nombre, rol = 'OPERADOR' }) {
+  if (modoLocal()) return local.crearOperario({ usuario, correo, clave, nombre, rol });
   const alias = normalizarAlias(usuario);
   const email = String(correo || '').trim().toLowerCase();
   if (alias.length < 3) {
@@ -573,7 +577,7 @@ export function observarSesion(alCambiar, { pedirUsuario } = {}) {
         await salir();
         return alCambiar({
           usuario: null, perfil: null,
-          error: 'Tu cuenta todavía no está activada. Un administrador tiene que ' +
+          error: 'Tu cuenta todavía no está activada. Un supervisor tiene que ' +
                  'aprobarla; en cuanto lo haga, entras con el mismo usuario y contraseña.',
         });
       }
@@ -615,7 +619,7 @@ export function traducirError(e) {
     'auth/too-many-requests':
       'Demasiados intentos fallidos. Espera unos minutos o pide que te cambien la contraseña.',
     'auth/email-already-in-use':
-      'Ya existe un usuario con ese correo.',
+      'Ese correo ya tiene cuenta. Entra con el correo y tu contraseña; si faltaba la ficha, se creará pendiente de aprobación.',
     'auth/weak-password':
       'La contraseña es demasiado corta: mínimo 6 caracteres.',
     'auth/requires-recent-login':

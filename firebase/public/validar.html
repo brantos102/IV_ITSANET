@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET IMS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="./css/app.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📷</text></svg>">
 </head>
 <body>
@@ -23,7 +23,7 @@
   </div>
   <div class="sp"></div>
   <div class="usuario" id="uUsuario"></div>
-  <a href="/recepciones.html"><button class="b-sec">Recepciones</button></a>
+  <a href="./recepciones.html"><button class="b-sec">Recepciones</button></a>
 </header>
 
 <!-- Avance -->
@@ -45,7 +45,7 @@
   <h3 style="margin:0 0 4px">¿Qué recepción vas a validar?</h3>
   <p class="mini" style="margin:0 0 14px">
     Escribe el código o parte de él. También puedes verlas todas en
-    <a href="/recepciones.html">Recepciones</a>.</p>
+    <a href="./recepciones.html">Recepciones</a>.</p>
   <label class="campo">
     <span>Código de la recepción</span>
     <input id="inElegir" class="escaner" autocomplete="off"
@@ -342,7 +342,7 @@ async function elegirRecepcion() {
   }
   if (!todas.length) {
     caja.innerHTML = '<p class="mini">No hay recepciones abiertas. '
-      + 'Crea una en <a href="/recepciones.html">Recepciones</a>.</p>';
+      + 'Crea una en <a href="./recepciones.html">Recepciones</a>.</p>';
     return;
   }
 
@@ -350,7 +350,7 @@ async function elegirRecepcion() {
     const cerca = parecidos($('inElegir').value, todas, { max: 12, clave: (r) => r.codigo });
     caja.innerHTML = cerca.length
       ? `<table class="tabla"><tbody>${cerca.map((r) => `
-          <tr><td><a href="/validar.html?r=${encodeURIComponent(r.id)}"><b>${esc(r.codigo)}</b></a>
+          <tr><td><a href="./validar.html?r=${encodeURIComponent(r.id)}"><b>${esc(r.codigo)}</b></a>
               <div class="mini">${esc(r.cliente || '')} ${esc(r.descripcion || '')}</div></td>
               <td><span class="pastilla ${{ ABIERTA: 'p-warn', EN_VALIDACION: 'p-ok' }[r.estado] || 'p-off'}">${
                 esc({ ABIERTA: 'Sin empezar', EN_VALIDACION: 'En validación' }[r.estado] || r.estado || '')
@@ -366,7 +366,7 @@ async function elegirRecepcion() {
 // --- Arranque ------------------------------------------------------------- //
 observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
-  if (!e.usuario) { location.href = '/'; return; }
+  if (!e.usuario) { location.href = './'; return; }
   usuario = e.usuario; perfil = e.perfil;
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
@@ -1634,7 +1634,7 @@ function duracionDe(rec) {
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del
 // módulo para que un fallo aquí nunca impida que la página cargue.
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 </script>
 </body>

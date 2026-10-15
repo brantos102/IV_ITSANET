@@ -28,8 +28,8 @@ En el acceso, dos cosas:
 
 - **No hay botón de Google.** Entrar con Google necesita Internet, que es justo
   de lo que el servidor nos libera. Se entra con usuario y contraseña.
-- **No hay registro abierto.** Contra el servidor, a los operarios los da de
-  alta un supervisor.
+- **El registro queda pendiente.** El operario puede solicitar su cuenta; un
+  supervisor la aprueba desde Usuarios antes de que pueda acceder a los datos.
 
 Y una que se nota en el reloj: lo que varios operarios cuentan en la misma
 recepción tarda unos segundos en aparecer en la pantalla de los demás. Firestore
@@ -55,25 +55,18 @@ Y una quinta que el modelo nuevo permite afirmar: el total de un SKU existe por
 velocidad, pero la verdad son los eventos. `recalcular_sku` lo rearma desde el
 libro mayor y una prueba comprueba que no discrepaban.
 
-## Dar de alta a los operarios en el servidor
+## Registro y aprobacion en el servidor
 
-```bash
-cd ~/bryan/IV_ITSANET
-set -a && . /etc/iv-itsanet.env && set +a
-.venv/bin/python scripts/crear_operador.py dochoa "Danny Ochoa" 482133 \
-  --email dochoa@itsanet.com
-.venv/bin/python scripts/crear_operador.py bespinoza "Bryan Espinoza" 918244 --rol ADMIN
-```
+Abrir `/app/`, elegir Registrarse y enviar la solicitud. Un supervisor entra en
+`/app/usuarios.html` y pulsa Aprobar. La cuenta ya puede entrar con su usuario
+ o con el correo que tenga guardado. El alta directa desde Usuarios equivale a
+la aprobacion del supervisor. Solo un ADMIN asigna otros roles.
 
-O importando lo que ya hay en Firestore:
-
-```bash
-.venv/bin/python scripts/importar_firestore.py --ensayo   # mira, no escribe
-.venv/bin/python scripts/importar_firestore.py
-```
-
-Las contraseñas de Firebase **no se pueden exportar**: son hashes de Google. A
-quien se importe hay que darle una contraseña nueva, y la cambia al entrar.
+Para actualizar instalaciones anteriores al correo y desplegar los mismos
+cambios en Firebase, seguir [ACTUALIZAR_USUARIOS.md](ACTUALIZAR_USUARIOS.md).
+systemd carga `/etc/iv-itsanet.env`; no se debe intentar leerlo desde la terminal
+normal ni cambiar sus permisos. El historico ya migrado no se vuelve a importar
+para actualizar los accesos.
 
 ## Comprobar que las dos mitades hablan el mismo idioma
 

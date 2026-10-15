@@ -17,6 +17,8 @@ const SUITES = [
   ['Apps Script — credenciales y token por cliente', 'apps-script/test/clientes.test.js'],
   ['Apps Script — contrato de Depot', 'apps-script/test/proxy.test.js'],
   ['Navegador — acceso, normalización e informe', 'firebase/test/app.test.mjs'],
+  ['Usuarios — registro y aprobación en nube y servidor', 'firebase/test/usuarios.test.mjs'],
+  ['Usuarios — permisos de aprobación', 'firebase/test/reglas.test.mjs'],
   ['Navegador — páginas: sintaxis, imports y referencias', 'firebase/test/paginas.test.mjs'],
   ['Formato — el informe devuelve el packing list igual', 'firebase/test/formato.test.mjs'],
   ['Referencia — motor de conteo', 'firebase/functions/test/conteo.test.js'],

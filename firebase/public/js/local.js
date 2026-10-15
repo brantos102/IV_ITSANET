@@ -79,6 +79,11 @@ export async function pedir(ruta, opciones = {}) {
     );
   }
 
+  let cuerpo = null;
+  try { cuerpo = await r.json(); } catch { /* 204 o respuesta vacia */ }
+  if (!r.ok && cuerpo?.detail && typeof cuerpo.detail === 'object' && cuerpo.detail.codigo) {
+    throw new ErrorServidor(cuerpo.detail.mensaje || 'Error del servidor', cuerpo.detail.codigo, r.status);
+  }
   if (r.status === 401 || r.status === 403) {
     throw new ErrorServidor(
       r.status === 401 ? 'Tu sesión caducó: vuelve a entrar.'
@@ -87,8 +92,6 @@ export async function pedir(ruta, opciones = {}) {
     );
   }
 
-  let cuerpo = null;
-  try { cuerpo = await r.json(); } catch { /* 204 o respuesta vacía */ }
 
   if (!r.ok) {
     const d = cuerpo?.detail;
@@ -216,23 +219,28 @@ export const buscarEnCatalogo = (codigo) =>
  *
  * Devuelve la función de cancelar, igual que `onSnapshot`.
  */
-export function escucharSkus(recepcionId, alCambiar, alFallar, cada = 4000) {
+function observarConsulta(consulta, alCambiar, alFallar, cada = 4000) {
   let vivo = true;
   let anterior = '';
   let reloj = null;
+  let consultando = false;
 
   const mirar = async () => {
-    if (!vivo) return;
+    if (!vivo || consultando) return;
     if (document.visibilityState === 'hidden') return;
+    consultando = true;
     try {
-      const skus = await leerColeccion(recepcionId, 'skus');
+      const skus = await consulta();
+      if (!vivo) return;
       const firma = JSON.stringify(skus);
       if (firma !== anterior) {
         anterior = firma;
         alCambiar(skus);
       }
     } catch (e) {
-      if (alFallar) alFallar(e);
+      if (vivo && alFallar) alFallar(e);
+    } finally {
+      consultando = false;
     }
   };
 
@@ -246,6 +254,30 @@ export function escucharSkus(recepcionId, alCambiar, alFallar, cada = 4000) {
     document.removeEventListener('visibilitychange', mirar);
   };
 }
+
+export const escucharSkus = (recepcionId, alCambiar, alFallar, cada = 4000) =>
+  observarConsulta(() => leerColeccion(recepcionId, 'skus'), alCambiar, alFallar, cada);
+
+export const listarUsuarios = () => pedir('/operadores', { base: BASE_SESION });
+export const escucharUsuarios = (alCambiar, alFallar) =>
+  observarConsulta(listarUsuarios, alCambiar, alFallar);
+export const actualizarUsuario = (u, cambio) =>
+  pedir(`/operadores/${encodeURIComponent(u.id)}`, { base: BASE_SESION, metodo: 'PATCH', cuerpo: cambio });
+
+export const registrarse = async ({ nombre, apellido, usuario, correo, clave }) => {
+  const ficha = await pedir('/registro', { base: BASE_SESION, cuerpo: {
+    nombre: `${nombre || ''} ${apellido || ''}`.trim(),
+    usuario: String(usuario || '').trim().toLowerCase(),
+    email: String(correo || '').trim().toLowerCase(), pin: clave,
+  } });
+  return { ...ficha, nombre: ficha.nombre };
+};
+
+export const crearOperario = ({ usuario, correo, clave, nombre, rol = 'OPERADOR' }) =>
+  pedir('/operadores', { base: BASE_SESION, cuerpo: {
+    usuario: String(usuario || '').trim().toLowerCase(), nombre, pin: clave,
+    email: String(correo || '').trim().toLowerCase(), rol,
+  } });
 
 /**
  * El catálogo no se sube desde el navegador.

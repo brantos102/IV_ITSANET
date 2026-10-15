@@ -13,7 +13,9 @@ el primer escaneo de la mañana se encuentra una conexión muerta y falla con un
 """
 from __future__ import annotations
 
-from sqlalchemy import Table, create_engine, event, text
+from sqlalchemy import Table, create_engine, event, inspect, text
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.schema import CreateColumn
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import DATABASE_URL, DB_POOL_RECYCLE, DB_POOL_SIZE
@@ -106,6 +108,29 @@ def init_db() -> None:
     from app import models  # noqa: F401  (registra los modelos)
 
     Base.metadata.create_all(bind=engine)
+    actualizar_email_operadores(engine)
+
+
+def actualizar_email_operadores(bind) -> None:
+    """Actualizacion aditiva para instalaciones anteriores al correo.
+
+    create_all no modifica tablas existentes. No se recrean tablas, se rellenan
+    correos ni se cambian usuarios, claves o eventos del historico migrado.
+    """
+    from app.models import Operador
+
+    with bind.begin() as cx:
+        if "email" not in {c["name"] for c in inspect(cx).get_columns("operadores")}:
+            columna = str(CreateColumn(Operador.__table__.c.email).compile(dialect=cx.dialect))
+            try:
+                cx.execute(text(f"ALTER TABLE operadores ADD COLUMN {columna}"))
+            except DBAPIError:
+                # Otro worker puede haber terminado la misma actualizacion.
+                if "email" not in {c["name"] for c in inspect(cx).get_columns("operadores")}:
+                    raise
+        for indice in Operador.__table__.indexes:
+            if list(indice.columns.keys()) == ["email"]:
+                indice.create(cx, checkfirst=True)
 
 
 def comprobar_conexion() -> dict:

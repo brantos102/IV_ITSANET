@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET IMS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="stylesheet" href="./css/app.css">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📦</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -22,8 +22,8 @@
   </div>
   <div class="sp"></div>
   <div class="usuario" id="uUsuario"></div>
-  <a href="/admin.html" id="lnkAdmin" class="oculto"><button class="b-sec">Administración</button></a>
-  <a href="/"><button class="b-sec">Inicio</button></a>
+  <a href="./admin.html" id="lnkAdmin" class="oculto"><button class="b-sec">Administración</button></a>
+  <a href="./"><button class="b-sec">Inicio</button></a>
 </header>
 
 <div id="avisos"></div>
@@ -166,7 +166,7 @@ const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
 
 observarSesion((e) => {
   if (e.error) aviso(e.error, 'err');
-  if (!e.usuario) { location.href = '/'; return; }
+  if (!e.usuario) { location.href = './'; return; }
   usuario = e.usuario; perfil = e.perfil;
 
   $('uUsuario').innerHTML =
@@ -551,7 +551,7 @@ function pintarListado() {
           ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
                ${vacia ? 'Cargar packing list' : '+ Lista'}</button>`
           : vacia ? '<span class="mini">sin packing list</span>' : ''}</td>
-        <td>${vacia ? '' : `<a href="/validar.html?r=${encodeURIComponent(r.id)}">
+        <td>${vacia ? '' : `<a href="./validar.html?r=${encodeURIComponent(r.id)}">
           <button class="b-primario">Validar →</button></a>`}</td>
         <td>${esAdmin
           ? `<button class="b-peligro" data-borrar="${esc(r.id)}"
@@ -580,7 +580,7 @@ function pintarListado() {
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del
 // módulo para que un fallo aquí nunca impida que la página cargue.
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 </script>
 </body>

@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#2563eb">
 <title>Usuarios — ITSANET IMS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="stylesheet" href="./css/app.css">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>👤</text></svg>">
 </head>
 <body>
@@ -21,7 +21,7 @@
   </div>
   <div class="sp"></div>
   <div class="usuario" id="uUsuario"></div>
-  <a href="/"><button class="b-sec">Volver</button></a>
+  <a href="./"><button class="b-sec">Volver</button></a>
 </header>
 
 <div id="avisos"></div>
@@ -111,14 +111,14 @@
 <script type="module">
 import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
-  normalizarAlias, enviarRestablecimiento, db,
+  normalizarAlias, enviarRestablecimiento, modoLocal,
 } from './js/auth.js';
-import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, getDoc }
-  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js';
 import { pedirDatos, confirmar } from './js/modal.js';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null, fichas = new Map();
+let dejarDeObservar = null;
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,
@@ -135,7 +135,8 @@ const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
 
 observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
-  if (!e.usuario) { location.href = '/'; return; }
+  if (dejarDeObservar) { dejarDeObservar(); dejarDeObservar = null; }
+  if (!e.usuario) { location.href = './'; return; }
   usuario = e.usuario; perfil = e.perfil;
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
@@ -145,22 +146,25 @@ observarSesion(async (e) => {
     return;
   }
   $('panelUsuarios').classList.remove('oculto');
-  if (perfil.rol === 'ADMIN') $('panelAlta').classList.remove('oculto');
+  if (perfil.rol === 'ADMIN' || modoLocal()) $('panelAlta').classList.remove('oculto');
+  for (const opcion of $('fRol').options) {
+    opcion.disabled = perfil.rol !== 'ADMIN' && opcion.value !== 'OPERADOR';
+  }
   if (tipoDeAcceso(usuario) === 'CLAVE') $('panelClave').classList.remove('oculto');
 
-  listar();
+  dejarDeObservar = observarUsuarios(pintarUsuarios, (error) => aviso(traducirError(error), 'err'));
 });
 
 // --- Listado ------------------------------------------------------------- //
 async function listar() {
-  $('tUsuarios').innerHTML = '<tr><td colspan="6" class="mini">Cargando…</td></tr>';
-  try {
-    const snap = await getDocs(collection(db, 'usuarios'));
-    const filas = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      // Los que esperan aprobación van primero: es lo único que requiere acción.
-      .sort((a, b) => (a.activo === false ? -1 : 0) - (b.activo === false ? -1 : 0)
-                   || (a.usuario || a.email || '').localeCompare(b.usuario || b.email || ''));
+  try { pintarUsuarios(await listarUsuarios()); }
+  catch (e) { aviso(traducirError(e), 'err'); }
+}
 
+function pintarUsuarios(usuarios) {
+  const filas = [...usuarios].sort((a, b) =>
+      (a.activo === false ? -1 : 0) - (b.activo === false ? -1 : 0)
+      || (a.usuario || a.email || '').localeCompare(b.usuario || b.email || ''));
     const pendientes = filas.filter((u) => u.activo === false).length;
     $('pendientes').innerHTML = pendientes
       ? `<div class="msg warn"><b>${pendientes} ${pendientes === 1 ? 'persona espera' : 'personas esperan'} aprobación</b>
@@ -193,10 +197,7 @@ async function listar() {
           : ''}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="6" class="mini">Ninguno todavía.</td></tr>';
-  } catch (e) {
-    $('tUsuarios').innerHTML =
-      `<tr><td colspan="6" class="mini">${esc(traducirError(e))}</td></tr>`;
-  }
+
 }
 
 // Cambiar rol y activar/desactivar, sin recargar la página entera.
@@ -204,7 +205,8 @@ $('tUsuarios').addEventListener('change', async (ev) => {
   const uid = ev.target.dataset.rol;
   if (!uid) return;
   try {
-    await updateDoc(doc(db, 'usuarios', uid), { rol: ev.target.value });
+    await actualizarUsuario(fichas.get(uid), { rol: ev.target.value });
+    await listar();
     limpiarAvisos();
     aviso(`Rol cambiado a ${ev.target.value}. Surte efecto de inmediato.`, 'ok');
   } catch (e) { aviso(traducirError(e), 'err'); listar(); }
@@ -271,7 +273,7 @@ async function editar(uid) {
   if (!datos) return;
 
   const alias = normalizarAlias(datos.usuario || '');
-  if (datos.usuario && alias.length < 3) {
+  if (alias.length < 3) {
     aviso('El usuario necesita al menos 3 caracteres: letras, números, punto o guion.', 'err');
     return;
   }
@@ -286,27 +288,7 @@ async function editar(uid) {
 
   limpiarAvisos();
   try {
-    // 1. El alias nuevo, antes de tocar la ficha.
-    if (cambio.usuario) {
-      const ref = doc(db, 'alias', cambio.usuario);
-      const ya = await getDoc(ref);
-      if (ya.exists() && ya.data().uid !== u.uid) {
-        aviso(`El usuario «${cambio.usuario}» ya está cogido. Elige otro.`, 'err');
-        return;
-      }
-      await setDoc(ref, {
-        email: u.email, uid: u.uid, tipoAcceso: u.tipoAcceso || 'CLAVE',
-      });
-    }
-
-    // 2. La ficha.
-    await updateDoc(doc(db, 'usuarios', uid), cambio);
-
-    // 3. El alias viejo se libera al final: si algo falla antes, la persona
-    //    sigue entrando con el que tenía.
-    if (cambio.usuario && u.usuario && u.usuario !== cambio.usuario) {
-      try { await deleteDoc(doc(db, 'alias', u.usuario)); } catch (e) { /* queda huérfano, no estorba */ }
-    }
+    await actualizarUsuario(u, cambio);
 
     aviso(`Ficha de ${datos.nombre || u.email} guardada.`
       + (cambio.usuario ? ` Ahora entra como «${cambio.usuario}».` : '')
@@ -333,7 +315,7 @@ $('tUsuarios').addEventListener('click', async (ev) => {
     aceptar: 'Desactivar', peligro: true,
   })) return;
   try {
-    await updateDoc(doc(db, 'usuarios', uid), { activo: activar });
+    await actualizarUsuario(u, { activo: activar });
     limpiarAvisos();
     aviso(activar ? 'Usuario aprobado: ya puede entrar.'
                   : 'Usuario desactivado: ya no puede entrar.', 'ok');
@@ -375,14 +357,14 @@ $('bCrear').addEventListener('click', async () => {
       <div class="msg ok" style="margin-top:16px">
         <b>Creado — entrégale estos datos</b>
         <div class="tabla-env" style="margin-top:8px"><table><tbody>
-          <tr><td>Enlace</td><td class="id">${location.origin}</td></tr>
+          <tr><td>Enlace</td><td class="id">${location.origin}${modoLocal() ? '/app/' : '/'}</td></tr>
           <tr><td>Usuario</td><td class="id">${esc(r.usuario)}</td></tr>
           <tr><td>Correo</td><td class="id">${esc(r.email)}</td></tr>
           <tr><td>Contraseña</td><td class="id">${esc($('fClave').value)}</td></tr>
           <tr><td>Rol</td><td class="id">${esc(r.rol)}</td></tr>
         </tbody></table></div>
-        Esta contraseña no se vuelve a mostrar. Si se pierde, crea otra desde
-        Firebase → Authentication.
+        Esta contraseña no se vuelve a mostrar. El operario puede cambiarla
+        al entrar.
       </div>`;
     $('fUsuario').value = ''; $('fNombre').value = '';
     $('fCorreo').value = ''; $('fClave').value = '';
@@ -435,7 +417,7 @@ $('bCambiarClave').addEventListener('click', async () => {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 </script>
 </body>

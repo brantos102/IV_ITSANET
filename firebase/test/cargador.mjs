@@ -65,8 +65,24 @@ export const query = (...a) => a;
 export const where = (...a) => a;
 export const orderBy = (...a) => a;
 export const limit = (...a) => a;
-export const onSnapshot = () => () => {};
-export const writeBatch = () => ({ set() {}, update() {}, delete() {}, commit: async () => {} });
+export const onSnapshot = (ref, cambiar, fallar) => {
+  const listener = { ref, cambiar, fallar, cerrado: false };
+  (globalThis.__listeners || (globalThis.__listeners = [])).push(listener);
+  return () => { listener.cerrado = true; };
+};
+export const writeBatch = () => {
+  const operaciones = [];
+  return {
+    set(ref, datos) { operaciones.push({ ruta: ref.ruta, datos }); },
+    async commit() {
+      if (globalThis.__fallarLote) throw new Error('fallo de escritura');
+      for (const op of operaciones) {
+        (globalThis.__sets || (globalThis.__sets = [])).push(op);
+        (globalThis.__documentos || (globalThis.__documentos = {}))[op.ruta] = op.datos;
+      }
+    },
+  };
+};
 export const serverTimestamp = () => '@ts';
 /*
  * Transaccion que APUNTA lo que se escribe.
@@ -106,14 +122,14 @@ export const initializeFirestore = () => ({});
 export const persistentLocalCache = () => ({});
 export const persistentMultipleTabManager = () => ({});
 export const enableIndexedDbPersistence = async () => {};
-export const initializeApp = () => ({});
+export const initializeApp = (_config, name = 'principal') => ({ name });
 export const deleteApp = async () => {};
-export const getAuth = () => ({ currentUser: null });
+export const getAuth = (app) => (app.auth || (app.auth = { currentUser: null, app }));
 export class GoogleAuthProvider { setCustomParameters() {} }
 export const signInWithPopup = async () => ({ user: null });
 export const signInWithRedirect = async () => {};
 export const getRedirectResult = async () => null;
-export const signOut = async () => {};
+export const signOut = async (auth) => { auth.currentUser = null; };
 export const onAuthStateChanged = () => () => {};
 export const signInWithEmailAndPassword = async () => ({ user: null });
 /* El alta puede fallar porque la cuenta ya exista: globalThis.__fallarAlta
@@ -124,7 +140,10 @@ export const createUserWithEmailAndPassword = async (_auth, email) => {
     e.code = globalThis.__fallarAlta;
     throw e;
   }
-  return { user: { uid: 'nuevo', email } };
+  const user = { uid: 'nuevo', email };
+  _auth.currentUser = user;
+  (globalThis.__altasAuth || (globalThis.__altasAuth = [])).push({ auth: _auth, email });
+  return { user };
 };
 export const updatePassword = async () => {};
 /* El correo de restablecimiento: se apunta a quien se mando, que es lo unico

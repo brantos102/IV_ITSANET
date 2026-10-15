@@ -10,22 +10,25 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-2026-10-14-15';
+const VERSION = 'iv-2026-10-14-16';
 
 /** Lo mínimo para que la app arranque sin red. */
+const BASE = new URL(self.registration.scope);
+const recurso = (ruta) => new URL(ruta.replace(/^\//, ''), BASE).href;
 const CONCHA = [
   '/', '/index.html', '/recepciones.html', '/validar.html', '/admin.html',
   '/usuarios.html', '/kpis.html',
   '/css/app.css', '/manifest.webmanifest', '/icono.svg',
   '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
   '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js', '/js/glosario.js',
+  '/js/usuarios.js', '/js/local.js',
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(VERSION)
       // Si un archivo falla no se cae la instalación: se cachea lo que haya.
-      .then((c) => Promise.allSettled(CONCHA.map((u) => c.add(u))))
+      .then((c) => Promise.allSettled(CONCHA.map((u) => c.add(recurso(u)))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -47,6 +50,9 @@ self.addEventListener('fetch', (e) => {
   // guarda los datos en IndexedDB y cachear sus respuestas rompería el
   // tiempo real.
   if (url.origin !== self.location.origin) return;
+  // Las sesiones y respuestas de la API nunca se guardan ni se reproducen
+  // desde cache. Bajo /app/ tampoco se controla el resto del servidor.
+  if (!url.pathname.startsWith(BASE.pathname) || url.pathname.startsWith('/api/')) return;
 
   e.respondWith(
     fetch(req)
@@ -57,6 +63,10 @@ self.addEventListener('fetch', (e) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('/index.html'))),
+      .catch(() => caches.match(req).then((hit) => {
+        if (hit) return hit;
+        if (req.mode === 'navigate') return caches.match(recurso('/index.html'));
+        return Response.error();
+      })),
   );
 });

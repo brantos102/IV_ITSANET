@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#2563eb">
 <title>ITSANET IMS — Acceso</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📦</text></svg>">
 <style>
   :root {
@@ -180,7 +180,7 @@
     </div>
 
     <form id="formClave" autocomplete="on">
-      <label class="campo2"><span>Usuario</span>
+      <label class="campo2"><span>Usuario o correo</span>
         <input id="inUsuario" autocomplete="username" autocapitalize="none"
                spellcheck="false" placeholder="jperez" required></label>
       <label class="campo2"><span>Contraseña</span>
@@ -213,7 +213,7 @@
       </div>
       <button class="btn-clave" id="btnRegistro" type="submit">Crear mi cuenta</button>
       <p class="mini" style="text-align:center;margin:4px 0 0">
-        Un administrador tiene que aprobarla antes de que puedas entrar.
+        Un supervisor tiene que aprobarla antes de que puedas entrar.
       </p>
     </form>
 
@@ -248,23 +248,23 @@
     <div id="avisos-sesion"></div>
 
     <div class="menu">
-      <a class="acceso" href="/recepciones.html">
+      <a class="acceso" href="./recepciones.html">
         <b>Recepciones</b>
         <span>Subir el packing list y abrir una validación</span>
       </a>
-      <a class="acceso" href="/recepciones.html?mias=1">
+      <a class="acceso" href="./recepciones.html?mias=1">
         <b>Validar</b>
         <span>Lo que has validado, y seguir donde lo dejaste</span>
       </a>
-      <a class="acceso oculto" id="accesoKpis" href="/kpis.html">
+      <a class="acceso oculto" id="accesoKpis" href="./kpis.html">
         <b>KPIs</b>
         <span>Indicadores y trazabilidad de las validaciones</span>
       </a>
-      <a class="acceso oculto" id="accesoUsuarios" href="/usuarios.html">
+      <a class="acceso oculto" id="accesoUsuarios" href="./usuarios.html">
         <b>Usuarios</b>
         <span>Dar de alta operarios y asignar roles</span>
       </a>
-      <a class="acceso oculto" id="accesoAdmin" href="/admin.html">
+      <a class="acceso oculto" id="accesoAdmin" href="./admin.html">
         <b>Administración</b>
         <span>Credenciales de Depot por cliente</span>
       </a>
@@ -367,7 +367,7 @@ function pintarRecepciones() {
     const t = r.totales || {};
     const f = r.creadoEn?.toDate ? r.creadoEn.toDate().toLocaleDateString('es-EC') : '';
     const cerrada = r.estado === 'CERRADA';
-    return `<a class="rec" href="/validar.html?r=${encodeURIComponent(r.id)}">
+    return `<a class="rec" href="./validar.html?r=${encodeURIComponent(r.id)}">
       <div class="det">
         <div class="cod">${esc2(r.codigo || r.id)}</div>
         <div class="sub2">${esc2(r.cliente || '')}${r.cliente ? ' · ' : ''}${f}
@@ -403,11 +403,9 @@ function mostrar(cual) {
 $('tabEntrar').addEventListener('click', () => mostrar('entrar'));
 $('tabRegistro').addEventListener('click', () => mostrar('registro'));
 
-// Contra el servidor de la bodega el alta la hace un supervisor: no hay registro
-// abierto porque no hay a quién mandarle el correo de aviso. Y se dice en qué
-// servidor se está, que durante la transición es la primera pregunta de todas.
+// La solicitud se guarda en el mismo destino que el acceso y la aprueba un
+// supervisor desde Usuarios. Se identifica el servidor durante la transicion.
 if (modoLocal()) {
-  $('tabRegistro').classList.add('oculto');
   const marca = document.createElement('p');
   marca.className = 'mini';
   marca.style.cssText = 'text-align:center;margin-top:12px';
@@ -438,7 +436,7 @@ $('formRegistro').addEventListener('submit', async (ev) => {
     mostrar('entrar');
     $('inUsuario').value = r.usuario;
     aviso('avisos-login',
-      `Cuenta creada para ${r.nombre}, usuario «${r.usuario}». Un administrador ` +
+      `Cuenta creada para ${r.nombre}, usuario «${r.usuario}». Un supervisor ` +
       'tiene que aprobarla; en cuanto lo haga entras con esa misma contraseña.',
       'ok', 'Registro enviado');
   } catch (e) {
@@ -611,7 +609,7 @@ observarSesion(async ({ usuario, perfil, error }) => {
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del
 // módulo para que un fallo aquí nunca impida que la página cargue.
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 </script>
 </body>

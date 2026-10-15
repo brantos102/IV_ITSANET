@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET IMS</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/icono.svg">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.svg">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🔑</text></svg>">
 <style>
   :root {
@@ -107,7 +107,7 @@
   </div>
   <div class="sp"></div>
   <div class="usuario" id="uUsuario"></div>
-  <a href="/"><button class="b-sec">Volver</button></a>
+  <a href="./"><button class="b-sec">Volver</button></a>
 </header>
 
 <div id="avisos"></div>
@@ -304,7 +304,7 @@ let usuarioActual = null;
 
 observarSesion(({ usuario, perfil, error }) => {
   if (error) aviso(error, 'err');
-  if (!usuario) { location.href = '/'; return; }
+  if (!usuario) { location.href = './'; return; }
   usuarioActual = usuario;
 
   $('uUsuario').innerHTML =
@@ -778,7 +778,7 @@ $('bExportarTodo').addEventListener('click', async () => {
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del
 // módulo para que un fallo aquí nunca impida que la página cargue.
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 
 </script>
