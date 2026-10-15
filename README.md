@@ -1,5 +1,8 @@
 # ITSANET IMS
 
+**Desarrollo en tu PC Windows con MySQL separado de producción:**
+[arranque con Docker Desktop](docs/DESARROLLO_EN_PC.md).
+
 [Configuración Google, formatos Depot y etiqueta desde stock](docs/GOOGLE_Y_FORMATOS.md).
 
 [Vista movil, Google, credenciales ADMIN y etiquetas Zebra](docs/MEJORAS_MOVIL.md).
