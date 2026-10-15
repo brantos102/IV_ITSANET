@@ -54,6 +54,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware('http')
+async def recursos_operativos(request: Request, call_next):
+    respuesta = await call_next(request)
+    ruta = request.url.path
+    if ruta.startswith('/app/') and (ruta.endswith(('/', '.html', '.js', '.css', '.webmanifest'))):
+        respuesta.headers['Cache-Control'] = 'no-cache, max-age=0, must-revalidate'
+    return respuesta
+
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
 
 # La aplicación de validación completa, servida desde este mismo servidor.

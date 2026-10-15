@@ -3,6 +3,7 @@ import { build } from 'esbuild';
 import { mkdir, copyFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { versionarFrontend } from './versionar_frontend.mjs';
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const destino = path.join(raiz, 'firebase/public/vendor');
@@ -21,3 +22,4 @@ await copyFile(path.join(raiz, 'node_modules/jspdf/dist/jspdf.umd.min.js'), path
 await copyFile(path.join(raiz, 'node_modules/jspdf-autotable/dist/jspdf.plugin.autotable.min.js'), path.join(destino, 'jspdf.plugin.autotable.min.js'));
 await copyFile(path.join(raiz, 'node_modules/jsbarcode/dist/JsBarcode.all.min.js'), path.join(destino, 'JsBarcode.all.min.js'));
 console.log('SDK y lector Excel preparados para servir desde la bodega.');
+await versionarFrontend();

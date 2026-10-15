@@ -2,8 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
+<script src="./js/arranque.js?v=20261015-22"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261015-22" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -96,14 +97,14 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261015-21">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-22">
 </head>
 <body>
 <div class="envoltorio">
 
 <header>
   <div>
-    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="simbolo-empresa" src="./icono.png" width="32" height="32" alt=""><span class="nombre-empresa">itsanet</span></a>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
     <div class="sub">Administración</div>
   </div>
   <div class="sp"></div>
@@ -318,16 +319,16 @@
 </div>
 
 <script type="module">
-import { observarSesion, traducirError, db } from './js/auth.js';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js';
-import { confirmar } from './js/modal.js';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261015-22';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261015-22';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js?v=20261015-22';
+import { confirmar } from './js/modal.js?v=20261015-22';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js';
+} from './js/csv.js?v=20261015-22';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261015-22';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js';
+  from './vendor/firebase-sdk.js?v=20261015-22';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -356,6 +357,7 @@ function fecha(iso) {
 let usuarioActual = null;
 
 observarSesion(({ usuario, perfil, error }) => {
+  globalThis.itsanetArranque?.listo();
   if (error) aviso(error, 'err');
   if (!usuario) { location.href = './'; return; }
   usuarioActual = usuario;

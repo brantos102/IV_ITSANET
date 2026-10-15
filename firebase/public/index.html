@@ -2,6 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
+<script src="./js/arranque.js?v=20261015-22"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>ITSANET — Acceso</title>
@@ -149,11 +150,11 @@
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
                         text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261015-21">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-22">
 </head>
 <body>
 <div class="caja">
-  <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="simbolo-empresa" src="./icono.png" width="32" height="32" alt=""><span class="nombre-empresa">itsanet</span></a>
+  <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
   <div class="sub">Validación física</div>
 
   <!-- Sin sesión -->
@@ -288,16 +289,16 @@
 </div>
 
 <script type="module">
-import { fechaDe, recientes } from './js/fechas.js';
-import { DOMINIO, SDK, DATABASE_ID } from './js/config.js';
-import { modoLocal, estadoServidor } from './js/local.js';
+import { fechaDe, recientes } from './js/fechas.js?v=20261015-22';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261015-22';
+import { modoLocal, estadoServidor } from './js/local.js?v=20261015-22';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
-         normalizarAlias, db, auth } from './js/auth.js';
-import { pedirDatos } from './js/modal.js';
+         normalizarAlias, db, auth } from './js/auth.js?v=20261015-22';
+import { pedirDatos } from './js/modal.js?v=20261015-22';
 import { doc, getDoc, collection, getDocs, limit, query }
-  from './vendor/firebase-sdk.js';
-import { listarRecepciones } from './js/datos.js';
+  from './vendor/firebase-sdk.js?v=20261015-22';
+import { listarRecepciones } from './js/datos.js?v=20261015-22';
 
 const $ = (id) => document.getElementById(id);
 $('dominioTxt').textContent = '@' + DOMINIO;
@@ -524,6 +525,7 @@ async function pedirUsuarioDeGoogle({ email, nombre, sugerido }) {
 }
 
 observarSesion(async ({ usuario, perfil, error }) => {
+  globalThis.itsanetArranque?.listo();
   limpiar('avisos-login');
   limpiar('avisos-sesion');
   $('tDiag').innerHTML = '';

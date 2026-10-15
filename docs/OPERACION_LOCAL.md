@@ -31,6 +31,16 @@ bibliotecas del navegador: no se descargan SDK, Excel, PDF ni fuentes de un CDN.
 Para regenerarlas durante desarrollo: `npm ci && npm run build:frontend`.
 No hace falta ejecutar npm en el servidor para desplegar estos archivos.
 
+Las páginas y sus imports JavaScript comparten una versión de recursos para
+evitar HTML nuevo con módulos antiguos. Al cambiar la versión en desarrollo,
+actualizar `VERSION_FRONTEND` en `scripts/versionar_frontend.mjs` y ejecutar
+`node scripts/versionar_frontend.mjs` (también lo hace `npm run build:frontend`).
+Se conservan los archivos fuente, las sesiones y los datos. El servidor obliga
+a revalidar HTML/JS/CSS y el service worker renueva su caché. Un fallo de carga
+se muestra en la página con una opción de recarga; no requiere borrar datos
+del navegador. Reiniciar `iv-itsanet` después de actualizar para activar las
+cabeceras del servidor y recargar con Ctrl+F5.
+
 El cierre local guarda los informes antes de cerrar y confirma la recepcion y
 su entrega pendiente en una misma transaccion. Si otro operario registra un
 movimiento mientras se genera el informe, se rechaza el cierre para regenerar

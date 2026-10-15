@@ -10,19 +10,20 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-2026-10-15-21';
+const VERSION = 'iv-20261015-22';
 
 /** Lo mínimo para que la app arranque sin red. */
 const BASE = new URL(self.registration.scope);
 const recurso = (ruta) => new URL(ruta.replace(/^\//, ''), BASE).href;
+const VERSION_RECURSOS = '20261015-22';
 const CONCHA = [
   '/', '/index.html', '/recepciones.html', '/validar.html', '/admin.html',
   '/usuarios.html', '/kpis.html',
-  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261015-21', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
-  '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
+  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261015-22', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
+  '/js/arranque.js', '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
   '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js', '/js/glosario.js',
   '/js/csv.js', '/js/modelos-depot.js', '/js/usuarios.js', '/js/fechas.js', '/js/etiquetas.js', '/js/local.js', '/vendor/firebase-sdk.js', '/vendor/xlsx.full.min.js', '/vendor/JsBarcode.all.min.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js',
-];
+].map(u => /^\/(js|vendor)\/.+\.js$/.test(u) ? `${u}?v=${VERSION_RECURSOS}` : u);
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -55,7 +56,7 @@ self.addEventListener('fetch', (e) => {
   if (!url.pathname.startsWith(BASE.pathname) || url.pathname.startsWith('/api/')) return;
 
   e.respondWith(
-    fetch(req)
+    fetch(req, {cache:'no-cache'})
       .then((res) => {
         if (res && res.ok) {
           const copia = res.clone();

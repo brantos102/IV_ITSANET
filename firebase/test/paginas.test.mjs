@@ -19,6 +19,8 @@ import os from 'node:os';
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const VERSION_RECURSOS = fs.readFileSync(path.join(RAIZ,'../../scripts/versionar_frontend.mjs'),'utf8')
+  .match(/VERSION_FRONTEND='([^']+)'/)[1];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'chk-'));
 let fallos = 0, revisiones = 0;
 const malo = (m) => { fallos++; console.log('  FALLA ' + m); };
@@ -265,8 +267,11 @@ function abreviadoSinDeclarar(etiqueta, codigo) {
 }
 
 function revisarImports(etiqueta, codigo, base) {
+  for (const m of sinComentar(codigo).matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*)['"](\.\.?\/[^'"]+\.js(?:\?[^'"]*)?)['"]/g)) {
+    if (!m[1].endsWith('?v='+VERSION_RECURSOS)) malo(`${etiqueta}: import sin version vigente ${m[1]}`);
+  }
   for (const m of codigo.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
-    const ruta = m[2];
+    const ruta = m[2].split('?')[0];
     if (ruta.startsWith('http')) continue;
     const resuelta = ruta.replace(/^\.\/js\//, './').replace(/^\.\//, './');
     const clave = Object.keys(exportados).find((k) => k.endsWith(path.basename(ruta)));

@@ -207,3 +207,10 @@ def test_borrar_una_recepcion_es_solo_del_administrador(db, operadores, cliente,
     c = TestClient(app)
     c.post("/api/auth/login", json={"usuario": "adm", "pin": "4444"})
     assert c.delete(f"/api/app/recepciones/{rec}").status_code == 200
+def test_html_y_modulos_del_servidor_revalidan_cache_sin_tocar_la_sesion():
+    c = TestClient(app)
+    for ruta in ['/app/admin.html', '/app/recepciones.html', '/app/validar.html', '/app/js/csv.js?v=prueba']:
+        r = c.get(ruta)
+        assert r.status_code == 200
+        assert r.headers['cache-control'] == 'no-cache, max-age=0, must-revalidate'
+    assert c.get('/api/app/estado').status_code == 401
