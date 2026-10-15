@@ -85,9 +85,10 @@ _breaker = _CircuitBreaker()
 # La API real del WMS
 # --------------------------------------------------------------------------- #
 class DepotNoDisponible(RuntimeError):
-    def __init__(self, mensaje, codigo_http=None):
+    def __init__(self, mensaje, codigo_http=None, motivo=None):
         super().__init__(mensaje)
         self.codigo_http = codigo_http
+        self.motivo = motivo
 
 
 class DepotRechazado(RuntimeError):
@@ -149,11 +150,20 @@ class DepotAPI:
         return httpx.Client(timeout=httpx.Timeout(DEPOT_TIMEOUT, read=max(DEPOT_TIMEOUT, 60)), transport=self.transporte)
 
     def _get(self, http, url, cabeceras):
+        # httpx codifica los str como ASCII y lanzaba UnicodeEncodeError (500)
+        # antes de conectar si la cuenta tenia, por ejemplo, una ñ. Conservar
+        # los bytes UTF-8, sin normalizar ni recortar la contraseña.
+        if any(any(ord(c) < 32 or ord(c) == 127 for c in v) for v in cabeceras.values()):
+            raise DepotNoDisponible('Cabecera Depot con caracteres de control')
+        cabeceras = {k: v.encode('utf-8') for k, v in cabeceras.items()}
         # UrlFetchApp sigue redirecciones. Aqui solo dentro del MISMO origen,
         # para no reenviar userid/password o token a otra maquina ni bajar a HTTP.
         def origen(u):
-            p = urlsplit(u)
-            return p.scheme, p.hostname, p.port or (443 if p.scheme == 'https' else 80)
+            try:
+                p = urlsplit(u)
+                return p.scheme, p.hostname, p.port or (443 if p.scheme == 'https' else 80)
+            except ValueError:
+                raise DepotNoDisponible('URL o redireccion Depot invalida') from None
         inicial = origen(url)
         for _ in range(4):
             r = http.get(url, headers=cabeceras)
@@ -194,7 +204,7 @@ class DepotAPI:
         token = extraer_token(r.text)
         if not token:
             raise DepotNoDisponible(
-                f"Depot respondio sin un token reconocible en {self.ruta_token}"
+                f"Depot respondio sin un token reconocible en {self.ruta_token}", motivo='RESPUESTA_TOKEN'
             )
         self._token = token
         self._vence = time.monotonic() + DEPOT_TTL_HORAS * 3600
@@ -255,26 +265,32 @@ def extraer_token(texto: str) -> str | None:
     que hace el proxy de Apps Script: si uno de los dos entiende la respuesta,
     el otro tambien.
     """
-    t = (texto or "").strip()
+    # El WMS puede anteponer un BOM UTF-8. strip() no elimina U+FEFF:
+    # acababa en la cabecera token y httpx fallaba con UnicodeEncodeError.
+    t = (texto or "").strip().strip('\ufeff').strip()
     if not t:
         return None
-    if t[0] in "{[":
+    if t[0] in '{["':
         try:
             j = json.loads(t)
         except ValueError:
             return None
         d = j[0] if isinstance(j, list) and j else j
-        if not isinstance(d, dict):
+        if isinstance(d, str):
+            v = d
+        elif isinstance(d, dict):
+            v = next((d[k] for k in ("token", "Token", "TOKEN", "Result", "result", "access_token") if d.get(k)), None)
+            if isinstance(v, dict):
+                v = v.get("token") or v.get("Token")
+        else:
             return None
-        v = None
-        for clave in ("token", "Token", "TOKEN", "Result", "result", "access_token"):
-            if d.get(clave):
-                v = d[clave]
-                break
-        if isinstance(v, dict):                     # Result anidado
-            v = v.get("token") or v.get("Token")
-        return str(v).strip() if v else None
-    return t.strip('"') or None
+    else:
+        v = t
+    if not isinstance(v, str):
+        return None
+    v = v.strip().strip('\ufeff').strip()
+    # Una pagina HTML o una respuesta multilinea no son credenciales.
+    return v if v and not any(c.isspace() or ord(c) < 32 or ord(c) == 127 or c in '<>' for c in v) else None
 
 
 def filas_de(cuerpo) -> list[dict]:

@@ -35,29 +35,66 @@ COLECCIONES = ("lineas", "skus", "adicionales", "eventos", "auditoria")
 
 
 @router.get('/estado')
-def estado_local(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
-    return {'destino': 'servidor', 'motor': db.get_bind().dialect.name,
+def estado_local(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    estado = {'destino': 'servidor',
             'recepciones': db.scalar(select(func.count()).select_from(AppRecepcion)),
             'productos': db.scalar(select(func.count()).select_from(Producto)),
             'archivos': db.scalar(select(func.count()).select_from(AppArchivo)),
-            'firebase_requerido': False, 'correo_configurado': entregas.configurado(db)}
+            'firebase_requerido': False}
+    if op.rol == Rol.ADMIN:
+        estado.update(motor=db.get_bind().dialect.name, correo_configurado=entregas.configurado(db))
+    return estado
 
 
 @router.get('/entregas')
-def listar_entregas(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
-    return [entregas.documento(e) for e in db.scalars(select(AppEntrega).order_by(AppEntrega.creado_en.desc()).limit(100))]
+def listar_entregas(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    return [entregas.documento(e, tecnico=op.rol == Rol.ADMIN) for e in db.scalars(
+        select(AppEntrega).order_by(AppEntrega.creado_en.desc()).limit(100))]
+
+
+@router.get('/recepciones/{codigo}/entregas')
+def entregas_recepcion(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    # Esta vista operativa no contiene errores de configuracion, tampoco para ADMIN.
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    return [entregas.documento(e) for e in db.scalars(select(AppEntrega)
+        .where(AppEntrega.recepcion == r.codigo).order_by(AppEntrega.creado_en.desc()).limit(10))]
+
+
+@router.get('/recepciones/{codigo}/destinatarios-recientes')
+def destinatarios_recientes(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    historial = db.scalars(select(AppEntrega).join(AppRecepcion, AppEntrega.recepcion == AppRecepcion.codigo)
+        .where(AppRecepcion.cliente == r.cliente)
+        .order_by(AppEntrega.creado_en.desc(), AppEntrega.id.desc()).limit(100))
+    grupos, vistos = [], set()
+    for e in historial:
+        destinatarios = str(e.datos.get('destinatarios') or '').strip()
+        clave = ','.join(sorted(c.strip().lower() for c in destinatarios.split(',') if c.strip()))
+        if not clave or clave in vistos:
+            continue
+        vistos.add(clave)
+        grupos.append({'destinatarios': destinatarios, 'recepcion': e.recepcion, 'fecha': m._iso(e.creado_en)})
+        if len(grupos) == 8:
+            break
+    return grupos
 
 
 @router.post('/entregas/{ident}/reintentar')
-def reintentar_entrega(ident: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     e = db.get(AppEntrega, ident)
     if not e:
         raise HTTPException(404, 'Entrega no encontrada')
     if e.estado != 'PENDIENTE':
-        raise HTTPException(409, 'Solo se reintentan entregas pendientes. Las que requieren revision se comprueban con el administrador de Google')
+        raise HTTPException(409, 'Solo se reintentan entregas pendientes. Si requiere revisión, contacta al administrador.')
     e.proximo_en = utcnow()
     db.commit()
-    return entregas.documento(e)
+    return entregas.documento(e, tecnico=op.rol == Rol.ADMIN)
 
 
 @router.post('/recepciones/{codigo}/entrega', status_code=201)

@@ -35,10 +35,12 @@ def test_cierre_archiva_y_encola_sin_google_y_se_puede_repetir(cliente, db, monk
     r = cliente.post(f'/api/app/recepciones/{codigo}/entrega', json=datos)
     assert r.status_code == 201, r.text
     e = r.json()
-    assert e['estado'] == 'PENDIENTE' and 'configurar' in e['mensaje']
+    assert e['estado'] == 'PENDIENTE' and 'no se ha confirmado' in e['mensaje']
+    assert 'Google' not in e['mensaje'] and 'configurar' not in e['mensaje']
     db.rollback(); db.expire_all()
     assert db.get(AppRecepcion, codigo).estado == 'CERRADA'
     guardada = db.get(AppEntrega, e['id'])
+    assert 'configurar' in guardada.error  # Diagnostico conservado para ADMIN.
     assert guardada.datos['exportarSheet'] is False
     assert 'sheetId' not in guardada.datos
     assert guardada.datos['skus'][0]['contado'] == 3
@@ -180,3 +182,55 @@ def test_remitente_distinto_no_sube_archivos_ni_envia(cliente,db,monkeypatch,tmp
     assert db.get(AppEntrega,ident).estado=='PENDIENTE'
     assert llamadas==['estado']
     assert list(tmp_path.glob('app_archivos/*'))
+
+
+def test_remitente_de_sesion_y_cifras_sql_no_aceptan_suplantacion(cliente, db, monkeypatch, tmp_path):
+    from app.models import Operador
+    monkeypatch.setattr(archivos, 'DATA_DIR', tmp_path)
+    sup = db.scalar(select(Operador).where(Operador.usuario == 'sup'))
+    sup.email = 'supervisor@gmail.com'; db.commit()
+    codigo, datos = preparar(cliente, db)
+    datos.update(remitente='otro@gmail.com', usuario='falso', resumen={'ok': 999, 'unidadesFisicas': 500})
+    r = cliente.post(f'/api/app/recepciones/{codigo}/entrega', json=datos)
+    assert r.status_code == 201, r.text
+    assert r.json()['supervisor'] == 'supervisor@gmail.com'
+    db.rollback(); db.expire_all()
+    e = db.get(AppEntrega, r.json()['id'])
+    assert e.usuario == 'supervisor@gmail.com'
+    assert e.datos['resumen']['ok'] == 1 and e.datos['resumen']['unidadesFisicas'] == 3
+    assert e.datos['resumen']['discrepancias'] == []
+
+
+def test_destinatarios_recientes_del_mismo_cliente_sin_duplicados(cliente, db):
+    from uuid import uuid4
+    m.crear_recepcion(db, {'codigo': 'ACTUAL', 'cliente': 'PRUEBA'}, 'sup')
+    fechas = utcnow()
+    for i, (cliente_id, destinatarios) in enumerate([
+        ('PRUEBA', 'primero@example.test,segundo@example.test'),
+        ('OTRO', 'otro-cliente@example.test'),
+        ('PRUEBA', 'reciente@example.test'),
+        ('PRUEBA', 'SEGUNDO@example.test,PRIMERO@example.test'),
+        ('PRUEBA', ''),
+    ]):
+        codigo = f'ANTERIOR-{i}'
+        m.crear_recepcion(db, {'codigo': codigo, 'cliente': cliente_id}, 'sup')
+        db.add(AppEntrega(id=uuid4().hex, clave=uuid4().hex, recepcion=codigo, usuario='sup',
+            datos={'destinatarios': destinatarios}, creado_en=fechas + timedelta(seconds=i)))
+    db.commit()
+    r = cliente.get('/api/app/recepciones/ACTUAL/destinatarios-recientes')
+    assert r.status_code == 200
+    assert [s['destinatarios'] for s in r.json()] == ['SEGUNDO@example.test,PRIMERO@example.test', 'reciente@example.test']
+    assert cliente.get('/api/app/recepciones/NO-EXISTE/destinatarios-recientes').status_code == 404
+    op = TestClient(app); op.post('/api/auth/login', json={'usuario': 'op1', 'pin': '2222'})
+    assert op.get('/api/app/recepciones/ACTUAL/destinatarios-recientes').status_code == 403
+
+
+def test_resumen_final_detalla_faltantes_sobrantes_y_adicionales_sql():
+    r = entregas.resumen_final([
+        {'sku': 'A', 'esperado': 6, 'contado': 5},
+        {'sku': 'B', 'esperado': 1, 'contado': 3},
+        {'sku': 'C', 'esperado': 0, 'contado': 1, 'enPackingList': False},
+    ])
+    assert r['unidadesEsperadas'] == 7 and r['unidadesFisicas'] == 9
+    assert r['faltante'] == 1 and r['sobrante'] == 2 and r['adicionales'] == 1
+    assert [d['diferencia'] for d in r['discrepancias']] == [-1, 2, 1]

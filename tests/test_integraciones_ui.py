@@ -31,6 +31,7 @@ def test_solo_admin_configura_o_prueba_credenciales(admin, cliente):
     for ruta in ['/depot/VENTURA','/google','/oauth-google']:
         assert cliente.put('/api/app/integraciones'+ruta,json={}).status_code == 403
     assert cliente.post('/api/app/integraciones/depot/VENTURA/probar').status_code == 403
+    assert cliente.post('/api/app/integraciones/google/probar', json={}).status_code == 403
     assert admin.get('/api/app/integraciones').status_code == 200
 
 
@@ -215,3 +216,44 @@ def test_diagnostico_api_identifica_token_o_stock_sin_secretos(admin,monkeypatch
     monkeypatch.setattr(depot.DepotAPI,'stock',falla)
     r=admin.post(ruta+'/probar');assert r.status_code==502
     assert 'gettoken correcto' in r.text and 'potencialmente privada' not in r.text
+
+
+def test_diagnostico_500_tiene_referencia_sin_mensaje_ni_valores_privados(admin, monkeypatch, caplog):
+    ruta = '/api/app/integraciones/depot/VENTURA'
+    admin.put(ruta, json={'baseUrl': 'https://wms.example.test', 'usuario': 'u', 'clave': 'privada'})
+    monkeypatch.setattr(depot.DepotAPI, 'token', lambda self, forzar=False: 'T')
+    def falla(self):
+        raise ValueError('no mostrar contraseña ni token-privado')
+    monkeypatch.setattr(depot.DepotAPI, 'stock', falla)
+    r = admin.post(ruta + '/probar')
+    assert r.status_code == 500
+    assert r.json()['detail']['codigo'] == 'DEPOT_INTERNO'
+    assert 'getstock' in r.text and 'Referencia' in r.text
+    assert 'ValueError' in caplog.text and 'ref=' in caplog.text
+    assert 'token-privado' not in caplog.text + r.text
+    assert 'no mostrar' not in caplog.text + r.text
+
+
+def test_supervisor_ve_entrega_operativa_y_admin_ve_diagnostico(admin, cliente, db, monkeypatch, tmp_path):
+    from app.services import archivos
+    from app.models import AppEntrega
+    from tests.test_entregas import preparar
+    monkeypatch.setattr(archivos, 'DATA_DIR', tmp_path)
+    codigo, datos = preparar(cliente, db)
+    r = cliente.post(f'/api/app/recepciones/{codigo}/entrega', json=datos)
+    ident = r.json()['id']
+    db.rollback(); db.expire_all()
+    e = db.get(AppEntrega, ident)
+    e.error = 'Revisar SERVIDOR_HMAC y despliegue /exec'
+    e.resultado = {'diagnostico': 'detalle-tecnico', 'carpeta': 'https://drive.google.com/folders/test'}
+    db.commit()
+    for ruta in ['/entregas', f'/recepciones/{codigo}/entregas']:
+        r = cliente.get('/api/app' + ruta)
+        assert r.status_code == 200
+        assert 'SERVIDOR_HMAC' not in r.text and '/exec' not in r.text and 'detalle-tecnico' not in r.text
+        assert r.json()[0]['resultado']['carpeta'].startswith('https://drive.google.com/')
+    assert 'SERVIDOR_HMAC' in admin.get('/api/app/entregas').text
+    assert cliente.get(f'/api/app/recepciones/{codigo.lower()}/entregas').json()[0]['id'] == ident
+    assert 'correo_configurado' not in cliente.get('/api/app/estado').json()
+    assert 'correo_configurado' in admin.get('/api/app/estado').json()
+    assert cliente.get('/api/app/recepciones/NO-EXISTE/entregas').status_code == 404

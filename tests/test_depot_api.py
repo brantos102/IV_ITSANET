@@ -51,13 +51,17 @@ FILA = {
     '{"Result":{"token":"ABC"}}',
     '"ABC"',
     'ABC',
+    '\ufeffABC',
+    '\ufeff"ABC"',
+    '\ufeff{"token":"ABC"}',
+    '{"token":"\\ufeffABC"}',
 ])
 def test_el_token_se_lee_en_todas_las_formas_que_lo_devuelve(cuerpo):
     """El mismo surtido que acepta el proxy: si uno lo entiende, el otro también."""
     assert svc.extraer_token(cuerpo) == "ABC"
 
 
-@pytest.mark.parametrize("cuerpo", ["", "   ", "{}", "{no es json"])
+@pytest.mark.parametrize("cuerpo", ["", "   ", "{}", "{no es json", '\ufeff', '<html>Acceso</html>', '{"token":["T"]}', 'T\r\npassword: x'])
 def test_una_respuesta_sin_token_no_se_confunde_con_un_token(cuerpo):
     assert svc.extraer_token(cuerpo) is None
 
@@ -263,18 +267,18 @@ def test_el_estado_dice_que_falta_y_nunca_la_clave(db):
     assert "DEPOT_USUARIO" in e["falta"] or e["api_configurada"]
 
 
-def test_probar_credenciales_no_devuelve_el_token(cliente):
+def test_supervisor_no_prueba_ni_ve_configuracion_tecnica(cliente):
     r = cliente.get("/api/catalogo/depot/probar")
-    assert r.status_code == 200, r.text
-    cuerpo = r.json()
-    assert cuerpo["ok"] is False and cuerpo["motivo"] == "SIN CREDENCIALES"
-    assert "token" not in str(cuerpo).lower() or "largo_token" in cuerpo
+    assert r.status_code == 403, r.text
+    estado = cliente.get('/api/catalogo/estado').json()
+    assert estado['productos_en_cache'] == 0
+    assert not {'base_url', 'ruta_token', 'ruta_stock', 'falta', 'clave_puesta'} & estado.keys()
 
 
 def test_sincronizar_sin_credenciales_responde_503_no_500(cliente):
     r = cliente.post("/api/catalogo/depot/sincronizar")
     assert r.status_code == 503, r.text
-    assert "DEPOT_USUARIO" in r.json()["detail"]
+    assert "administrador" in r.json()["detail"] and 'DEPOT_USUARIO' not in r.text
 
 
 def test_los_clientes_del_espejo_se_consultan_por_la_api(cliente):
@@ -310,3 +314,23 @@ def test_redirect_a_otro_host_no_filtra_credenciales():
     cli,llamadas=api(lambda p,_:httpx.Response(302,headers={'location':'https://otro.example.test/token'}))
     with pytest.raises(svc.DepotNoDisponible):cli.token()
     assert len(llamadas)==1
+
+
+@pytest.mark.parametrize('respuesta', ['\ufeffTOKEN', '\ufeff"TOKEN"', '\ufeff{"token":"TOKEN"}', '{"token":"\\ufeffTOKEN"}'])
+def test_token_con_bom_consulta_stock_con_cabecera_limpia(respuesta):
+    def responder(p, _):
+        if p.url.path.endswith('/gettoken'):
+            return httpx.Response(200, text=respuesta)
+        assert p.headers['token'] == 'TOKEN'
+        return httpx.Response(200, json=[FILA])
+    cli, llamadas = api(responder)
+    assert cli.stock()[0]['sku'] == '2H0525345'
+    assert len(llamadas) == 2
+
+
+def test_credencial_unicode_se_envia_sin_500_y_sin_alterar_valor():
+    def responder(p):
+        assert dict(p.headers.raw)[b'password'] == 'contraseña'.encode('utf-8')
+        return httpx.Response(200, json={'token': 'T'})
+    cli = svc.DepotAPI(base_url=BASE, usuario='u', clave='contraseña', transporte=httpx.MockTransport(responder))
+    assert cli.token() == 'T'

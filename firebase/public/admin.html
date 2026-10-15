@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-22"></script>
+<script src="./js/arranque.js?v=20261015-23"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261015-22" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261015-23" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261015-22">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-23">
 </head>
 <body>
 <div class="envoltorio">
@@ -127,6 +127,7 @@
     <h2>Conexiones del servidor · solo ADMIN</h2>
     <p>Credenciales cifradas. Los campos secretos vacíos conservan el valor guardado.</p>
     <details open><summary>Depot / WMS por cliente</summary>
+      <p class="mini">Una cuenta por cliente. Copia el usuario y la clave de su conexión vigente en Apps Script → Clientes; no son credenciales de Google. URL raíz: <code>https://ec.itsanet.com/q_apidepot</code>. «Probar» consulta autenticación y stock; no modifica los conteos.</p>
       <div id="clientesServidor" class="acciones"></div>
       <form id="formDepotLocal" class="rejilla" style="margin-top:16px">
         <label class="campo"><span>ID del cliente</span><input id="iClienteId" required maxlength="32" placeholder="VENTURA"></label>
@@ -140,7 +141,7 @@
       </form>
     </details>
     <details style="margin-top:18px"><summary>Drive y envío de correo</summary>
-      <p class="mini">Cada supervisor despliega su propio puente como «Yo» desde su cuenta Google. El correo sale de esa cuenta; no se suplanta con Reply-To.</p>
+      <p class="mini">Configuración única por ADMIN para cada supervisor. Ese supervisor autoriza su cuenta Google al desplegar el puente como «Yo». Al finalizar solo elegirá los destinatarios: el remitente se toma de su sesión y debe coincidir con la cuenta autorizada.</p>
       <div id="puentesSupervisores" class="acciones"></div>
       <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
         <label class="campo"><span>Correo del supervisor responsable</span><input id="iGoogleSupervisor" type="email" placeholder="supervisor@gmail.com"></label>
@@ -151,8 +152,9 @@
       </form>
       <p class="mini">Clave compartida: se genera, no se obtiene de Gmail. Usa la misma en SERVIDOR_HMAC de Apps Script. Guía: <a href="https://github.com/brantos102/IV_ITSANET/blob/pr_bep/serene-thompson-10qlxd/docs/GOOGLE_Y_FORMATOS.md" target="_blank" rel="noopener">configurar Drive, correo y OAuth</a>.</p>
     </details>
-    <details style="margin-top:18px"><summary>Entrar con Google · OAuth</summary>
-      <p>Cliente OAuth web del proyecto Google Cloud. Autoriza el callback exacto. Para móviles se necesita HTTPS; localhost sirve para la prueba en computador.</p>
+    <details style="margin-top:18px"><summary>Entrar con Google · Opcional</summary>
+      <p>Para operar desde móvil puedes usar correo/usuario y contraseña de esta app por la WiFi interna. Estos campos solo habilitan el botón «Entrar con Google»; no son necesarios para el puente de Drive y correo.</p>
+      <p class="mini">Se obtienen en Google Cloud → Google Auth Platform → Clients → Create client → Web application. Copia su Client ID y Client secret. Registra allí la URI exacta indicada abajo. Google exige un dominio HTTPS para ese acceso desde móviles; localhost sirve en el computador.</p>
       <form id="formOAuthLocal" class="rejilla">
         <label class="campo"><span>Client ID</span><input id="iOAuthId" required placeholder="…apps.googleusercontent.com"></label>
         <label class="campo"><span>Client secret</span><input id="iOAuthSecret" type="password" autocomplete="new-password" placeholder="Conservar guardado"></label>
@@ -319,16 +321,16 @@
 </div>
 
 <script type="module">
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261015-22';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261015-22';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js?v=20261015-22';
-import { confirmar } from './js/modal.js?v=20261015-22';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261015-23';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261015-23';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js?v=20261015-23';
+import { confirmar } from './js/modal.js?v=20261015-23';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261015-22';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261015-22';
+} from './js/csv.js?v=20261015-23';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261015-23';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261015-22';
+  from './vendor/firebase-sdk.js?v=20261015-23';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];

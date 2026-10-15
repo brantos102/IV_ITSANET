@@ -415,5 +415,7 @@ export async function proxyLocal(accion, datos = {}) {
 export const entregasServidor = () => pedir('/entregas');
 export const reintentarEntrega = (id) => pedir(`/entregas/${encodeURIComponent(id)}/reintentar`, { cuerpo: {} });
 export const finalizarConEntrega = (codigo, datos) => pedir(`/recepciones/${encodeURIComponent(codigo)}/entrega`, { cuerpo: datos });
+export const destinatariosRecientes = (codigo) => pedir(`/recepciones/${encodeURIComponent(codigo)}/destinatarios-recientes`);
+export const entregasRecepcion = (codigo) => pedir(`/recepciones/${encodeURIComponent(codigo)}/entregas`);
 
 export const consultarSku = (codigo, sku) => pedir(`/recepciones/${encodeURIComponent(codigo)}/estado-sku/${encodeURIComponent(sku)}`);

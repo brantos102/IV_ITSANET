@@ -33,11 +33,38 @@ def configurado(db=None, supervisor=None):
     return bool(g['url'] and len(g['secreto']) >= 32) or (not supervisor and bool(puentes_publicos(db)))
 
 
-def documento(e):
+def documento(e, tecnico=False):
+    mensajes = {
+        'PENDIENTE': 'Entrega pendiente. Los informes y las evidencias permanecen guardados; no se ha confirmado el envío.',
+        'PROCESANDO': 'Preparando archivos y envío. Espera la confirmación.',
+        'REVISION': 'La entrega necesita revisión del administrador antes de repetir el envío.',
+        'ENTREGADA': 'Envío confirmado.' if e.datos.get('destinatarios') else 'Archivos confirmados en Drive. Sin envío de correo.',
+    }
     return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
-            'intentos': e.intentos, 'mensaje': e.error,
+            'intentos': e.intentos, 'mensaje': e.error if tecnico else mensajes.get(e.estado, 'Comprobando entrega.'),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
-            'resultado': e.resultado or {}, 'creadoEn': m._iso(e.creado_en)}
+            'resultado': (e.resultado or {}) if tecnico else {
+                k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'sheet', 'enviadoA', 'remitente')},
+            'creadoEn': m._iso(e.creado_en)}
+
+
+def resumen_final(skus):
+    """Las cifras del correo salen de la instantanea SQL del cierre."""
+    r = {'ok': 0, 'faltante': 0, 'sobrante': 0, 'unidadesEsperadas': 0,
+         'unidadesFisicas': 0, 'adicionales': 0, 'discrepancias': []}
+    for s in skus:
+        e, f = s.get('esperado', 0), s.get('contado', 0)
+        r['unidadesEsperadas'] += e
+        r['unidadesFisicas'] += f
+        r['adicionales'] += s.get('enPackingList') is False
+        if f == e:
+            r['ok'] += 1
+        else:
+            r['faltante' if f < e else 'sobrante'] += 1
+            r['discrepancias'].append({'sku': s['sku'], 'esperado': e, 'fisico': f,
+                'diferencia': f - e, 'estado': 'Faltante' if f < e else 'Sobrante'})
+    r['exactitud'] = round(r['ok'] / len(skus) * 100, 1) if skus else 0
+    return r
 
 
 def preparar(db, codigo, datos, usuario):
@@ -76,7 +103,7 @@ def preparar(db, codigo, datos, usuario):
             'carpetaMes': str(datos.get('carpetaMes') or '')[:100],
             'carpetaRecepcion': str(datos.get('carpetaRecepcion') or r.codigo)[:200],
             'duracion': str(datos.get('duracion') or '')[:100],
-            'resumen': datos.get('resumen') or {}, 'exportarSheet': datos.get('exportarSheet') is True,
+            'resumen': resumen_final(skus), 'exportarSheet': datos.get('exportarSheet') is True,
             'recepcion': cierre, 'skus': skus,
             'lineas': m.leer_coleccion(db, r.codigo, 'lineas', actual=True),
             'eventos': eventos},

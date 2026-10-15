@@ -105,7 +105,7 @@ export function confirmar({ titulo, texto = '', aceptar = 'Aceptar',
 export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
                              marcador = '', obligatorio = false,
                              aceptar = 'Aceptar', cancelar = 'Cancelar',
-                             lineas = 1 } = {}) {
+                             lineas = 1, sugerencias = [] } = {}) {
   const campo = lineas > 1
     ? `<textarea id="modalCampo" rows="${lineas}" placeholder="${esc(marcador)}">${esc(valor)}</textarea>`
     : `<input id="modalCampo" value="${esc(valor)}" placeholder="${esc(marcador)}"
@@ -114,6 +114,9 @@ export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
   return abrir(
     `${cabecera(titulo, texto)}
      <label class="campo">${etiqueta ? `<span>${esc(etiqueta)}</span>` : ''}${campo}</label>
+     ${sugerencias.length ? `<div class="modal-sugerencias"><span class="mini">Destinatarios recientes de este cliente</span>
+       ${sugerencias.map((s, i) => `<button type="button" class="b-sec" data-sugerencia="${i}">${esc(s)}</button>`).join('')}
+       </div>` : ''}
      <div class="modal-acciones">
        <button type="button" class="b-sec" data-no>${esc(cancelar)}</button>
        <button type="button" class="b-primario" data-si>${esc(aceptar)}</button>
@@ -124,6 +127,9 @@ export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
       const revisar = () => { si.disabled = obligatorio && !campoEl.value.trim(); };
 
       campoEl.addEventListener('input', revisar);
+      d.querySelectorAll('[data-sugerencia]').forEach(b => {
+        b.onclick = () => { campoEl.value = sugerencias[Number(b.dataset.sugerencia)]; revisar(); campoEl.focus(); };
+      });
       campoEl.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' && lineas === 1) { ev.preventDefault(); si.click(); }
       });

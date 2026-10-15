@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import UPLOAD_DIR
 from app.db import get_db
-from app.models import Operador, Producto
+from app.models import Operador, Producto, Rol
 from app.security import requiere_supervisor, usuario_actual
 from app.services import depot as depot_svc
 from app.services.importer import leer_maestro
@@ -20,7 +20,12 @@ router = APIRouter(prefix="/api/catalogo", tags=["catalogo"])
 
 
 @router.get("/estado")
-def estado(db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+def estado(db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    if op.rol != Rol.ADMIN:
+        ultima = db.scalar(select(func.max(Producto.actualizado_en)))
+        return {'productos_en_cache': db.scalar(select(func.count()).select_from(Producto)) or 0,
+                'actualizado_en': ultima.isoformat(timespec='seconds') if ultima else None,
+                'clientes': depot_svc.clientes_en_espejo(db), 'modo': 'MAESTRO LOCAL'}
     return depot_svc.estado_integracion(db)
 
 
@@ -109,13 +114,15 @@ def _upsert(db: Session, registros: list[dict]) -> None:
 # Depot: el maestro directo del WMS, sin pasar por un Excel
 # --------------------------------------------------------------------------- #
 @router.get("/depot/probar")
-def probar_depot(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+def probar_depot(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     """¿Valen las credenciales? Pide solo el token, no baja el inventario.
 
     Es la primera cosa que hay que poder contestar al instalar en un servidor
     nuevo, y la única que distingue tres cosas que desde fuera se parecen: que
     no haya credenciales puestas, que estén mal, y que el WMS no conteste.
     """
+    if op.rol != Rol.ADMIN:
+        raise HTTPException(403, 'Solo ADMIN puede probar conexiones')
     api = depot_svc.DepotAPI.desde_db(db)
     if not api.configurada:
         return {"ok": False, "motivo": "SIN CREDENCIALES",
@@ -135,7 +142,7 @@ def probar_depot(db: Session = Depends(get_db), _: Operador = Depends(requiere_s
 def sincronizar_depot(
     cliente: str | None = None,
     db: Session = Depends(get_db),
-    _: Operador = Depends(requiere_supervisor),
+    op: Operador = Depends(requiere_supervisor),
 ):
     """Baja el maestro de productos desde Depot y actualiza el espejo local.
 
@@ -155,12 +162,16 @@ def sincronizar_depot(
                 db.rollback()
                 errores.append(c['id'])
         if not resultados:
-            raise HTTPException(503, 'Ningun cliente respondio. Revisa las conexiones en Administracion')
+            raise HTTPException(503, 'No se pudo actualizar el catálogo. Contacta al administrador; el maestro local sigue disponible.')
         return {'productos': sum(r['productos'] for r in resultados), 'clientes': len(resultados), 'errores': errores, 'ambiguos': sorted({sku for r in resultados for sku in r.get('ambiguos', [])})}
     except depot_svc.DepotRechazado as exc:
-        raise HTTPException(502, f"Depot rechazó las credenciales: {exc}") from exc
+        raise HTTPException(502, 'No se pudo actualizar el catálogo. Contacta al administrador; el maestro local sigue disponible.') from None
     except depot_svc.DepotNoDisponible as exc:
-        raise HTTPException(503, str(exc)) from exc
+        raise HTTPException(503, 'No se pudo actualizar el catálogo. Contacta al administrador; el maestro local sigue disponible.') from None
+    except HTTPException as exc:
+        if op.rol != Rol.ADMIN and exc.status_code >= 500:
+            raise HTTPException(exc.status_code, 'No se pudo actualizar el catálogo. Contacta al administrador; el maestro local sigue disponible.') from None
+        raise
 
 
 @router.get("/depot/clientes")

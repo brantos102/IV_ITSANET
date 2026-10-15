@@ -2,16 +2,16 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-22"></script>
+<script src="./js/arranque.js?v=20261015-23"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-22">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-23">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261015-22"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261015-23"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -136,16 +136,16 @@
 </div>
 
 <script type="module">
-import { observarSesion, modoLocal } from './js/auth.js?v=20261015-22';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261015-23';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261015-22';
-import { Proxy } from './js/proxy.js?v=20261015-22';
-import { resumir } from './js/conteo.js?v=20261015-22';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261015-22';
-import { confirmarEscribiendo } from './js/modal.js?v=20261015-22';
+} from './js/datos.js?v=20261015-23';
+import { Proxy } from './js/proxy.js?v=20261015-23';
+import { resumir } from './js/conteo.js?v=20261015-23';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261015-23';
+import { confirmarEscribiendo } from './js/modal.js?v=20261015-23';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;

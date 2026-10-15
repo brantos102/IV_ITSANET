@@ -23,6 +23,31 @@ ni los puertos de otros proyectos. Recargar `/app/` con Ctrl+F5.
 
 ## Drive y correo desde la cuenta del supervisor
 
+ADMIN configura las conexiones una sola vez. El supervisor no ve las claves,
+rutas, OAuth ni errores técnicos. Al finalizar, el remitente es el supervisor
+autenticado: **solo se eligen los destinatarios**, con los últimos grupos usados
+para ese mismo cliente. Se pueden corregir antes de confirmar. Si todavía no
+hay envíos anteriores, se escriben por primera vez. Dejar vacío archiva sin correo.
+La recepción muestra **Entrega del informe → Actualizar estado**: pendiente no
+significa enviado. ADMIN conserva el diagnóstico y el reintento en Administración.
+El resumen y las diferencias del correo se calculan de la instantánea SQL del
+cierre, junto con los packing lists finales y el enlace a las evidencias en Drive.
+
+| Campo | De dónde sale | Cuándo se necesita |
+| --- | --- | --- |
+| Usuario / clave Depot | Cuenta WMS de ese cliente; la misma configurada en Clientes.gs | Consulta y sincronización con Depot |
+| Apps Script `/exec` | Implementar → Aplicación web, desde la cuenta del supervisor | Drive y correo de ese supervisor |
+| `SERVIDOR_HMAC` | Clave aleatoria generada por ADMIN; se copia en Apps Script y en el panel | Autenticar el servidor ante el puente |
+| Client ID / Client secret | Google Cloud → Google Auth Platform → Clients → cliente web | Solo para el botón «Entrar con Google» |
+| URI de redirección | Dirección de la app + `/api/auth/google/callback`; se registra exactamente igual en Google | Solo para el botón «Entrar con Google» |
+
+**Para contar en móviles por WiFi no hacen falta los campos OAuth**: funciona
+el correo/usuario y la contraseña local. No se escribe la contraseña de Gmail.
+Para «Entrar con Google» desde un móvil sí hace falta un dominio HTTPS autorizado;
+`localhost` en el teléfono apunta al propio teléfono. Para enviar desde el Gmail
+real del supervisor, esa cuenta debe autorizar el puente una vez; iniciar sesión
+en esta app no concede permiso para enviar correo en su nombre.
+
 **MailApp envía como la cuenta que ejecuta el despliegue**, no como la persona
 escrita en el cuerpo del mensaje. `replyTo` tampoco cambia el remitente.
 Por eso se configura un puente por supervisor. No hace falta una contraseña
@@ -205,6 +230,19 @@ filtros adicionales pero conserva las fechas elegidas; no se trunca a las primer
 una exportación mayor explícitamente, sin entregar un archivo recortado.
 
 ## Corrección de conexión Depot
+
+El registro empresarial del 15 de octubre confirmó un fallo adicional:
+`UnicodeEncodeError` en `getstock`, por `U+FEFF` al comienzo del token.
+Depot respondió con un marcador BOM que Python `strip()` conservaba; httpx
+intentaba codificarlo como ASCII al armar la cabecera y devolvía 500 antes de
+consultar stock. Ahora se retira el BOM tanto de la respuesta como del valor
+del token, en texto, cadena JSON y objeto JSON. No se cambian las credenciales.
+Una página HTML ya no se interpreta como un token. También se admiten valores
+UTF-8 en las cabeceras y se conservan las restricciones de redirección.
+
+Si aparece otro error interno, ADMIN verá el paso y una referencia. Buscarla en
+`sudo journalctl -u iv-itsanet -n 60 --no-pager`: se registran clase de excepción
+y archivo/línea, sin mensajes que puedan incluir credenciales ni cuerpos HTTP.
 
 `Clientes.gs`, que funciona en Firebase, pide `GET /gettoken` con las cabeceras
 **userid / password**. El servidor usaba los nombres antiguos usuario / clave;
