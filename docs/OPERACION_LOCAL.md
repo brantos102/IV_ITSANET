@@ -1,5 +1,11 @@
 # Operacion completa en el servidor (3002)
 
+**Con operadores registrando datos reales:** preparar las mejoras en una base
+MySQL y una copia de la app independientes antes de publicar. No ejecutar una
+actualización durante el trabajo operativo siguiendo esta guía de instalación.
+Ver [pruebas aisladas y reporte de crecimiento diario](PRUEBAS_Y_ESTADO_PRODUCCION.md)
+para diagnosticar la producción actual sin actualizarla ni reiniciarla.
+
 La interfaz para credenciales, Google y validacion movil se documenta en
 [MEJORAS_MOVIL.md](MEJORAS_MOVIL.md). El panel ADMIN ahora permite configurar
 las conexiones sin editar el archivo de entorno; sus valores prevalecen
