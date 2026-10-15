@@ -33,13 +33,32 @@ el servicio, modificar SSH, nginx, MySQL global o los puertos 3000 y 8080.
 
 ## Firebase operativo
 
-Desde el mismo commit, en un equipo con Firebase CLI y una cuenta autorizada:
+La guia original `firebase/INSTALACION.md` ejecuta el despliegue desde la
+terminal del computador. Tambien se puede publicar desde VS Code conectado por
+SSH: el inicio de sesion debe usar `--no-localhost`.
+
+Si aparece `firebase: command not found`, usar la CLI con `npx`, sin instalarla
+globalmente ni cambiar las herramientas de los otros proyectos. Requiere Node
+20 o superior y npm; comprobarlos con `node --version` y `npm --version`. Si esa
+version no esta disponible en el servidor, ejecutar el despliegue desde el
+computador con el repositorio actualizado, sin sustituir el Node del servidor.
+
+Desde el servidor por SSH:
 
 ```bash
-cd firebase
-firebase login
-firebase deploy --project iv-itsanet --only hosting,firestore:rules
+cd ~/bryan/IV_ITSANET/firebase
+npx --yes --package=firebase-tools@15.34.0 firebase login --no-localhost
+npx --yes --package=firebase-tools@15.34.0 firebase deploy --project iv-itsanet --only hosting,firestore:rules
 ```
+
+Abrir en el navegador la URL que muestre la terminal y autorizar una cuenta
+con permisos de despliegue en `iv-itsanet`. Completar la autorizacion en esa
+terminal, nunca pegar codigos o tokens en el chat. No necesita `sudo`.
+Esperar `Deploy complete!` antes de considerar publicado el cambio.
+
+En el computador se usan los mismos comandos desde su carpeta `firebase` y
+puede omitirse `--no-localhost`. No ejecutar `firebase init`: el repositorio ya
+contiene el proyecto y la configuracion que deben conservarse.
 
 Las reglas se publican junto al hosting porque el supervisor necesita permiso
 para aprobar. El destino es la base nombrada `bd-iv-itsanet` de `firebase.json`.
