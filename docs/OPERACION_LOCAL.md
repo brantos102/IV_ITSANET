@@ -81,13 +81,14 @@ requiere HTTPS, o un navegador que considere seguro ese origen.
 
 ## Códigos de barras y fotos de los ítems
 
-La cámara en vivo conserva el lector nativo de Firebase: requiere HTTPS o
-localhost y `BarcodeDetector` compatible. En la IP interna por HTTP aparece
-**Leer con foto**: abre la cámara/galería nativa del dispositivo y decodifica
-la etiqueta en el navegador, sin subir esa imagen al servidor ni registrar
-un conteo. El lector de respaldo se sirve desde la bodega y se carga solo al
-usar esta opción. Encuadrar una etiqueta con buena luz. Para registrar, revisar
-el producto leído y confirmar su cantidad y pallet. La pistola sigue funcionando.
+**Cámara** abre el video en vivo. Conserva el lector nativo de Firebase y usa
+ZXing sobre el mismo video cuando no hay `BarcodeDetector`. Requiere HTTPS con
+certificado confiable o localhost. No se utiliza una fotografía para escanear.
+El lector se pausa mientras se revisa la ficha y se libera al apagar, cambiar de
+vista o salir. Leer no guarda un conteo: confirmar cantidad y pallet después.
+La IP privada por HTTP bloquea `getUserMedia` en el navegador; ver
+[cómo habilitar HTTPS para la cámara](CAMARA_EN_VIVO.md). Las fotos de evidencia
+de los ítems siguen siendo una función independiente.
 
 - En la ficha, **Código de barras · opcional → Registrar otro código de barras**
   asocia una etiqueta a un SKU existente. Las etiquetas anteriores siguen funcionando.

@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261015-24';
-import { db } from './auth.js?v=20261015-24';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261015-24';
-import * as local from './local.js?v=20261015-24';
+} from '../vendor/firebase-sdk.js?v=20261015-25';
+import { db } from './auth.js?v=20261015-25';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261015-25';
+import * as local from './local.js?v=20261015-25';
 
 /**
  * Dónde se guardan los datos.

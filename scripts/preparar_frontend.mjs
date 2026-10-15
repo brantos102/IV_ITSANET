@@ -22,7 +22,7 @@ await copyFile(path.join(raiz, 'node_modules/jspdf/dist/jspdf.umd.min.js'), path
 await copyFile(path.join(raiz, 'node_modules/jspdf-autotable/dist/jspdf.plugin.autotable.min.js'), path.join(destino, 'jspdf.plugin.autotable.min.js'));
 await copyFile(path.join(raiz, 'node_modules/jsbarcode/dist/JsBarcode.all.min.js'), path.join(destino, 'JsBarcode.all.min.js'));
 await build({
-  stdin:{contents:"export { BrowserMultiFormatReader, DecodeHintType } from '@zxing/library';",resolveDir:raiz,sourcefile:'zxing-entry.js',loader:'js'},
+  stdin:{contents:"export { BrowserMultiFormatReader, MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource } from '@zxing/library';",resolveDir:raiz,sourcefile:'zxing-entry.js',loader:'js'},
   outfile:path.join(destino,'zxing.js'),bundle:true,minify:true,format:'esm',target:'es2020',legalComments:'eof',
 });
 await copyFile(path.join(raiz,'node_modules/@zxing/library/LICENSE'),path.join(destino,'ZXING-LICENSE.txt'));

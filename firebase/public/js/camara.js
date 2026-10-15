@@ -7,9 +7,8 @@
  *
  * Se usa `BarcodeDetector`, que viene en el propio navegador: en Chrome de
  * Android funciona sin instalar nada ni cargar librerías. Donde no está —Safari
- * de iPhone, por ejemplo— se dice y se sigue con el teclado y la pistola, que
- * es lo que ya funciona. En HTTP interno se puede tomar una foto desde el
- * selector nativo y decodificarla localmente. Su lector se carga solo al usarlo.
+ * de iPhone, por ejemplo— el lector local ZXing procesa el mismo video en
+ * vivo. Ambos necesitan permiso de cámara y un origen seguro (HTTPS).
  */
 
 const FORMATOS = [
@@ -20,21 +19,47 @@ const FORMATOS = [
 
 export const camaraDisponible = () =>
   typeof window !== 'undefined'
-  && 'BarcodeDetector' in window
+  && window.isSecureContext !== false
   && !!navigator.mediaDevices?.getUserMedia;
 
 /** Por qué no se puede, en términos que digan qué hacer. */
 export function motivoNoDisponible() {
   if (typeof window === 'undefined') return 'Sin navegador.';
-  if (!navigator.mediaDevices?.getUserMedia) {
-    return 'Este navegador no da acceso a la cámara. Hace falta HTTPS; con la ' +
-           'IP interna por HTTP puedes tomar una foto del código o usar la pistola.';
-  }
-  if (!('BarcodeDetector' in window)) {
-    return 'Este navegador no sabe leer códigos con la cámara. En Android, ' +
-           'Chrome sí. Mientras tanto, usa la pistola o escribe el código.';
+  if (window.isSecureContext === false || !navigator.mediaDevices?.getUserMedia) {
+    return 'La cámara en vivo requiere abrir la app por HTTPS con un certificado confiable. '
+         + 'La IP interna por HTTP no permite activarla. Solicita al administrador la dirección HTTPS.';
   }
   return '';
+}
+
+async function lectorDeVideo() {
+  if (typeof window.BarcodeDetector === 'function') {
+    try {
+      const soportados = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : FORMATOS;
+      const formatos = FORMATOS.filter(f=>soportados.includes(f));
+      if (formatos.length) {
+        const detector = new window.BarcodeDetector({formats:formatos});
+        return {leer:video=>detector.detect(video),cerrar(){}};
+      }
+    } catch { /* Un lector nativo no compatible usa el respaldo sobre video. */ }
+  }
+  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261015-25');
+  const lector = new MultiFormatReader();
+  lector.setHints(new Map([[DecodeHintType.TRY_HARDER,true],
+    [DecodeHintType.POSSIBLE_FORMATS,FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()])]]));
+  const canvas = document.createElement('canvas');
+  const contexto = canvas.getContext('2d',{willReadFrequently:true});
+  return {
+    leer(video) {
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+      }
+      contexto.drawImage(video,0,0);
+      const bitmap = new BinaryBitmap(new HybridBinarizer(new HTMLCanvasElementLuminanceSource(canvas)));
+      return [{rawValue:lector.decodeWithState(bitmap).getText()}];
+    },
+    cerrar(){lector.reset();canvas.width=0;canvas.height=0;},
+  };
 }
 
 /**
@@ -48,17 +73,15 @@ export function motivoNoDisponible() {
  * @param {object} opciones  { intervaloMs, repetirTrasMs }
  */
 export async function abrirCamara(video, alLeer, opciones = {}) {
+  if (!camaraDisponible()) throw new Error(motivoNoDisponible());
   const intervaloMs = opciones.intervaloMs || 180;
   // El mismo código delante de la cámara se lee treinta veces por segundo. Sin
   // esta espera, un solo acercamiento registraría decenas de unidades.
   const repetirTrasMs = opciones.repetirTrasMs ?? 2500;
 
-  const soportados = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : FORMATOS;
-  const formatos = FORMATOS.filter(f=>soportados.includes(f));
-  if (!formatos.length) throw new Error('No hay formatos de código compatibles; usa una foto.');
-  const detector = new window.BarcodeDetector({ formats: formatos });
-
-  const flujo = await navigator.mediaDevices.getUserMedia({
+  const detector = await lectorDeVideo();
+  let flujo;
+  try { flujo = await navigator.mediaDevices.getUserMedia({
     video: {
       // La trasera: la frontal enfoca al operario.
       facingMode: { ideal: 'environment' },
@@ -66,12 +89,13 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
       height: { ideal: 720 },
     },
     audio: false,
-  });
+  }); } catch(e) { detector.cerrar(); throw e; }
 
   video.srcObject = flujo;
   video.setAttribute('playsinline', '');   // iOS no abre pantalla completa
+  video.muted = true;
   try { await video.play(); }
-  catch(e) { for (const pista of flujo.getTracks()) pista.stop(); video.srcObject=null; throw e; }
+  catch(e) { for (const pista of flujo.getTracks()) pista.stop(); video.srcObject=null; detector.cerrar(); throw e; }
 
   let ultimo = '';
   let ultimoEn = 0;
@@ -79,10 +103,10 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
   let detectando = false;
 
   const temporizador = setInterval(async () => {
-    if (!vivo || detectando || video.readyState < 2) return;
+    if (!vivo || detectando || video.readyState < 2 || (opciones.puedeLeer && !opciones.puedeLeer())) return;
     detectando = true;
     try {
-      const codigos = await detector.detect(video);
+      const codigos = await detector.leer(video);
       if (!vivo || !codigos.length) return;
 
       const valor = String(codigos[0].rawValue || '').trim();
@@ -103,21 +127,6 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
     clearInterval(temporizador);
     for (const pista of flujo.getTracks()) pista.stop();
     video.srcObject = null;
+    detector.cerrar();
   };
-}
-
-/** Una foto desde capture/galería funciona sin getUserMedia; no se sube al servidor. */
-export async function leerCodigoFoto(archivo) {
-  if (!archivo || !/^image\//.test(archivo.type) || archivo.size > 20*1024*1024) {
-    throw new Error('Selecciona una imagen de hasta 20 MB.');
-  }
-  const {BrowserMultiFormatReader, DecodeHintType} = await import('../vendor/zxing.js?v=20261015-24');
-  const pistas = new Map([[DecodeHintType.TRY_HARDER, true]]);
-  const lector = new BrowserMultiFormatReader(pistas);
-  const url=URL.createObjectURL(archivo);
-  try {
-    const r=await lector.decodeFromImageUrl(url);
-    return String(r.getText() || '').trim();
-  } catch { throw new Error('No se pudo leer el código. Encuadra una sola etiqueta, con buena luz y sin reflejos, y toma otra foto.'); }
-  finally { lector.reset(); URL.revokeObjectURL(url); }
 }

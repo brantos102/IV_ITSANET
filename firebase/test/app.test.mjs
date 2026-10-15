@@ -566,13 +566,11 @@ function conEntorno(window, mediaDevices, fn) {
   }
 }
 
-// Donde no hay lector en el navegador se dice y se sigue con la pistola, que es
-// lo que ya funciona; no se carga un motor de respaldo de 800 KB por el camino.
-await test('sin BarcodeDetector la cámara no se ofrece, y se explica', () => {
+// El respaldo procesa video en vivo cuando falta el detector nativo.
+await test('sin BarcodeDetector se ofrece cámara en vivo mediante el lector local', () => {
   conEntorno({}, { getUserMedia: () => {} }, () => {
-    ok(!camara.camaraDisponible());
-    const m = camara.motivoNoDisponible();
-    ok(/Chrome/i.test(m) && /pistola|escribe/i.test(m), 'tiene que decir qué hacer: ' + m);
+    ok(camara.camaraDisponible());
+    eq(camara.motivoNoDisponible(), '');
   });
 });
 
@@ -580,6 +578,12 @@ await test('sin acceso a la cámara se explica que hace falta HTTPS', () => {
   conEntorno({ BarcodeDetector: function () {} }, undefined, () => {
     ok(!camara.camaraDisponible());
     ok(/HTTPS/i.test(camara.motivoNoDisponible()), camara.motivoNoDisponible());
+  });
+});
+
+await test('un origen inseguro no ofrece cámara aunque exponga mediaDevices', () => {
+  conEntorno({isSecureContext:false}, {getUserMedia:()=>{}}, () => {
+    ok(!camara.camaraDisponible());ok(camara.motivoNoDisponible().includes('HTTPS'));
   });
 });
 
@@ -599,7 +603,9 @@ await test('lector en vivo evita repeticiones y apaga todas las pistas', async (
   Object.defineProperty(globalThis,'window',{value:{BarcodeDetector:Detector},configurable:true});
   Object.defineProperty(globalThis,'navigator',{value:{mediaDevices:{async getUserMedia(){return {getTracks:()=>[{stop(){paradas++;}}]};}}},configurable:true});
   globalThis.setInterval=f=>{tick=f;return 7;};globalThis.clearInterval=()=>{limpiado=true;};
-  try {const cerrar=await camara.abrirCamara(video,c=>leidos.push(c));await tick();await tick();eq(leidos,['00001234']);cerrar();await tick();eq(leidos,['00001234']);eq(paradas,1);ok(limpiado);eq(video.srcObject,null);}
+  try {const cerrar=await camara.abrirCamara(video,c=>leidos.push(c));await tick();await tick();eq(leidos,['00001234']);cerrar();await tick();eq(leidos,['00001234']);eq(paradas,1);ok(limpiado);eq(video.srcObject,null);
+    video.play=async()=>{throw new Error('Video rechazado');};let rechazo=false;try{await camara.abrirCamara(video,()=>{});}catch{rechazo=true;}ok(rechazo);eq(paradas,2);eq(video.srcObject,null);
+  }
   finally {globalThis.setInterval=intervalo;globalThis.clearInterval=limpiar;if(w)Object.defineProperty(globalThis,'window',w);else delete globalThis.window;if(n)Object.defineProperty(globalThis,'navigator',n);else delete globalThis.navigator;}
 });
 
