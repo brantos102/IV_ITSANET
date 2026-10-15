@@ -14,6 +14,11 @@ function entregaServidor_(peticion) {
   var p = JSON.parse(peticion.payload);
   if (!Number.isFinite(p.fecha) || Math.abs(Date.now() / 1000 - p.fecha) > 300) throw new Error('Solicitud expirada.');
   if (!/^[a-f0-9]{32}(:[a-f0-9]{32})?$/.test(p.clave || '')) throw new Error('Identificador no valido.');
+  var remitente = cuentaServidor_(p.datos && p.datos.usuario);
+  if (p.operacion === 'estado') {
+    DriveApp.getFolderById(exigirCarpeta_()).getName();
+    return { exito: true, remitente: remitente };
+  }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
@@ -21,6 +26,14 @@ function entregaServidor_(peticion) {
     if (p.operacion === 'finalizar') return finalizarServidor_(p.clave, p.datos);
     throw new Error('Operacion de servidor no permitida.');
   } finally { lock.releaseLock(); }
+}
+
+/** MailApp envia como el ejecutor del despliegue; replyTo no cambia el From. */
+function cuentaServidor_(supervisor) {
+  var real = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+  var esperado = String(supervisor || '').trim().toLowerCase();
+  if (!esperado || real !== esperado) throw new Error('El despliegue debe ejecutarse como el supervisor responsable.');
+  return real;
 }
 
 function archivoServidor_(clave, p) {
@@ -63,6 +76,7 @@ function tablaServidor_(libro, nombre, columnas, datos) {
 }
 
 function finalizarServidor_(id, p) {
+  var remitente = cuentaServidor_(p.usuario);
   var carpeta = carpetaDeRecepcion_(DriveApp.getFolderById(exigirCarpeta_()), p);
   // Solo el acuse de entrega vive aqui: no se registran conteos ni historico en Sheets.
   var control = carpetaDe_(carpeta, 'entregas');
@@ -106,7 +120,7 @@ function finalizarServidor_(id, p) {
     }, { email: p.usuario });
   }
   acuse = { exito: true, id: id, carpeta: carpeta.getUrl(), sheet: sheet,
-    enviadoA: p.destinatarios || '', estado: 'ENTREGADA' };
+    enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA' };
   archivo.setContent(JSON.stringify(acuse));
   return acuse;
 }

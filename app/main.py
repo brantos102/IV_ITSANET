@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app.config import APP_NAME, APP_VERSION, BASE_DIR
 from app.db import SessionLocal, init_db
 from app.models import Operador, Rol
-from app.routers import app_api, auth, catalogo, google_auth, integraciones, kpi, recepciones, scans, ui
+from app.routers import app_api, auth, catalogo, google_auth, integraciones, kpi, recepciones, reportes, scans, ui
 from app.security import hash_pin
 from app.services.validation import ErrorValidacion
 
@@ -77,6 +77,7 @@ app.include_router(kpi.router)
 app.include_router(app_api.router)
 app.include_router(integraciones.router)
 app.include_router(google_auth.router)
+app.include_router(reportes.router)
 
 
 @app.exception_handler(ErrorValidacion)

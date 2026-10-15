@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
-<title>Recepciones — ITSANET IMS</title>
+<title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
@@ -16,7 +16,7 @@
 
 <header>
   <div>
-    <div class="marca"><img class="logo-empresa" src="./logo-itsa.png" alt="ITSA"><span>IMS</span></div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="simbolo-empresa" src="./icono.png" alt=""><span class="nombre-empresa">itsanet</span></a>
     <div class="sub">Recepciones</div>
   </div>
   <div class="sp"></div>
@@ -176,7 +176,7 @@ observarSesion((e) => {
   soloMias = new URLSearchParams(location.search).get('mias') === '1';
   if (soloMias) {
     $('tituloLista').textContent = 'Lo que has validado';
-    document.title = 'Mis validaciones — ITSANET IMS';
+    document.title = 'Mis validaciones — ITSANET';
   }
   if (perfil?.rol === 'ADMIN') $('lnkAdmin').classList.remove('oculto');
   if (!puedeCrear) {

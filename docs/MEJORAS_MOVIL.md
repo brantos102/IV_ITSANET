@@ -1,5 +1,7 @@
 # Validacion movil y conexiones del servidor
 
+Actualización: [Google por supervisor, formatos oficiales y etiqueta desde stock](GOOGLE_Y_FORMATOS.md).
+
 Se conserva la aplicacion, los packing lists, conteos, aprobaciones y archivos.
 Esta actualizacion no importa historicos, no cambia el servicio ni el puerto
 3002 y no modifica el archivo local `mysql/01-crear-base.sql`.
@@ -30,8 +32,7 @@ curl --retry 8 --retry-connrefused --retry-delay 1 --max-time 5 -fsS \
 
 Conservar cambios locales. No ejecutar `git reset --hard`, no reinstalar el
 servicio ni ejecutar scripts de creacion de otra base. No se requiere npm en
-el servidor: se incluyen las bibliotecas del navegador. No hay dependencias
-Python nuevas; Fernet utiliza cryptography, ya requerido por PyMySQL[rsa].
+el servidor: se incluyen las bibliotecas del navegador. Instalar requirements.txt dentro de la .venv: Pillow se incorpora para el logo en Excel. Fernet utiliza cryptography, ya requerido por PyMySQL[rsa].
 
 Abrir `/app/` y recargar con Ctrl+F5. En el computador con reenvio SSH,
 `http://localhost:3002/app/`. En el movil conectado a la red de la empresa,
@@ -135,10 +136,10 @@ Tambien comprobar directamente en un handheld de la red.
 5. Posicion, observaciones, ubicaciones e historial estan disponibles al
    desplegarlos. PNC abre observaciones y mantiene captura de fotos; DP abre
    la posicion real. No aparecio sigue exigiendo nota y confirmacion.
-6. **Inventario:** referencias en tarjetas para movil, filtros y etiquetas.
+6. **Recepción actual (rev):** referencias en tarjetas para movil, filtros y etiquetas.
    **Novedades:** recorta las referencias revisadas con diferencias o PNC.
-   Las referencias pendientes siguen visibles en Inventario.
-7. El supervisor finaliza o exporta desde Inventario. El cierre y la entrega
+   Las referencias pendientes siguen visibles en Recepción actual (rev).
+7. El supervisor finaliza o exporta desde Recepción actual (rev). El cierre y la entrega
    conservan los estados pendientes y reintentos de la version anterior.
 
 ## Zebra ZD421-203dpi ZPL · formato existente 10 X 5

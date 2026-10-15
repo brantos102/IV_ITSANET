@@ -148,6 +148,29 @@ def listar(max: int = Query(50, ge=1, le=500), mias: bool = False,
     return m.listar_recepciones(db, max, usuario=_quien(op) if mias else None)
 
 
+@router.get('/recepciones/{codigo}/catalogo-exportacion')
+def catalogo_exportacion(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+    productos = db.scalars(select(Producto).join(AppSku, AppSku.sku == Producto.sku)
+        .where(AppSku.recepcion == r.codigo, Producto.cliente == r.cliente))
+    return {p.sku: {'unidad': p.unidad or '', 'familia': p.familia or ''} for p in productos}
+
+
+@router.get('/recepciones-abiertas/por-codigo/{codigo}')
+def buscar_en_recepciones(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    normal = m.normalizar_codigo(codigo)
+    producto = db.scalar(select(Producto).where((Producto.sku == normal) | (Producto.ean == normal)
+        | (Producto.codigo_alternativo == normal)))
+    sku = producto.sku if producto else normal
+    filas = db.scalars(select(AppRecepcion).join(AppSku, AppSku.recepcion == AppRecepcion.codigo)
+        .where(AppRecepcion.estado.in_(m.ABIERTAS), AppSku.sku == sku, AppSku.en_packing_list.is_(True))
+        .order_by(AppRecepcion.creado_en.desc())).all()
+    return {'sku': sku, 'recepciones': [m.doc_recepcion(r) for r in filas]}
+
+
 @router.post("/recepciones", status_code=201)
 def crear(datos: dict = Body(...), db: Session = Depends(get_db),
           op: Operador = Depends(requiere_supervisor)):

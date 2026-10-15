@@ -24,19 +24,19 @@ from app.services import app_modelo as m, archivos
 log = logging.getLogger('iv_itsanet.entregas')
 
 
-def configurado(db=None):
-    from app.services.integraciones import google
+def configurado(db=None, supervisor=None):
+    from app.services.integraciones import google, puentes_publicos
     if db is None:
         with SessionLocal() as sesion:
-            return configurado(sesion)
-    g = google(db)
-    return bool(g['url'] and len(g['secreto']) >= 32)
+            return configurado(sesion, supervisor)
+    g = google(db, supervisor)
+    return bool(g['url'] and len(g['secreto']) >= 32) or (not supervisor and bool(puentes_publicos(db)))
 
 
 def documento(e):
     return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'intentos': e.intentos, 'mensaje': e.error,
-            'destinatarios': e.datos.get('destinatarios', ''),
+            'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'resultado': e.resultado or {}, 'creadoEn': m._iso(e.creado_en)}
 
 
@@ -96,7 +96,7 @@ def llamar(operacion, clave, datos):
         'fecha': int(time.time()), 'datos': datos}, ensure_ascii=False, separators=(',', ':'))
     from app.services.integraciones import google
     with SessionLocal() as db:
-        destino = google(db)
+        destino = google(db, datos.get('usuario'))
     firma = hmac.new(destino['secreto'].encode(), payload.encode(), hashlib.sha256).hexdigest()
     # Solo el servidor contacta Google; nunca se envia esta clave al navegador.
     with httpx.Client(timeout=120, follow_redirects=True) as cliente:
@@ -132,6 +132,9 @@ def procesar_uno():
         db.commit()
         try:
             d = e.datos
+            estado = llamar('estado', e.id, {'usuario': e.usuario})
+            if str(estado.get('remitente') or '').strip().lower() != e.usuario.strip().lower():
+                raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
             guardados = []
             for aid in d['informes'] + d['fotos']:
                 a = db.get(AppArchivo, aid)

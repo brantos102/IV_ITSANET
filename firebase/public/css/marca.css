@@ -2,3 +2,6 @@
 .logo-empresa { display:block; width:140px; height:auto; max-width:40vw; object-fit:contain; }
 .marca > span { font-size:14px; letter-spacing:.06em; }
 @media(max-width:480px) { .logo-empresa { width:112px; } }
+
+.marca-inicio{text-decoration:none;color:#1e55d6;width:max-content;gap:5px;line-height:1}.simbolo-empresa{width:32px;height:32px;object-fit:contain}.marca .nombre-empresa{font-family:Arial,sans-serif;font-weight:800;font-size:31px;letter-spacing:-1px;color:#1e55d6}
+@media(max-width:480px){.simbolo-empresa{width:27px;height:27px}.marca .nombre-empresa{font-size:26px}}

@@ -22,11 +22,18 @@ export function aFecha(v) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export const soloDia = (f) => (f ? f.toISOString().slice(0, 10) : '');
+export const soloDia = f => f ? new Intl.DateTimeFormat('en-CA',{timeZone:'America/Guayaquil',year:'numeric',month:'2-digit',day:'2-digit'}).format(f) : '';
 
 /** Recepciones del periodo pedido, ya con sus totales. */
 export async function recepcionesDesde(desde, hasta) {
-  const todas = await listarRecepciones(200);
+  if(local.modoLocal()) {
+    const todas=[];let total=0;
+    do {const params=new URLSearchParams({offset:todas.length,limite:500});if(desde)params.set('desde',desde);if(hasta)params.set('hasta',hasta);const r=await local.pedir('/reportes/recepciones?'+params);
+      total=r.total;todas.push(...r.recepciones);if(!r.recepciones.length)break;
+    }while(todas.length<total);
+    return todas;
+  }
+  const todas = await listarRecepciones(500);
   return todas.filter((r) => {
     const f = aFecha(r.creadoEn);
     if (!f) return false;
@@ -52,6 +59,29 @@ export async function detalleDe(recepcionId) {
       .then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
   ]);
   return { skus, eventos };
+}
+
+/** Los filtros de producto/etiquetas recortan SKU y sus eventos antes de sumar. */
+export function filtrarDetalles(todos,{codigo='',cliente='',estado='',producto='',etiqueta=''}={}) {
+  const texto=producto.trim().toUpperCase(),cod=codigo.trim().toUpperCase();
+  return todos.filter(d=>(!cod || d.recepcion.codigo.toUpperCase().includes(cod)) &&
+    (!cliente || d.recepcion.cliente===cliente) && (!estado || d.recepcion.estado===estado)).map(d=>{
+    const skus=d.skus.filter(s=>{
+      if(texto && !`${s.sku} ${s.descripcion || ''}`.toUpperCase().includes(texto))return false;
+      const e=Number(s.esperado)||0,f=Number(s.contado)||0;
+      return !etiqueta || ({PNC:!!s.tienePnc,COMPLETO:!!s.verificado && f===e && !s.tienePnc,
+        PENDIENTE:!s.verificado,FALTANTE:!!s.verificado && f<e,SOBRANTE:!!s.verificado && f>e,
+        ADICIONAL:s.enPackingList===false}[etiqueta] || false);
+    });
+    const ids=new Set(skus.map(s=>s.sku));
+    return {...d,skus,eventos:d.eventos.filter(e=>ids.has(e.sku))};
+  }).filter(d=>!texto && !etiqueta || d.skus.length);
+}
+
+export function referenciasDe(detalles) {
+  return detalles.flatMap(d=>d.skus.map(s=>({sku:s.sku,descripcion:s.descripcion || '',recepcion:d.recepcion.codigo,
+    esperado:Number(s.esperado)||0,contado:Number(s.contado)||0,diferencia:(Number(s.contado)||0)-(Number(s.esperado)||0),
+    estado:s.verificado ? (s.estado || '') : 'PENDIENTE',pnc:!!s.tienePnc})));
 }
 
 /**
@@ -82,7 +112,8 @@ export function indicadoresDe({ recepcion, skus, eventos }) {
   }
 
   // Los eventos de anulación no son trabajo: son corrección de trabajo.
-  const conteos = eventos.filter((e) => e.tipo !== 'ANULACION' && !e.anulado);
+  const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>String(e.id).replace(/^anula-/,'')));
+  const conteos = eventos.filter(e=>!['ANULACION','CIERRE','REAPERTURA','AUDITORIA','EXPORT','AJUSTE'].includes(e.tipo) && !e.anulado && !anulados.has(e.id));
   const anulaciones = eventos.filter((e) => e.tipo === 'ANULACION');
 
   const fechas = eventos.map((e) => aFecha(e.creadoEn)).filter(Boolean);
@@ -141,7 +172,9 @@ export function consolidar(lista) {
 /** Productividad por operario, a partir de los eventos. */
 export function porOperario(eventos) {
   const mapa = {};
+  const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>String(e.id).replace(/^anula-/,'')));
   for (const e of eventos) {
+    if(['CIERRE','REAPERTURA','AUDITORIA','EXPORT','AJUSTE'].includes(e.tipo))continue;
     const clave = e.operadorEmail || '—';
     const o = (mapa[clave] = mapa[clave] || {
       email: clave, nombre: e.operadorNombre || clave,
@@ -154,6 +187,7 @@ export function porOperario(eventos) {
       if (!o.ultima || f > o.ultima) o.ultima = f;
     }
     if (e.tipo === 'ANULACION') { o.anulaciones++; continue; }
+    if(e.anulado || anulados.has(e.id))continue;
     o.conteos++;
     o.unidades += aNumero(e.cantidad, 0);
     if (e.estadoFisico === 'PNC') o.pnc++;
@@ -260,7 +294,12 @@ export function historialDe(sku, detalles) {
  * El PDF es para leer y adjuntar a un correo; el Excel, para seguir
  * trabajándolo.
  */
-export function aExcel(filas, columnas, titulo, nombre) {
+export async function aExcel(filas, columnas, titulo, nombre, contexto={}) {
+  if(local.modoLocal()) {
+    const r=await fetch('/api/app/reportes/excel',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({titulo,filtros:contexto.filtros || '',resumen:contexto.resumen || '',columnas:columnas.map(c=>c.titulo),filas:filas.map(f=>columnas.map(c=>c.valor(f) ?? ''))})});
+    if(!r.ok) {const e=await r.json();throw new Error(typeof e.detail==='string' ? e.detail : 'No se pudo crear el Excel con logo.');}
+    const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=nombre+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);return;
+  }
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Recarga la página.');
   }
@@ -288,35 +327,44 @@ export function aExcel(filas, columnas, titulo, nombre) {
  * Se arma con jsPDF, que carga la página. Si no llegó —red del almacén— se dice
  * en vez de dejar un botón que no hace nada.
  */
-export function aPdf(filas, columnas, { titulo, subtitulo, nombre, resumen }) {
+export async function aPdf(filas, columnas, { titulo, subtitulo, nombre, resumen }) {
+  const logo=await fetch(new URL('../icono.png',import.meta.url));
+  if(!logo.ok)throw new Error('No se pudo cargar el logo del reporte.');
+  const blob=await logo.blob();
+  const imagen=await new Promise((resolve,reject)=>{const lector=new FileReader();lector.onload=()=>resolve(lector.result);lector.onerror=reject;lector.readAsDataURL(blob);});
   const jsPDFCtor = window.jspdf?.jsPDF;
   if (!jsPDFCtor) {
     throw new Error('No se cargó la librería de PDF. Revisa la conexión y recarga.');
   }
 
   // Apaisado: estas tablas tienen más columnas que alto.
-  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'pt', format: 'a4', compress:true });
   const ancho = doc.internal.pageSize.getWidth();
 
+  doc.addImage(imagen,'PNG',40,16,24,24,'logo','FAST');
+  doc.setFontSize(17);doc.setTextColor(30,85,214);doc.text('ITSANET',72,35);
+  doc.setTextColor(0);
   doc.setFontSize(15);
   doc.setFont(undefined, 'bold');
-  doc.text(titulo || 'Indicadores', 40, 42);
+  doc.text(titulo || 'Indicadores', 40, 64);
 
   doc.setFontSize(9);
   doc.setFont(undefined, 'normal');
   doc.setTextColor(110);
-  doc.text(subtitulo || '', 40, 58);
-  doc.text(`ITSANET IMS · ${new Date().toLocaleString('es-EC')}`, ancho - 40, 58,
+  const lineasFiltros=doc.splitTextToSize(subtitulo || '',ancho-80);
+  doc.text(lineasFiltros, 40, 82);
+  doc.text(`ITSANET · ${new Date().toLocaleString('es-EC',{timeZone:'America/Guayaquil'})}`, ancho - 40, 35,
            { align: 'right' });
 
+  const finFiltros=82+lineasFiltros.length*12;
   if (resumen) {
     doc.setTextColor(30);
     doc.setFontSize(10);
-    doc.text(resumen, 40, 78, { maxWidth: ancho - 80 });
+    doc.text(resumen, 40, finFiltros+16, { maxWidth: ancho - 80 });
   }
 
   doc.autoTable({
-    startY: resumen ? 94 : 74,
+    startY: finFiltros+(resumen ? 44 : 16),
     head: [columnas.map((c) => c.titulo)],
     body: filas.map((f) => columnas.map((c) => {
       const v = c.valor(f);

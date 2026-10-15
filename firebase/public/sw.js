@@ -10,7 +10,7 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-2026-10-14-19';
+const VERSION = 'iv-2026-10-15-20';
 
 /** Lo mínimo para que la app arranque sin red. */
 const BASE = new URL(self.registration.scope);
@@ -21,7 +21,7 @@ const CONCHA = [
   '/css/app.css', '/css/marca.css', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
   '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
   '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js', '/js/glosario.js',
-  '/js/usuarios.js', '/js/fechas.js', '/js/etiquetas.js', '/js/local.js', '/vendor/firebase-sdk.js', '/vendor/xlsx.full.min.js', '/vendor/JsBarcode.all.min.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js',
+  '/js/csv.js', '/js/modelos-depot.js', '/js/usuarios.js', '/js/fechas.js', '/js/etiquetas.js', '/js/local.js', '/vendor/firebase-sdk.js', '/vendor/xlsx.full.min.js', '/vendor/JsBarcode.all.min.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js',
 ];
 
 self.addEventListener('install', (e) => {

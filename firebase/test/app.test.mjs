@@ -858,7 +858,7 @@ const sinBom = (t) => t.replace('﻿', '').trim().split('\r\n');
 await test('la plantilla vacía trae solo los encabezados', () => {
   const lineas = sinBom(csv.plantilla(CANT));
   eq(lineas.length, 1);
-  ok(lineas[0].startsWith('COD. PRODUCTO;DESCRIPCION;CANTIDAD'), lineas[0]);
+  ok(lineas[0].startsWith('CODIGO PRODUCTO,CANTIDAD,CODIGO UNIDAD'), lineas[0]);
 });
 
 await test('lleva BOM: sin él Excel rompe las tildes', () => {
@@ -876,9 +876,9 @@ await test('una descripción con el separador no parte la fila', () => {
 
 await test('la posición se parte en nave, calle, columna y nivel', () => {
   eq(csv.partesDePosicion('A-01-03-2'),
-     { nave: 'A', calle: '01', columna: '03', nivel: '2' });
-  eq(csv.partesDePosicion(''), { nave: '', calle: '', columna: '', nivel: '' });
-  eq(csv.partesDePosicion('A-01'), { nave: 'A', calle: '01', columna: '', nivel: '' });
+     { nave: 'A', calle: '01', columna: '03', nivel: '2', profundidad:'' });
+  eq(csv.partesDePosicion(''), { nave: '', calle: '', columna: '', nivel: '', profundidad:'' });
+  eq(csv.partesDePosicion('A-01'), { nave: 'A', calle: '01', columna: '', nivel: '', profundidad:'' });
 });
 
 await test('cada sitio donde se dejó mercadería es una fila', () => {
@@ -933,9 +933,11 @@ await test('el CSV de cantidades sale con una fila por sitio', () => {
   eq(r.nombre, 'alta-cantidades-REC0260002.csv');
   const l = sinBom(r.texto);
   eq(l.length, 3, 'encabezado y dos filas');
-  ok(l[1].startsWith('X;ARANDELA;12;A;01;03;2;A1;'), l[1]);
-  ok(l[1].endsWith(';VENTURA'), l[1]);
-  ok(l[2].startsWith('X;ARANDELA;18;;;;;B04;'), l[2]);
+  eq(l[1].split(',').length,18);
+  eq(l[1].split(',').slice(0,6),['X','12','','','','A1']);
+  eq(l[1].split(',').slice(9,13),['A','01','03','2']);
+  eq(l[2].split(',').slice(0,6),['X','18','','','','B04']);
+  ok(r.incidencias.some(i=>i.encabezado==='CODIGO UNIDAD'));
 });
 
 await test('el de productos nuevos sale de los adicionales', () => {
@@ -944,8 +946,10 @@ await test('el de productos nuevos sale de los adicionales', () => {
     adicionales: [{ sku: 'NUEVO', descripcion: 'PIEZA', fisica: 3 }],
   });
   eq(r.filas, 1);
-  eq(sinBom(r.texto)[1], 'NUEVO;PIEZA;;;VENTURA',
-     'FAMILIA va vacía: la rellena quien da de alta');
+  const fila=sinBom(r.texto)[1].split(',');eq(fila.length,38);
+  eq(fila.slice(0,4),['VENTURA','NUEVO','','PIEZA']);
+  eq(fila[9],'','FAMILIA no se inventa');
+  eq(fila[17],'NO','Tipo de producto segun definicion oficial');
 });
 
 await test('sin adicionales sale la plantilla sola, no un archivo roto', () => {
@@ -957,7 +961,7 @@ await test('sin adicionales sale la plantilla sola, no un archivo roto', () => {
 await test('un formato guardado a medias se completa con el de base', () => {
   const f = csv.normalizarFormato({ id: 'CANTIDADES', columnas: [] });
   eq(f.columnas.length, CANT.columnas.length);
-  eq(f.separador, ';');
+  eq(f.separador, ',');
 });
 
 await test('el administrador puede cambiar columnas y separador', () => {

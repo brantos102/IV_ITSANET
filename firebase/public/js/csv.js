@@ -21,6 +21,7 @@ import {
 } from '../vendor/firebase-sdk.js';
 import { db } from './auth.js';
 import * as local from './local.js';
+import { MODELOS_DEPOT } from './modelos-depot.js';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -43,6 +44,13 @@ export const CAMPOS = {
   recepcion: 'Código de la recepción',
   observacion: 'Observación del operario',
   fecha: 'Fecha de la validación',
+  categoria: 'Categoría lógica',
+  familia: 'Familia del maestro',
+  profundidad: 'Posición: profundidad',
+  loteProveedor: 'Lote del proveedor',
+  vencimiento: 'Vencimiento (ddmmaaaa)',
+  prop3: 'Propiedad 3',
+  contenedora: 'N.º de contenedora',
 };
 
 /**
@@ -51,46 +59,7 @@ export const CAMPOS = {
  * El administrador los ajusta en Administración. Están aquí para que el día uno
  * haya algo que descargar, no para quedarse fijos.
  */
-export const FORMATOS_BASE = [
-  {
-    id: 'CANTIDADES',
-    nombre: 'Alta masiva de cantidades',
-    descripcion: 'Lo contado, una fila por producto y posición. Es el archivo que '
-               + 'carga las existencias de la recepción.',
-    archivo: 'alta-cantidades',
-    separador: ';',
-    columnas: [
-      { encabezado: 'COD. PRODUCTO', campo: 'sku' },
-      { encabezado: 'DESCRIPCION', campo: 'descripcion' },
-      { encabezado: 'CANTIDAD', campo: 'cantidad' },
-      { encabezado: 'NAVE', campo: 'nave' },
-      { encabezado: 'CALLE', campo: 'calle' },
-      { encabezado: 'COLUMNA', campo: 'columna' },
-      { encabezado: 'NIVEL', campo: 'nivel' },
-      { encabezado: 'PALLET', campo: 'pallet' },
-      { encabezado: 'NRO. LOTE', campo: 'lote' },
-      { encabezado: 'NRO. SERIE', campo: 'serie' },
-      { encabezado: 'NRO. PARTIDA', campo: 'partida' },
-      { encabezado: 'EST. MERC.', campo: 'estado' },
-      { encabezado: 'COD. CLIENTE', campo: 'cliente' },
-    ],
-  },
-  {
-    id: 'PRODUCTOS',
-    nombre: 'Alta de productos nuevos',
-    descripcion: 'Los códigos que aparecieron físicamente y no estaban en el '
-               + 'catálogo. Hay que darlos de alta antes de cargarles cantidad.',
-    archivo: 'alta-productos',
-    separador: ';',
-    columnas: [
-      { encabezado: 'COD. PRODUCTO', campo: 'sku' },
-      { encabezado: 'DESCRIPCION', campo: 'descripcion' },
-      { encabezado: 'UNIDAD', campo: 'unidad' },
-      { encabezado: 'FAMILIA', campo: '' },
-      { encabezado: 'COD. CLIENTE', campo: 'cliente' },
-    ],
-  },
-];
+export const FORMATOS_BASE = MODELOS_DEPOT;
 
 /** Un formato guardado puede venir incompleto: se completa con el de base. */
 export function normalizarFormato(formato, base) {
@@ -101,7 +70,8 @@ export function normalizarFormato(formato, base) {
     nombre: formato?.nombre || b.nombre,
     descripcion: formato?.descripcion || b.descripcion,
     archivo: formato?.archivo || b.archivo,
-    separador: formato?.separador || ';',
+    separador: formato?.separador || b.separador,
+    hoja: 'Modelo a Utilizar',
     columnas: columnas.length ? columnas : b.columnas,
   };
 }
@@ -148,7 +118,7 @@ export function plantilla(formato) {
  */
 export function partesDePosicion(posicion) {
   const p = String(posicion || '').trim().split('-').map((x) => x.trim());
-  return { nave: p[0] || '', calle: p[1] || '', columna: p[2] || '', nivel: p[3] || '' };
+  return { nave: p[0] || '', calle: p[1] || '', columna: p[2] || '', nivel: p[3] || '', profundidad: p[4] || '' };
 }
 
 /**
@@ -179,7 +149,7 @@ export function agruparConteos(eventos, { skus = [] } = {}) {
 
     const pallet = e.pallet || '';
     const posicion = e.posicionReal || '';
-    const clave = [e.sku, posicion, pallet, e.estadoFisico || ''].join('\u0000');
+    const clave = [e.sku, posicion, pallet, e.estadoFisico || '', e.lote || '', e.serie || '', e.partida || '', e.loteProveedor || '', e.vencimiento || '', e.contenedora || '', e.prop3 || '', e.unidad || ''].join('\u0000');
 
     const previo = grupos.get(clave);
     if (previo) { previo.cantidad += cantidad; continue; }
@@ -191,6 +161,8 @@ export function agruparConteos(eventos, { skus = [] } = {}) {
       posicion,
       estado: e.estadoFisico === 'PNC' ? 'PNC' : (e.estadoFisico || ''),
       observacion: e.observacion || '',
+      unidad:e.unidad || '', lote:e.lote || '', serie:e.serie || '', partida:e.partida || '',
+      loteProveedor:e.loteProveedor || '', vencimiento:e.vencimiento || '', contenedora:e.contenedora || '', prop3:e.prop3 || '',
     });
   }
   // Por producto, y dentro de cada uno primero lo que tiene posición real: es
@@ -207,7 +179,11 @@ export function agruparConteos(eventos, { skus = [] } = {}) {
 function filaDe(formato, dato, comunes) {
   const pos = partesDePosicion(dato.posicion);
   const valores = { ...comunes, ...dato, ...pos };
-  return formato.columnas.map((c) => (c.campo ? valores[c.campo] ?? '' : ''));
+  return formato.columnas.map(c => {
+    const valor = c.campo ? valores[c.campo] : '';
+    if (dato.estado === 'PNC' && ['estado','categoria'].includes(c.campo)) return c.valorPnc ?? (c.campo === 'estado' ? 'PNC' : '');
+    return valor !== undefined && valor !== null && valor !== '' ? valor : (c.valor ?? '');
+  });
 }
 
 /**
@@ -224,13 +200,11 @@ export function csvDeCantidades(formato, datos) {
     fecha: new Date().toISOString().slice(0, 10),
     unidad: '', lote: '', serie: '', partida: '',
   };
-  const filas = agruparConteos(datos?.eventos, { skus: datos?.skus });
-  return {
-    texto: aCsv([f.columnas.map((c) => c.encabezado),
-                 ...filas.map((d) => filaDe(f, d, comunes))], f.separador),
-    filas: filas.length,
-    nombre: `${f.archivo}-${rec.codigo || 'recepcion'}.csv`,
-  };
+  const filas = agruparConteos(datos?.eventos, { skus: datos?.skus }).map(d => {
+    const p = datos?.catalogo?.[d.sku] || {};
+    return {...d,unidad:d.unidad || p.unidad || '',estado:d.estado === 'PNC' ? 'PNC' : '',categoria:''};
+  });
+  return resultadoModelo(f, filas.map(d => filaDe(f,d,comunes)), rec.codigo);
 }
 
 /**
@@ -250,13 +224,42 @@ export function csvDeProductos(formato, datos) {
     cantidad: a.fisica,
     observacion: a.observacion || a.motivo || '',
     pallet: a.pallets || '', posicion: '', estado: '',
+    unidad:datos?.catalogo?.[a.sku]?.unidad || '',familia:datos?.catalogo?.[a.sku]?.familia || '',
   }));
-  return {
-    texto: aCsv([f.columnas.map((c) => c.encabezado),
-                 ...filas.map((d) => filaDe(f, d, comunes))], f.separador),
-    filas: filas.length,
-    nombre: `${f.archivo}-${rec.codigo || 'recepcion'}.csv`,
-  };
+  return resultadoModelo(f, filas.map(d => filaDe(f,d,comunes)), rec.codigo);
+}
+
+/** Valida sin inventar unidad, pais, familia ni ubicaciones del WMS. */
+export function resultadoModelo(f, filas, codigo) {
+  const incidencias=[];
+  filas.forEach((fila,i) => f.columnas.forEach((c,j) => {
+    const v=fila[j], vacio=v === '' || v === null || v === undefined;
+    const problema=c.obligatorio && vacio ? 'obligatorio' :
+      !vacio && /^alfanum/i.test(c.tipo || '') && Number(c.longitud)>0 && String(v).length>Number(c.longitud) ? 'longitud excedida' :
+      !vacio && /^(num|float)/i.test(c.tipo || '') && !Number.isFinite(Number(v)) ? 'debe ser numerico' :
+      !vacio && c.tipo === 'Date' && !fechaValida(v) ? 'fecha ddmmaaaa no valida' : '';
+    if(problema) incidencias.push({fila:i+2,columna:j+1,encabezado:c.encabezado,problema});
+  }));
+  const tabla=[f.columnas.map(c=>c.encabezado),...filas];
+  return {texto:aCsv(tabla,f.separador),tabla,formato:f,incidencias,filas:filas.length,nombre:`${f.archivo}-${codigo || 'recepcion'}.csv`};
+}
+function fechaValida(valor) {
+  const v=String(valor); if(!/^\d{8}$/.test(v)) return false;
+  const d=Number(v.slice(0,2)),m=Number(v.slice(2,4)),a=Number(v.slice(4));
+  const fecha=new Date(Date.UTC(a,m-1,d));return fecha.getUTCFullYear()===a && fecha.getUTCMonth()===m-1 && fecha.getUTCDate()===d;
+}
+/** Una unica hoja de carga; las definiciones nunca se mezclan con los datos. */
+export function libroModelo(resultado) {
+  const libro=XLSX.utils.book_new(),hoja=XLSX.utils.aoa_to_sheet(resultado.tabla);
+  for(const i of resultado.incidencias || []) {
+    const celda=hoja[XLSX.utils.encode_cell({r:i.fila-1,c:i.columna-1})] || {t:'s',v:''};
+    celda.c=[{a:'ITSANET',t:i.encabezado+': '+i.problema}];
+    hoja[XLSX.utils.encode_cell({r:i.fila-1,c:i.columna-1})]=celda;
+  }
+  XLSX.utils.book_append_sheet(libro,hoja,'Modelo a Utilizar');return libro;
+}
+export function descargarModelo(resultado) {
+  XLSX.writeFile(libroModelo(resultado),resultado.nombre.replace(/\.csv$/i,'.xlsx'));
 }
 
 /** Descarga un texto como archivo .csv. */

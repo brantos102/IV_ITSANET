@@ -6,9 +6,9 @@ const test = (nombre, fn) => { try { fn(); pasadas++; } catch (e) { falladas++; 
 const ok = (cond, msg='Condicion falsa') => { if (!cond) throw new Error(msg); };
 const secreto = 'secreto-prueba-'.repeat(4);
 function entorno() {
-  let correos = 0, creados = 0, falloCorreo = false, sheets = 0;
+  let correos = 0, creados = 0, falloCorreo = false, sheets = 0,cuenta='supervisor@gmail.com';
   const archivos = new Map(), blobs = new Map();
-  const carpeta = { getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
+  const carpeta = { getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
     createFile(blob) { creados++; const f = { getId: () => 'archivo-'+creados, getUrl: () => 'https://drive.google.com/file', setDescription() {},
       getBlob: () => ({ getDataAsString: () => String(blobs.get(f)), getBytes: () => Buffer.from(String(blobs.get(f))) }),
       setContent: (s) => blobs.set(f, s) };
@@ -16,6 +16,7 @@ function entorno() {
     getUrl: () => 'https://drive.google.com/folders/prueba'
   };
   const g = {
+    Session:{getEffectiveUser:()=>({getEmail:()=>cuenta})},
     PROPS: { getProperty: (k) => k === 'SERVIDOR_HMAC' ? secreto : '' },
     Utilities: { computeHmacSha256Signature: (p,s) => [...crypto.createHmac('sha256',s).update(p).digest()],
       newBlob: (datos,tipo,nombre) => ({datos,tipo,nombre}), base64Decode: s => Buffer.from(s,'base64'), base64Encode: b => Buffer.from(b).toString('base64') },
@@ -29,10 +30,10 @@ function entorno() {
   };
   vm.createContext(g); vm.runInContext(fs.readFileSync(path.join(__dirname,'../proxy/Servidor.gs'),'utf8'),g);
   function peticion(operacion,clave,datos,fecha=Math.floor(Date.now()/1000)) {
-    const payload=JSON.stringify({operacion,clave,datos,fecha});
+    const payload=JSON.stringify({operacion,clave,datos:{usuario:'supervisor@gmail.com',...datos},fecha});
     return {payload,firma:crypto.createHmac('sha256',secreto).update(payload).digest('hex')};
   }
-  return { g, peticion, correos:()=>correos, creados:()=>creados, sheets:()=>sheets, romperCorreo:()=>{falloCorreo=true;} };
+  return { g, peticion, cambiarCuenta:v=>{cuenta=v;}, correos:()=>correos, creados:()=>creados, sheets:()=>sheets, romperCorreo:()=>{falloCorreo=true;} };
 }
 const id='a'.repeat(32), clave=id+':'+ 'b'.repeat(32);
 test('rechaza firma falsa antes de escribir',()=>{ const e=entorno(); const p=e.peticion('archivo',clave,{}); p.firma='0'.repeat(64); let fallo=false; try {e.g.entregaServidor_(p);}catch{fallo=true;} ok(fallo);ok(e.creados()===0); });
@@ -45,4 +46,6 @@ test('confirmacion interrumpida requiere revision, no reenvio ciego',()=>{const 
 test('sin destinatarios archiva sin correo ni Sheets',()=>{const e=entorno();ok(e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',archivos:[]})).exito);ok(e.correos()===0);ok(e.sheets()===0);});
 test('exportar texto no ejecuta formulas de hoja',()=>{const e=entorno();ok(e.g.celdaServidor_('=IMPORTXML("x")').startsWith("'="));ok(e.g.celdaServidor_(3)===3);});
 test('Sheets solo se crea si se pide una exportacion expresa',()=>{const e=entorno(); const r=e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',archivos:[],exportarSheet:true,skus:[{sku:'SKU1',contado:3}]}));ok(r.exito);ok(e.sheets()===1);ok(r.sheet.includes('nuevo'));ok(e.correos()===0);});
+test('cuenta distinta del supervisor no escribe ni envia',()=>{const e=entorno();e.cambiarCuenta('otra@gmail.com');let fallo=false;try{e.g.entregaServidor_(e.peticion('finalizar',id,{destinatarios:'ejecutivo@example.test',archivos:[]}));}catch{fallo=true;}ok(fallo);ok(e.creados()===0);ok(e.correos()===0);});
+test('probar puente verifica remitente y Drive sin crear ni enviar',()=>{const e=entorno();const r=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(r.remitente==='supervisor@gmail.com');ok(e.creados()===0);ok(e.correos()===0);});
 console.log(`${pasadas} pasadas, ${falladas} falladas`); process.exitCode=falladas?1:0;

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
-<title>KPIs — ITSANET IMS</title>
+<title>KPIs — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
 <script src="./vendor/xlsx.full.min.js" defer></script>
 <script src="./vendor/jspdf.umd.min.js" defer></script>
@@ -30,6 +30,8 @@
                      transition:width .5s cubic-bezier(.16,1,.3,1); }
   .clicable { cursor:pointer; }
   .clicable:hover td { background:var(--bg); }
+  .dashboard-resumen{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;margin:20px 0}.anillo-kpi{width:170px;height:170px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#10b981 var(--avance),#e6edf7 0);margin:auto}.anillo-kpi>div{width:132px;height:132px;border-radius:50%;background:var(--surface);display:grid;place-content:center;text-align:center}.anillo-kpi b{font-size:34px}.anillo-kpi span{font-size:11px;color:var(--secondary)}.etiquetas-kpi{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.etiquetas-kpi [aria-pressed=true]{background:var(--accent);color:white}.resumen-filtros{color:var(--secondary);font-size:12px;margin-top:12px}
+  @media(max-width:600px){.dashboard-resumen{grid-template-columns:1fr}.filtros{grid-template-columns:1fr 1fr}.filtros .campo:has(#fProducto){grid-column:1/-1}.filtros .acciones{grid-column:1/-1;flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -37,7 +39,7 @@
 
 <header>
   <div>
-    <div class="marca"><img class="logo-empresa" src="./logo-itsa.png" alt="ITSA"><span>IMS</span></div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="simbolo-empresa" src="./icono.png" alt=""><span class="nombre-empresa">itsanet</span></a>
     <div class="sub">Indicadores</div>
   </div>
   <div class="sp"></div>
@@ -72,12 +74,23 @@
           <option value="EN_VALIDACION">En validación</option>
           <option value="ABIERTA">Abiertas</option>
         </select></label>
+      <label class="campo"><span>Buscar producto</span><input id="fProducto" placeholder="SKU o descripción" autocomplete="off"></label>
+      <label class="campo"><span>Exportar</span><select id="fAlcance"><option value="filtrado">Filtros aplicados</option><option value="total">Total del periodo (sin filtros)</option></select></label>
       <div class="acciones" style="margin:0">
         <button class="b-primario" id="bAplicar">Aplicar</button>
         <button class="b-sec" id="bExcel">Excel</button>
         <button class="b-sec" id="bPdf">PDF</button>
       </div>
     </div>
+    <div id="etiquetasKpi" class="etiquetas-kpi" aria-label="Etiquetas de referencias">
+      <button class="chip" data-etiqueta="" aria-pressed="true">Todas</button>
+      <button class="chip" data-etiqueta="COMPLETO" aria-pressed="false">Completos</button>
+      <button class="chip" data-etiqueta="PENDIENTE" aria-pressed="false">Por validar</button>
+      <button class="chip" data-etiqueta="FALTANTE" aria-pressed="false">Faltantes</button>
+      <button class="chip" data-etiqueta="SOBRANTE" aria-pressed="false">Sobrantes</button>
+      <button class="chip" data-etiqueta="PNC" aria-pressed="false">PNC</button>
+      <button class="chip" data-etiqueta="ADICIONAL" aria-pressed="false">Adicionales</button>
+    </div><p id="resumenFiltros" class="resumen-filtros" role="status"></p>
     <div class="chips" style="margin-top:12px">
       <button class="chip" data-rango="7">Últimos 7 días</button>
       <button class="chip" data-rango="30">30 días</button>
@@ -88,7 +101,7 @@
 
   <!-- Cifras -->
   <div class="panel">
-    <div class="kpis" id="kpis"></div>
+    <h2>Control de recepciones</h2><div class="dashboard-resumen"><div class="anillo-kpi" id="anilloKpi"><div><b id="porcentajeKpi">0%</b><span>Unidades verificadas</span></div></div><div class="kpis" id="kpis"></div></div>
     <p class="mini" id="alcance" style="margin-top:14px"></p>
     <button type="button" class="enlace-ayuda" id="bGlosario">
       ¿Qué significa cada cifra?</button>
@@ -116,7 +129,7 @@ import { conectarGlosario } from './js/glosario.js';
 import { parecidos, avisoDeParecidos } from './js/sugerir.js';
 import {
   recepcionesDesde, detalleDe, indicadoresDe, consolidar, porOperario,
-  skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf,
+  skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf, filtrarDetalles, referenciasDe,
 } from './js/kpi.js';
 
 const $ = (id) => document.getElementById(id);
@@ -126,6 +139,7 @@ let detalles = [];      // [{ recepcion, skus, eventos }] ya filtrado
 let indicadores = [];   // una fila por recepción, del conjunto filtrado
 let vista = 'recepciones';
 let skuElegido = null;
+let etiquetaActiva='';
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,
@@ -171,15 +185,14 @@ observarSesion(async (e) => {
 async function cargar() {
   limpiarAvisos();
   $('cuerpo').innerHTML = '<p class="mini">Cargando…</p>';
-  $('bAplicar').disabled = true;
+  $('bAplicar').disabled = true;$('bExcel').disabled=true;$('bPdf').disabled=true;
 
   try {
     const recepciones = await recepcionesDesde($('fDesde').value, $('fHasta').value);
     const estado = $('fEstado').value;
     const cliente = $('fCliente').value;
 
-    const filtradas = recepciones.filter((r) =>
-      (!estado || r.estado === estado) && (!cliente || r.cliente === cliente));
+    const filtradas = recepciones;
 
     // Cada recepción son 2 lecturas de colección. En paralelo, por tandas, para
     // no abrir doscientas conexiones de golpe desde un handheld.
@@ -196,7 +209,7 @@ async function cargar() {
     }
 
     llenarClientes(recepciones);
-    filtrarPorCodigo();
+    filtrarPorCodigo();$('bExcel').disabled=false;$('bPdf').disabled=false;
   } catch (e) {
     $('cuerpo').innerHTML = '';
     aviso(traducirError(e), 'err', 'No se pudieron leer los datos');
@@ -217,19 +230,18 @@ async function cargar() {
  * que las cifras de arriba y lo que se exporta a Excel o PDF son lo que se ve.
  */
 function filtrarPorCodigo() {
-  const texto = $('fCodigo').value;
-  detalles = parecidos(texto, detallesTodos,
-                       { max: 500, minimo: 0.5, clave: (d) => d.recepcion.codigo });
+  detalles = filtrarDetalles(detallesTodos,{codigo:$('fCodigo').value,cliente:$('fCliente').value,estado:$('fEstado').value,producto:$('fProducto').value,etiqueta:etiquetaActiva});
   indicadores = detalles.map(indicadoresDe);
-  $('pistaCodigo').textContent =
-    avisoDeParecidos(texto, detallesTodos, (d) => d.recepcion.codigo);
+  $('pistaCodigo').textContent='';
+  $('resumenFiltros').textContent=`${detalles.length} de ${detallesTodos.length} recepciones del periodo · ${detalles.reduce((n,d)=>n+d.skus.length,0)} referencias en el resultado · Horario Ecuador`;
   pintarKpis();
   pintar();
 }
 
-$('fCodigo').addEventListener('input', () => {
-  if (detallesTodos.length) filtrarPorCodigo();
-});
+for(const id of ['fCodigo','fProducto']) $(id).addEventListener('input',filtrarPorCodigo);
+for(const id of ['fCliente','fEstado']) $(id).addEventListener('change',filtrarPorCodigo);
+$('etiquetasKpi').onclick=ev=>{const b=ev.target.closest('[data-etiqueta]');if(!b)return;etiquetaActiva=b.dataset.etiqueta;
+  for(const e of $('etiquetasKpi').querySelectorAll('button'))e.setAttribute('aria-pressed',String(e===b));filtrarPorCodigo();};
 
 function llenarClientes(recepciones) {
   const actual = $('fCliente').value;
@@ -240,6 +252,7 @@ function llenarClientes(recepciones) {
 
 function pintarKpis() {
   const t = consolidar(indicadores);
+  $('anilloKpi').style.setProperty('--avance',`${Math.min(100,t.avance)}%`);$('porcentajeKpi').textContent=t.avance+'%';
   const color = (v, bueno) => v >= bueno ? 'var(--success)'
     : v >= bueno - 15 ? 'var(--warning)' : 'var(--danger)';
 
@@ -335,41 +348,11 @@ function pRecepciones() {
 }
 
 function pSkus() {
-  const filas = skusProblematicos(detalles).map((s) => `
-    <tr class="clicable" data-sku="${esc(s.sku)}">
-      <td class="id">${esc(s.sku)}<br>
-        <span class="mini">${esc((s.descripcion || '').slice(0, 44))}</span></td>
-      <td class="num">${num(s.veces)}</td>
-      <td class="num" style="color:var(--warning)">${num(s.faltante)}</td>
-      <td class="num" style="color:var(--info)">${num(s.sobrante)}</td>
-      <td class="num" style="color:var(--danger)">${num(s.pnc)}</td>
-      <td class="num">${s.unidades > 0 ? '+' : ''}${num(s.unidades)}</td>
-      <td class="mini">${esc([...new Set(s.recepciones)].slice(0, 3).join(', '))}
-        ${s.recepciones.length > 3 ? ` +${s.recepciones.length - 3}` : ''}</td>
-    </tr>`).join('');
-
-  $('cuerpo').innerHTML = `
-    <h2>Referencias con incidencias</h2>
-    <p>Ordenadas por cuántas veces fallaron, no por cuánto. Esto es lo que
-       sirve para hablar con el proveedor: no «hubo faltantes», sino «esta
-       referencia falló en 4 de las 6 últimas recepciones».
-       Pulsa una fila para ver su historial.</p>` +
-    (filas
-      ? tabla([{ t: 'Referencia' }, { t: 'Veces', num: 1 }, { t: 'Faltó', num: 1 },
-               { t: 'Sobró', num: 1 }, { t: 'PNC', num: 1 }, { t: 'Unid.', num: 1 },
-               { t: 'En' }], filas)
-      : '<div class="msg ok"><b>Sin incidencias</b>Todas las referencias cuadraron.</div>');
-
-  for (const tr of $('cuerpo').querySelectorAll('[data-sku]')) {
-    tr.addEventListener('click', () => {
-      skuElegido = tr.dataset.sku;
-      vista = 'traza';
-      for (const o of document.querySelectorAll('.pestana')) {
-        o.classList.toggle('activa', o.dataset.vista === 'traza');
-      }
-      pintar();
-    });
-  }
+  const referencias=referenciasDe(detalles);
+  $('cuerpo').innerHTML='<h2>Referencias del resultado</h2><p class="mini">Cantidades actuales por producto y recepción. Pulsa para abrir su trazabilidad.</p>'+
+    tabla([{t:'Referencia'},{t:'Recepción'},{t:'Declarado',num:1},{t:'Contado',num:1},{t:'Diferencia',num:1},{t:'Estado'}],referencias.map(s=>`<tr class="clicable" data-sku="${esc(s.sku)}"><td class="id">${esc(s.sku)}<br><span class="mini">${esc(s.descripcion)}</span></td><td>${esc(s.recepcion)}</td><td class="num">${num(s.esperado)}</td><td class="num">${num(s.contado)}</td><td class="num">${num(s.diferencia)}</td><td>${esc(s.estado)}${s.pnc ? ' · PNC' : ''}</td></tr>`).join(''));
+  for(const tr of $('cuerpo').querySelectorAll('[data-sku]'))tr.onclick=()=>{skuElegido=tr.dataset.sku;vista='traza';
+    for(const o of document.querySelectorAll('.pestana'))o.classList.toggle('activa',o.dataset.vista==='traza');pintar();};
 }
 
 function pOperarios() {
@@ -438,7 +421,7 @@ function pDias() {
 
 function pTraza() {
   const opciones = [...new Set(detalles.flatMap((d) => d.skus.map((s) => s.sku)))].sort();
-  if (!skuElegido && opciones.length) skuElegido = opciones[0];
+  if (!opciones.includes(skuElegido)) skuElegido = opciones[0] || null;
 
   const historial = skuElegido ? historialDe(skuElegido, detalles) : [];
 
@@ -495,12 +478,13 @@ for (const c of document.querySelectorAll('[data-rango]')) {
  * Una sola definición por vista: el Excel y el PDF salen de la misma, así que
  * no pueden decir cosas distintas.
  */
-function vistaActual() {
+function vistaActual(fuente=detalles) {
+  const filasIndicadores=fuente.map(indicadoresDe);
   if (vista === 'operarios') {
     return {
       titulo: 'Productividad por operario',
       nombre: 'kpi-operarios',
-      filas: porOperario(detalles.flatMap((d) => d.eventos)),
+      filas: porOperario(fuente.flatMap((d) => d.eventos)),
       columnas: [
         { titulo: 'Operario', valor: (o) => o.nombre },
         { titulo: 'Correo', valor: (o) => o.email },
@@ -517,19 +501,10 @@ function vistaActual() {
 
   if (vista === 'skus') {
     return {
-      titulo: 'Referencias con incidencias',
-      nombre: 'kpi-referencias',
-      filas: skusProblematicos(detalles, 500),
-      columnas: [
-        { titulo: 'Referencia', valor: (s) => s.sku },
-        { titulo: 'Descripción', valor: (s) => s.descripcion },
-        { titulo: 'Veces', valor: (s) => s.veces },
-        { titulo: 'Faltó', valor: (s) => s.faltante },
-        { titulo: 'Sobró', valor: (s) => s.sobrante },
-        { titulo: 'PNC', valor: (s) => s.pnc },
-        { titulo: 'Dif. unidades', valor: (s) => s.unidades },
-        { titulo: 'Recepciones', valor: (s) => [...new Set(s.recepciones)].join(' ') },
-      ],
+      titulo: 'Referencias del resultado',nombre:'kpi-referencias',filas:referenciasDe(fuente),columnas:[
+        {titulo:'Referencia',valor:s=>s.sku},{titulo:'Descripción',valor:s=>s.descripcion},{titulo:'Recepción',valor:s=>s.recepcion},
+        {titulo:'Declarado',valor:s=>s.esperado},{titulo:'Contado',valor:s=>s.contado},{titulo:'Diferencia',valor:s=>s.diferencia},
+        {titulo:'Estado',valor:s=>s.estado},{titulo:'PNC',valor:s=>s.pnc ? 'SI' : 'NO'}]
     };
   }
 
@@ -537,7 +512,7 @@ function vistaActual() {
     return {
       titulo: 'Tendencia por día',
       nombre: 'kpi-tendencia',
-      filas: porDia(indicadores),
+      filas: porDia(filasIndicadores),
       columnas: [
         { titulo: 'Día', valor: (d) => d.fecha },
         { titulo: 'Recepciones', valor: (d) => d.recepciones },
@@ -553,7 +528,7 @@ function vistaActual() {
     return {
       titulo: `Trazabilidad · ${skuElegido}`,
       nombre: `kpi-traza-${skuElegido}`,
-      filas: historialDe(skuElegido, detalles),
+      filas: historialDe(skuElegido, fuente),
       columnas: [
         { titulo: 'Recepción', valor: (h) => h.recepcion },
         { titulo: 'Fecha', valor: (h) => h.fecha },
@@ -570,7 +545,7 @@ function vistaActual() {
   return {
     titulo: 'Recepciones del periodo',
     nombre: 'kpi-recepciones',
-    filas: indicadores,
+    filas: filasIndicadores,
     columnas: [
       { titulo: 'Recepción', valor: (r) => r.codigo },
       { titulo: 'Fecha', valor: (r) => r.fecha },
@@ -598,30 +573,33 @@ const periodo = () => {
   return d || h ? `Del ${d || 'inicio'} al ${h || 'hoy'}` : 'Todo el historial';
 };
 
+const contextoFiltros=()=>periodo()+($('fAlcance').value==='total' ? ' · Total del periodo, sin filtros de producto/cliente/estado/código' : ` · Recepción: ${$('fCodigo').value || 'todas'} · Cliente: ${$('fCliente').value || 'todos'} · Estado: ${$('fEstado').value || 'todos'} · Producto: ${$('fProducto').value || 'todos'} · Etiqueta: ${etiquetaActiva || 'todas'}`);
+const resumenDe=fuente=>{const t=consolidar(fuente.map(indicadoresDe));return `${t.recepciones} recepciones · ${t.skus} referencias · ${t.esperadas} declaradas · ${t.fisicas} contadas · Exactitud ${t.exactitud}% · Verificado ${t.avance}%`;};
+
 const sufijo = () => `-${soloDia(new Date())}`;
 
-$('bExcel').addEventListener('click', () => {
+$('bExcel').addEventListener('click', async () => {
   limpiarAvisos();
-  const v = vistaActual();
+  const fuente=$('fAlcance').value === 'total' ? detallesTodos : detalles;
+  const v = vistaActual(fuente);
   if (!v.filas.length) return aviso('No hay nada que exportar en esta vista.', 'warn');
   try {
-    aExcel(v.filas, v.columnas, v.titulo, v.nombre + sufijo());
+    await aExcel(v.filas, v.columnas, v.titulo, v.nombre + sufijo(), {filtros:contextoFiltros(),resumen:resumenDe(fuente)});
   } catch (e) { aviso(e.message, 'err', 'No se exportó'); }
 });
 
-$('bPdf').addEventListener('click', () => {
+$('bPdf').addEventListener('click', async () => {
   limpiarAvisos();
-  const v = vistaActual();
+  const fuente=$('fAlcance').value === 'total' ? detallesTodos : detalles;
+  const v = vistaActual(fuente);
   if (!v.filas.length) return aviso('No hay nada que exportar en esta vista.', 'warn');
   const t = consolidar(indicadores);
   try {
-    aPdf(v.filas, v.columnas, {
+    await aPdf(v.filas, v.columnas, {
       titulo: v.titulo,
-      subtitulo: periodo(),
+      subtitulo: contextoFiltros(),
       nombre: v.nombre + sufijo(),
-      resumen: `${t.recepciones} recepciones · ${t.skus} referencias · ` +
-               `${t.esperadas} unidades declaradas · ${t.fisicas} contadas · ` +
-               `exactitud ${t.exactitud}% · verificado ${t.avance}%`,
+      resumen: resumenDe(fuente),
     });
   } catch (e) { aviso(e.message, 'err', 'No se exportó'); }
 });

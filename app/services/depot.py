@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import time
+from urllib.parse import urljoin, urlsplit
 from dataclasses import dataclass, field
 
 import httpx
@@ -84,7 +85,9 @@ _breaker = _CircuitBreaker()
 # La API real del WMS
 # --------------------------------------------------------------------------- #
 class DepotNoDisponible(RuntimeError):
-    pass
+    def __init__(self, mensaje, codigo_http=None):
+        super().__init__(mensaje)
+        self.codigo_http = codigo_http
 
 
 class DepotRechazado(RuntimeError):
@@ -143,7 +146,25 @@ class DepotAPI:
         return bool(self.base_url and self.usuario and self.clave)
 
     def _cliente_http(self) -> httpx.Client:
-        return httpx.Client(timeout=DEPOT_TIMEOUT, transport=self.transporte)
+        return httpx.Client(timeout=httpx.Timeout(DEPOT_TIMEOUT, read=max(DEPOT_TIMEOUT, 60)), transport=self.transporte)
+
+    def _get(self, http, url, cabeceras):
+        # UrlFetchApp sigue redirecciones. Aqui solo dentro del MISMO origen,
+        # para no reenviar userid/password o token a otra maquina ni bajar a HTTP.
+        def origen(u):
+            p = urlsplit(u)
+            return p.scheme, p.hostname, p.port or (443 if p.scheme == 'https' else 80)
+        inicial = origen(url)
+        for _ in range(4):
+            r = http.get(url, headers=cabeceras)
+            if r.status_code not in (301, 302, 303, 307, 308):
+                return r
+            destino = urljoin(url, r.headers.get('location', ''))
+            p = urlsplit(destino)
+            if not r.headers.get('location') or origen(destino) != inicial or p.username or p.password:
+                raise DepotNoDisponible('Redireccion Depot fuera del origen autorizado', r.status_code)
+            url = destino
+        raise DepotNoDisponible('Demasiadas redirecciones de Depot')
 
     def token(self, forzar: bool = False) -> str:
         if not forzar and self._token and time.monotonic() < self._vence:
@@ -159,7 +180,7 @@ class DepotAPI:
 
         try:
             with self._cliente_http() as http:
-                r = http.get(self.base_url + self.ruta_token, headers=cab)
+                r = self._get(http, self.base_url + self.ruta_token, cab)
         except httpx.HTTPError as exc:
             _breaker.fallo()
             raise DepotNoDisponible(f"no se pudo pedir el token: {exc}") from exc
@@ -168,7 +189,7 @@ class DepotAPI:
             raise DepotRechazado("Depot rechazo las credenciales al pedir el token")
         if r.status_code != 200:
             _breaker.fallo()
-            raise DepotNoDisponible(f"Depot respondio {r.status_code} en {self.ruta_token}")
+            raise DepotNoDisponible(f"Depot respondio {r.status_code} en {self.ruta_token}", r.status_code)
 
         token = extraer_token(r.text)
         if not token:
@@ -191,7 +212,7 @@ class DepotAPI:
         }
         try:
             with self._cliente_http() as http:
-                r = http.get(self.base_url + ruta, headers=cab)
+                r = self._get(http, self.base_url + ruta, cab)
         except httpx.HTTPError as exc:
             _breaker.fallo()
             raise DepotNoDisponible(f"{ruta}: {exc}") from exc
@@ -207,7 +228,7 @@ class DepotAPI:
             return None
         if r.status_code != 200:
             _breaker.fallo()
-            raise DepotNoDisponible(f"Depot respondio {r.status_code} en {ruta}")
+            raise DepotNoDisponible(f"Depot respondio {r.status_code} en {ruta}", r.status_code)
 
         _breaker.exito()
         if not r.text.strip():
@@ -361,7 +382,7 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
     for f in filas:
         if cliente and (f["cliente"] or "") != cliente.upper():
             continue
-        c = f["cliente"] or DEPOT_CLIENTE or "SIN CLIENTE"
+        c = f["cliente"] or api.cliente or "SIN CLIENTE"
         anterior = por_sku.get(f["sku"])
         if anterior is None:
             por_cliente[c] = por_cliente.get(c, 0) + 1
@@ -375,7 +396,7 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
     ahora = utcnow().replace(tzinfo=None)
     registros = [{
         "sku": f["sku"],
-        "cliente": (f["cliente"] or DEPOT_CLIENTE or "")[:60],
+        "cliente": (f["cliente"] or api.cliente or "")[:60],
         "descripcion": (f["descripcion"] or "")[:300] or None,
         "unidad": (f["unidad"] or "")[:20] or None,
         "familia": (f["familia"] or "")[:60] or None,

@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Configuración Google, formatos Depot y etiqueta desde stock](docs/GOOGLE_Y_FORMATOS.md).
+
 [Vista movil, Google, credenciales ADMIN y etiquetas Zebra](docs/MEJORAS_MOVIL.md).
 
 **Operacion local actual (MySQL, puerto 3002):** seguir

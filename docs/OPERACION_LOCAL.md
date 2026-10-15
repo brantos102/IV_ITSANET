@@ -5,6 +5,9 @@ La interfaz para credenciales, Google y validacion movil se documenta en
 las conexiones sin editar el archivo de entorno; sus valores prevalecen
 sobre las variables cuando hay configuracion guardada.
 
+Para la versión actual: [GOOGLE_Y_FORMATOS.md](GOOGLE_Y_FORMATOS.md) detalla
+el remitente por supervisor, OAuth, los modelos Depot y la dependencia Pillow.
+
 La aplicacion existente se conserva. `/` abre `/app/`; el prototipo anterior
 queda disponible en `/prototipo`. La ruta `/app/` usa la sesion y la API local,
 aunque el navegador conserve una antigua preferencia `itsanet.modo=nube`.
@@ -42,6 +45,7 @@ En la terminal **SSH de VS Code**, dentro del servidor:
 cd ~/bryan/IV_ITSANET
 git status --short
 git pull --ff-only origin pr_bep/serene-thompson-10qlxd
+.venv/bin/python -m pip install -r requirements.txt
 sudo systemctl restart iv-itsanet
 curl --retry 8 --retry-connrefused --retry-delay 1 --max-time 5 -fsS \
   http://127.0.0.1:3002/health

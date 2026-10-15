@@ -505,7 +505,7 @@ class AppArchivo(Base):
 
 
 class AppConfig(Base):
-    """Preferencias operativas; nunca contiene credenciales del WMS."""
+    """Preferencias operativas y credenciales cifradas; la clave vive fuera de MySQL."""
     __tablename__ = 'app_config'
     clave: Mapped[str] = mapped_column(String(40), primary_key=True)
     datos: Mapped[dict] = mapped_column(JSON_MAPA)

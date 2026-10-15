@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script src="./vendor/xlsx.full.min.js" defer></script>
 <meta name="theme-color" content="#2563eb">
-<title>Administración — ITSANET IMS</title>
+<title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -102,7 +103,7 @@
 
 <header>
   <div>
-    <div class="marca"><img class="logo-empresa" src="./logo-itsa.png" alt="ITSA"><span>IMS</span></div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="simbolo-empresa" src="./icono.png" alt=""><span class="nombre-empresa">itsanet</span></a>
     <div class="sub">Administración</div>
   </div>
   <div class="sp"></div>
@@ -138,11 +139,16 @@
       </form>
     </details>
     <details style="margin-top:18px"><summary>Drive y envío de correo</summary>
+      <p class="mini">Cada supervisor despliega su propio puente como «Yo» desde su cuenta Google. El correo sale de esa cuenta; no se suplanta con Reply-To.</p>
+      <div id="puentesSupervisores" class="acciones"></div>
       <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
+        <label class="campo"><span>Correo del supervisor responsable</span><input id="iGoogleSupervisor" type="email" placeholder="supervisor@gmail.com"></label>
         <label class="campo"><span>Apps Script /exec</span><input id="iGoogleUrl" type="url" required></label>
         <label class="campo"><span>Clave compartida SERVIDOR_HMAC</span><input id="iGoogleSecret" type="password" autocomplete="new-password" placeholder="Conservar guardada"></label>
         <button type="submit" class="b-primario">Guardar puente</button>
+        <button type="button" id="bProbarPuente" class="b-sec">Verificar remitente y Drive</button>
       </form>
+      <p class="mini">Clave compartida: se genera, no se obtiene de Gmail. Usa la misma en SERVIDOR_HMAC de Apps Script. Guía: <a href="https://github.com/brantos102/IV_ITSANET/blob/pr_bep/serene-thompson-10qlxd/docs/GOOGLE_Y_FORMATOS.md" target="_blank" rel="noopener">configurar Drive, correo y OAuth</a>.</p>
     </details>
     <details style="margin-top:18px"><summary>Entrar con Google · OAuth</summary>
       <p>Cliente OAuth web del proyecto Google Cloud. Autoriza el callback exacto. Para móviles se necesita HTTPS; localhost sirve para la prueba en computador.</p>
@@ -279,11 +285,10 @@
        los indicadores salen en Excel o PDF. Aquí se definen las columnas de cada
        archivo, para que lo que descarga el supervisor entre en Depot sin
        retocarlo.</p>
-    <div class="msg warn"><b>Confírmalos contra Depot</b>
-      Los encabezados de partida son los nombres reales que <i>devuelve</i> el WMS
-      («COD. PRODUCTO», «NRO. LOTE»). El formato de <i>subida</i> puede no ser el
-      mismo: descarga la plantilla, compárala con la que pide Depot y ajusta aquí
-      lo que haga falta.</div>
+    <div class="msg warn"><b>Modelos oficiales adjuntos</b>
+      Cantidades: 18 columnas. Productos: 38 columnas. Solo se emite «Modelo a Utilizar».
+      Las instrucciones piden coma; tus formatos guardados se conservan hasta aplicar el modelo oficial.
+      No se copian clientes, SKU ni ubicaciones de las filas de ejemplo.</div>
     <div id="formatosCsv"></div>
     <div class="acciones">
       <button class="b-primario" id="bGuardarCsv">Guardar los formatos</button>
@@ -318,7 +323,7 @@ import { Proxy, obtenerUrlProxy } from './js/proxy.js';
 import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js';
 import { confirmar } from './js/modal.js';
 import {
-  CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv,
+  CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
 } from './js/csv.js';
 import { reunirTodo, contar, descargarJson } from './js/exportar.js';
 import { doc, getDoc, setDoc }
@@ -384,7 +389,7 @@ async function cargarIntegraciones() {
     const lista = $('clientesServidor'); lista.replaceChildren();
     for (const c of datos.clientes) {
       const editar = document.createElement('button'); editar.className = 'b-sec';
-      editar.textContent = `${c.nombre} · ${c.activo ? 'Activo' : 'Desactivado'}`;
+      editar.textContent = `${c.id} · ${c.nombre} · ${c.activo ? 'Activo' : 'Desactivado'}`;
       editar.onclick = () => {
         for (const [id, campo] of [['iClienteId','id'],['iNombre','nombre'],['iBaseUrl','baseUrl'],['iCliente','cliente']]) $(id).value = c[campo] || '';
         $('iUsuario').value = ''; $('iClave').value = ''; $('iActivo').value = c.activo ? '1' : '0';
@@ -396,7 +401,12 @@ async function cargarIntegraciones() {
         catch(e) { aviso(e.message, 'err'); } finally { probar.disabled = false; } };
       lista.append(probar);
     }
-    $('iGoogleUrl').value = datos.google.url || '';
+    if (!$('iGoogleSupervisor').value) $('iGoogleUrl').value = datos.google.url || '';
+    const puentes=$('puentesSupervisores');puentes.replaceChildren();
+    for(const p of datos.puentes || []) {
+      const b=document.createElement('button');b.type='button';b.className='b-sec';b.textContent=p.supervisor;
+      b.onclick=()=>{$('iGoogleSupervisor').value=p.supervisor;$('iGoogleUrl').value=p.url;$('iGoogleSecret').value='';};puentes.append(b);
+    }
     $('iOAuthId').value = datos.oauth.clientId || '';
     $('iOAuthRedirect').value = datos.oauth.redirectUri || new URL('/api/auth/google/callback', location.origin).href;
     $('iOAuthActivo').value = datos.oauth.activo === false ? '0' : '1';
@@ -406,7 +416,7 @@ const guardadoresIntegracion = {};
 for (const [formulario, destino, construir, secretos] of [
   ['formDepotLocal', () => '/integraciones/depot/' + encodeURIComponent($('iClienteId').value.trim().toUpperCase()),
     () => ({nombre:$('iNombre').value,baseUrl:$('iBaseUrl').value,cliente:$('iCliente').value,usuario:$('iUsuario').value,clave:$('iClave').value,activo:$('iActivo').value === '1'}), ['iUsuario','iClave']],
-  ['formGoogleLocal', () => '/integraciones/google', () => ({url:$('iGoogleUrl').value,secreto:$('iGoogleSecret').value}), ['iGoogleSecret']],
+  ['formGoogleLocal', () => '/integraciones/google', () => ({url:$('iGoogleUrl').value,secreto:$('iGoogleSecret').value,supervisor:$('iGoogleSupervisor').value}), ['iGoogleSecret']],
   ['formOAuthLocal', () => '/integraciones/oauth-google', () => ({clientId:$('iOAuthId').value,clientSecret:$('iOAuthSecret').value,redirectUri:$('iOAuthRedirect').value,activo:$('iOAuthActivo').value === '1'}), ['iOAuthSecret']],
 ]) {
   guardadoresIntegracion[formulario] = async ev => {
@@ -419,6 +429,11 @@ for (const [formulario, destino, construir, secretos] of [
 $('formDepotLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formDepotLocal(ev); });
 $('formGoogleLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formGoogleLocal(ev); });
 $('formOAuthLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formOAuthLocal(ev); });
+$('bProbarPuente').onclick=async()=>{
+  $('bProbarPuente').disabled=true;
+  try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value}});aviso(`${r.mensaje} Remitente: ${r.remitente}`,'ok');}
+  catch(e){aviso(e.message,'err');}finally{$('bProbarPuente').disabled=false;}
+};
 
 async function actualizarEstadoLocal() {
   try {
@@ -497,24 +512,29 @@ function pintarFormatosCsv() {
             <option value="\t"${f.separador === '\t' ? ' selected' : ''}>Tabulador</option>
           </select>
           <span class="mini">Excel en español parte por punto y coma. Con coma
-            mete toda la fila en una sola columna.</span></label>
+            mete toda la fila en una sola columna. Los modelos oficiales de Depot piden coma.</span></label>
       </div>
       <div class="tabla-env"><table>
         <thead><tr><th>#</th><th>Encabezado, tal cual lo espera Depot</th>
-          <th>Lo rellena</th><th></th></tr></thead>
+          <th>Lo rellena</th><th>Valor si falta</th><th>Obligatorio</th><th></th></tr></thead>
         <tbody>${f.columnas.map((c, ci) => `
           <tr>
-            <td class="mini">${ci + 1}</td>
+            <td class="mini" title="${esc(c.ayuda || '')}">${ci + 1}</td>
             <td><input data-f="${fi}" data-c="${ci}" data-prop="encabezado"
                        value="${esc(c.encabezado)}" style="width:100%"></td>
             <td><select data-f="${fi}" data-c="${ci}" data-prop="campo"
                         style="width:100%">${opciones(c.campo || '')}</select></td>
+            <td><input data-f="${fi}" data-c="${ci}" data-prop="valor" value="${esc(c.valor ?? '')}" placeholder="Sin inventar datos">
+              ${['estado','categoria'].includes(c.campo) ? `<input data-f="${fi}" data-c="${ci}" data-prop="valorPnc" value="${esc(c.valorPnc ?? '')}" placeholder="Valor para PNC">` : ''}</td>
+            <td><input type="checkbox" data-f="${fi}" data-c="${ci}" data-prop="obligatorio" ${c.obligatorio ? 'checked' : ''} aria-label="Campo obligatorio"></td>
             <td><button type="button" class="chip" data-quitar="${fi}:${ci}">Quitar</button></td>
           </tr>`).join('')}</tbody>
       </table></div>
       <div class="acciones" style="margin-top:12px">
         <button type="button" class="b-sec" data-anadir="${fi}">+ Columna</button>
-        <button type="button" class="b-sec" data-plantilla="${fi}">Descargar plantilla vacía</button>
+        <button type="button" class="b-sec" data-plantilla="${fi}">Plantilla CSV</button>
+        <button type="button" class="b-sec" data-excel="${fi}">Plantilla Excel</button>
+        <button type="button" class="b-sec" data-oficial="${fi}">Aplicar modelo oficial (${FORMATOS_BASE[fi].columnas.length} columnas)</button>
       </div>
     </div>`).join('');
 }
@@ -524,13 +544,13 @@ $('formatosCsv').addEventListener('input', (ev) => {
   if (t.dataset.f === undefined) return;
   const f = formatosCsv[Number(t.dataset.f)];
   if (t.dataset.c === undefined) f[t.dataset.prop] = t.value;
-  else f.columnas[Number(t.dataset.c)][t.dataset.prop] = t.value;
+  else f.columnas[Number(t.dataset.c)][t.dataset.prop] = t.type === 'checkbox' ? t.checked : t.value;
 });
 $('formatosCsv').addEventListener('change', (ev) => {
-  if (ev.target.tagName === 'SELECT') $('formatosCsv').dispatchEvent(new Event('input'));
+  if (ev.target.tagName === 'SELECT' || ev.target.type === 'checkbox') ev.target.dispatchEvent(new Event('input',{bubbles:true}));
 });
 
-$('formatosCsv').addEventListener('click', (ev) => {
+$('formatosCsv').addEventListener('click', async (ev) => {
   const t = ev.target;
   if (t.dataset.anadir !== undefined) {
     formatosCsv[Number(t.dataset.anadir)].columnas.push({ encabezado: 'NUEVA', campo: '' });
@@ -540,6 +560,14 @@ $('formatosCsv').addEventListener('click', (ev) => {
     const [fi, ci] = t.dataset.quitar.split(':').map(Number);
     formatosCsv[fi].columnas.splice(ci, 1);
     return pintarFormatosCsv();
+  }
+  if (t.dataset.excel !== undefined) {
+    const f=formatosCsv[Number(t.dataset.excel)];descargarModelo(resultadoModelo(f,[],'plantilla'));return;
+  }
+  if (t.dataset.oficial !== undefined) {
+    const fi=Number(t.dataset.oficial);
+    if (!await confirmar({titulo:'Aplicar modelo oficial',texto:'Se reemplazan las columnas de este formato en pantalla. El otro formato se conserva. Revisa los valores y pulsa Guardar los formatos para confirmar.',aceptar:'Aplicar'})) return;
+    formatosCsv[fi]=structuredClone(FORMATOS_BASE[fi]);pintarFormatosCsv();return;
   }
   if (t.dataset.plantilla !== undefined) {
     const f = formatosCsv[Number(t.dataset.plantilla)];

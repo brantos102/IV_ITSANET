@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -106,24 +107,44 @@ def guardar_cliente(db, ident, datos, usuario):
     return next(c for c in lista_publica(db) if c['id'] == ident)
 
 
-def google(db):
-    f = db.get(AppConfig, 'google')
+def _clave_google(supervisor):
+    return 'g:' + hashlib.sha256(supervisor.encode()).hexdigest()[:32]
+
+
+def puentes_publicos(db):
+    return [{'supervisor': f.datos['supervisor'], 'url': f.datos['url'],
+             'secretoConfigurado': bool(f.datos.get('credencial'))}
+            for f in db.scalars(select(AppConfig).where(AppConfig.clave.like('g:%')))]
+
+
+def google(db, supervisor=None):
+    email = str(supervisor or '').strip().lower()
+    f = db.get(AppConfig, _clave_google(email)) if email else None
+    f = f or db.get(AppConfig, 'google')
     if f:
-        return {'url': f.datos.get('url', ''), 'secreto': _descifrar(f.datos.get('credencial')).get('secreto', '')}
+        return {'url': f.datos.get('url', ''), 'secreto': _descifrar(f.datos.get('credencial')).get('secreto', ''),
+                'supervisor': f.datos.get('supervisor', '')}
     return {'url': config.VAL_GOOGLE_PROXY_URL, 'secreto': config.VAL_GOOGLE_PROXY_SECRET}
 
 
 def guardar_google(db, datos, usuario):
-    anterior = google(db)
+    supervisor = str(datos.get('supervisor') or '').strip().lower()
+    if supervisor and not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', supervisor):
+        raise HTTPException(422, 'Correo del supervisor invalido')
+    anterior = google(db, supervisor)
     url = _url(datos.get('url') or anterior['url'], google=True)
     secreto = str(datos.get('secreto') or anterior['secreto'])
     if len(secreto) < 32:
         raise HTTPException(422, 'La clave compartida debe tener al menos 32 caracteres')
-    f = db.get(AppConfig, 'google') or AppConfig(clave='google')
-    f.datos = {'url': url, 'credencial': _cifrador(crear=True).encrypt(json.dumps({'secreto': secreto}).encode()).decode()}
+    clave = _clave_google(supervisor) if supervisor else 'google'
+    f = db.get(AppConfig, clave) or AppConfig(clave=clave)
+    # Un puente nuevo de otro supervisor requiere su propia clave, no hereda otra.
+    if supervisor and f.datos is None and not datos.get('secreto'):
+        raise HTTPException(422, 'Ingresa la clave compartida del puente de este supervisor')
+    f.datos = {'url': url, 'supervisor': supervisor, 'credencial': _cifrador(crear=True).encrypt(json.dumps({'secreto': secreto}).encode()).decode()}
     f.usuario, f.modificado_en = usuario, utcnow()
     db.add(f); db.commit()
-    return {'url': url, 'secretoConfigurado': True}
+    return {'url': url, 'supervisor': supervisor, 'secretoConfigurado': True}
 
 
 def oauth(db):

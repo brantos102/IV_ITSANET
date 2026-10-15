@@ -294,3 +294,19 @@ def test_url_de_endpoint_se_normaliza_como_en_clientes_gs():
         cli=svc.DepotAPI(base_url=BASE+sufijo,usuario='u',clave='c',transporte=httpx.MockTransport(responder))
         assert cli.token()=='T'
     assert len(llamadas)==2
+
+
+def test_redirect_de_ruta_conserva_cabeceras_solo_en_mismo_origen():
+    def responder(p, _):
+        assert p.headers['userid']=='u' and p.headers['password']=='c'
+        if p.url.path.endswith('/gettoken'):
+            return httpx.Response(308,headers={'location':'/q_apidepot/gettoken/'})
+        return httpx.Response(200,json={'token':'T'})
+    cli,llamadas=api(responder)
+    assert cli.token()=='T' and len(llamadas)==2
+
+
+def test_redirect_a_otro_host_no_filtra_credenciales():
+    cli,llamadas=api(lambda p,_:httpx.Response(302,headers={'location':'https://otro.example.test/token'}))
+    with pytest.raises(svc.DepotNoDisponible):cli.token()
+    assert len(llamadas)==1

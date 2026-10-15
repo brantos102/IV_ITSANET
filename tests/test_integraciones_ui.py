@@ -47,6 +47,7 @@ def test_claves_cifradas_no_regresan_y_el_vacio_conserva(admin, db, monkeypatch)
     assert api.usuario == 'usuario-reservado' and api.clave == 'clave-reservada'
     assert api.ruta_token == '/gettoken'
     monkeypatch.setattr(depot.DepotAPI,'token',lambda self,forzar=False:'token-nunca-publico')
+    monkeypatch.setattr(depot.DepotAPI,'stock',lambda self:[])
     r=admin.post(ruta+'/probar'); assert r.status_code == 200
     assert 'token-nunca-publico' not in r.text
     assert 'credencial' not in admin.get('/api/app/integraciones').text
@@ -180,3 +181,37 @@ def test_url_o_clave_con_saltos_no_se_guardan(admin):
     ruta='/api/app/integraciones/depot/TEST'
     assert admin.put(ruta,json={'baseUrl':'https://wms.example.test:puerto','usuario':'u','clave':'c'}).status_code == 422
     assert admin.put(ruta,json={'baseUrl':'https://wms.example.test','usuario':'u','clave':'c\nsecreto'}).status_code == 422
+
+
+def test_puentes_por_supervisor_cifrados_y_sin_heredar_claves(admin,db,monkeypatch):
+    ruta='/api/app/integraciones/google'
+    for correo,ident in [('uno@gmail.com','uno'),('dos@gmail.com','dos')]:
+        r=admin.put(ruta,json={'url':f'https://script.google.com/macros/s/{ident}/exec','secreto':ident*16,'supervisor':correo})
+        assert r.status_code==200,r.text
+    db.rollback();db.expire_all()
+    assert integraciones.google(db,'uno@gmail.com')['url'].endswith('/uno/exec')
+    assert integraciones.google(db,'dos@gmail.com')['secreto']=='dos'*16
+    assert len(integraciones.puentes_publicos(db))==2
+    assert 'uno'*16 not in admin.get('/api/app/integraciones').text
+    assert admin.put(ruta,json={'supervisor':'otro@gmail.com','url':'https://script.google.com/macros/s/otro/exec'}).status_code==422
+    from app.services import entregas
+    llamadas=[]
+    def probar(accion,clave,datos):
+        llamadas.append(accion);return {'exito':True,'remitente':datos['usuario']}
+    monkeypatch.setattr(entregas,'llamar',probar)
+    assert admin.post(ruta+'/probar',json={'supervisor':'uno@gmail.com'}).status_code==200
+    assert llamadas==['estado']
+
+
+def test_diagnostico_api_identifica_token_o_stock_sin_secretos(admin,monkeypatch):
+    ruta='/api/app/integraciones/depot/VENTURA'
+    admin.put(ruta,json={'baseUrl':'https://wms.example.test','usuario':'u','clave':'c'})
+    monkeypatch.setattr(depot.DepotAPI,'token',lambda self,forzar=False:'token-privado')
+    monkeypatch.setattr(depot.DepotAPI,'stock',lambda self:[{'sku':'SKU1','cliente':'VENTURA'}])
+    r=admin.post(ruta+'/probar');assert r.status_code==200
+    assert r.json()['pasos']==['gettoken','getstock'] and r.json()['productos']==1
+    assert 'token-privado' not in r.text
+    def falla(self):raise depot.DepotNoDisponible('respuesta potencialmente privada')
+    monkeypatch.setattr(depot.DepotAPI,'stock',falla)
+    r=admin.post(ruta+'/probar');assert r.status_code==502
+    assert 'gettoken correcto' in r.text and 'potencialmente privada' not in r.text

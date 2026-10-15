@@ -83,6 +83,7 @@ def test_caida_google_reintento_y_revision_sin_reenviar_automaticamente(cliente,
     assert not entregas.procesar_uno()  # respeta espera entre intentos
     assert cliente.post(f'/api/app/entregas/{ident}/reintentar').status_code == 200
     def ambiguo(operacion, clave, payload):
+        if operacion == 'estado': return {'exito': True, 'remitente': 'sup'}
         if operacion == 'archivo': return {'exito': True, 'fileId': 'file-test', 'tipoArchivo': 'informe'}
         raise entregas.RevisionEntrega('Confirmacion del correo interrumpida')
     monkeypatch.setattr(entregas, 'llamar', ambiguo)
@@ -103,12 +104,12 @@ def test_arrendamiento_recupera_un_reinicio_y_finaliza(cliente, db, monkeypatch,
     llamadas = []
     def exito(operacion, clave, payload):
         llamadas.append((operacion, clave))
-        return {'exito': True, 'fileId': 'file-test', 'tipoArchivo': 'informe', 'carpeta': 'https://drive.google.com/test', 'sheet': ''}
+        return {'exito': True, 'remitente':'sup', 'fileId': 'file-test', 'tipoArchivo': 'informe', 'carpeta': 'https://drive.google.com/test', 'sheet': ''}
     monkeypatch.setattr(entregas, 'llamar', exito)
     assert entregas.procesar_uno()
     db.rollback(); db.expire_all(); e = db.get(AppEntrega, ident)
     assert e.estado == 'ENTREGADA' and e.resultado['exito']
-    assert [op for op, _ in llamadas] == ['archivo', 'finalizar']
+    assert [op for op, _ in llamadas] == ['estado', 'archivo', 'finalizar']
     assert not entregas.procesar_uno()
 
 
@@ -146,6 +147,7 @@ def test_foto_confirmada_en_drive_deja_solo_referencia_mysql_y_url_autenticada(c
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_URL', 'https://script.google.com/macros/s/prueba/exec')
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_SECRET', 's' * 40)
     def entregar(operacion, clave, payload):
+        if operacion == 'estado': return {'exito': True, 'remitente': 'sup'}
         if operacion == 'archivo':
             return {'exito': True, 'fileId': 'drive-' + clave.split(':')[1], 'tipoArchivo': payload['tipoArchivo']}
         assert 'eventos' not in payload and 'lineas' not in payload
@@ -161,3 +163,20 @@ def test_foto_confirmada_en_drive_deja_solo_referencia_mysql_y_url_autenticada(c
     res = cliente.get(foto['url'], follow_redirects=False)
     assert res.status_code == 307 and a.drive_id in res.headers['location']
     assert TestClient(app).get(foto['url'], follow_redirects=False).status_code == 401
+
+
+def test_remitente_distinto_no_sube_archivos_ni_envia(cliente,db,monkeypatch,tmp_path):
+    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path)
+    codigo,datos=preparar(cliente,db)
+    ident=cliente.post(f'/api/app/recepciones/{codigo}/entrega',json=datos).json()['id']
+    monkeypatch.setattr(config,'VAL_GOOGLE_PROXY_URL','https://script.google.com/macros/s/test/exec')
+    monkeypatch.setattr(config,'VAL_GOOGLE_PROXY_SECRET','s'*40)
+    llamadas=[]
+    def otro(op,clave,datos):
+        llamadas.append(op);return {'exito':True,'remitente':'otra@gmail.com'}
+    monkeypatch.setattr(entregas,'llamar',otro)
+    assert entregas.procesar_uno()
+    db.rollback();db.expire_all()
+    assert db.get(AppEntrega,ident).estado=='PENDIENTE'
+    assert llamadas==['estado']
+    assert list(tmp_path.glob('app_archivos/*'))
