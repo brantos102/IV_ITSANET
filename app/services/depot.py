@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -95,7 +96,7 @@ class DepotAPI:
 
     Dos llamadas y un token:
 
-        GET /gettoken   cabeceras usuario / clave / cliente  -> token
+        GET /gettoken   cabeceras userid / password         -> token
         GET /getstock   cabecera  token                      -> filas de stock
 
     El token vence, y el WMS puede revocarlo antes de su vencimiento, asi que
@@ -114,7 +115,8 @@ class DepotAPI:
     def __init__(self, base_url: str | None = None, usuario: str | None = None,
                  clave: str | None = None, cliente: str | None = None,
                  transporte=None, ruta_token=None, ruta_stock=None, cabecera_token=None):
-        self.base_url = (base_url if base_url is not None else DEPOT_BASE_URL).rstrip("/")
+        self.base_url = re.sub(r'/(gettoken|getstock)$', '',
+            (base_url if base_url is not None else DEPOT_BASE_URL).strip().rstrip('/'), flags=re.I)
         self.usuario = DEPOT_USUARIO if usuario is None else usuario
         self.clave = DEPOT_CLAVE if clave is None else clave
         self.cliente = DEPOT_CLIENTE if cliente is None else cliente
@@ -151,11 +153,9 @@ class DepotAPI:
 
         cab = {"Accept": "application/json, text/plain, */*"}
         if self.usuario:
-            cab["usuario"] = self.usuario
+            cab["userid"] = self.usuario
         if self.clave:
-            cab["clave"] = self.clave
-        if self.cliente:
-            cab["cliente"] = self.cliente
+            cab["password"] = self.clave
 
         try:
             with self._cliente_http() as http:
@@ -173,8 +173,7 @@ class DepotAPI:
         token = extraer_token(r.text)
         if not token:
             raise DepotNoDisponible(
-                f"Depot respondio sin un token reconocible en {self.ruta_token}: "
-                f"{r.text[:120]}"
+                f"Depot respondio sin un token reconocible en {self.ruta_token}"
             )
         self._token = token
         self._vence = time.monotonic() + DEPOT_TTL_HORAS * 3600
@@ -217,7 +216,7 @@ class DepotAPI:
             return r.json()
         except ValueError as exc:
             raise DepotNoDisponible(
-                f"Depot respondio algo que no es JSON en {ruta}: {r.text[:120]}"
+                f"Depot respondio algo que no es JSON en {ruta}"
             ) from exc
 
     def stock(self, ruta: str | None = None) -> list[dict]:

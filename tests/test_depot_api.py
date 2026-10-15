@@ -67,9 +67,10 @@ def test_las_credenciales_viajan_en_las_cabeceras_que_espera_el_wms():
     assert cli.token() == "T1"
     p = llamadas[0]
     assert p.url.path.endswith("/gettoken")
-    assert p.headers["usuario"] == "u"
-    assert p.headers["clave"] == "c"
-    assert p.headers["cliente"] == "VENTURA"
+    assert p.headers["userid"] == "u"
+    assert p.headers["password"] == "c"
+    assert "usuario" not in p.headers and "clave" not in p.headers
+    assert "cliente" not in p.headers  # coincide con obtenerTokenCliente_ de Clientes.gs
 
 
 def test_el_token_no_se_vuelve_a_pedir_en_cada_llamada():
@@ -280,3 +281,16 @@ def test_los_clientes_del_espejo_se_consultan_por_la_api(cliente):
     r = cliente.get("/api/catalogo/depot/clientes")
     assert r.status_code == 200
     assert r.json() == {"clientes": []}
+
+
+def test_url_de_endpoint_se_normaliza_como_en_clientes_gs():
+    llamadas=[]
+    def responder(p):
+        llamadas.append(p)
+        assert p.url.path == '/q_apidepot/gettoken'
+        assert p.headers['userid'] == 'u' and p.headers['password'] == 'c'
+        return httpx.Response(200,json={'token':'T'})
+    for sufijo in ['/gettoken','/getstock/']:
+        cli=svc.DepotAPI(base_url=BASE+sufijo,usuario='u',clave='c',transporte=httpx.MockTransport(responder))
+        assert cli.token()=='T'
+    assert len(llamadas)==2
