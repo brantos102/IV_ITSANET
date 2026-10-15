@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-23"></script>
+<script src="./js/arranque.js?v=20261015-24"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261015-23" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261015-24" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261015-23">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-24">
 </head>
 <body>
 <div class="envoltorio">
@@ -321,16 +321,16 @@
 </div>
 
 <script type="module">
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261015-23';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261015-23';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js?v=20261015-23';
-import { confirmar } from './js/modal.js?v=20261015-23';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261015-24';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261015-24';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js?v=20261015-24';
+import { confirmar } from './js/modal.js?v=20261015-24';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261015-23';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261015-23';
+} from './js/csv.js?v=20261015-24';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261015-24';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261015-23';
+  from './vendor/firebase-sdk.js?v=20261015-24';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -435,7 +435,11 @@ $('formGoogleLocal').addEventListener('submit', ev => { ev.preventDefault(); gua
 $('formOAuthLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formOAuthLocal(ev); });
 $('bProbarPuente').onclick=async()=>{
   $('bProbarPuente').disabled=true;
-  try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value}});aviso(`${r.mensaje} Remitente: ${r.remitente}`,'ok');}
+  try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value}});
+    const mensaje=aviso(`${r.mensaje} Remitente: ${r.remitente}`,'ok');
+    if(/^https:\/\/drive\.google\.com\//.test(r.carpeta || '')) {
+      const a=document.createElement('a');a.href=r.carpeta;a.target='_blank';a.rel='noopener';a.textContent=`Abrir carpeta verificada: ${r.nombreCarpeta || 'Drive'}`;mensaje.append(a);
+    }}
   catch(e){aviso(e.message,'err');}finally{$('bProbarPuente').disabled=false;}
 };
 
@@ -538,7 +542,9 @@ function pintarFormatosCsv() {
         <button type="button" class="b-sec" data-anadir="${fi}">+ Columna</button>
         <button type="button" class="b-sec" data-plantilla="${fi}">Plantilla CSV</button>
         <button type="button" class="b-sec" data-excel="${fi}">Plantilla Excel</button>
-        <button type="button" class="b-sec" data-oficial="${fi}">Aplicar modelo oficial (${FORMATOS_BASE[fi].columnas.length} columnas)</button>
+        ${f.id === 'BARRAS'
+          ? `<button type="button" class="b-sec" data-restablecer="${fi}">Restablecer columnas de revisión</button>`
+          : `<button type="button" class="b-sec" data-oficial="${fi}">Aplicar modelo oficial (${FORMATOS_BASE[fi].columnas.length} columnas)</button>`}
       </div>
     </div>`).join('');
 }
@@ -568,8 +574,8 @@ $('formatosCsv').addEventListener('click', async (ev) => {
   if (t.dataset.excel !== undefined) {
     const f=formatosCsv[Number(t.dataset.excel)];descargarModelo(resultadoModelo(f,[],'plantilla'));return;
   }
-  if (t.dataset.oficial !== undefined) {
-    const fi=Number(t.dataset.oficial);
+  if (t.dataset.oficial !== undefined || t.dataset.restablecer !== undefined) {
+    const fi=Number(t.dataset.oficial ?? t.dataset.restablecer);
     if (!await confirmar({titulo:'Aplicar modelo oficial',texto:'Se reemplazan las columnas de este formato en pantalla. El otro formato se conserva. Revisa los valores y pulsa Guardar los formatos para confirmar.',aceptar:'Aplicar'})) return;
     formatosCsv[fi]=structuredClone(FORMATOS_BASE[fi]);pintarFormatosCsv();return;
   }

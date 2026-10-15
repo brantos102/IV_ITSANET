@@ -590,6 +590,19 @@ await test('con las dos cosas, se ofrece y no hay nada que explicar', () => {
   });
 });
 
+await test('lector en vivo evita repeticiones y apaga todas las pistas', async () => {
+  const w=Object.getOwnPropertyDescriptor(globalThis,'window'),n=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  const intervalo=globalThis.setInterval,limpiar=globalThis.clearInterval;
+  let tick,paradas=0,limpiado=false;const leidos=[];
+  const video={readyState:2,setAttribute(){},async play(){},srcObject:null};
+  class Detector {static async getSupportedFormats(){return ['code_128'];}constructor(o){eq(o.formats,['code_128']);}async detect(){return [{rawValue:'00001234'}];}}
+  Object.defineProperty(globalThis,'window',{value:{BarcodeDetector:Detector},configurable:true});
+  Object.defineProperty(globalThis,'navigator',{value:{mediaDevices:{async getUserMedia(){return {getTracks:()=>[{stop(){paradas++;}}]};}}},configurable:true});
+  globalThis.setInterval=f=>{tick=f;return 7;};globalThis.clearInterval=()=>{limpiado=true;};
+  try {const cerrar=await camara.abrirCamara(video,c=>leidos.push(c));await tick();await tick();eq(leidos,['00001234']);cerrar();await tick();eq(leidos,['00001234']);eq(paradas,1);ok(limpiado);eq(video.srcObject,null);}
+  finally {globalThis.setInterval=intervalo;globalThis.clearInterval=limpiar;if(w)Object.defineProperty(globalThis,'window',w);else delete globalThis.window;if(n)Object.defineProperty(globalThis,'navigator',n);else delete globalThis.navigator;}
+});
+
 // ====================== El vocabulario ================================== //
 // «Unid. sistema» no le dice nada a quien esta delante de un pallet. Si el
 // glosario y las pantallas se separan, acaban conviviendo dos palabras para lo

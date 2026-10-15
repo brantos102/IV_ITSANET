@@ -20,6 +20,20 @@ await test('ZPL no ejecuta comandos de los datos y HTML no interpreta observacio
 await test('una etiqueta PNC no declara mercaderia disponible',()=>{ok(htmlEtiqueta({...etiqueta,estado:'PNC'},'<svg/>').includes('CUARENTENA'));ok(!htmlEtiqueta({...etiqueta,estado:'PNC'},'<svg/>').includes('DISPONIBLE'));});
 await test('no se imprimen cantidades invalidas ni codigos vacios',()=>{for(const d of [{...etiqueta,cantidad:0},{...etiqueta,cantidad:-1},{...etiqueta,sku:''}]) {let rechazo=false;try{validarEtiqueta(d);}catch{rechazo=true;}ok(rechazo);}});
 const csv=await cargar('csv.js'),kpi=await cargar('kpi.js');
+await test('producto presente en el maestro no se vuelve a dar de alta por ser adicional',()=>{
+  const r=csv.csvDeProductos(csv.FORMATOS_BASE[1],{recepcion:{codigo:'R'},catalogo:{EXISTE:{existe:true}},adicionales:[{sku:'EXISTE'},{sku:'NUEVO'}]});
+  eq(r.filas,1);eq(r.tabla[1][1],'NUEVO');
+});
+await test('códigos de barras se exportan aparte, como texto y con columnas editables',()=>{
+  const f=structuredClone(csv.FORMATOS_BASE[2]);f.columnas[0].encabezado='PRODUCTO';
+  const r=csv.csvDeCodigosBarras(f,{recepcion:{codigo:'R'},codigosBarras:[{sku:'EXISTE',codigoBarras:'00001234'}]});
+  eq(r.tabla,[['PRODUCTO','CODIGO DE BARRAS'],['EXISTE','00001234']]);eq(r.incidencias.length,0);
+});
+await test('importación de barras elige Modelo a Utilizar y conserva ceros',async()=>{
+  globalThis.XLSX={utils:{sheet_to_json:h=>h}};
+  const {leerCodigos}=await cargar('codigos.js');
+  eq(leerCodigos({SheetNames:['Instrucciones','Modelo a Utilizar'],Sheets:{Instrucciones:[['no usar']], 'Modelo a Utilizar':[['SKU','CODIGO DE BARRAS'],['EXISTE','00001234']]}}),[{sku:'EXISTE',codigoBarras:'00001234'}]);
+});
 await test('la macro usa B,C,D,E,G,H,I,J,L,M y no confunde responsable con operario',()=>{
   const d=etiquetaDesdeStock([1,'VENTURA','6RF199315D','PUENTE DEL MOTOR','SERIE123','LOTE','DESPACHO','PARTIDA','DISPONIBLE','NUV','BM-A1-01-3','CS',1]);
   eq(d.cliente,'VENTURA');eq(d.sku,'6RF199315D');eq(d.responsable,'PARTIDA');eq(d.unidad,'CS');eq(d.cantidad,1);eq(d.serie,'SERIE123');

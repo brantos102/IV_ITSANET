@@ -99,7 +99,8 @@ def probar_google(datos: dict = Body(...), db: Session = Depends(get_db), _: Ope
         r = entregas.llamar('estado', uuid4().hex, {'usuario': supervisor})
         if str(r.get('remitente') or '').lower() != supervisor:
             raise HTTPException(409, 'El despliegue no pertenece a este supervisor')
-        return {'ok': True, 'remitente': supervisor, 'mensaje': 'Remitente y acceso a la carpeta Drive verificados. No se envio correo.'}
+        return {'ok': True, 'remitente': supervisor, 'carpeta': r.get('carpeta', ''), 'nombreCarpeta': r.get('nombreCarpeta', ''),
+                'mensaje': 'Remitente y acceso a la carpeta Drive verificados. No se envio correo.'}
     except (RuntimeError, httpx.HTTPError):
         raise HTTPException(502, 'No se pudo verificar el puente. Revisa despliegue, cuenta ejecutora, carpeta y clave compartida.') from None
 

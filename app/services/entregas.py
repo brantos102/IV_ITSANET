@@ -44,7 +44,7 @@ def documento(e, tecnico=False):
             'intentos': e.intentos, 'mensaje': e.error if tecnico else mensajes.get(e.estado, 'Comprobando entrega.'),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'resultado': (e.resultado or {}) if tecnico else {
-                k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'sheet', 'enviadoA', 'remitente')},
+                k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'carpetaFotos', 'sheet', 'enviadoA', 'remitente')},
             'creadoEn': m._iso(e.creado_en)}
 
 

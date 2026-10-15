@@ -16,8 +16,8 @@ function entregaServidor_(peticion) {
   if (!/^[a-f0-9]{32}(:[a-f0-9]{32})?$/.test(p.clave || '')) throw new Error('Identificador no valido.');
   var remitente = cuentaServidor_(p.datos && p.datos.usuario);
   if (p.operacion === 'estado') {
-    DriveApp.getFolderById(exigirCarpeta_()).getName();
-    return { exito: true, remitente: remitente };
+    var raiz = DriveApp.getFolderById(exigirCarpeta_());
+    return { exito: true, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName() };
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -120,6 +120,7 @@ function finalizarServidor_(id, p) {
     }, { email: p.usuario });
   }
   acuse = { exito: true, id: id, carpeta: carpeta.getUrl(), sheet: sheet,
+    carpetaFotos: (p.archivos || []).some(function(a) { return a.tipoArchivo === 'foto'; }) ? carpetaDe_(carpeta, 'imagenes').getUrl() : '',
     enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA' };
   archivo.setContent(JSON.stringify(acuse));
   return acuse;

@@ -79,6 +79,43 @@ def test_csv_local_permiso_admin_y_estado_sin_credenciales(cliente, db):
     assert 'url' not in estado and 'password' not in estado
 
 
+def test_fotos_por_item_sin_conteo_y_una_copia_para_varios_items(cliente, db, monkeypatch, tmp_path):
+    from app.models import AppArchivoSku, AppEvento, AppRecepcion, AppEntrega
+    from uuid import uuid4
+    monkeypatch.setattr(archivos, 'DATA_DIR', tmp_path)
+    crear(cliente)
+    ruta = '/api/app/recepciones/PRUEBA-LOCAL/archivos/foto'
+    for sku in ['SKU1', 'SKU2']:
+        r = cliente.post(ruta, json={'base64': base64.b64encode(PNG).decode(), 'sku': sku})
+        assert r.status_code == 201, r.text
+    ident = r.json()['id']
+    assert db.query(AppArchivo).count() == 1 and db.query(AppArchivoSku).count() == 2
+    assert db.query(AppEvento).count() == 0
+    galeria = '/api/app/recepciones/PRUEBA-LOCAL/imagenes'
+    for sku in ['SKU1', 'SKU2']:
+        r = cliente.get(galeria, params={'sku': sku})
+        assert r.status_code == 200
+        assert r.json()['total'] == 1
+        assert r.json()['archivos'][0]['almacen'] == 'SERVIDOR'
+        assert set(r.json()['archivos'][0]['skus']) == {'SKU1', 'SKU2'}
+        assert 'rutaServidor' not in r.text
+    assert cliente.get(galeria, params={'sku': 'OTRO'}).json()['total'] == 0
+    assert TestClient(app).get(galeria).status_code == 401
+    db.add(Operador(usuario='admin-fotos',nombre='Admin',rol=Rol.ADMIN,pin_hash=hash_pin('1111')));db.commit()
+    admin=TestClient(app);admin.post('/api/auth/login',json={'usuario':'admin-fotos','pin':'1111'})
+    assert admin.get(galeria).json()['archivos'][0]['rutaServidor'] == str(tmp_path / 'app_archivos' / ident)
+    db.expire_all();a=db.get(AppArchivo,ident);a.drive_id='archivo-drive';a.drive_url='https://drive.google.com/file/d/archivo-drive/view'
+    db.add(AppEntrega(id=uuid4().hex,clave=uuid4().hex,recepcion='PRUEBA-LOCAL',usuario='sup',datos={},estado='ENTREGADA',
+        resultado={'carpeta':'https://drive.google.com/folders/recepcion','carpetaFotos':'https://drive.google.com/folders/imagenes'}))
+    db.get(AppRecepcion,'PRUEBA-LOCAL').estado='CERRADA';db.commit()
+    archivos.ruta(a).unlink()
+    r=cliente.get(galeria).json()
+    assert r['carpetaDrive']=='https://drive.google.com/folders/imagenes'
+    assert r['archivos'][0]['almacen']=='DRIVE' and r['archivos'][0]['driveUrl']==a.drive_url
+    assert cliente.get('/api/app/archivos/'+ident,follow_redirects=False).status_code==307
+    assert cliente.post(ruta,json={'base64':base64.b64encode(PNG).decode(),'sku':'SKU1'}).status_code==409
+
+
 def test_entrada_principal_abre_la_app_operativa():
     r = TestClient(app).get('/', follow_redirects=False)
     assert r.status_code == 302 and r.headers['location'] == '/app/'

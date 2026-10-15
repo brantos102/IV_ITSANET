@@ -158,6 +158,19 @@ class Producto(Base):
 
 # --------------------------------------------------------------------------- #
 # Recepcion / Packing list
+class ProductoCodigo(Base):
+    """Etiquetas adicionales del mismo SKU; no reemplaza el EAN del maestro."""
+    __tablename__ = 'producto_codigos'
+    codigo: Mapped[str] = mapped_column(String(80), primary_key=True)
+    valor: Mapped[str] = mapped_column(String(80))
+    sku: Mapped[str] = mapped_column(ForeignKey('productos.sku'), index=True)
+    registrado_por: Mapped[str | None] = mapped_column(String(160))
+    exportar: Mapped[bool] = mapped_column(Boolean, default=True)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+# --------------------------------------------------------------------------- #
+# Recepcion / Packing list
 # --------------------------------------------------------------------------- #
 class Recepcion(Base):
     __tablename__ = "recepciones"
@@ -502,6 +515,13 @@ class AppArchivo(Base):
     bytes: Mapped[int] = mapped_column(Integer)
     usuario: Mapped[str | None] = mapped_column(String(120))
     creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppArchivoSku(Base):
+    """Una imagen puede documentar varios ítems sin duplicar el archivo."""
+    __tablename__ = 'app_archivo_skus'
+    archivo_id: Mapped[str] = mapped_column(ForeignKey('app_archivos.id', ondelete='CASCADE'), primary_key=True)
+    sku: Mapped[str] = mapped_column(String(80), primary_key=True, index=True)
 
 
 class AppConfig(Base):

@@ -484,7 +484,8 @@ def resolver_codigo(db: Session, codigo: str, usar_api: bool = True) -> Resultad
         )
 
     # 1. Cache local por SKU
-    prod = db.get(Producto, sku)
+    from app.services.codigos import buscar
+    prod = buscar(db, codigo)
 
     # 2. Cache local por EAN o codigo alternativo
     if prod is None:

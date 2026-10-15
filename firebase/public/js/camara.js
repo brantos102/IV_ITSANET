@@ -8,8 +8,8 @@
  * Se usa `BarcodeDetector`, que viene en el propio navegador: en Chrome de
  * Android funciona sin instalar nada ni cargar librerías. Donde no está —Safari
  * de iPhone, por ejemplo— se dice y se sigue con el teclado y la pistola, que
- * es lo que ya funciona. No se carga un motor de respaldo de 800 KB por el
- * camino: el almacén tiene el WiFi que tiene.
+ * es lo que ya funciona. En HTTP interno se puede tomar una foto desde el
+ * selector nativo y decodificarla localmente. Su lector se carga solo al usarlo.
  */
 
 const FORMATOS = [
@@ -28,7 +28,7 @@ export function motivoNoDisponible() {
   if (typeof window === 'undefined') return 'Sin navegador.';
   if (!navigator.mediaDevices?.getUserMedia) {
     return 'Este navegador no da acceso a la cámara. Hace falta HTTPS; con la ' +
-           'app abierta desde su enlace ya lo es.';
+           'IP interna por HTTP puedes tomar una foto del código o usar la pistola.';
   }
   if (!('BarcodeDetector' in window)) {
     return 'Este navegador no sabe leer códigos con la cámara. En Android, ' +
@@ -53,7 +53,10 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
   // esta espera, un solo acercamiento registraría decenas de unidades.
   const repetirTrasMs = opciones.repetirTrasMs ?? 2500;
 
-  const detector = new window.BarcodeDetector({ formats: FORMATOS });
+  const soportados = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : FORMATOS;
+  const formatos = FORMATOS.filter(f=>soportados.includes(f));
+  if (!formatos.length) throw new Error('No hay formatos de código compatibles; usa una foto.');
+  const detector = new window.BarcodeDetector({ formats: formatos });
 
   const flujo = await navigator.mediaDevices.getUserMedia({
     video: {
@@ -67,17 +70,20 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
 
   video.srcObject = flujo;
   video.setAttribute('playsinline', '');   // iOS no abre pantalla completa
-  await video.play();
+  try { await video.play(); }
+  catch(e) { for (const pista of flujo.getTracks()) pista.stop(); video.srcObject=null; throw e; }
 
   let ultimo = '';
   let ultimoEn = 0;
   let vivo = true;
+  let detectando = false;
 
   const temporizador = setInterval(async () => {
-    if (!vivo || video.readyState < 2) return;
+    if (!vivo || detectando || video.readyState < 2) return;
+    detectando = true;
     try {
       const codigos = await detector.detect(video);
-      if (!codigos.length) return;
+      if (!vivo || !codigos.length) return;
 
       const valor = String(codigos[0].rawValue || '').trim();
       if (!valor) return;
@@ -89,7 +95,7 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
       alLeer(valor);
     } catch {
       // Un fotograma ilegible no es un error: el siguiente llega en 180 ms.
-    }
+    } finally { detectando = false; }
   }, intervaloMs);
 
   return function cerrar() {
@@ -98,4 +104,20 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
     for (const pista of flujo.getTracks()) pista.stop();
     video.srcObject = null;
   };
+}
+
+/** Una foto desde capture/galería funciona sin getUserMedia; no se sube al servidor. */
+export async function leerCodigoFoto(archivo) {
+  if (!archivo || !/^image\//.test(archivo.type) || archivo.size > 20*1024*1024) {
+    throw new Error('Selecciona una imagen de hasta 20 MB.');
+  }
+  const {BrowserMultiFormatReader, DecodeHintType} = await import('../vendor/zxing.js?v=20261015-24');
+  const pistas = new Map([[DecodeHintType.TRY_HARDER, true]]);
+  const lector = new BrowserMultiFormatReader(pistas);
+  const url=URL.createObjectURL(archivo);
+  try {
+    const r=await lector.decodeFromImageUrl(url);
+    return String(r.getText() || '').trim();
+  } catch { throw new Error('No se pudo leer el código. Encuadra una sola etiqueta, con buena luz y sin reflejos, y toma otra foto.'); }
+  finally { lector.reset(); URL.revokeObjectURL(url); }
 }

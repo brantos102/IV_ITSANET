@@ -66,7 +66,7 @@ function abrir(html, armar) {
  * del diálogo. Sin esto, cancelar una confirmación también reseteaba la ficha
  * del operario y le borraba lo que había escrito.
  */
-export const modalAbierto = () => !!document.getElementById('modal')?.open;
+export const modalAbierto = () => !!document.querySelector('dialog[open]');
 
 const cabecera = (titulo, texto) =>
   `<h3 class="modal-titulo">${esc(titulo)}</h3>` +

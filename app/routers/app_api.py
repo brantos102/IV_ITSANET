@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import AppArchivo, AppConfig, AppEntrega, AppRecepcion, AppEvento, AppSku, Operador, Producto, Rol, utcnow
+from app.models import AppArchivo, AppArchivoSku, AppConfig, AppEntrega, AppRecepcion, AppEvento, AppSku, Operador, Producto, ProductoCodigo, Rol, utcnow
 from app.security import requiere_supervisor, usuario_actual
 from app.services import app_modelo as m
 from app.services import depot as depot_svc
@@ -134,10 +134,55 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
     from app.services import archivos
     if tipo == 'informe' and op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
         raise HTTPException(403, 'Solo un supervisor archiva informes')
+    if tipo == 'foto':
+        try:
+            r = m.obtener(db, codigo, bloquear=True)
+        except m.ErrorApp as exc:
+            raise _traducir(exc) from None
+        if r.estado not in m.ABIERTAS:
+            raise HTTPException(409, 'Reabre la recepción antes de adjuntar nuevas fotos; el informe cerrado se conserva.')
     a = archivos.guardar(db, codigo, tipo, datos, _quien(op))
     url = f'/api/app/archivos/{a.id}'
     return {'id': a.id, 'nombre': a.nombre, 'url': url, 'enlace': url,
             'bytes': a.bytes, 'sha256': a.sha256, 'destino': 'SERVIDOR'}
+
+
+@router.get('/recepciones/{codigo}/imagenes')
+def imagenes(codigo: str, sku: str = '', offset: int = Query(0, ge=0),
+             limite: int = Query(40, ge=1, le=100), db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    from app.services import archivos
+    from app.services.normalize import normalizar_sku
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+    consulta = select(AppArchivo).where(AppArchivo.recepcion == r.codigo, AppArchivo.tipo == 'foto')
+    if sku:
+        normal = normalizar_sku(sku)
+        ids = set(db.scalars(select(AppArchivoSku.archivo_id).join(AppArchivo, AppArchivo.id == AppArchivoSku.archivo_id)
+            .where(AppArchivoSku.sku == normal, AppArchivo.recepcion == r.codigo)))
+        # Evidencias anteriores a esta actualización siguen ligadas por la bitácora.
+        for ev in db.scalars(select(AppEvento).where(AppEvento.recepcion == r.codigo, AppEvento.sku == normal)):
+            ids.update(str(url).split('/api/app/archivos/')[-1].split('?')[0] for url in (ev.datos or {}).get('fotos', []))
+        consulta = consulta.where(AppArchivo.id.in_(ids))
+    total = db.scalar(select(func.count()).select_from(consulta.subquery()))
+    filas = list(db.scalars(consulta.order_by(AppArchivo.creado_en.desc(), AppArchivo.id).offset(offset).limit(limite)))
+    etiquetas = {}
+    if filas:
+        for aid, cod in db.execute(select(AppArchivoSku.archivo_id, AppArchivoSku.sku).where(AppArchivoSku.archivo_id.in_([a.id for a in filas]))):
+            etiquetas.setdefault(aid, []).append(cod)
+    resultado = []
+    for a in filas:
+        f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',
+             'skus': etiquetas.get(a.id, []), 'bytes': a.bytes, 'creadoEn': m._iso(a.creado_en),
+             'almacen': 'DRIVE' if a.drive_id else 'SERVIDOR', 'driveUrl': a.drive_url or ''}
+        if op.rol == Rol.ADMIN:
+            f['rutaServidor'] = str(archivos.ruta(a)) if archivos.ruta(a).exists() else None
+        resultado.append(f)
+    entrega = next((e for e in db.scalars(select(AppEntrega).where(AppEntrega.recepcion == r.codigo)
+        .order_by(AppEntrega.creado_en.desc()).limit(30)) if (e.resultado or {}).get('carpeta')), None)
+    return {'total': total, 'archivos': resultado,
+            'carpetaDrive': (entrega.resultado.get('carpetaFotos') or entrega.resultado.get('carpeta')) if entrega else ''}
 
 
 @router.get('/archivos/{archivo_id}')
@@ -192,15 +237,30 @@ def catalogo_exportacion(codigo: str, db: Session = Depends(get_db), _: Operador
     except m.ErrorApp as exc:
         raise _traducir(exc) from None
     productos = db.scalars(select(Producto).join(AppSku, AppSku.sku == Producto.sku)
-        .where(AppSku.recepcion == r.codigo, Producto.cliente == r.cliente))
-    return {p.sku: {'unidad': p.unidad or '', 'familia': p.familia or ''} for p in productos}
+        .where(AppSku.recepcion == r.codigo))
+    return {p.sku: {'unidad': (p.unidad or '') if p.cliente == r.cliente else '',
+                    'familia': (p.familia or '') if p.cliente == r.cliente else '', 'existe': True,
+                    'cliente': p.cliente, 'ean': p.ean or ''} for p in productos}
+
+
+@router.get('/recepciones/{codigo}/codigos-barras')
+def codigos_de_recepcion(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+    filas = db.scalars(select(ProductoCodigo).join(AppSku, AppSku.sku == ProductoCodigo.sku)
+        .where(AppSku.recepcion == r.codigo, ProductoCodigo.exportar.is_(True))
+        .order_by(ProductoCodigo.sku, ProductoCodigo.codigo))
+    return [{'sku': f.sku, 'codigoBarras': f.valor, 'registradoPor': f.registrado_por,
+             'fecha': m._iso(f.creado_en)} for f in filas]
 
 
 @router.get('/recepciones-abiertas/por-codigo/{codigo}')
 def buscar_en_recepciones(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services.codigos import buscar
     normal = m.normalizar_codigo(codigo)
-    producto = db.scalar(select(Producto).where((Producto.sku == normal) | (Producto.ean == normal)
-        | (Producto.codigo_alternativo == normal)))
+    producto = buscar(db, codigo)
     sku = producto.sku if producto else normal
     filas = db.scalars(select(AppRecepcion).join(AppSku, AppSku.recepcion == AppRecepcion.codigo)
         .where(AppRecepcion.estado.in_(m.ABIERTAS), AppSku.sku == sku, AppSku.en_packing_list.is_(True))
@@ -388,24 +448,34 @@ def catalogo(codigo: str, db: Session = Depends(get_db),
 
 @router.post("/catalogo/{codigo}/equivalencia")
 def equivalencia(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
-                 _: Operador = Depends(usuario_actual)):
+                 op: Operador = Depends(usuario_actual)):
     """Apunta que un código escaneado corresponde a un SKU del maestro.
 
     Pasa con las etiquetas del proveedor: el código del bulto no es el del
     producto. La primera vez lo resuelve una persona; a partir de ahí lo resuelve
     el escáner. Sin esto, cada operario vuelve a resolverlo desde cero.
     """
-    from app.models import Producto
-    from app.services.normalize import normalizar_sku
+    from app.services.codigos import guardar
+    c = guardar(db, codigo, cuerpo.get('sku'), _quien(op))
+    return {'sku': c.sku, 'codigoAlternativo': c.codigo, 'codigoBarras': c.valor}
 
-    escaneado = normalizar_sku(codigo)
-    sku = normalizar_sku(cuerpo.get("sku"))
-    if not escaneado or not sku:
-        raise HTTPException(422, "Faltan el código escaneado o el SKU")
-    prod = db.get(Producto, sku)
-    if prod is None:
-        raise HTTPException(404, f"{sku} no está en el maestro local")
-    if escaneado != sku:
-        prod.codigo_alternativo = escaneado
+
+@router.post('/catalogo/codigos/importar')
+def importar_codigos(datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    from app.services.codigos import guardar
+    filas = datos.get('filas')
+    if not isinstance(filas, list) or not 1 <= len(filas) <= 5000:
+        raise HTTPException(422, 'El archivo debe contener entre 1 y 5000 filas')
+    try:
+        for i, f in enumerate(filas, 2):
+            if not isinstance(f, dict):
+                raise HTTPException(422, f'Fila {i}: datos no válidos')
+            try:
+                guardar(db, f.get('codigoBarras'), f.get('sku'), _quien(op), confirmar=False)
+            except HTTPException as exc:
+                raise HTTPException(exc.status_code, f'Fila {i}: {exc.detail}') from None
         db.commit()
-    return {"sku": sku, "codigoAlternativo": prod.codigo_alternativo}
+    except Exception:
+        db.rollback()
+        raise
+    return {'procesadas': len(filas), 'mensaje': 'Códigos asociados a productos existentes. No se crearon productos ni conteos.'}

@@ -18,16 +18,17 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261015-23';
-import { db } from './auth.js?v=20261015-23';
-import * as local from './local.js?v=20261015-23';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261015-23';
+} from '../vendor/firebase-sdk.js?v=20261015-24';
+import { db } from './auth.js?v=20261015-24';
+import * as local from './local.js?v=20261015-24';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261015-24';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
   '': 'En blanco, para rellenar a mano',
   sku: 'Código del producto',
   descripcion: 'Descripción',
+  codigoBarras: 'Código de barras asociado al SKU',
   unidad: 'Unidad de medida',
   cantidad: 'Cantidad contada',
   pallet: 'Pallet (A1, B04…)',
@@ -59,7 +60,13 @@ export const CAMPOS = {
  * El administrador los ajusta en Administración. Están aquí para que el día uno
  * haya algo que descargar, no para quedarse fijos.
  */
-export const FORMATOS_BASE = MODELOS_DEPOT;
+export const FORMATOS_BASE = [...MODELOS_DEPOT, {
+  id:'BARRAS', nombre:'Códigos de barras · revisión', archivo:'codigos-barras-revision',
+  descripcion:'Opcional. Asociaciones a SKU existentes; confirmar este formato con Depot antes de cargar. No es un modelo oficial del WMS.',
+  separador:',', hoja:'Modelo a Utilizar',
+  columnas:[{encabezado:'SKU',campo:'sku',obligatorio:true},
+    {encabezado:'CODIGO DE BARRAS',campo:'codigoBarras',obligatorio:true}],
+}];
 
 /** Un formato guardado puede venir incompleto: se completa con el de base. */
 export function normalizarFormato(formato, base) {
@@ -218,7 +225,7 @@ export function csvDeProductos(formato, datos) {
   const f = normalizarFormato(formato, FORMATOS_BASE[1]);
   const rec = datos?.recepcion || {};
   const comunes = { cliente: rec.cliente || '', recepcion: rec.codigo || '', unidad: '' };
-  const filas = (datos?.adicionales || []).map((a) => ({
+  const filas = (datos?.adicionales || []).filter(a => !datos?.catalogo?.[a.sku] && a.existeDepot !== true).map((a) => ({
     sku: a.sku,
     descripcion: a.descripcion || '',
     cantidad: a.fisica,
@@ -227,6 +234,13 @@ export function csvDeProductos(formato, datos) {
     unidad:datos?.catalogo?.[a.sku]?.unidad || '',familia:datos?.catalogo?.[a.sku]?.familia || '',
   }));
   return resultadoModelo(f, filas.map(d => filaDe(f,d,comunes)), rec.codigo);
+}
+
+/** Excel opcional de revisión: actualizar etiqueta no equivale a alta de SKU. */
+export function csvDeCodigosBarras(formato, datos) {
+  const f=normalizarFormato(formato,FORMATOS_BASE[2]),rec=datos?.recepcion || {};
+  const filas=(datos?.codigosBarras || []).map(d=>filaDe(f,d,{cliente:rec.cliente || '',recepcion:rec.codigo || ''}));
+  return resultadoModelo(f,filas,rec.codigo);
 }
 
 /** Valida sin inventar unidad, pais, familia ni ubicaciones del WMS. */

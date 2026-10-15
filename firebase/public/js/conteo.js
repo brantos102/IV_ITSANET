@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261015-23';
-import { db } from './auth.js?v=20261015-23';
-import * as local from './local.js?v=20261015-23';
+} from '../vendor/firebase-sdk.js?v=20261015-24';
+import { db } from './auth.js?v=20261015-24';
+import * as local from './local.js?v=20261015-24';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261015-23';
+} from './datos.js?v=20261015-24';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -57,6 +57,9 @@ function validar(p) {
   // El cero solo vale declarándolo: «lo busqué y no está» es un dato, un cero
   // por descuido no lo es.
   const cantidad = aNumero(p.cantidad, 0);
+  if (!Number.isFinite(cantidad) || cantidad < 0) {
+    throw new ErrorConteo('No se admiten cantidades negativas. Si no apareció, declara 0.', 'CANTIDAD_INVALIDA');
+  }
   if (cantidad === 0 && p.tipo !== 'CERO') {
     throw new ErrorConteo('La cantidad no puede ser 0.', 'CANTIDAD_INVALIDA');
   }

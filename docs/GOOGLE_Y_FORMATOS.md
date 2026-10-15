@@ -99,6 +99,14 @@ de Gmail, una contraseña de aplicación ni una clave de API de Drive.
    su sesión autenticada, selecciona su puente y verifica que la cuenta ejecutora
    coincida antes de subir archivos. No acepta un remitente elegido por el navegador.
 
+La verificación actual devuelve el nombre y un enlace a la carpeta raíz configurada
+en `CARPETA_EVIDENCIAS`; comprobar que es la carpeta de la empresa elegida.
+Una clave HMAC generada en la terminal no crea ni selecciona una carpeta: debe
+registrarse junto con el ID de Drive en las propiedades del script.
+Actualizar `Servidor.gs` y **Implementar → Gestionar implementaciones → Editar →
+Nueva versión** para incorporar estos enlaces. La galería muestra la ubicación
+local antes del cierre y la carpeta de imágenes después de confirmar Drive.
+
 El correo del perfil local debe ser el de la cuenta Google que ejecuta ese
 puente. ADMIN puede administrar la conexión; no puede hacer que un despliegue
 de otra cuenta envíe como el supervisor. El login Google no concede permisos

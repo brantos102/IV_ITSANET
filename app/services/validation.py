@@ -246,9 +246,9 @@ def registrar_scan(
     cant = float(cantidad)
     if cant == 0:
         raise ErrorValidacion("La cantidad no puede ser 0.", "CANTIDAD_INVALIDA")
-    if cant < 0 and tipo == TipoEvento.CONTEO:
+    if cant < 0:
         raise ErrorValidacion(
-            "Las cantidades negativas requieren un ajuste de supervisor.", "AJUSTE_REQUERIDO"
+            "No se admiten cantidades negativas. Corrige anulando el conteo original.", "CANTIDAD_INVALIDA"
         )
 
     pal = normalizar_pallet(pallet)

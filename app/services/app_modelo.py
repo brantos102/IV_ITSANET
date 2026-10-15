@@ -21,6 +21,7 @@ Las cuatro que no se pueden perder:
 from __future__ import annotations
 
 import re
+import math
 from datetime import datetime
 from uuid import uuid4
 
@@ -336,6 +337,9 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
     por_sku = resultado.get("porSku") or {}
     if not lineas:
         raise ErrorApp("El packing list no trae ninguna línea.", "SIN_LINEAS")
+    if any(not math.isfinite(a_numero(l.get('cantidad'), 0)) or a_numero(l.get('cantidad'), 0) < 0 for l in lineas) or any(
+            not math.isfinite(a_numero(v, 0)) or a_numero(v, 0) < 0 for v in por_sku.values()):
+        raise ErrorApp('El packing list contiene cantidades negativas o no válidas. Corrige el archivo antes de importarlo.', 'CANTIDAD_INVALIDA')
 
     ya = r.totales or {"lineas": 0, "skus": 0, "unidades": 0}
     base = int(a_numero(ya.get("lineas"), 0))
@@ -520,6 +524,8 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
     if not pallet:
         raise ErrorApp("Falta el pallet.", "PALLET_REQUERIDO")
     cantidad = a_numero(p.get("cantidad"), 0)
+    if not math.isfinite(cantidad) or cantidad < 0:
+        raise ErrorApp('La cantidad física no admite negativos. Si no apareció, declara 0; para corregir, anula el conteo.', 'CANTIDAD_INVALIDA')
     idem = limpiar(p.get("idempotencyKey") or p.get("id"))
     if not idem:
         raise ErrorApp("Falta la clave del evento.", "CLAVE_REQUERIDA")

@@ -95,12 +95,15 @@ def _upsert(db: Session, registros: list[dict]) -> None:
     unicos: dict[str, dict] = {r["sku"]: r for r in registros}
     registros = list(unicos.values())
 
-    existentes = {
-        p
-        for p in db.execute(
-            select(Producto.sku).where(Producto.sku.in_(list(unicos)))
-        ).scalars()
-    }
+    previos = {p.sku: p for p in db.scalars(select(Producto).where(Producto.sku.in_(list(unicos))))}
+    existentes = set(previos)
+    conservar = [(p.sku, getattr(p, campo)) for p in previos.values() for campo in ('ean', 'codigo_alternativo')
+                 if getattr(p, campo) and unicos[p.sku].get(campo) and unicos[p.sku][campo] != getattr(p, campo)]
+    # Un maestro sin EAN no borra las etiquetas que ya se pueden escanear.
+    for r in registros:
+        for campo in ('ean', 'codigo_alternativo'):
+            if not r.get(campo):
+                r.pop(campo, None)
     nuevos = [r for r in registros if r["sku"] not in existentes]
     viejos = [r for r in registros if r["sku"] in existentes]
     if nuevos:
@@ -108,6 +111,9 @@ def _upsert(db: Session, registros: list[dict]) -> None:
     if viejos:
         db.bulk_update_mappings(Producto, viejos)
     db.flush()
+    from app.services.codigos import guardar
+    for sku, valor in conservar:
+        guardar(db, valor, sku, 'IMPORTACION_MAESTRO', confirmar=False, exportar=False)
 
 
 # --------------------------------------------------------------------------- #

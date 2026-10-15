@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-23"></script>
+<script src="./js/arranque.js?v=20261015-24"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-23">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-24">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261015-23" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261015-23" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261015-24" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261015-24" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -83,7 +83,7 @@
       <label class="campo" style="flex:1;min-width:100px">
         <span>Cantidad</span>
         <input id="inCantidad" class="escaner" type="number" inputmode="decimal"
-               step="any" value="1" enterkeyhint="go">
+               min="0" step="any" value="1" enterkeyhint="go">
       </label>
       <button type="submit" class="b-primario" id="bBuscar"
               style="padding:16px 22px">Buscar</button>
@@ -91,12 +91,13 @@
               style="padding:16px 18px">📷 Cámara</button>
     </div>
   </form>
+  <input id="fotoEscaneo" type="file" accept="image/*" capture="environment" class="oculto">
   <div id="visorCamara" class="oculto" style="margin-top:14px">
     <video id="video" muted playsinline
            style="width:100%;max-height:300px;background:#000;border-radius:12px;
                   object-fit:cover"></video>
     <p class="mini" style="margin-top:7px">
-      Acerca el código al centro. Cada lectura suma la cantidad del campo.
+      Acerca el código al centro. Revisa el producto leído antes de guardar el conteo.
       <button type="button" class="chip" id="bCerrarCamara">Apagar</button>
     </p>
   </div>
@@ -109,6 +110,11 @@
   <div class="cabecera-ficha"><span>Validación física</span><button type="button" class="b-sec" id="bEtiquetaFicha" title="Imprimir etiqueta 100 × 50 mm">Etiqueta</button><button type="button" class="b-sec" id="bCerrarFicha" aria-label="Cerrar producto">✕</button></div>
   <div id="avisosFicha" aria-live="polite"></div>
   <div id="estadoCaceria" role="status"></div>
+  <button type="button" class="b-sec" id="bFotosItem">Ver imágenes del ítem</button>
+  <details class="oculto" id="fCodigos"><summary>Código de barras · opcional</summary>
+    <p class="mini">Una etiqueta nueva puede corresponder al mismo SKU. Asociarla conserva las anteriores y no registra conteos ni crea productos.</p>
+    <button class="b-sec" id="bAsociarCodigo">Registrar otro código de barras</button>
+  </details>
   <button type="button" class="b-primario" id="bContarFicha">Registrar conteo</button>
   <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
     <div style="flex:2;min-width:200px">
@@ -152,7 +158,7 @@
 
   <div class="rejilla">
     <label class="campo"><span>Cantidad a registrar</span>
-      <input id="fCantidad" class="cantidad" type="number" inputmode="decimal" step="any" value="1"></label>
+      <input id="fCantidad" class="cantidad" type="number" inputmode="decimal" min="0" step="any" value="1"></label>
     <label class="campo"><span>Pallet / subpallet *</span>
       <input id="fPallet" placeholder="B04, B04.1 o DP" autocapitalize="characters">
       <span class="mini">Para lo que va directo a su posición, usa
@@ -179,7 +185,7 @@
        En el handheld, un <input capture> abre la cámara y devuelve UNA foto:
        el «multiple» lo ignora. Por eso hay un botón que se puede pulsar varias
        veces en vez de confiar en que el navegador deje elegir dos de golpe. -->
-  <div class="oculto" id="filaFotos" style="margin-top:13px">
+  <details id="filaFotos" style="margin-top:13px"><summary>Fotos del ítem · opcional</summary>
     <label class="campo"><span>Fotos de la evidencia</span></label>
     <div class="acciones" style="margin:0">
       <button type="button" class="b-sec" id="bTomarFoto">📷 Tomar foto</button>
@@ -189,7 +195,8 @@
     <input type="file" id="fCamara" accept="image/*" capture="environment" class="oculto">
     <input type="file" id="fFotos" accept="image/*" multiple class="oculto">
     <div id="listaFotos" style="margin-top:10px"></div>
-  </div>
+    <button type="button" class="b-sec" id="bGuardarFotos">Guardar fotos sin registrar conteo</button>
+  </details>
 
   <div class="acciones">
     <button class="b-primario" id="bRegistrar">Guardar conteo</button>
@@ -203,6 +210,10 @@
   <h2>8 · Código no encontrado</h2>
   <p id="txtNoEncontrado"></p>
   <div id="coincidencias"></div>
+  <details class="oculto" id="vincularCodigo"><summary>¿Es una etiqueta nueva de un producto existente?</summary>
+    <label class="campo"><span>SKU que ya existe en el maestro</span><input id="skuVincular" list="sugerencias" autocomplete="off"></label>
+    <button class="b-sec" id="bVincularCodigo">Asociar código y consultar</button>
+  </details>
   <div class="rejilla">
     <label class="campo" style="grid-column:1/-1"><span>Buscar en el packing list</span>
       <input id="fBuscar" placeholder="parte del código o de la descripción"
@@ -236,6 +247,7 @@
       <option value="OK">Completos</option>
     </select>
     <button class="b-sec" id="bBitacora">Bitácora</button>
+    <button class="b-sec" id="bFotosRecepcion">Imágenes de la recepción</button>
     <button class="b-sec oculto" id="bExportar">Exportar ahora</button>
     <button class="b-sec oculto" id="bCsvDepot">CSV para Depot</button>
     <button class="b-sec oculto" id="bReabrir">Reabrir</button>
@@ -270,33 +282,41 @@
 
 </div>
 
-<script type="module">
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261015-23';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion } from './js/local.js?v=20261015-23';
+<dialog id="galeriaFotos" class="modal" style="width:min(920px,94vw);max-width:94vw;max-height:90vh;overflow:auto">
+  <div class="acciones"><h3 id="tituloGaleria" style="flex:1">Imágenes</h3><button class="b-sec" id="bCerrarGaleria">Cerrar</button></div>
+  <p id="estadoGaleria" role="status"></p><div id="carpetasGaleria"></div>
+  <div class="acciones"><input id="filtroGaleria" placeholder="Filtrar por SKU"><button class="b-sec" id="bBuscarFotos">Buscar imágenes</button></div>
+  <div id="imagenesGaleria" class="galeria-imagenes"></div>
+  <button class="b-sec oculto" id="bMasFotos">Ver más imágenes</button>
+</dialog>
 
-import { observarSesion } from './js/auth.js?v=20261015-23';
+<script type="module">
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261015-24';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261015-24';
+
+import { observarSesion } from './js/auth.js?v=20261015-24';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261015-23';
+} from './js/datos.js?v=20261015-24';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261015-23';
+} from './js/conteo.js?v=20261015-24';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261015-23';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261015-23';
-import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js?v=20261015-23';
-import { conectarGlosario } from './js/glosario.js?v=20261015-23';
-import { parecidos } from './js/sugerir.js?v=20261015-23';
-import { confirmar, pedirTexto, elegir, modalAbierto } from './js/modal.js?v=20261015-23';
+} from './js/informe.js?v=20261015-24';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261015-24';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, leerCodigoFoto } from './js/camara.js?v=20261015-24';
+import { conectarGlosario } from './js/glosario.js?v=20261015-24';
+import { parecidos } from './js/sugerir.js?v=20261015-24';
+import { confirmar, pedirTexto, elegir, modalAbierto } from './js/modal.js?v=20261015-24';
 import {
-  leerFormatos, csvDeCantidades, csvDeProductos, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261015-23';
-import { Proxy } from './js/proxy.js?v=20261015-23';
-import { modoLocal } from './js/local.js?v=20261015-23';
+  leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
+} from './js/csv.js?v=20261015-24';
+import { Proxy } from './js/proxy.js?v=20261015-24';
+import { modoLocal } from './js/local.js?v=20261015-24';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -398,7 +418,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261015-23');
+      const l=await import('./js/local.js?v=20261015-24');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -429,7 +449,6 @@ const chipDP = document.querySelector('[data-pallet-rapido=DP]'); if (chipDP) de
 $('fCantidad').closest('.rejilla').classList.add('controles-conteo');
 $('bRegistrar').closest('.acciones').classList.add('controles-conteo','acciones-guardar');
 $('fOrigenCaja').classList.add('controles-conteo');
-$('filaFotos').classList.add('controles-conteo');
 $('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
 $('fEstado').addEventListener('change', () => { if ($('fEstado').value === 'PNC') detallesConteo.open = true; });
 $('bNoApareció').addEventListener('click', () => { detallesConteo.open = true; }, {capture:true});
@@ -454,6 +473,7 @@ function etiquetaDe(s, cantidad) {
 }
 $('bEtiquetaFicha').onclick = () => { if (actual) etiquetaDe(skus.find(s => s.sku === actual.sku) || actual); };
 $('tSkus').addEventListener('click', ev => {
+  const fotos = ev.target.closest('[data-fotos]'); if (fotos) abrirGaleria(fotos.dataset.fotos);
   const ver = ev.target.closest('[data-ver]'); if (ver) escanear(ver.dataset.ver);
   const etiqueta = ev.target.closest('[data-etiqueta]'); if (etiqueta) etiquetaDe(skus.find(s => s.sku === etiqueta.dataset.etiqueta));
 });
@@ -480,6 +500,7 @@ observarSesion(async (e) => {
   if (e.error) aviso(e.error, 'err');
   if (!e.usuario) { location.href = './'; return; }
   usuario = e.usuario; perfil = e.perfil;
+  for (const id of ['bFotosItem','bFotosRecepcion','bGuardarFotos']) $(id).classList.toggle('oculto', !modoLocal());
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
 
@@ -576,6 +597,7 @@ function aplicarEstado() {
   $('bContarFicha').disabled = cerrada;
   $('bRegistrar').disabled = cerrada;
   $('bBuscar').disabled = cerrada;
+  $('bCamara').disabled = cerrada;
   $('bExportar').classList.toggle('oculto', !manda);
   $('bCsvDepot').classList.toggle('oculto', !manda);
   $('bCerrar').classList.toggle('oculto', !manda || cerrada);
@@ -685,7 +707,8 @@ function pintarTabla() {
         ${dif > 0 ? '+' + dif : dif}</td>
       <td class="mini">${pallets || '—'}</td>
       <td><span class="pastilla ${clase[s.estado] || 'p-off'}">
-        ${esc(ETIQUETA_ESTADO[s.estado] || s.estado || '')}</span><button type="button" class="b-sec etiqueta-fila" data-etiqueta="${esc(s.sku)}" title="Etiqueta 100 × 50 mm">Etiqueta</button></td>
+        ${esc(ETIQUETA_ESTADO[s.estado] || s.estado || '')}</span><button type="button" class="b-sec etiqueta-fila" data-etiqueta="${esc(s.sku)}" title="Etiqueta 100 × 50 mm">Etiqueta</button>
+        ${modoLocal() ? `<button type="button" class="b-sec" data-fotos="${esc(s.sku)}">Imágenes</button>` : ''}</td>
     </tr>`;
   }).join('') : '<tr><td colspan="6" class="mini">Sin resultados.</td></tr>';
 }
@@ -696,14 +719,16 @@ $('fEstadoFiltro').addEventListener('change', () => { pintarKpis(); pintarTabla(
 // --- La cámara como lector ------------------------------------------------ //
 let cerrarCamara = null;
 
-if (camaraDisponible()) $('bCamara').classList.remove('oculto');
+$('bCamara').classList.remove('oculto');
+if (!camaraDisponible()) $('bCamara').textContent = '📷 Leer con foto';
 
 $('bCamara').addEventListener('click', async () => {
   if (cerrarCamara) return apagarCamara();
   limpiarAvisos();
 
   if (!camaraDisponible()) {
-    return aviso(motivoNoDisponible(), 'warn', 'Sin cámara');
+    $('fotoEscaneo').click();
+    return;
   }
 
   try {
@@ -717,11 +742,12 @@ $('bCamara').addEventListener('click', async () => {
     $('bCamara').textContent = '📷 Apagar';
   } catch (e) {
     $('visorCamara').classList.add('oculto');
-    aviso(e.name === 'NotAllowedError'
+    const mensaje = aviso(e.name === 'NotAllowedError'
       ? 'No diste permiso a la cámara. Tócalo en el candado de la barra de ' +
         'direcciones y vuelve a intentarlo.'
       : 'No se pudo abrir la cámara: ' + e.message,
       'warn', 'Sin cámara');
+    const foto=document.createElement('button');foto.className='b-sec';foto.textContent='Leer código desde una foto';foto.onclick=()=>$('fotoEscaneo').click();mensaje.append(foto);
   }
 });
 
@@ -729,8 +755,17 @@ function apagarCamara() {
   if (cerrarCamara) cerrarCamara();
   cerrarCamara = null;
   $('visorCamara').classList.add('oculto');
-  $('bCamara').textContent = '📷 Cámara';
+  $('bCamara').textContent = camaraDisponible() ? '📷 Cámara' : '📷 Leer con foto';
 }
+
+$('fotoEscaneo').onchange = async ev => {
+  const archivo=ev.target.files[0];ev.target.value='';if(!archivo)return;
+  $('bCamara').disabled=true;
+  const mensaje=aviso('Leyendo el código de la foto…','info');
+  try {const codigo=await leerCodigoFoto(archivo);$('inEscaner').value=codigo;await escanear(codigo);}
+  catch(e) {aviso(e.message,'warn','No se leyó la etiqueta');}
+  finally {mensaje.remove();$('bCamara').disabled=false;}
+};
 
 $('bCerrarCamara').addEventListener('click', apagarCamara);
 
@@ -810,7 +845,8 @@ async function escanear(codigo) {
             { sku, esperado: 0, contado: 0, descripcion: producto?.descripcion || '' };
 
   if (modoLocal()) { const vigente = await consultarSku(RECEPCION, sku); if (vigente) s = vigente; }
-  actual = { sku, producto, enPackingList: s.enPackingList !== false && !!enLista };
+  actual = { sku, producto, codigoEscaneado: codigo, enPackingList: s.enPackingList !== false && !!enLista };
+  $('fCodigos').classList.toggle('oculto', !modoLocal() || !producto);
   claveEnvio = nuevaClave();
   fotosSubidas = [];
 
@@ -823,7 +859,8 @@ async function escanear(codigo) {
   $('fObs').value = '';
   $('fPosReal').value = '';
   $('fEstado').value = 'BUENO';
-  $('filaFotos').classList.add('oculto');
+  $('filaFotos').classList.toggle('oculto', recepcion.estado === 'CERRADA');
+  $('filaFotos').open = false;
   $('fFotos').value = '';
   $('fCamara').value = '';
   fotosElegidas = [];
@@ -1126,7 +1163,7 @@ $('fChips').addEventListener('click', (ev) => {
 
 $('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
 $('fEstado').addEventListener('change', () => {
-  $('filaFotos').classList.toggle('oculto', $('fEstado').value !== 'PNC');
+  if ($('fEstado').value === 'PNC') $('filaFotos').open = true;
 });
 
 // --- Paso 7: registrar ---------------------------------------------------- //
@@ -1198,7 +1235,10 @@ async function registrar(confirmarSobrante) {
   $('bRegistrar').disabled = true;
 
   try {
-    if ($('fEstado').value === 'PNC' && fotosElegidas.length && !fotosSubidas.length) {
+    if (!Number.isFinite(Number($('fCantidad').value)) || Number($('fCantidad').value) <= 0) {
+      throw new Error('Registra una cantidad mayor que 0. Si no apareció, usa «No apareció» para declarar 0.');
+    }
+    if (fotosElegidas.length && !fotosSubidas.length) {
       fotosSubidas = await subirFotos(actual.sku);
     }
 
@@ -1212,7 +1252,7 @@ async function registrar(confirmarSobrante) {
     const r = await registrarConteo(RECEPCION, usuario, {
       sku: actual.sku,
       origen: $('fOrigen').value,
-      codigoEscaneado: actual.sku,
+      codigoEscaneado: actual.codigoEscaneado || actual.sku,
       cantidad: parseFloat($('fCantidad').value),
       pallet: $('fPallet').value,
       estadoFisico: $('fEstado').value,
@@ -1345,6 +1385,52 @@ async function subirFotos(sku) {
   return subidas;
 }
 
+$('bGuardarFotos').onclick = async () => {
+  if (!actual || !fotosElegidas.length) { aviso('Elige al menos una foto del ítem.', 'warn'); return; }
+  $('bGuardarFotos').disabled = true;
+  try {
+    if (!fotosSubidas.length) fotosSubidas = await subirFotos(actual.sku);
+    aviso(`${fotosSubidas.length} fotos guardadas para ${actual.sku}. No se registró un conteo. Puedes revisarlas en «Ver imágenes del ítem».`, 'ok');
+  } catch(e) { aviso(e.message, 'err', 'No se guardaron las fotos'); }
+  finally { $('bGuardarFotos').disabled=false; }
+};
+
+let offsetFotos = 0;
+async function cargarGaleria(reiniciarLista=true) {
+  if (reiniciarLista) { offsetFotos=0; $('imagenesGaleria').replaceChildren(); }
+  $('bBuscarFotos').disabled=true; $('bMasFotos').disabled=true;
+  try {
+    const params=new URLSearchParams({sku:$('filtroGaleria').value.trim(),offset:offsetFotos});
+    const r=await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/imagenes?${params}`);
+    $('carpetasGaleria').replaceChildren();
+    if (/^https:\/\/drive\.google\.com\//.test(r.carpetaDrive || '')) {
+      const a=document.createElement('a');a.href=r.carpetaDrive;a.target='_blank';a.rel='noopener';a.className='b-sec';a.textContent='Abrir carpeta de imágenes en Drive';$('carpetasGaleria').append(a);
+    } else $('carpetasGaleria').textContent='Las imágenes permanecen en el servidor hasta confirmar la copia a Drive al finalizar.';
+    for (const f of r.archivos) {
+      const figura=document.createElement('figure');
+      const enlace=/^https:\/\/drive\.google\.com\//.test(f.driveUrl || '') ? f.driveUrl : f.url;
+      figura.innerHTML=`<a href="${esc(enlace)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(f.url)}" alt="${esc(f.nombre)}">Abrir imagen</a>
+        <figcaption><b>${esc(f.skus.join(', ') || 'Evidencia de recepción')}</b><br>${esc(f.nombre)}<br><span class="mini">${esc(f.almacen)} · ${esc(tamanoLegible(f.bytes))}</span></figcaption>
+        ${f.rutaServidor ? `<details><summary>Ubicación en servidor</summary><code>${esc(f.rutaServidor)}</code></details>` : ''}`;
+      figura.querySelector('img').onerror=ev=>{ev.target.hidden=true;};
+      $('imagenesGaleria').append(figura);
+    }
+    offsetFotos+=r.archivos.length;
+    $('estadoGaleria').textContent=`${r.total} imágenes · ${offsetFotos} mostradas`;
+    $('bMasFotos').classList.toggle('oculto',offsetFotos>=r.total);
+  } catch(e) { $('estadoGaleria').textContent=e.message; }
+  finally { $('bBuscarFotos').disabled=false; $('bMasFotos').disabled=false; }
+}
+function abrirGaleria(sku='') {
+  $('filtroGaleria').value=sku;$('tituloGaleria').textContent=sku ? `Imágenes · ${sku}` : `Imágenes · ${RECEPCION}`;
+  $('galeriaFotos').showModal();cargarGaleria();
+}
+$('bFotosItem').onclick=()=>{if(actual)abrirGaleria(actual.sku);};
+$('bFotosRecepcion').onclick=()=>abrirGaleria();
+$('bCerrarGaleria').onclick=()=>$('galeriaFotos').close();
+$('bBuscarFotos').onclick=()=>cargarGaleria();
+$('bMasFotos').onclick=()=>cargarGaleria(false);
+
 // --- Paso 9: volver al escáner -------------------------------------------- //
 function reiniciar() {
   document.body.classList.remove('ficha-activa');
@@ -1353,6 +1439,7 @@ function reiniciar() {
   $('ficha').classList.add('oculto');
   $('panelNoEncontrado').classList.add('oculto');
   $('fDepot').classList.add('oculto');
+  $('fCodigos').classList.add('oculto');
   $('pistaCodigo').innerHTML = '';
   $('inEscaner').value = '';
   $('inCantidad').value = '1';
@@ -1370,6 +1457,8 @@ function mostrarNoEncontrado(codigo) {
     `El código ${codigo} no está en el packing list ni en el catálogo de Depot. ` +
     'Búscalo en la lista por si llegó con otro código, o regístralo como adicional.';
   $('fBuscar').value = '';
+  $('vincularCodigo').classList.toggle('oculto', !modoLocal());
+  $('skuVincular').value = '';
   $('resBusqueda').innerHTML = '';
   buscarParecidos(codigo);
   $('fBuscar').focus();
@@ -1406,10 +1495,31 @@ $('fBuscar').addEventListener('input', () => {
     : '<p class="mini">Ninguna coincidencia.</p>';
 });
 
+async function vincularCodigo(sku) {
+  if (!actual || !sku.trim()) return;
+  const codigo = actual.sku;
+  if (!await confirmar({titulo:'¿Asociar esta etiqueta?',texto:`<b>${esc(codigo)}</b> corresponde al SKU <b>${esc(sku)}</b>. Se conserva el producto y sus códigos anteriores. No se registra un conteo.`,aceptar:'Asociar y consultar'})) return;
+  try {
+    await registrarEquivalencia(codigo, sku, usuario);
+    await escanear(codigo);
+  } catch(e) { aviso(e.message, 'err', 'No se asoció el código'); }
+}
+$('bVincularCodigo').onclick = () => vincularCodigo($('skuVincular').value);
+$('bAsociarCodigo').onclick = async () => {
+  if (!actual) return;
+  const sku = actual.sku;
+  const codigo = await pedirTexto({titulo:`Código de barras para ${sku}`,texto:'Escanea o escribe la nueva etiqueta. El SKU permanece igual; no se crea otro producto.',etiqueta:'Código de barras',obligatorio:true,aceptar:'Guardar código'});
+  if (!codigo) return;
+  try { await registrarEquivalencia(codigo, sku, usuario); aviso(`Código ${codigo} asociado a ${sku}.`, 'ok'); }
+  catch(e) { aviso(e.message, 'err', 'No se guardó el código'); }
+};
+
 for (const id of ['coincidencias', 'resBusqueda']) {
-  $(id).addEventListener('click', (ev) => {
+  $(id).addEventListener('click', async (ev) => {
     const sku = ev.target.dataset.sku;
-    if (sku) { $('panelNoEncontrado').classList.add('oculto'); escanear(sku); }
+    if (!sku) return;
+    if (modoLocal()) await vincularCodigo(sku);
+    else { $('panelNoEncontrado').classList.add('oculto'); escanear(sku); }
   });
 }
 
@@ -1554,8 +1664,8 @@ $('bExportar').addEventListener('click', async () => {
 $('bCsvDepot').addEventListener('click', async () => {
   limpiarAvisos();
   const cual = await elegir({
-    titulo: 'CSV para carga masiva',
-    texto: 'Los dos salen con las columnas que tenga puestas Administración.',
+    titulo: 'Exportar para Depot',
+    texto: 'Las columnas se mantienen en Administración. Los códigos de barras son una revisión opcional separada del alta de productos.',
     opciones: [
       { valor: 'cantidades',
         titulo: 'Cantidades contadas',
@@ -1565,6 +1675,8 @@ $('bCsvDepot').addEventListener('click', async () => {
         titulo: 'Productos nuevos',
         detalle: 'Los códigos que aparecieron y no estaban en el catálogo. Hay '
                + 'que darlos de alta ANTES de cargarles cantidad.' },
+      ...(modoLocal() ? [{valor:'barras',titulo:'Códigos de barras · Excel de revisión',
+        detalle:'Etiquetas nuevas de SKU existentes. Opcional; confirma los encabezados con Depot antes de cargar.'}] : []),
       { valor: 'plantilla',
         titulo: 'Plantilla vacía',
         detalle: 'Solo los encabezados, para rellenar a mano o para comparar con '
@@ -1579,9 +1691,11 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261015-23').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261015-24').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261015-24').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
             : cual === 'productos' ? csvDeProductos(formatos[1], datos)
+            : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)
             : { texto: plantilla(formatos[0]), filas: 1,
                 nombre: `${formatos[0].archivo}-plantilla.csv` };
     d.remove();
@@ -1589,6 +1703,7 @@ $('bCsvDepot').addEventListener('click', async () => {
     if (!r.filas && cual !== 'plantilla') {
       return aviso(cual === 'cantidades'
         ? 'Todavía no hay nada contado en esta recepción.'
+        : cual === 'barras' ? 'No hay códigos de barras nuevos asociados a los productos de esta recepción.'
         : 'No hay productos nuevos: todo lo contado ya existía en el catálogo. '
           + 'No hace falta dar de alta nada.',
         'warn', 'No hay nada que cargar');
@@ -1597,9 +1712,10 @@ $('bCsvDepot').addEventListener('click', async () => {
     if (cual !== 'plantilla') {
       const salida = await elegir({titulo:'Formato de descarga',texto: r.incidencias.length
         ? `${r.incidencias.length} campos requieren revisión. No se genera CSV de carga incompleto. ${r.incidencias.slice(0,4).map(i=>`Fila ${i.fila}: ${i.encabezado} (${i.problema})`).join('; ')}`
+        : cual === 'barras' ? 'Excel de revisión. Falta confirmar el modelo de actualización de códigos con Depot; no se envía al WMS.'
         : 'Datos listos para revisar y cargar en Depot.',opciones:[
           {valor:'excel',titulo:r.incidencias.length ? 'Excel para completar' : 'Excel · Modelo a Utilizar',detalle:'Una sola hoja, sin filas de ejemplo. Los campos pendientes llevan comentario.'},
-          ...(!r.incidencias.length ? [{valor:'csv',titulo:'CSV para Depot',detalle:'Con las columnas y separador configurados por ADMIN.'}] : [])]});
+          ...(!r.incidencias.length && cual !== 'barras' ? [{valor:'csv',titulo:'CSV para Depot',detalle:'Con las columnas y separador configurados por ADMIN.'}] : [])]});
       if (!salida) return;
       if (salida === 'excel') { descargarModelo(r); r.nombre=r.nombre.replace(/\.csv$/i,'.xlsx'); }
       else descargarCsv(r.texto,r.nombre);

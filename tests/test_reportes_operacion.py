@@ -31,13 +31,16 @@ def test_busqueda_en_recepciones_abiertas_por_sku_y_ean_sin_conteo(cliente,db):
         assert r.json()['sku']=='04E133366BT'
     assert cliente.get('/api/app/recepciones-abiertas/por-codigo/OTRO').json()['recepciones']==[]
     assert db.scalar(select(func.count()).select_from(AppEvento))==0
-    assert cliente.get('/api/app/recepciones/VW001/catalogo-exportacion').json()=={'04E133366BT':{'unidad':'CS','familia':''}}
+    assert cliente.get('/api/app/recepciones/VW001/catalogo-exportacion').json()=={'04E133366BT':{
+        'unidad':'CS','familia':'','existe':True,'cliente':'VENTURA','ean':'7891234567890'}}
 
 
 def test_unidad_no_se_toma_del_catalogo_de_otro_cliente(cliente,db):
     crear(db,'OTRO','FACTOR')
     db.add(Producto(sku='04E133366BT',cliente='VENTURA',unidad='CS'));db.commit()
-    assert cliente.get('/api/app/recepciones/OTRO/catalogo-exportacion').json()=={}
+    p=cliente.get('/api/app/recepciones/OTRO/catalogo-exportacion').json()['04E133366BT']
+    assert p['unidad']=='' and p['familia']==''  # No usar datos del otro cliente.
+    assert p['existe'] is True and p['cliente']=='VENTURA'  # Tampoco volver a dar de alta el mismo SKU.
 
 
 def test_periodo_horario_ecuador_y_paginacion(cliente,db):

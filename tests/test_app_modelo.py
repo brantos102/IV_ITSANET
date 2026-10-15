@@ -325,7 +325,7 @@ def test_un_ajuste_no_puede_dejar_el_conteo_en_negativo(db, rec):
     contar(db, rec, "SKU001", 4, id="e1")
     with pytest.raises(m.ErrorApp) as e:
         contar(db, rec, "SKU001", -9, id="e2")
-    assert e.value.codigo == "AJUSTE_INVALIDO"
+    assert e.value.codigo == "CANTIDAD_INVALIDA"
 
 
 def test_una_recepcion_cerrada_no_admite_mas_conteos(db, rec):

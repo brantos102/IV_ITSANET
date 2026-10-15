@@ -177,10 +177,14 @@ export const buscarPackingListParecido = (resumen, opciones = {}) =>
 // ========================================================================== //
 // Conteo
 // ========================================================================== //
-export const registrarConteo = (recepcionId, usuario, p) =>
-  pedir(`/recepciones/${encodeURIComponent(recepcionId)}/conteos`, {
+export const registrarConteo = (recepcionId, usuario, p) => {
+  if (!Number.isFinite(Number(p.cantidad)) || Number(p.cantidad) < 0) {
+    throw new ErrorServidor('No se admiten cantidades negativas. Si no apareció, declara 0.', 'CANTIDAD_INVALIDA', 422);
+  }
+  return pedir(`/recepciones/${encodeURIComponent(recepcionId)}/conteos`, {
     cuerpo: { ...p, id: p.idempotencyKey || p.id },
   });
+};
 
 export const declararNoEncontrado = (recepcionId, usuario, p) =>
   pedir(`/recepciones/${encodeURIComponent(recepcionId)}/no-encontrado`, {

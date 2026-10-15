@@ -11,7 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.config import DATA_DIR
-from app.models import AppArchivo, AppRecepcion
+from app.models import AppArchivo, AppRecepcion, AppArchivoSku
+from app.services.normalize import normalizar_sku
 
 LIMITE = 12 * 1024 * 1024
 
@@ -55,11 +56,24 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str) -> AppArchivo
             raise HTTPException(422, 'El informe debe ser un archivo XLSX') from None
         mime, extension = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx'
     sha = hashlib.sha256(bruto).hexdigest()
+    sku = normalizar_sku(datos.get('sku')) if tipo == 'foto' else ''
+    if len(sku) > 80:
+        raise HTTPException(422, 'SKU demasiado largo')
+    def vincular(a):
+        if sku and db.get(AppArchivoSku, (a.id, sku)) is None:
+            db.add(AppArchivoSku(archivo_id=a.id, sku=sku))
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                if db.get(AppArchivoSku, (a.id, sku)) is None:
+                    raise
     def existente():
         return db.scalar(select(AppArchivo).where(AppArchivo.recepcion == codigo,
             AppArchivo.tipo == tipo, AppArchivo.sha256 == sha))
     anterior = existente()
     if anterior is not None:
+        vincular(anterior)
         return anterior
     nombre = str(datos.get('nombre') or (str(datos.get('sku') or 'foto') + extension))
     nombre = nombre.replace('\\', '/').rsplit('/', 1)[-1]
@@ -75,12 +89,15 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str) -> AppArchivo
             os.chmod(destino, 0o600)
             f.write(bruto)
         db.add(archivo)
+        if sku:
+            db.add(AppArchivoSku(archivo_id=archivo.id, sku=sku))
         db.commit()
     except IntegrityError:
         db.rollback()
         destino.unlink(missing_ok=True)
         anterior = existente()
         if anterior is not None:
+            vincular(anterior)
             return anterior
         raise
     except Exception:

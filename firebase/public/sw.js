@@ -10,16 +10,16 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-20261015-23';
+const VERSION = 'iv-20261015-24';
 
 /** Lo mínimo para que la app arranque sin red. */
 const BASE = new URL(self.registration.scope);
 const recurso = (ruta) => new URL(ruta.replace(/^\//, ''), BASE).href;
-const VERSION_RECURSOS = '20261015-23';
+const VERSION_RECURSOS = '20261015-24';
 const CONCHA = [
   '/', '/index.html', '/recepciones.html', '/validar.html', '/admin.html',
   '/usuarios.html', '/kpis.html',
-  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261015-23', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
+  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261015-24', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
   '/js/arranque.js', '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
   '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js', '/js/glosario.js',
   '/js/csv.js', '/js/modelos-depot.js', '/js/usuarios.js', '/js/fechas.js', '/js/etiquetas.js', '/js/local.js', '/vendor/firebase-sdk.js', '/vendor/xlsx.full.min.js', '/vendor/JsBarcode.all.min.js', '/vendor/jspdf.umd.min.js', '/vendor/jspdf.plugin.autotable.min.js',

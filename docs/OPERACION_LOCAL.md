@@ -79,6 +79,50 @@ Handheld conectado a la LAN: `http://192.168.4.94:3002/`.
 y seleccion de fotos funcionan por HTTP; la camara en vivo con getUserMedia
 requiere HTTPS, o un navegador que considere seguro ese origen.
 
+## Códigos de barras y fotos de los ítems
+
+La cámara en vivo conserva el lector nativo de Firebase: requiere HTTPS o
+localhost y `BarcodeDetector` compatible. En la IP interna por HTTP aparece
+**Leer con foto**: abre la cámara/galería nativa del dispositivo y decodifica
+la etiqueta en el navegador, sin subir esa imagen al servidor ni registrar
+un conteo. El lector de respaldo se sirve desde la bodega y se carga solo al
+usar esta opción. Encuadrar una etiqueta con buena luz. Para registrar, revisar
+el producto leído y confirmar su cantidad y pallet. La pistola sigue funcionando.
+
+- En la ficha, **Código de barras · opcional → Registrar otro código de barras**
+  asocia una etiqueta a un SKU existente. Las etiquetas anteriores siguen funcionando.
+  Si el lector no reconoce una etiqueta, **¿Es una etiqueta nueva de un producto
+  existente?** permite indicar el SKU y confirmar la asociación sin crear un conteo.
+- En Recepciones → Catálogo → **Importar códigos de barras**, subir Excel con
+  `SKU` y `CODIGO DE BARRAS`. Se prioriza `Modelo a Utilizar`. Guardar códigos como
+  texto para conservar ceros iniciales. El lote se rechaza completo ante un SKU
+  inexistente o un código asignado a otro producto. Hasta 5.000 filas por archivo.
+- **Exportar para Depot → Códigos de barras · Excel de revisión** genera un archivo
+  opcional separado. ADMIN puede editar sus columnas. No existe plantilla oficial
+  entregada para esta actualización: confirmar los encabezados con Depot antes de
+  cargarlo. No se envía al WMS. El alta de productos nuevos excluye SKU existentes
+  en el maestro, aunque sean adicionales de una recepción.
+- No se admiten cantidades físicas negativas ni packing lists con cantidades
+  negativas. **No apareció** declara 0 con la observación. Para corregir un conteo,
+  usar su anulación; se conservan los eventos y no se borra el historial.
+- Las fotos son opcionales para cualquier ítem, también en buen estado. En la ficha,
+  **Fotos del ítem → Guardar fotos sin registrar conteo** conserva imágenes sin sumar
+  unidades. También se pueden adjuntar al guardar un conteo normal.
+- **Ver imágenes del ítem** e **Imágenes de la recepción** abren la galería con
+  filtro por SKU y paginación. Se puede consultar después del cierre; para adjuntar
+  evidencia nueva se debe reabrir la recepción. ADMIN ve la ruta física local.
+- MySQL guarda las referencias y la relación archivo–SKU. Los bytes están en
+  `VAL_DATA_DIR/app_archivos` (por defecto `data/app_archivos`). Una misma imagen
+  puede documentar varios SKU sin duplicar su contenido. Cuando Drive confirma la
+  copia, la foto local se elimina y el enlace autenticado sigue funcionando.
+- Tras confirmar la entrega, la galería permite **Abrir carpeta de imágenes en Drive**.
+  Actualizar `Servidor.gs` y publicar una nueva versión para devolver el enlace de
+  la subcarpeta `imagenes`. Con un puente anterior se muestra la carpeta de la recepción.
+
+La actualización crea tablas adicionales de etiquetas y asociaciones de imágenes;
+no recrea productos, recepciones ni conteos. Las importaciones posteriores del
+maestro no borran un EAN por venir vacío y conservan las etiquetas reemplazadas.
+
 ## 2. Activar Drive/correo conservando el Apps Script actual
 
 El despliegue `/exec` existente autentica usuarios de Firebase. Una sesion
