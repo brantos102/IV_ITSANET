@@ -85,7 +85,7 @@ def test_caida_google_reintento_y_revision_sin_reenviar_automaticamente(cliente,
     assert not entregas.procesar_uno()  # respeta espera entre intentos
     assert cliente.post(f'/api/app/entregas/{ident}/reintentar').status_code == 200
     def ambiguo(operacion, clave, payload):
-        if operacion == 'estado': return {'exito': True, 'remitente': 'sup'}
+        if operacion == 'estado': return {'exito': True, 'remitente': 'sup', 'versionPuente': 2}
         if operacion == 'archivo': return {'exito': True, 'fileId': 'file-test', 'tipoArchivo': 'informe'}
         raise entregas.RevisionEntrega('Confirmacion del correo interrumpida')
     monkeypatch.setattr(entregas, 'llamar', ambiguo)
@@ -145,17 +145,21 @@ def test_foto_confirmada_en_drive_deja_solo_referencia_mysql_y_url_autenticada(c
     foto = cliente.post(f'/api/app/recepciones/{codigo}/archivos/foto', json={
         'sku': 'SKU1', 'base64': base64.b64encode(PNG).decode()}).json()
     assert (tmp_path / 'app_archivos' / foto['id']).is_file()
+    # La nueva evidencia deja auditoría antes del cierre.
+    datos['eventos'] = [e['id'] for e in cliente.get(f'/api/app/recepciones/{codigo}/eventos').json()]
     ident = cliente.post(f'/api/app/recepciones/{codigo}/entrega', json=datos).json()['id']
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_URL', 'https://script.google.com/macros/s/prueba/exec')
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_SECRET', 's' * 40)
     def entregar(operacion, clave, payload):
-        if operacion == 'estado': return {'exito': True, 'remitente': 'sup'}
+        if operacion == 'estado': return {'exito': True, 'remitente': 'sup', 'versionPuente': 2}
         if operacion == 'archivo':
             return {'exito': True, 'fileId': 'drive-' + clave.split(':')[1], 'tipoArchivo': payload['tipoArchivo']}
         assert 'eventos' not in payload and 'lineas' not in payload
         assert payload['exportarSheet'] is False
         return {'exito': True, 'carpeta': 'https://drive.google.com/folders/prueba'}
     monkeypatch.setattr(entregas, 'llamar', entregar)
+    from app.services.drive import procesar_uno as copiar_evidencia
+    assert copiar_evidencia()
     assert entregas.procesar_uno()
     db.rollback(); db.expire_all()
     a = db.get(AppArchivo, foto['id'])

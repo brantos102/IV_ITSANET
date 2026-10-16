@@ -35,9 +35,8 @@ En una carpeta **nueva** del PC, por ejemplo `$HOME\source`. Requiere Git:
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\source" | Out-Null
 Set-Location "$HOME\source"
-git clone --branch pr_bep/serene-thompson-10qlxd --single-branch https://github.com/brantos102/IV_ITSANET.git IV_ITSANET-desarrollo
+git clone --branch desarrollo-local --single-branch https://github.com/brantos102/IV_ITSANET.git IV_ITSANET-desarrollo
 Set-Location IV_ITSANET-desarrollo
-git switch -c desarrollo-local
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\local.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\local.ps1 -Accion acceso
 ```

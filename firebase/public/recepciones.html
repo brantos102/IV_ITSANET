@@ -2,16 +2,16 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-25"></script>
+<script src="./js/arranque.js?v=20261015-26"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-25">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-26">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261015-25"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261015-26"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -89,6 +89,17 @@
       <input type="file" id="fArchivo" accept=".xlsx,.xlsm,.xls"></label>
   </div>
   <div id="vistaPrevia"></div>
+  <details id="ajustarFormato"><summary>Ajustar hoja y columnas · formatos de otros clientes</summary>
+    <p class="mini">El archivo original y sus encabezados se conservan. Selecciona la fila de encabezado y revisa la vista previa antes de guardar.</p>
+    <div class="rejilla"><label class="campo"><span>Hoja</span><select id="mapHoja"></select></label>
+      <label class="campo"><span>Fila de encabezado en Excel</span><input id="mapFila" type="number" min="1" max="1000" value="1"></label>
+      <label class="campo"><span>Columna del SKU (A, B, C…)</span><input id="mapSku" value="A"></label>
+      <label class="campo"><span>Columna cantidad</span><input id="mapCantidad" value="B"></label>
+      <label class="campo"><span>Columna descripción (opcional)</span><input id="mapDescripcion"></label>
+      <label class="campo"><span>Columna embarque (opcional)</span><input id="mapEmbarque"></label></div>
+    <button id="bAplicarFormato" class="b-sec">Aplicar formato y volver a analizar</button>
+    <button id="bGuardarFormato" class="b-sec oculto">Guardar formato del cliente · ADMIN</button>
+  </details>
   <div class="acciones">
     <button class="b-primario" id="bSubir" disabled>Guardar packing list</button>
     <button class="b-sec" id="bCancelar">Cancelar</button>
@@ -142,22 +153,25 @@
 </div>
 
 <script type="module">
-import { observarSesion, modoLocal } from './js/auth.js?v=20261015-25';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261015-26';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261015-25';
-import { Proxy } from './js/proxy.js?v=20261015-25';
-import { resumir } from './js/conteo.js?v=20261015-25';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261015-25';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261015-25';
-import { leerCodigos } from './js/codigos.js?v=20261015-25';
-import { pedir } from './js/local.js?v=20261015-25';
+} from './js/datos.js?v=20261015-26';
+import { Proxy } from './js/proxy.js?v=20261015-26';
+import { resumir } from './js/conteo.js?v=20261015-26';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261015-26';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261015-26';
+import { leerCodigos } from './js/codigos.js?v=20261015-26';
+import { pedir } from './js/local.js?v=20261015-26';
+import { abrirIngreso } from './js/ingreso.js?v=20261015-26';
+import { operacion } from './js/evidencias.js?v=20261015-26';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
 let nombreArchivo = '';   // el nombre del .xlsx, para reconocer un duplicado
+let opcionesLectura={},archivoAnalizado=null,revisionArchivo=0;
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,
@@ -191,6 +205,7 @@ observarSesion((e) => {
     document.title = 'Mis validaciones — ITSANET';
   }
   if (perfil?.rol === 'ADMIN') $('lnkAdmin').classList.remove('oculto');
+  $('bGuardarFormato').classList.toggle('oculto',perfil?.rol!=='ADMIN' || !modoLocal());
   if (!puedeCrear) {
     $('panelCrear').classList.add('oculto');
     $('panelCatalogo').classList.add('oculto');
@@ -215,9 +230,9 @@ $('bCrear').addEventListener('click', async () => {
     }, usuario);
     recepcionActual = id;
     $('lblRecepcion').textContent = id;
-    $('panelArchivo').classList.remove('oculto');
-    $('panelArchivo').scrollIntoView({ behavior: 'smooth' });
-    aviso(`Recepción ${id} creada. Ahora sube el packing list.`, 'ok');
+    const continuar = () => { $('panelArchivo').classList.remove('oculto'); $('panelArchivo').scrollIntoView({behavior:'smooth'}); };
+    if (modoLocal()) await abrirIngreso(id,{continuar}); else continuar();
+    aviso(`Recepción ${id} creada. Registra bultos y evidencias; después carga los packing lists.`, 'ok');
     cargarListado();
   } catch (e) {
     aviso(e.message, 'err', 'No se creó');
@@ -268,6 +283,7 @@ function avisarParecidos() {
 $('fArchivo').addEventListener('change', async (ev) => {
   const archivo = ev.target.files[0];
   if (!archivo) return;
+  const revision=++revisionArchivo;
   limpiarAvisos();
   parecidos = [];
   duplicadoAceptado = false;
@@ -277,7 +293,23 @@ $('fArchivo').addEventListener('change', async (ev) => {
 
   try {
     const buffer = await archivo.arrayBuffer();
-    resultadoArchivo = leerPackingList(buffer);
+    if(revision!==revisionArchivo)return;
+    if(archivo!==archivoAnalizado){opcionesLectura={};archivoAnalizado=archivo;
+      const libro=XLSX.read(buffer,{type:'array'});$('mapHoja').replaceChildren();
+      for(const nombre of libro.SheetNames){const o=document.createElement('option');o.value=nombre;o.textContent=nombre;$('mapHoja').append(o);}
+      if(modoLocal()) {
+        const cliente=todas.find(r=>r.id===recepcionActual)?.cliente || $('fCliente').value || 'VENTURA';
+        const perfilFormato=await operacion('/formatos-packing/'+encodeURIComponent(cliente)).catch(()=>null);
+        if(revision!==revisionArchivo)return;
+        if(perfilFormato?.hoja && libro.Sheets[perfilFormato.hoja]) {
+          const filas=XLSX.utils.sheet_to_json(libro.Sheets[perfilFormato.hoja],{header:1,range:0,blankrows:true,defval:''});
+          const cabecera=filas[perfilFormato.encabezado-1] || [];
+          if(JSON.stringify(cabecera.map(String))===JSON.stringify(perfilFormato.encabezados))opcionesLectura=perfilFormato;
+          else aviso('El archivo cambió sus encabezados. Se analizará de nuevo; revisa la vista previa.','warn');
+        }
+      }
+    }
+    resultadoArchivo = leerPackingList(buffer,opcionesLectura);
 
     const muestra = resultadoArchivo.lineas.slice(0, 5).map((l) => `
       <tr><td class="id">${esc(l.sku)}</td><td class="mini">${esc(l.descripcion)}</td>
@@ -306,6 +338,7 @@ $('fArchivo').addEventListener('change', async (ev) => {
     // renombrarlo no lo convierte en otro packing list.
     parecidos = await buscarPackingListParecido(resultadoArchivo, archivo.name,
                                                 { excluirRecepcion: recepcionActual });
+    if(revision!==revisionArchivo)return;
     if (parecidos.length) {
       $('vistaPrevia').insertAdjacentHTML('afterbegin', avisarParecidos());
       $('bSubir').textContent = 'Guardar packing list de todas formas';
@@ -313,11 +346,33 @@ $('fArchivo').addEventListener('change', async (ev) => {
       $('bSubir').textContent = 'Guardar packing list';
     }
   } catch (e) {
+    if(revision!==revisionArchivo)return;
     resultadoArchivo = null;
     $('vistaPrevia').innerHTML = '';
     aviso(e.message, 'err', 'No se pudo leer');
   }
 });
+
+$('bAplicarFormato').onclick=()=>{
+  try{
+    const columnas={};
+    for(const [id,campo] of [['mapSku','sku'],['mapCantidad','cantidad'],['mapDescripcion','descripcion'],['mapEmbarque','embarque']]){
+      const col=$(id).value.trim().toUpperCase();if(!col)continue;
+      if(!/^[A-Z]{1,3}$/.test(col))throw new Error('Usa letras de columna: A, B, AA…');
+      const indice=XLSX.utils.decode_col(col);if(columnas[indice])throw new Error('Dos campos no pueden usar la misma columna.');columnas[indice]=campo;
+    }
+    opcionesLectura={hoja:$('mapHoja').value,encabezado:Number($('mapFila').value),columnas};
+    $('fArchivo').dispatchEvent(new Event('change'));
+  }catch(e){aviso(e.message,'err');}
+};
+$('bGuardarFormato').onclick=async()=>{
+  if(!resultadoArchivo)return aviso('Analiza primero un archivo y confirma su vista previa.','warn');
+  try{const cliente=todas.find(r=>r.id===recepcionActual)?.cliente || $('fCliente').value || 'VENTURA';
+    await operacion('/formatos-packing/'+encodeURIComponent(cliente),{metodo:'PUT',cuerpo:{hoja:resultadoArchivo.hoja,
+      encabezado:resultadoArchivo.filaEncabezado,columnas:resultadoArchivo.mapaEntrada,encabezados:resultadoArchivo.encabezados}});
+    aviso('Formato guardado para '+cliente+'. Se reutiliza solo si coinciden los encabezados.','ok');
+  }catch(e){aviso(e.message,'err');}
+};
 
 $('bSubir').addEventListener('click', async () => {
   if (!resultadoArchivo || !recepcionActual) return;
@@ -417,8 +472,8 @@ $('tRecepciones').addEventListener('click', async (ev) => {
       prog.innerHTML = `<b>Borrando</b>${hechos} registros · ${donde}`;
     });
     prog.remove();
-    aviso(`Recepción ${id} borrada, con sus ${r.borrados} registros.`, 'ok', 'Borrada');
-    if (r.huerfanas.length) {
+    aviso(`Recepción ${id} borrada, con sus ${r.borrados ?? Object.values(r.borrado || {}).reduce((a,b)=>a+b,0)} registros.`, 'ok', 'Borrada');
+    if (r.huerfanas?.length) {
       aviso(`Quedaron registros sueltos en ${r.huerfanas.join(', ')}. La recepción ` +
             'ya no existe ni aparece en ningún listado; esos registros no estorban, ' +
             'pero dímelo para limpiarlos.', 'warn', 'Limpieza incompleta');
@@ -447,6 +502,14 @@ $('tRecepciones').addEventListener('click', (ev) => {
   $('panelArchivo').classList.remove('oculto');
   $('panelArchivo').scrollIntoView({ behavior: 'smooth' });
   $('fOrigen').focus();
+});
+
+$('tRecepciones').addEventListener('click', async ev=>{
+  const b=ev.target.closest('[data-ingreso]');if(!b)return;
+  try{await abrirIngreso(b.dataset.ingreso,{continuar:()=>{
+    recepcionActual=b.dataset.ingreso;$('lblRecepcion').textContent=recepcionActual;
+    $('panelArchivo').classList.remove('oculto');$('panelArchivo').scrollIntoView({behavior:'smooth'});
+  }});}catch(e){aviso(e.message,'err');}
 });
 
 $('fBuscar').addEventListener('input', pintarListado);
@@ -579,7 +642,7 @@ function pintarListado() {
         <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}"></i></div></td>
         <td>${puedeConsolidar
           ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
-               ${vacia ? 'Cargar packing list' : '+ Lista'}</button>`
+               ${vacia ? 'Cargar packing list' : '+ Lista'}</button>${modoLocal() ? `<button class="b-sec" data-ingreso="${esc(r.id)}">Bultos / evidencias</button>` : ''}`
           : vacia ? '<span class="mini">sin packing list</span>' : ''}</td>
         <td>${vacia ? '' : `<a href="./validar.html?r=${encodeURIComponent(r.id)}">
           <button class="b-primario">Validar →</button></a>`}</td>
@@ -610,7 +673,7 @@ function pintarListado() {
 // PWA: se instala desde el navegador y abre sin red. El registro va aparte del
 // módulo para que un fallo aquí nunca impida que la página cargue.
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
 }
 </script>
 </body>

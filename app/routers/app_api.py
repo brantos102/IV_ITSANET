@@ -132,6 +132,7 @@ def guardar_csv(datos: dict = Body(...), db: Session = Depends(get_db),
 def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session = Depends(get_db),
                    op: Operador = Depends(usuario_actual)):
     from app.services import archivos
+    from app.services import operacion, drive
     if tipo == 'informe' and op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
         raise HTTPException(403, 'Solo un supervisor archiva informes')
     if tipo == 'foto':
@@ -141,14 +142,26 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
             raise _traducir(exc) from None
         if r.estado not in m.ABIERTAS:
             raise HTTPException(409, 'Reabre la recepción antes de adjuntar nuevas fotos; el informe cerrado se conserva.')
-    a = archivos.guardar(db, codigo, tipo, datos, _quien(op))
+        operacion.validar_evidencia(db, codigo, datos)
+    a = None
+    try:
+        a = archivos.guardar(db, codigo, tipo, datos, _quien(op), confirmar=False)
+        if tipo == 'foto':
+            operacion.vincular_evidencia(db, a, datos, _quien(op), confirmar=False)
+            drive.encolar(db, a)
+        db.commit()
+    except Exception:
+        db.rollback()
+        if a is not None and db.get(AppArchivo, a.id) is None:
+            archivos.ruta(a).unlink(missing_ok=True)
+        raise
     url = f'/api/app/archivos/{a.id}'
     return {'id': a.id, 'nombre': a.nombre, 'url': url, 'enlace': url,
             'bytes': a.bytes, 'sha256': a.sha256, 'destino': 'SERVIDOR'}
 
 
 @router.get('/recepciones/{codigo}/imagenes')
-def imagenes(codigo: str, sku: str = '', offset: int = Query(0, ge=0),
+def imagenes(codigo: str, sku: str = '', contexto: bool = False, offset: int = Query(0, ge=0),
              limite: int = Query(40, ge=1, le=100), db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     from app.services.normalize import normalizar_sku
@@ -157,6 +170,10 @@ def imagenes(codigo: str, sku: str = '', offset: int = Query(0, ge=0),
     except m.ErrorApp as exc:
         raise _traducir(exc) from None
     consulta = select(AppArchivo).where(AppArchivo.recepcion == r.codigo, AppArchivo.tipo == 'foto')
+    from app.models import AppCopiaDrive
+    retiradas = select(AppCopiaDrive.archivo_id).where(AppCopiaDrive.recepcion == r.codigo,
+        (AppCopiaDrive.estado == 'ELIMINADA') | (AppCopiaDrive.datos['accion'].as_string() == 'papelera'))
+    consulta = consulta.where(AppArchivo.id.not_in(retiradas))
     if sku:
         normal = normalizar_sku(sku)
         ids = set(db.scalars(select(AppArchivoSku.archivo_id).join(AppArchivo, AppArchivo.id == AppArchivoSku.archivo_id)
@@ -164,6 +181,20 @@ def imagenes(codigo: str, sku: str = '', offset: int = Query(0, ge=0),
         # Evidencias anteriores a esta actualización siguen ligadas por la bitácora.
         for ev in db.scalars(select(AppEvento).where(AppEvento.recepcion == r.codigo, AppEvento.sku == normal)):
             ids.update(str(url).split('/api/app/archivos/')[-1].split('?')[0] for url in (ev.datos or {}).get('fotos', []))
+        if contexto:
+            from app.models import AppEvidencia, AppUnidadLogistica
+            todas = list(db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion == r.codigo,
+                AppEvidencia.eliminado_en.is_(None))))
+            propias = [e for e in todas if e.sku == normal]
+            unidades = {e.unidad_id for e in propias if e.unidad_id}
+            origenes = {e.origen for e in propias if e.origen}
+            for uid in list(unidades):
+                u = db.get(AppUnidadLogistica, uid)
+                if u and u.padre_id: unidades.add(u.padre_id)
+            # Solo evidencia de contexto sin otro SKU: nunca mezclar productos distintos.
+            ids.update(e.archivo_id for e in todas if not e.sku and
+                (e.tipo == 'PACKING_INICIAL' or e.unidad_id in unidades or
+                 (e.origen and e.origen in origenes)))
         consulta = consulta.where(AppArchivo.id.in_(ids))
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
     filas = list(db.scalars(consulta.order_by(AppArchivo.creado_en.desc(), AppArchivo.id).offset(offset).limit(limite)))
@@ -172,10 +203,18 @@ def imagenes(codigo: str, sku: str = '', offset: int = Query(0, ge=0),
         for aid, cod in db.execute(select(AppArchivoSku.archivo_id, AppArchivoSku.sku).where(AppArchivoSku.archivo_id.in_([a.id for a in filas]))):
             etiquetas.setdefault(aid, []).append(cod)
     resultado = []
+    from app.models import AppEvidencia
+    metadatos = {}
+    if filas:
+        for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_([a.id for a in filas]),
+                AppEvidencia.eliminado_en.is_(None))):
+            metadatos.setdefault(e.archivo_id, []).append({'sku': e.sku, 'categoria': e.categoria,
+                'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen})
     for a in filas:
         f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',
              'skus': etiquetas.get(a.id, []), 'bytes': a.bytes, 'creadoEn': m._iso(a.creado_en),
-             'almacen': 'DRIVE' if a.drive_id else 'SERVIDOR', 'driveUrl': a.drive_url or ''}
+             'almacen': 'DRIVE' if a.drive_id else 'SERVIDOR', 'driveUrl': a.drive_url or '',
+             'evidencias': metadatos.get(a.id, [])}
         if op.rol == Rol.ADMIN:
             f['rutaServidor'] = str(archivos.ruta(a)) if archivos.ruta(a).exists() else None
         resultado.append(f)
@@ -191,6 +230,10 @@ def archivo_local(archivo_id: str, db: Session = Depends(get_db), _: Operador = 
     a = db.get(AppArchivo, archivo_id)
     if a is None:
         raise HTTPException(404, 'Archivo no encontrado')
+    from app.models import AppCopiaDrive
+    copia = db.get(AppCopiaDrive, archivo_id)
+    if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
+        raise HTTPException(410, 'Evidencia retirada por supervisión; se conserva su trazabilidad')
     if not archivos.ruta(a).is_file():
         if a.drive_id:
             return RedirectResponse(f'https://drive.google.com/uc?export=view&id={a.drive_id}', headers={'Cache-Control': 'private, no-store'})
@@ -342,6 +385,10 @@ def cargar_packing_list(codigo: str, cuerpo: dict = Body(...),
     cuántas unidades declara una fila.
     """
     try:
+        from app.services.operacion import configuracion, obtener_ingreso
+        from app.models import AppIngreso
+        if db.get(AppIngreso, codigo) and configuracion(db)['evidencias']['bloquear'] and obtener_ingreso(db, codigo)['avisos']:
+            raise HTTPException(409, 'Completa las evidencias exigidas por ADMIN antes de cargar el packing list')
         return m.guardar_packing_list(
             db, codigo,
             resultado=cuerpo.get("resultado") or {},
@@ -434,15 +481,17 @@ def reabrir(codigo: str, cuerpo: dict = Body(default={}), db: Session = Depends(
 # Catálogo
 # --------------------------------------------------------------------------- #
 @router.get("/catalogo/{codigo}")
-def catalogo(codigo: str, db: Session = Depends(get_db),
+def catalogo(codigo: str, cliente: str | None = None, db: Session = Depends(get_db),
              _: Operador = Depends(usuario_actual)):
     """Lo que la pantalla necesita saber de un código escaneado."""
-    r = depot_svc.resolver_codigo(db, codigo)
+    r = depot_svc.resolver_codigo(db, codigo, usar_api=False)
+    from app.services.catalogo_programado import posiciones_de
     return {
         "sku": r.sku, "existe": r.existe, "descripcion": r.descripcion,
         "ean": r.ean, "unidad": r.unidad, "inactivo": r.inactivo,
         "fuente": r.fuente, "degradado": r.degradado,
         "candidatos": r.candidatos, "mensaje": r.mensaje, "accion": r.accion,
+        **posiciones_de(db, r.sku, cliente),
     }
 
 

@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261015-25';
-import { db } from './auth.js?v=20261015-25';
-import * as local from './local.js?v=20261015-25';
+} from '../vendor/firebase-sdk.js?v=20261015-26';
+import { db } from './auth.js?v=20261015-26';
+import * as local from './local.js?v=20261015-26';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261015-25';
+} from './datos.js?v=20261015-26';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -79,7 +79,7 @@ function validar(p) {
   }
 
   const estadoFisico = String(p.estadoFisico || 'BUENO').toUpperCase();
-  const fotos = Array.isArray(p.fotos) ? p.fotos.filter(Boolean).slice(0, 10) : [];
+  const fotos = Array.isArray(p.fotos) ? p.fotos.filter(Boolean) : [];
 
   // Un producto no conforme sin evidencia no sirve para reclamar al proveedor.
   if (estadoFisico === 'PNC' && !limpiar(p.observacion)) {

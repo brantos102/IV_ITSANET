@@ -96,6 +96,12 @@ def preparar(db, codigo, datos, usuario):
         raise HTTPException(409, 'El conteo cambio mientras se preparaba el informe. Actualiza y vuelve a finalizar')
     cierre = m.cerrar_recepcion(db, r.codigo, usuario, confirmar=False)
     fotos = list(db.scalars(select(AppArchivo.id).where(AppArchivo.recepcion == r.codigo, AppArchivo.tipo == 'foto')))
+    from app.services.drive import manifiesto
+    from app.services.operacion import destino_drive
+    manifest = manifiesto(db, r.codigo)
+    fotos = list(dict.fromkeys(f['archivoId'] for f in manifest))
+    destino = destino_drive(db, r.codigo)
+    destino.pop('supervisor', None)
     e = AppEntrega(id=uuid4().hex, recepcion=r.codigo, usuario=usuario,
         clave=hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest(),
         estado='PENDIENTE', datos={
@@ -104,7 +110,7 @@ def preparar(db, codigo, datos, usuario):
             'carpetaRecepcion': str(datos.get('carpetaRecepcion') or r.codigo)[:200],
             'duracion': str(datos.get('duracion') or '')[:100],
             'resumen': resumen_final(skus), 'exportarSheet': datos.get('exportarSheet') is True,
-            'recepcion': cierre, 'skus': skus,
+            'recepcion': cierre, 'skus': skus, 'destino': destino,
             'lineas': m.leer_coleccion(db, r.codigo, 'lineas', actual=True),
             'eventos': eventos},
         error=None if configurado(db) else 'Pendiente de configurar el puente con Google')
@@ -162,11 +168,24 @@ def procesar_uno():
             estado = llamar('estado', e.id, {'usuario': e.usuario})
             if str(estado.get('remitente') or '').strip().lower() != e.usuario.strip().lower():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
+            if d['fotos'] and not d.get('informeEvidencias'):
+                imagenes=[db.get(AppArchivo,aid) for aid in d['fotos']]
+                if all(a and a.drive_id for a in imagenes):
+                    from app.services.reporte_evidencias import generar
+                    informe=archivos.guardar(db,e.recepcion,'informe',{
+                        'nombre':'Evidencias_'+e.recepcion+'.xlsx',
+                        'base64':base64.b64encode(generar(db,e.recepcion)).decode()},e.usuario,confirmar=False)
+                    d={**d,'informes':d['informes']+[informe.id],'informeEvidencias':informe.id}
+                    e.datos=d;db.commit()
             guardados = []
             for aid in d['informes'] + d['fotos']:
                 a = db.get(AppArchivo, aid)
                 if not a:
                     raise RuntimeError('Falta un archivo de la entrega; revisa el almacenamiento')
+                from app.models import AppCopiaDrive
+                copia_pendiente = db.get(AppCopiaDrive, aid)
+                if copia_pendiente and copia_pendiente.estado in ('PENDIENTE', 'PROCESANDO'):
+                    raise RuntimeError('Las evidencias siguen copiándose a Drive; la entrega esperará su confirmación')
                 e.proximo_en = utcnow() + timedelta(minutes=15)
                 db.commit()
                 if a.drive_id:
@@ -177,6 +196,7 @@ def procesar_uno():
                     if not archivos.ruta(a).is_file():
                         raise RuntimeError('Falta un archivo local; revisa el almacenamiento antes de entregar')
                     copia = llamar('archivo', e.id + ':' + aid, {
+                        **d.get('destino', {}),
                         'recepcion': e.recepcion, 'usuario': e.usuario, 'tipoArchivo': a.tipo,
                         'nombre': a.nombre, 'tipo': a.mime,
                         'base64': base64.b64encode(archivos.ruta(a).read_bytes()).decode(),
@@ -193,7 +213,9 @@ def procesar_uno():
                         archivos.ruta(a).unlink(missing_ok=True)
                     except OSError:
                         log.warning('Entrega %s: foto copiada, limpieza local pendiente', e.id)
-            payload = {**d, 'archivos': guardados, 'codigo': e.recepcion, 'usuario': e.usuario}
+            from app.services.drive import manifiesto
+            payload = {**d, **d.get('destino', {}), 'manifiesto': manifiesto(db, e.recepcion),
+                'archivos': guardados, 'codigo': e.recepcion, 'usuario': e.usuario}
             if d.get('exportarSheet'):
                 referencias = {a.id: a.drive_url for a in db.scalars(select(AppArchivo).where(AppArchivo.recepcion == e.recepcion)) if a.drive_url}
                 def enlace_foto(url):

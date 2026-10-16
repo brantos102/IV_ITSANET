@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261015-25';
-import { db } from './auth.js?v=20261015-25';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261015-25';
-import * as local from './local.js?v=20261015-25';
+} from '../vendor/firebase-sdk.js?v=20261015-26';
+import { db } from './auth.js?v=20261015-26';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261015-26';
+import * as local from './local.js?v=20261015-26';
 
 /**
  * Dónde se guardan los datos.
@@ -213,11 +213,14 @@ function mapearEncabezado(fila) {
  * Busca la fila de encabezados en las primeras 25, así que tolera archivos con
  * títulos o logos encima de la tabla.
  */
-export function leerPackingList(arrayBuffer) {
+export function leerPackingList(arrayBuffer, opciones = {}) {
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Revisa la conexión y recarga.');
   }
   const libro = XLSX.read(arrayBuffer, { type: 'array' });
+  if(opciones.encabezado && (!Number.isInteger(opciones.encabezado)||opciones.encabezado<1||opciones.encabezado>1000))throw new Error('Fila de encabezado: de 1 a 1000.');
+  if(opciones.columnas){const campos=Object.values(opciones.columnas);
+    if(!campos.includes('sku')||!campos.includes('cantidad')||Object.keys(opciones.columnas).some(k=>!/^\d+$/.test(k)||Number(k)>1000))throw new Error('Selecciona columnas distintas para SKU y cantidad.');}
 
   // Lo que se fue mirando, por si al final no se reconoce nada: sin esto el
   // error dice «no se encontró la tabla» y deja a quien carga un cliente nuevo
@@ -225,11 +228,13 @@ export function leerPackingList(arrayBuffer) {
   const miradas = [];
 
   for (const nombreHoja of libro.SheetNames) {
+    if(opciones.hoja && nombreHoja!==opciones.hoja)continue;
     const hoja = libro.Sheets[nombreHoja];
-    const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, blankrows: false, defval: '' });
+    const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, blankrows: true, range:0, defval: '' });
 
-    for (let i = 0; i < Math.min(filas.length, 25); i++) {
-      const mapa = mapearEncabezado(filas[i]);
+    for (let i = 0; i < Math.min(filas.length, opciones.encabezado || 25); i++) {
+      if(opciones.encabezado && i!==opciones.encabezado-1)continue;
+      const mapa = opciones.columnas || mapearEncabezado(filas[i]);
       const campos = new Set(Object.values(mapa));
       if (!campos.has('sku') || !campos.has('cantidad')) {
         // La fila con más celdas con texto es la que más se parece a una
@@ -270,8 +275,17 @@ export function leerPackingList(arrayBuffer) {
         const d = {};
         for (const [idx, campo] of Object.entries(mapa)) d[campo] = cruda[idx];
 
+        const indiceSku=Number(Object.entries(mapa).find(([,campo])=>campo==='sku')[0]);
+        if(typeof d.sku==='number') {
+          if(!Number.isSafeInteger(d.sku)||String(Math.abs(d.sku)).length>15)throw new Error(`Fila ${j+1}: guarda el SKU como texto para conservar todos sus dígitos.`);
+          const celda=typeof XLSX.utils.encode_cell==='function' ? hoja[XLSX.utils.encode_cell({r:j,c:indiceSku})] : null;
+          if(/^0[0-9]+$/.test(celda?.w || ''))d.sku=celda.w;
+        }
+
         const sku = normalizarCodigo(d.sku);
         if (!sku) { descartadas++; continue; }
+        const cantidad=aNumero(d.cantidad,NaN);
+        if(!Number.isFinite(cantidad)||cantidad<0)throw new Error(`Fila ${j+1}: la cantidad debe ser numérica y mayor o igual a cero.`);
 
         lineas.push({
           linea: lineas.length + 1,
@@ -281,13 +295,14 @@ export function leerPackingList(arrayBuffer) {
           // con huecos, y al exportar tiene que cuadrar columna por columna.
           cruda: [...Array(anchoReal)].map((_, k) => {
             const v = cruda[k];
+            if(k===indiceSku && typeof v==='number' && typeof d.sku==='string')return d.sku;
             return v === null || v === undefined ? '' : String(v);
           }),
           descripcion: limpiar(d.descripcion).slice(0, 300),
           referencia: limpiar(d.referencia).slice(0, 80),
           factura: limpiar(d.factura).slice(0, 80),
           embarque: limpiar(d.embarque).slice(0, 80),
-          cantidad: aNumero(d.cantidad),
+          cantidad,
           precioUnit: aNumero(d.precioUnit) || null,
           precioTotal: aNumero(d.precioTotal) || null,
         });
@@ -300,6 +315,8 @@ export function leerPackingList(arrayBuffer) {
 
       return {
         hoja: nombreHoja,
+        filaEncabezado: i+1,
+        mapaEntrada: {...mapa},
         encabezados,
         columnas,
         lineas,
@@ -330,8 +347,7 @@ export function leerPackingList(arrayBuffer) {
     `No se reconoció la tabla. Lo más parecido a una cabecera está en la hoja ` +
     `«${mejor.hoja}», fila ${mejor.fila}, y trae: ${mejor.columnas.join(' · ')}. ` +
     `De ahí no se identifica ${falta.map((c) => NOMBRE[c]).join(' ni ')}. ` +
-    'Pásame estos nombres de columna y añado este formato: cada cliente envía ' +
-    'el suyo y hay que darlos de alta una vez.',
+    'Usa «Ajustar hoja y columnas» para seleccionar el formato sin modificar el código.',
   );
 }
 

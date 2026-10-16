@@ -3,6 +3,8 @@
 **Desarrollo en tu PC Windows con MySQL separado de producción:**
 [arranque con Docker Desktop](docs/DESARROLLO_EN_PC.md).
 
+[Mejoras en desarrollo: ingreso, evidencias en Drive y puente Zebra configurable](docs/INGRESO_EVIDENCIAS_E_IMPRESION.md).
+
 [Configuración Google, formatos Depot y etiqueta desde stock](docs/GOOGLE_Y_FORMATOS.md).
 
 [Vista movil, Google, credenciales ADMIN y etiquetas Zebra](docs/MEJORAS_MOVIL.md).

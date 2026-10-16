@@ -3,6 +3,7 @@ name: iv-itsanet-desarrollo
 services:
   mysql:
     image: mysql:8.4
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: itsanet_desarrollo
       MYSQL_USER: itsanet_dev
@@ -18,6 +19,7 @@ services:
       retries: 40
       start_period: 15s
   app:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: docker/local.Dockerfile
@@ -51,9 +53,26 @@ services:
       timeout: 5s
       retries: 30
       start_period: 10s
+  agente-impresion:
+    profiles: [impresion]
+    restart: unless-stopped
+    image: iv-itsanet-desarrollo-app
+    command: [python, scripts/agente_impresion.py, --config, /run/puente/config.json, --registro, /var/lib/itsanet/agente]
+    volumes:
+      - type: bind
+        source: .
+        target: /opt/itsanet
+        read_only: true
+      - type: bind
+        source: ./.local/puente.json
+        target: /run/puente/config.json
+        read_only: true
+      - registro_impresion:/var/lib/itsanet
+    networks: [salida]
 volumes:
   mysql_pruebas:
   archivos_pruebas:
+  registro_impresion:
 networks:
   datos:
     internal: true

@@ -20,6 +20,7 @@ from app.models import Operador, Rol
 from app.routers import app_api, auth, catalogo, google_auth, integraciones, kpi, recepciones, reportes, scans, ui
 from app.security import hash_pin
 from app.services.validation import ErrorValidacion
+from app.routers import operacion, impresion
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("iv_itsanet")
@@ -39,12 +40,17 @@ async def lifespan(_app: FastAPI):
     log.info("%s v%s iniciado", APP_NAME, APP_VERSION)
     from app.services.entregas import trabajador
     tarea = asyncio.create_task(trabajador())
+    from app.services.catalogo_programado import trabajador as tareas_operativas
+    tarea_operativa = asyncio.create_task(tareas_operativas())
     try:
         yield
     finally:
         tarea.cancel()
+        tarea_operativa.cancel()
         with suppress(asyncio.CancelledError):
             await tarea
+        with suppress(asyncio.CancelledError):
+            await tarea_operativa
 
 
 app = FastAPI(
@@ -87,6 +93,8 @@ app.include_router(app_api.router)
 app.include_router(integraciones.router)
 app.include_router(google_auth.router)
 app.include_router(reportes.router)
+app.include_router(operacion.router)
+app.include_router(impresion.router)
 
 
 @app.exception_handler(ErrorValidacion)

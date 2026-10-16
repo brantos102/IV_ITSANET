@@ -21,7 +21,7 @@ def ruta(archivo: AppArchivo) -> Path:
     return DATA_DIR / 'app_archivos' / archivo.id
 
 
-def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str) -> AppArchivo:
+def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=True) -> AppArchivo:
     codigo = str(codigo).strip().upper()
     if db.get(AppRecepcion, codigo) is None:
         raise HTTPException(404, 'La recepcion no existe')
@@ -63,7 +63,7 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str) -> AppArchivo
         if sku and db.get(AppArchivoSku, (a.id, sku)) is None:
             db.add(AppArchivoSku(archivo_id=a.id, sku=sku))
             try:
-                db.commit()
+                db.commit() if confirmar else db.flush()
             except IntegrityError:
                 db.rollback()
                 if db.get(AppArchivoSku, (a.id, sku)) is None:
@@ -73,6 +73,11 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str) -> AppArchivo
             AppArchivo.tipo == tipo, AppArchivo.sha256 == sha))
     anterior = existente()
     if anterior is not None:
+        if tipo == 'foto':
+            from app.models import AppCopiaDrive
+            copia = db.get(AppCopiaDrive, anterior.id)
+            if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
+                raise HTTPException(409, 'Esta imagen fue retirada por supervisión. Selecciona una nueva evidencia.')
         vincular(anterior)
         return anterior
     nombre = str(datos.get('nombre') or (str(datos.get('sku') or 'foto') + extension))
@@ -91,7 +96,7 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str) -> AppArchivo
         db.add(archivo)
         if sku:
             db.add(AppArchivoSku(archivo_id=archivo.id, sku=sku))
-        db.commit()
+        db.commit() if confirmar else db.flush()
     except IntegrityError:
         db.rollback()
         destino.unlink(missing_ok=True)

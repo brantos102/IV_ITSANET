@@ -16,16 +16,47 @@ function entregaServidor_(peticion) {
   if (!/^[a-f0-9]{32}(:[a-f0-9]{32})?$/.test(p.clave || '')) throw new Error('Identificador no valido.');
   var remitente = cuentaServidor_(p.datos && p.datos.usuario);
   if (p.operacion === 'estado') {
-    var raiz = DriveApp.getFolderById(exigirCarpeta_());
-    return { exito: true, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName() };
+    var raiz = raizServidor_(p.datos || {});
+    return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto'] };
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
     if (p.operacion === 'archivo') return archivoServidor_(p.clave, p.datos);
+    if (p.operacion === 'papelera') {
+      if (!/^[A-Za-z0-9_-]{5,128}$/.test(String(p.datos.fileId || ''))) throw new Error('Archivo no valido.');
+      DriveApp.getFileById(p.datos.fileId).setTrashed(true);
+      return {exito:true};
+    }
     if (p.operacion === 'finalizar') return finalizarServidor_(p.clave, p.datos);
     throw new Error('Operacion de servidor no permitida.');
   } finally { lock.releaseLock(); }
+}
+
+function raizServidor_(p) {
+  var id = p.carpetaRaiz || exigirCarpeta_();
+  if (p.carpetaRaiz && !/^[A-Za-z0-9_-]{10,128}$/.test(id)) throw new Error('Repositorio invalido.');
+  return DriveApp.getFolderById(id);
+}
+
+function carpetaRecepcionServidor_(p) {
+  var raiz = raizServidor_(p);
+  if (!p.cliente) return carpetaDeRecepcion_(raiz, p); // Entregas antiguas conservan su destino.
+  var cliente = carpetaDe_(raiz, limpiarNombre_(p.cliente));
+  var marca = p.marca ? carpetaDe_(cliente, limpiarNombre_(p.marca)) : cliente;
+  var r = carpetaDe_(marca, limpiarNombre_(p.carpetaRecepcion || p.recepcion || p.codigo));
+  ['FALTANTE','SOBRANTE','PNC'].forEach(function(n) { carpetaDe_(r,n); });
+  return r;
+}
+
+function carpetaEvidenciaServidor_(recepcion, p) {
+  if (!p.ruta) return carpetaDe_(recepcion, 'imagenes');
+  if (!Array.isArray(p.ruta) || p.ruta.length > 8) throw new Error('Ruta de evidencia invalida.');
+  return p.ruta.reduce(function(c, n) {
+    if (typeof n !== 'string' || n.length > 180 || !n.trim()) throw new Error('Carpeta de evidencia invalida.');
+    return carpetaDe_(c, limpiarNombre_(n));
+  }, recepcion);
 }
 
 /** MailApp envia como el ejecutor del despliegue; replyTo no cambia el From. */
@@ -39,8 +70,9 @@ function cuentaServidor_(supervisor) {
 function archivoServidor_(clave, p) {
   if (p.tipoArchivo !== 'foto' && p.tipoArchivo !== 'informe') throw new Error('Tipo no permitido.');
   if (!p.base64 || p.base64.length > 16777220) throw new Error('Archivo demasiado grande o vacio.');
-  var carpeta = carpetaDeRecepcion_(DriveApp.getFolderById(exigirCarpeta_()), p);
-  if (p.tipoArchivo === 'foto') carpeta = carpetaDe_(carpeta, 'imagenes');
+  var recepcion = carpetaRecepcionServidor_(p);
+  var carpeta = p.tipoArchivo === 'foto' ? carpetaEvidenciaServidor_(recepcion,p)
+    : p.cliente ? carpetaDe_(recepcion, 'INFORMES') : recepcion;
   var original = limpiarNombre_(p.nombre) || 'archivo';
   var punto = original.lastIndexOf('.');
   var nombre = (punto < 0 ? original : original.slice(0, punto)) + '__' + clave.split(':')[1]
@@ -50,7 +82,8 @@ function archivoServidor_(clave, p) {
     Utilities.newBlob(Utilities.base64Decode(p.base64), p.tipo, nombre));
   archivo.setDescription('ITSANET ' + clave + ' | Recepcion ' + p.recepcion + ' | ' + p.usuario);
   return { exito: true, fileId: archivo.getId(), nombre: original, tipoArchivo: p.tipoArchivo,
-    enlace: archivo.getUrl(), url: 'https://drive.google.com/uc?id=' + archivo.getId() };
+    enlace: archivo.getUrl(), url: 'https://drive.google.com/uc?id=' + archivo.getId(),
+    carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl() };
 }
 
 function celdaServidor_(valor) {
@@ -77,7 +110,7 @@ function tablaServidor_(libro, nombre, columnas, datos) {
 
 function finalizarServidor_(id, p) {
   var remitente = cuentaServidor_(p.usuario);
-  var carpeta = carpetaDeRecepcion_(DriveApp.getFolderById(exigirCarpeta_()), p);
+  var carpeta = carpetaRecepcionServidor_(p);
   // Solo el acuse de entrega vive aqui: no se registran conteos ni historico en Sheets.
   var control = carpetaDe_(carpeta, 'entregas');
   var nombre = 'entrega_' + id + '.json';
@@ -88,6 +121,21 @@ function finalizarServidor_(id, p) {
   if (acuse.estado === 'ENTREGADA') return acuse;
   if (acuse.estado === 'CORREO_EN_CURSO') return {
     exito: false, revision: true, mensaje: 'Comprueba el correo enviado antes de repetir: confirmacion interrumpida.' };
+  var ids = {};
+  (p.archivos || []).forEach(function(a) { ids[a.fileId] = true; });
+  var colocados = {};
+  (p.manifiesto || []).forEach(function(f) {
+    if (!ids[f.fileId]) throw new Error('La evidencia no pertenece a la entrega.');
+    var archivoFoto = DriveApp.getFileById(f.fileId);
+    var destino = carpetaEvidenciaServidor_(carpeta,f), nombreFoto = limpiarNombre_(f.nombreFinal);
+    if (!colocados[f.fileId]) {
+      archivoFoto.moveTo(destino); archivoFoto.setName(nombreFoto); colocados[f.fileId] = true;
+    } else {
+      var enlaces = destino.getFilesByName(nombreFoto), existe = false;
+      while(enlaces.hasNext()) { var enlace = enlaces.next(); if(enlace.getId() === f.fileId || (enlace.getTargetId && enlace.getTargetId() === f.fileId)) existe = true; }
+      if(!existe) {var acceso = DriveApp.createShortcut(f.fileId);acceso.moveTo(destino);acceso.setName(nombreFoto);}
+    }
+  });
   var sheet = '';
   // Solo una exportacion solicitada expresamente crea un Sheet nuevo.
   if (p.exportarSheet) {
@@ -120,7 +168,7 @@ function finalizarServidor_(id, p) {
     }, { email: p.usuario });
   }
   acuse = { exito: true, id: id, carpeta: carpeta.getUrl(), sheet: sheet,
-    carpetaFotos: (p.archivos || []).some(function(a) { return a.tipoArchivo === 'foto'; }) ? carpetaDe_(carpeta, 'imagenes').getUrl() : '',
+    carpetaFotos: (p.archivos || []).some(function(a) { return a.tipoArchivo === 'foto'; }) ? (p.cliente ? carpeta.getUrl() : carpetaDe_(carpeta, 'imagenes').getUrl()) : '',
     enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA' };
   archivo.setContent(JSON.stringify(acuse));
   return acuse;

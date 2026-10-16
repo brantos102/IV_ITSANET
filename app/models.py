@@ -547,3 +547,73 @@ class AppEntrega(Base):
     usuario: Mapped[str] = mapped_column(String(120))
     proximo_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
     creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppIngreso(Base):
+    __tablename__ = 'app_ingresos'
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), primary_key=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA, default=dict)
+    actualizado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppUnidadLogistica(Base):
+    __tablename__ = 'app_unidades_logisticas'
+    __table_args__ = (UniqueConstraint('recepcion', 'tipo', 'numero', name='uq_app_unidad_fisica'),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    tipo: Mapped[str] = mapped_column(String(20))
+    numero: Mapped[int] = mapped_column(Integer)
+    codigo: Mapped[str] = mapped_column(String(80), default='')
+    padre_id: Mapped[str | None] = mapped_column(ForeignKey('app_unidades_logisticas.id', ondelete='CASCADE'), index=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA, default=dict)
+
+
+class AppEvidencia(Base):
+    __tablename__ = 'app_evidencias'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    archivo_id: Mapped[str] = mapped_column(ForeignKey('app_archivos.id', ondelete='CASCADE'), index=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    unidad_id: Mapped[str | None] = mapped_column(ForeignKey('app_unidades_logisticas.id', ondelete='CASCADE'), index=True)
+    sku: Mapped[str | None] = mapped_column(String(80), index=True)
+    origen: Mapped[str | None] = mapped_column(String(40))
+    categoria: Mapped[str] = mapped_column(String(20))
+    tipo: Mapped[str] = mapped_column(String(40))
+    protocolo: Mapped[str] = mapped_column(String(20))
+    usuario: Mapped[str] = mapped_column(String(120))
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+    eliminado_en: Mapped[datetime | None] = mapped_column(FECHA)
+
+
+class AppCopiaDrive(Base):
+    __tablename__ = 'app_copias_drive'
+    archivo_id: Mapped[str] = mapped_column(ForeignKey('app_archivos.id', ondelete='CASCADE'), primary_key=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    estado: Mapped[str] = mapped_column(String(20), default='PENDIENTE', index=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA)
+    usuario: Mapped[str] = mapped_column(String(120))
+    intentos: Mapped[int] = mapped_column(Integer, default=0)
+    proximo_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+    error: Mapped[str | None] = mapped_column(String(160))
+
+
+class AppStockDepot(Base):
+    __tablename__ = 'app_stock_depot'
+    sku: Mapped[str] = mapped_column(String(80), primary_key=True)
+    cliente: Mapped[str] = mapped_column(String(60), primary_key=True)
+    posiciones: Mapped[list] = mapped_column(JSON_MAPA, default=list)
+    actualizado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
+class AppImpresion(Base):
+    __tablename__ = 'app_impresiones'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    clave: Mapped[str] = mapped_column(String(80), unique=True)
+    estacion: Mapped[str] = mapped_column(String(40), index=True)
+    recepcion: Mapped[str | None] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    usuario: Mapped[str] = mapped_column(String(120))
+    estado: Mapped[str] = mapped_column(String(20), default='PENDIENTE', index=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA)
+    reserva: Mapped[str | None] = mapped_column(String(64))
+    reservado_en: Mapped[datetime | None] = mapped_column(FECHA)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+    actualizado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)

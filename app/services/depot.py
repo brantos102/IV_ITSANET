@@ -379,6 +379,8 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
         )
 
     filas = api.stock()
+    from app.services.catalogo_programado import guardar_posiciones
+    guardar_posiciones(db, filas, api.cliente)
     ambiguos = set()
     propietarios = {}
     if evitar_conflictos:

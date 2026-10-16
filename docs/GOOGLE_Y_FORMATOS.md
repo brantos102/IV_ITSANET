@@ -6,6 +6,11 @@ en ADMIN y en propiedades privadas de Apps Script, nunca en Git ni en el chat.
 
 ## Aplicar esta actualización al servidor
 
+Las nuevas mejoras se prueban primero en `desarrollo-local`, puerto 3003.
+Seguir [la guía de desarrollo](INGRESO_EVIDENCIAS_E_IMPRESION.md); los comandos
+siguientes corresponden a la rama operativa y no despliegan esas mejoras.
+Para OAuth en desarrollo registrar `http://localhost:3003/api/auth/google/callback`.
+
 En la terminal SSH de VS Code, no en un PowerShell desconectado del servidor:
 
 ```bash

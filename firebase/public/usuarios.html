@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-25"></script>
+<script src="./js/arranque.js?v=20261015-26"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Usuarios — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-25">
+<link rel="stylesheet" href="./css/marca.css?v=20261015-26">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -113,9 +113,9 @@
 import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
   normalizarAlias, enviarRestablecimiento, modoLocal,
-} from './js/auth.js?v=20261015-25';
-import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261015-25';
-import { pedirDatos, confirmar } from './js/modal.js?v=20261015-25';
+} from './js/auth.js?v=20261015-26';
+import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261015-26';
+import { pedirDatos, confirmar } from './js/modal.js?v=20261015-26';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null, fichas = new Map();
@@ -419,7 +419,7 @@ $('bCambiarClave').addEventListener('click', async () => {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
 }
 </script>
 </body>

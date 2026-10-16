@@ -90,7 +90,8 @@ def test_fotos_por_item_sin_conteo_y_una_copia_para_varios_items(cliente, db, mo
         assert r.status_code == 201, r.text
     ident = r.json()['id']
     assert db.query(AppArchivo).count() == 1 and db.query(AppArchivoSku).count() == 2
-    assert db.query(AppEvento).count() == 0
+    assert db.query(AppEvento).filter(AppEvento.tipo == 'CONTEO').count() == 0
+    assert db.query(AppEvento).filter(AppEvento.tipo == 'AUDITORIA').count() == 2
     galeria = '/api/app/recepciones/PRUEBA-LOCAL/imagenes'
     for sku in ['SKU1', 'SKU2']:
         r = cliente.get(galeria, params={'sku': sku})

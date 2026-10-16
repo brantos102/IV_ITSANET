@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-25"></script>
+<script src="./js/arranque.js?v=20261015-26"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>KPIs — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-25">
-<script src="./vendor/xlsx.full.min.js?v=20261015-25" defer></script>
-<script src="./vendor/jspdf.umd.min.js?v=20261015-25" defer></script>
-<script src="./vendor/jspdf.plugin.autotable.min.js?v=20261015-25" defer></script>
+<link rel="stylesheet" href="./css/marca.css?v=20261015-26">
+<script src="./vendor/xlsx.full.min.js?v=20261015-26" defer></script>
+<script src="./vendor/jspdf.umd.min.js?v=20261015-26" defer></script>
+<script src="./vendor/jspdf.plugin.autotable.min.js?v=20261015-26" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -126,13 +126,13 @@
 </div>
 
 <script type="module">
-import { observarSesion, traducirError } from './js/auth.js?v=20261015-25';
-import { conectarGlosario } from './js/glosario.js?v=20261015-25';
-import { parecidos, avisoDeParecidos } from './js/sugerir.js?v=20261015-25';
+import { observarSesion, traducirError } from './js/auth.js?v=20261015-26';
+import { conectarGlosario } from './js/glosario.js?v=20261015-26';
+import { parecidos, avisoDeParecidos } from './js/sugerir.js?v=20261015-26';
 import {
   recepcionesDesde, detalleDe, indicadoresDe, consolidar, porOperario,
   skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf, filtrarDetalles, referenciasDe,
-} from './js/kpi.js?v=20261015-25';
+} from './js/kpi.js?v=20261015-26';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null;
@@ -609,7 +609,7 @@ $('bPdf').addEventListener('click', async () => {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
 }
 </script>
 </body>

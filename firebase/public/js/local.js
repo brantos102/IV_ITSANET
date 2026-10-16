@@ -134,7 +134,7 @@ export async function borrarRecepcion(recepcionId, alAvanzar) {
   // Firestore había que recorrer cada subcolección y tardaba.
   const total = Object.values(r.borrado || {}).reduce((a, b) => a + b, 0);
   if (alAvanzar) alAvanzar(total, total);
-  return r;
+  return {...r, borrados: total, huerfanas: []};
 }
 
 export const cerrarRecepcion = (id) =>

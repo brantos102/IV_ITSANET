@@ -1,0 +1,28 @@
+import {createRequire} from 'node:module';
+import {cargar,test,eq,ok,resumen} from './cargador.mjs';
+const require=createRequire(import.meta.url);globalThis.XLSX=require('xlsx');
+const {leerPackingList}=await cargar('datos.js');
+const {generarZpl}=await cargar('etiquetas.js');
+function libro(filas){const b=XLSX.utils.book_new();XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet(filas),'CLIENTE NUEVO');return b;}
+function leer(b,o){return leerPackingList(XLSX.write(b,{type:'array',bookType:'xlsx'}),o);}
+await test('mapea fila física 4, conserva encabezados y ceros de SKU',()=>{
+  const b=libro([['Título'],[],[],['Pieza propia','Detalle','Volumen'],['00123','Producto',7]]);
+  const r=leer(b,{hoja:'CLIENTE NUEVO',encabezado:4,columnas:{0:'sku',1:'descripcion',2:'cantidad'}});
+  eq(r.filaEncabezado,4);eq(r.lineas[0].sku,'00123');eq(r.lineas[0].cantidad,7);eq(r.encabezados,['Pieza propia','Detalle','Volumen']);
+});
+await test('SKU numérico con formato 000000 conserva los ceros',()=>{
+  const b=libro([['SKU','CANTIDAD'],[123,1]]);b.Sheets['CLIENTE NUEVO'].A2.z='000000';
+  const r=leer(b);eq(r.lineas[0].sku,'000123');eq(r.lineas[0].cruda[0],'000123');
+});
+await test('rechaza cantidades negativas o texto; permite cero declarado',()=>{
+  for(const n of [-1,-2,'sin dato']){let fallo=false;try{leer(libro([['SKU','CANTIDAD'],['A1',n]]));}catch(e){fallo=/cantidad/.test(e.message);}ok(fallo);}
+  eq(leer(libro([['SKU','CANTIDAD'],['A1',0]])).lineas[0].cantidad,0);
+});
+await test('código numérico demasiado largo solicita texto sin redondearlo',()=>{
+  let fallo=false;try{leer(libro([['SKU','CANTIDAD'],[1234567890123456,1]]));}catch(e){fallo=/texto/.test(e.message);}ok(fallo);
+});
+await test('siete copias unitarias incluyen cantidad 1 y ambos códigos de barras',()=>{
+  const z=generarZpl({sku:'SKU1',serie:'SERIE1',cantidad:1,copias:7});ok(z.includes('^PQ7'));eq(z.match(/\^BCN/g).length,2);
+  for(const copias of [0,-1,1.5,5001]){let fallo=false;try{generarZpl({sku:'SKU1',cantidad:1,copias});}catch{fallo=true;}ok(fallo,'copias '+copias);}
+});
+resumen();

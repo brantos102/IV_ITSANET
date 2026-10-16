@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('iniciar', 'estado', 'detener', 'logs', 'acceso')]
+    [ValidateSet('iniciar', 'estado', 'detener', 'logs', 'acceso', 'impresora')]
     [string]$Accion = 'iniciar',
     [ValidateRange(1024, 65535)][int]$Puerto = 3003
 )
@@ -15,6 +15,12 @@ function NuevaClave {
     return ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
 }
 
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    $DockerInstalado = Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin\docker.exe'
+    if (Test-Path $DockerInstalado) {
+        $env:Path = (Split-Path -Parent $DockerInstalado) + ';' + $env:Path
+    }
+}
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw 'Falta Docker Desktop. En PowerShell: winget install --exact --id Docker.DockerDesktop . Abre Docker Desktop, usa contenedores Linux y vuelve a ejecutar este script.'
 }
@@ -51,6 +57,12 @@ switch ($Accion) {
         Write-Host 'Usuario: admin. Consulta la clave inicial con: .\scripts\local.ps1 -Accion acceso'
     }
     'estado' { & docker @opciones ps }
+    'impresora' {
+        if (-not (Test-Path (Join-Path $CarpetaLocal 'puente.json'))) {
+            throw 'Configura la estacion en Administracion y guarda el JSON privado como .local\puente.json. Para el agente de este Compose usa servidor http://app:3002.'
+        }
+        & docker @opciones --profile impresion up --detach agente-impresion
+    }
     'detener' { & docker @opciones stop }
     'logs' { & docker @opciones logs --tail 80 app mysql }
     'acceso' {

@@ -11,3 +11,16 @@
 .galeria-imagenes { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:16px 0; }
 .galeria-imagenes figure { margin:0; border:1px solid #dbe3ef; border-radius:12px; padding:10px; overflow-wrap:anywhere; }
 .galeria-imagenes img { display:block; width:100%; height:160px; object-fit:contain; border-radius:8px; }
+/* Diálogos operativos: pasos y acciones utilizables en handheld. */
+[hidden]{display:none!important}
+.dialogo-operativo{width:min(960px,96vw);max-width:96vw;max-height:92dvh;overflow:auto;border:1px solid var(--border);border-radius:20px;padding:20px;background:var(--surface);color:var(--primary)}
+.dialogo-operativo::backdrop{background:rgba(15,23,42,.5)}
+.dialogo-operativo input,.dialogo-operativo select{max-width:100%;min-width:0}
+.dialogo-operativo details{margin:14px 0;padding:12px;border:1px solid var(--border);border-radius:12px}
+.pasos-ingreso{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px}
+.pasos-ingreso span{background:var(--bg);padding:8px 12px;border-radius:20px;font-size:12px;font-weight:700}
+.unidad-logistica{display:flex;align-items:center;flex-wrap:wrap;gap:10px;border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0}
+.unidad-logistica .mini{overflow-wrap:anywhere}
+.acciones-item{position:sticky;top:0;z-index:2;background:var(--surface);padding:8px 0;display:flex;gap:8px;flex-wrap:wrap}
+.acciones-item button{min-height:44px;flex:1;font-size:13px}
+@media(max-width:520px){.dialogo-operativo{padding:14px}.dialogo-operativo .rejilla{grid-template-columns:1fr}.unidad-logistica button{flex:1;min-height:44px}}

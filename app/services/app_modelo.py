@@ -247,7 +247,7 @@ def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0, *,
         q = select(AppLinea).where(AppLinea.recepcion == codigo).order_by(AppLinea.orden)
         return [doc_linea(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
     if nombre == "skus":
-        q = select(AppSku).where(AppSku.recepcion == codigo).order_by(AppSku.sku)
+        q = select(AppSku).where(AppSku.recepcion == codigo).order_by(AppSku.verificado.desc(), AppSku.actualizado_en.desc(), AppSku.sku)
         return [doc_sku(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
     if nombre == "adicionales":
         q = (select(AppSku)
@@ -580,6 +580,7 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
         "observacion": limpiar(p.get("observacion")) or None,
         "fotos": p.get("fotos") or [],
         "operadorNombre": limpiar(p.get("operadorNombre")) or None,
+        "interpretacionLectura": limpiar(p.get("interpretacionLectura"))[:500] or None,
     }
     db.add(AppEvento(
         id=idem, recepcion=codigo, tipo=limpiar(p.get("tipo")) or "CONTEO", sku=sku,
@@ -619,6 +620,7 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
     return {
         "duplicado": False, "eventoId": idem, "sku": sku,
         "cantidadRegistrada": cantidad, "pallet": pallet,
+        "actualizadoEn": _iso(s.actualizado_en),
         "esperado": esperado, "contado": a_numero(s.contado, 0),
         "pendiente": max(esperado - a_numero(s.contado, 0), 0),
         "estado": s.estado,
