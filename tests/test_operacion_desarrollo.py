@@ -280,3 +280,15 @@ def test_bloqueo_fotos_solo_si_admin_lo_habilita_y_operador_no_modifica_formato(
     assert cliente.put('/api/operacion/recepciones/INGRESO/ingreso',json={'protocolo':'REGLAMENTARIO'}).status_code==200
     assert cliente.put('/api/operacion/recepciones/INGRESO/ingreso',json={'paso':'PACKING'}).status_code==409
     assert cliente.put('/api/operacion/formatos-packing/VENTURA',json={}).status_code==403
+
+
+def test_identificador_de_conteo_no_se_reutiliza_en_otra_recepcion(cliente):
+    for codigo in ['INGRESO','OTRA']:
+        rec(cliente,codigo)
+        assert cliente.post(f'/api/app/recepciones/{codigo}/packing-list',json={
+            'resultado':{'lineas':[{'sku':'SKU1','cantidad':1,'linea':1}], 'porSku':{'SKU1':1},'unidades':1}, 'origen':'PRINCIPAL'}).status_code==200
+    cuerpo={'sku':'SKU1','cantidad':1,'pallet':'A1','idempotencyKey':'misma-clave-prueba'}
+    assert cliente.post('/api/app/recepciones/INGRESO/conteos',json=cuerpo).status_code==200
+    r=cliente.post('/api/app/recepciones/OTRA/conteos',json=cuerpo)
+    assert r.status_code==409 and r.json()['detail']['codigo']=='CLAVE_EN_CONFLICTO'
+    assert cliente.get('/api/app/recepciones/OTRA/skus').json()[0]['contado']==0

@@ -53,7 +53,11 @@ globalThis.fetch = async (ruta, opciones = {}) => {
   return r;
 };
 
-const REC = 'REC' + Date.now().toString().slice(-7);
+const corrida = Date.now().toString() + Math.random().toString(36).slice(2,6);
+const REC = 'REC' + corrida.toUpperCase();
+const aliasPrueba = 'ana' + corrida;
+const correoPrueba = aliasPrueba + '@itsanet.com';
+const eventoPrueba = n => REC + '-ev' + n;
 const LINEAS = Array.from({ length: 22 }, (_, i) => ({
   linea: i + 1, sku: `SKU${String(i + 1).padStart(3, '0')}`,
   descripcion: `PIEZA ${i + 1}`, cantidad: 10,
@@ -86,21 +90,21 @@ await test('una contraseña mal puesta se distingue de una sesión caducada', as
 });
 
 await test('solicitud pendiente, aprobacion por supervisor y acceso por correo', async () => {
-  const r = await local.registrarse({ nombre: 'Ana', apellido: 'Torres', usuario: 'ana',
-    correo: 'ana@itsanet.com', clave: 'prueba123' });
+  const r = await local.registrarse({ nombre: 'Ana', apellido: 'Torres', usuario: aliasPrueba,
+    correo: correoPrueba, clave: 'prueba123' });
   eq(r.activo, false);
   const sesionSupervisor = galleta;
   galleta = '';
   let codigo;
-  try { await local.entrarConClave('ana@itsanet.com', 'prueba123'); }
+  try { await local.entrarConClave(correoPrueba, 'prueba123'); }
   catch (e) { codigo = e.codigo; }
   eq(codigo, 'PENDIENTE_APROBACION');
   galleta = sesionSupervisor;
-  const fila = (await local.listarUsuarios()).find((u) => u.usuario === 'ana');
-  eq(fila.email, 'ana@itsanet.com');
+  const fila = (await local.listarUsuarios()).find((u) => u.usuario === aliasPrueba);
+  eq(fila.email, correoPrueba);
   await local.actualizarUsuario(fila, { activo: true });
-  await local.entrarConClave(' ANA@ITSANET.COM ', 'prueba123');
-  eq((await local.sesionLocal()).usuario, 'ana');
+  await local.entrarConClave(' '+correoPrueba.toUpperCase()+' ', 'prueba123');
+  eq((await local.sesionLocal()).usuario, aliasPrueba);
   await local.salir();
   await local.entrarConClave(USUARIO, CLAVE);
 });
@@ -125,7 +129,7 @@ await test('22 filas entran como 22 filas', async () => {
 
 await test('el conteo vuelve con los nombres de campo que lee la pantalla', async () => {
   const r = await local.registrarConteo(REC, null, {
-    idempotencyKey: 'ev1', sku: 'SKU001', cantidad: 6,
+    idempotencyKey: eventoPrueba(1), sku: 'SKU001', cantidad: 6,
     pallet: 'A1-B04-C1', origen: 'PRINCIPAL', estadoFisico: 'OK',
   });
   eq(r.duplicado, false);
@@ -140,7 +144,7 @@ await test('el conteo vuelve con los nombres de campo que lee la pantalla', asyn
 
 await test('repetir el envío no cuenta dos veces', async () => {
   const r = await local.registrarConteo(REC, null, {
-    idempotencyKey: 'ev1', sku: 'SKU001', cantidad: 6, pallet: 'A1-B04-C1',
+    idempotencyKey: eventoPrueba(1), sku: 'SKU001', cantidad: 6, pallet: 'A1-B04-C1',
   });
   eq(r.duplicado, true);
   eq(r.contado, 6);
@@ -150,7 +154,7 @@ await test('un sobrante llega con el código que abre el diálogo', async () => 
   let e = null;
   try {
     await local.registrarConteo(REC, null, {
-      idempotencyKey: 'ev2', sku: 'SKU002', cantidad: 99, pallet: 'A1',
+      idempotencyKey: eventoPrueba(2), sku: 'SKU002', cantidad: 99, pallet: 'A1',
     });
   } catch (err) { e = err; }
   ok(e, 'tiene que parar');
@@ -159,7 +163,7 @@ await test('un sobrante llega con el código que abre el diálogo', async () => 
 });
 
 await test('anular escribe lo contrario en vez de borrar', async () => {
-  const r = await local.anularConteo(REC, null, 'ev1', 'se contó dos veces');
+  const r = await local.anularConteo(REC, null, eventoPrueba(1), 'se contó dos veces');
   eq(r.contado, 0);
   const eventos = await local.leerBitacora(REC);
   eq(eventos.length, 2, 'el original sigue ahí');
@@ -190,7 +194,7 @@ await test('y una recepción cerrada no admite más conteos', async () => {
   let e = null;
   try {
     await local.registrarConteo(REC, null, {
-      idempotencyKey: 'ev9', sku: 'SKU003', cantidad: 1, pallet: 'A1' });
+      idempotencyKey: eventoPrueba(9), sku: 'SKU003', cantidad: 1, pallet: 'A1' });
   } catch (err) { e = err; }
   eq(e?.codigo, 'RECEPCION_CERRADA');
 });

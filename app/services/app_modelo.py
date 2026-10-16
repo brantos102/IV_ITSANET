@@ -535,7 +535,10 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
 
     # 1. ¿Ya estaba escrito? Entonces la red se cortó DESPUÉS de guardar y el
     #    operario está repitiendo. No se cuenta dos veces.
-    if db.scalar(select(AppEvento).where(AppEvento.id == idem).with_for_update()) is not None:
+    anterior = db.scalar(select(AppEvento).where(AppEvento.id == idem).with_for_update())
+    if anterior is not None:
+        if anterior.recepcion != codigo or anterior.sku != sku:
+            raise ErrorApp('El identificador ya corresponde a otro movimiento. Inicia un nuevo registro.', 'CLAVE_EN_CONFLICTO')
         s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
             AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
         esperado = a_numero(s.esperado, 0) if s else 0

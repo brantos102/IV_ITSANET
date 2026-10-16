@@ -259,7 +259,7 @@ def _traducir(exc: m.ErrorApp) -> HTTPException:
         "NO_ENCONTRADA": 404, "NO_ENCONTRADO": 404,
         "DUPLICADA": 409, "ORIGEN_DUPLICADO": 409, "YA_CERRADA": 409,
         "NO_CERRADA": 409, "YA_ANULADO": 409, "RECEPCION_CERRADA": 409,
-        "CONFIRMAR_SOBRANTE": 409,
+        "CONFIRMAR_SOBRANTE": 409, "CLAVE_EN_CONFLICTO": 409,
     }.get(exc.codigo, 422)
     return HTTPException(estado, {"codigo": exc.codigo, "mensaje": str(exc)})
 
