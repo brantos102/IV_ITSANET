@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-28"></script>
+<script src="./js/arranque.js?v=20261016-29"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-29">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261016-28" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261016-28" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261016-29" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-29" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -32,7 +32,7 @@
 <div class="estado-red"><span id="redOperacion" role="status">Conectando con el servidor…</span><span id="progresoOperacion"></span></div>
 <nav class="vistas-operacion" aria-label="Vistas de validación">
   <button type="button" data-vista="contar" aria-pressed="true">Contar</button>
-  <button type="button" data-vista="inventario" aria-pressed="false">Recepción actual (rev)</button>
+  <button type="button" data-vista="inventario" aria-pressed="false">Recepción actual</button>
   <button type="button" data-vista="novedades" aria-pressed="false">Novedades</button>
 </nav>
 <div class="resumen-operacion" id="resumenOperacion"></div>
@@ -258,6 +258,7 @@
     </select>
     <button class="b-sec" id="bBitacora">Bitácora</button>
     <button class="b-sec" id="bFotosRecepcion">Imágenes de la recepción</button>
+    <button class="b-sec oculto" id="bPendientesDrive">Revisar envío a Drive</button>
     <button class="b-sec oculto" id="bExportar">Exportar ahora</button><button class="b-sec oculto" id="bHistorialInformes">Historial de informes</button><button class="b-sec oculto" id="bColumnasInforme">Columnas del informe</button>
     <button class="b-sec oculto" id="bCsvDepot">CSV para Depot</button>
     <button class="b-sec oculto" id="bReabrir">Reabrir</button>
@@ -301,37 +302,39 @@
 </dialog>
 
 <script type="module">
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-28';
-import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-28';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-28';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-29';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-29';
+import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-29';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-29';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-29';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261016-28';
+import { pedir as pedirLocal } from './js/local.js?v=20261016-29';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-28';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-28';
-import { observarSesion } from './js/auth.js?v=20261016-28';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-29';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-29';
+import { observarSesion } from './js/auth.js?v=20261016-29';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261016-28';
+} from './js/datos.js?v=20261016-29';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261016-28';
+} from './js/conteo.js?v=20261016-29';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261016-28';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-28';
-import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js?v=20261016-28';
-import { conectarGlosario } from './js/glosario.js?v=20261016-28';
-import { parecidos } from './js/sugerir.js?v=20261016-28';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-28';
+} from './js/informe.js?v=20261016-29';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-29';
+import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js?v=20261016-29';
+import { conectarGlosario } from './js/glosario.js?v=20261016-29';
+import { parecidos } from './js/sugerir.js?v=20261016-29';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-29';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261016-28';
-import { Proxy } from './js/proxy.js?v=20261016-28';
-import { modoLocal } from './js/local.js?v=20261016-28';
+} from './js/csv.js?v=20261016-29';
+import { Proxy } from './js/proxy.js?v=20261016-29';
+import { modoLocal } from './js/local.js?v=20261016-29';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -354,13 +357,8 @@ function esc(v) {
     (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 function aviso(texto, tipo = 'info', titulo = '') {
-  const d = document.createElement('div');
-  d.className = 'msg ' + tipo;
-  d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
-  const destinoAviso = document.body.classList.contains('ficha-activa') && tipo !== 'ok' ? $('avisosFicha') : $('avisos');
-  destinoAviso.appendChild(d);
-  if (destinoAviso.id === 'avisosFicha') d.scrollIntoView({block:'nearest'});
-  return d;
+  const destino = document.body.classList.contains('ficha-activa') && tipo !== 'ok' ? $('avisosFicha') : $('avisos');
+  return mostrarAviso(destino, texto, tipo, titulo);
 }
 const limpiarAvisos = () => { $('avisos').innerHTML = ''; $('avisosFicha').innerHTML = ''; };
 
@@ -436,7 +434,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261016-28');
+      const l=await import('./js/local.js?v=20261016-29');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -664,6 +662,7 @@ function aplicarEstado() {
   $('bHistorialInformes').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes);
   $('bCsvDepot').classList.toggle('oculto', !manda);
   $('bCerrar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.cerrarRecepciones:manda) || cerrada);
+  $('bPendientesDrive').classList.toggle('oculto', !modoLocal() || !perfil?.permisos?.cerrarRecepciones || cerrada);
   $('bReabrir').classList.toggle('oculto', !manda || !cerrada);
   $('panelEntrega').classList.toggle('oculto', !modoLocal() || !manda || !cerrada);
   if (modoLocal() && manda && cerrada) actualizarEntrega();
@@ -1795,8 +1794,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-28').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-28').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-29').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-29').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
             : cual === 'productos' ? csvDeProductos(formatos[1], datos)
             : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)
@@ -1871,6 +1870,10 @@ const traducirErrorLocal = (e) =>
   /permission/i.test(e?.message || '') ? 'Solo un supervisor puede reabrir.' : e.message;
 
 // --- Finalizar ------------------------------------------------------------ //
+const revisarCierre = () => abrirAyudaCierre({recepcion: RECEPCION,
+  alFinalizar: () => $('bCerrar').click(),
+  alDescargar: perfil?.permisos?.exportarInformes ? () => $('bExportar').click() : undefined});
+$('bPendientesDrive').onclick = () => revisarCierre().catch(e => aviso(e.message, 'err'));
 $('bCerrar').addEventListener('click', async () => {
   const r = resumir(skus);
 
@@ -1885,6 +1888,13 @@ $('bCerrar').addEventListener('click', async () => {
       'sin buscar. Cuéntalas, o declara «No apareció» con su nota. La tabla ya ' +
       'está filtrada por las que faltan.',
       'warn', 'No se puede cerrar todavía');
+  }
+
+  if (modoLocal()) {
+    try {
+      const pendientes = await pedirOperacion(`/recepciones/${encodeURIComponent(RECEPCION)}/pendientes-cierre?limite=1`);
+      if (pendientes.bloqueaCierre) { await revisarCierre(); return; }
+    } catch (e) { aviso(e.message, 'err', 'No se pudo comprobar el cierre'); return; }
   }
 
   // Las cifras del cierre, cada una en su línea. En el confirm() del navegador
@@ -2050,6 +2060,8 @@ $('bCerrar').addEventListener('click', async () => {
   } catch (e) {
     d.remove();
     aviso(e.message, 'err', 'No se completó el cierre');
+    if (e.codigo === 'EVIDENCIAS_PENDIENTES') await revisarCierre();
+  } finally {
     $('bCerrar').disabled = false;
   }
 });

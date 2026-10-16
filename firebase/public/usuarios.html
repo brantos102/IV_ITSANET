@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-28"></script>
+<script src="./js/arranque.js?v=20261016-29"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Usuarios — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-29">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -110,12 +110,13 @@
 </div>
 
 <script type="module">
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-29';
 import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
   normalizarAlias, enviarRestablecimiento, modoLocal,
-} from './js/auth.js?v=20261016-28';
-import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261016-28';
-import { pedirDatos, confirmar } from './js/modal.js?v=20261016-28';
+} from './js/auth.js?v=20261016-29';
+import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261016-29';
+import { pedirDatos, confirmar } from './js/modal.js?v=20261016-29';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null, fichas = new Map();
@@ -126,11 +127,7 @@ function esc(v) {
     (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 function aviso(texto, tipo = 'info', titulo = '', donde = 'avisos') {
-  const d = document.createElement('div');
-  d.className = 'msg ' + tipo;
-  d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
-  $(donde).appendChild(d);
-  return d;
+  return mostrarAviso($(donde), texto, tipo, titulo);
 }
 const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
 

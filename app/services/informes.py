@@ -53,6 +53,11 @@ def historial(db,codigo):
         .order_by(AppInforme.numero.desc()).limit(100))]
 
 
+def requiere_enlaces(meta):
+    return any('evidencia' in (f.get('salida') if f.get('salida') is not None else
+        {**f.get('columnas', {}), **meta['columnas']}) for f in meta['formatos'].values())
+
+
 def reservar(db,codigo,datos,usuario):
     r=m.obtener(db,codigo,bloquear=True)
     clave=str(datos.get('clave') or '')
@@ -67,10 +72,10 @@ def reservar(db,codigo,datos,usuario):
     tipo=datos.get('tipo')
     if tipo not in ('DESCARGA','CORREO'):raise HTTPException(422,'Tipo de generación inválido')
     meta=metadatos(db,r.codigo)
-    formatos=r.formatos or {}
-    necesita_enlaces=any('evidencia' in (f.get('salida') if f.get('salida') is not None else {**f.get('columnas',{}),**meta['columnas']}) for f in formatos.values())
-    if tipo=='CORREO' and necesita_enlaces and meta['evidenciasPendientes']:
-        raise HTTPException(409,'La columna de evidencia requiere carpetas confirmadas: hay fotos pendientes de Drive. Puedes descargar un avance y continuar contando; finaliza cuando la copia esté confirmada.')
+    if tipo=='CORREO' and requiere_enlaces(meta) and meta['evidenciasPendientes']:
+        n = meta['evidenciasPendientes']
+        raise HTTPException(409, {'codigo': 'EVIDENCIAS_PENDIENTES', 'pendientes': n,
+            'mensaje': f'{n} foto(s) ya guardadas esperan confirmación de Drive. No necesitas tomarlas otra vez. Revisa las fotos pendientes o descarga un avance mientras se completa la copia.'})
     ahora=datetime.now(ZoneInfo('America/Guayaquil'))
     numero=ultimo.numero+1 if ultimo else 1
     f=AppInforme(id=uuid4().hex,clave=clave,recepcion=r.codigo,numero=numero,tipo=tipo,estado='RESERVADO',

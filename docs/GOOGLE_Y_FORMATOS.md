@@ -283,7 +283,7 @@ o corregir los valores/mapeos en ADMIN y volver a exportar.
 Sin recepción seleccionada se muestran las abiertas; el escáner de conteo se
 oculta. Se puede buscar un SKU o EAN entre los packing lists abiertos y elegir
 la recepción. Consultar no registra unidades. Cacería mantiene guardado explícito.
-La pestaña se llama **Recepción actual (rev)**. El logo ITSANET lleva a Inicio.
+La pestaña se llama **Recepción actual**. El logo ITSANET lleva a Inicio.
 
 El dashboard permite fechas (horario Ecuador), cliente, estado, recepción,
 producto/descripción y etiquetas Completos, Por validar, Faltantes, Sobrantes,

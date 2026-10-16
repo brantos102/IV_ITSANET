@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-28"></script>
+<script src="./js/arranque.js?v=20261016-29"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261016-28" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-29" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-29">
 </head>
 <body>
 <div class="envoltorio">
@@ -321,18 +321,19 @@
 </div>
 
 <script type="module">
-import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-28';
-import { configurarOperacion } from './js/admin-operacion.js?v=20261016-28';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-28';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-28';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-28';
-import { confirmar } from './js/modal.js?v=20261016-28';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-29';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-29';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261016-29';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-29';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-29';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-29';
+import { confirmar } from './js/modal.js?v=20261016-29';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261016-28';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-28';
+} from './js/csv.js?v=20261016-29';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-29';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261016-28';
+  from './vendor/firebase-sdk.js?v=20261016-29';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -343,12 +344,7 @@ function esc(v) {
     (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 function aviso(texto, tipo = 'info', titulo = '') {
-  const d = document.createElement('div');
-  d.className = 'msg ' + tipo;
-  d.innerHTML = (titulo ? `<b>${esc(titulo)}</b>` : '') + esc(texto);
-  $('avisos').appendChild(d);
-  d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  return d;
+  return mostrarAviso($('avisos'), texto, tipo, titulo);
 }
 const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
 

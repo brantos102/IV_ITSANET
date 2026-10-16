@@ -2,7 +2,7 @@
 import hashlib
 import re
 from uuid import uuid4
-from fastapi import APIRouter, Depends, Body, HTTPException, Request
+from fastapi import APIRouter, Depends, Body, HTTPException, Request, Query
 from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 from app.db import get_db
@@ -64,6 +64,19 @@ def corregir_calidad(codigo:str,ident:str,datos:dict=Body(...),db:Session=Depend
 def metadatos_informe(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('exportarInformes'))):
     from app.services.informes import metadatos
     return metadatos(db,codigo)
+
+
+@router.get('/recepciones/{codigo}/pendientes-cierre')
+def pendientes_cierre(codigo: str, offset: int = Query(0, ge=0), limite: int = Query(30, ge=1, le=100),
+                      db: Session = Depends(get_db), _=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.drive import pendientes_cierre
+    return pendientes_cierre(db, codigo, offset, limite)
+
+
+@router.post('/recepciones/{codigo}/drive/reintentar')
+def reintentar_drive(codigo: str, db: Session = Depends(get_db), op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.drive import reintentar_pendientes
+    return reintentar_pendientes(db, codigo, op.email or op.usuario)
 
 @router.get('/recepciones/{codigo}/informes')
 def historial_informes(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('exportarInformes'))):

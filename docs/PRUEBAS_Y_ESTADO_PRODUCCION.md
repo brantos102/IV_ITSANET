@@ -34,8 +34,9 @@ Antes: respaldo recuperable de MySQL, archivos pendientes y clave de cifrado;
 ensayo de restauración en pruebas; revisión de migraciones y compatibilidad.
 No sustituir la base real por la de pruebas ni ejecutar fixtures sobre ella.
 La reversión de código no revierte automáticamente una migración de esquema.
-Preservar el cambio local en `mysql/01-crear-base.sql`. Esta entrega solo añade
-diagnóstico y documentación; no requiere actualizar ni reiniciar la app real.
+Preservar el cambio local en `mysql/01-crear-base.sql`. El diagnóstico de este
+documento no necesita reiniciar la app. Para actualizar las mejoras funcionales,
+seguir [CIERRE_VALIDACION_Y_PASE.md](CIERRE_VALIDACION_Y_PASE.md).
 
 ## Capturar estado ahora sin actualizar producción
 
@@ -122,15 +123,16 @@ de entrega pueden crecer por las instantáneas de cierre, aunque no haya fotos
 dentro de MySQL. El informe enumera columnas binarias presentes sin leerlas.
 
 Actualmente el archivo se guarda temporalmente en `VAL_DATA_DIR/app_archivos`.
-Al cerrar la recepción, el trabajador lo copia a Drive, confirma el ID en
+Durante la recepción, la cola independiente lo copia a Drive, confirma el ID en
 MySQL y elimina la foto local. Los informes locales se conservan. Si Drive
 falla, la evidencia queda protegida en disco y la entrega pendiente.
 Una recepción abierta puede tener fotos pendientes aunque el puente funcione.
 No borrar esa carpeta manualmente ni desactivar esta protección en producción.
 
-Drive será el repositorio definitivo. Para enviar las imágenes mientras la
-recepción sigue abierta, el siguiente cambio debe ser una cola independiente
-con reintentos e idempotencia, ensayada en pruebas; hoy se envían al cierre.
+Drive es el repositorio definitivo. La cola de imágenes conserva sus
+identificadores al reintentar y copia también mientras la recepción sigue
+abierta. En **Recepción actual → Revisar envío a Drive** el supervisor puede
+identificar las fotos pendientes y programar un reintento sin repetir el correo.
 No es necesario guardar fotos en MySQL ni en Sheets. Mantener solo memoria
 temporal perdería evidencia si se reinicia el servicio.
 

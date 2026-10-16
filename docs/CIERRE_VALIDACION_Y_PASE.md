@@ -24,6 +24,8 @@ Abrir `http://localhost:3003/app/`. El volumen de MySQL y la contraseña inicial
 - Los dos modelos de altas de Depot siguen editables y aparecen contraídos. La plantilla adicional de barras se retiró del menú; registrar una etiqueta nueva sigue asociándola al SKU existente y permite incluirla en el packing list mediante su columna.
 - Historial de informes conserva versiones R0001, R0002… con identificador, autor, hora de Ecuador y descarga solicitada. La confirmación de una descarga HTTP no demuestra que el dispositivo haya guardado físicamente el archivo. El estado ENVIADO requiere confirmación del puente Google; EN_COLA no significa enviado. Los archivos anteriores se conservan al generar otra versión.
 - El equipo activo se actualiza cada 45 segundos y expira a los dos minutos sin actividad visible. El historial de autores se mantiene separado. La sesión se retira de presencia al cerrar sesión.
+- Los avisos aparecen en la pantalla visible sin desplazar al usuario ni quitar el foco al escáner. Los errores y advertencias se pueden cerrar; conservan su copia en la sección de mensajes.
+- **Revisar envío a Drive** identifica las fotos ya guardadas que todavía esperan confirmación: nombre, SKU, tipo, bulto y packing list. Permite revisar imágenes, reintentar la copia y descargar un avance. Al confirmar Drive, permite continuar con el cierre y elegir destinatarios. No pide repetir fotos ni envía correo desde la revisión. Las recomendaciones fotográficas siguen sin bloquear el avance.
 
 ## Comprobar Google desde una cuenta real
 
@@ -54,7 +56,48 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. Instalar dependencias en la `.venv` de este proyecto, reiniciar únicamente `iv-itsanet`, y comprobar `/health`, sesión, consulta de una recepción existente y registros de prueba. El frontend usa versión `20261016-28`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-29`; recargar las pantallas antes de retomar operación.
+
+### Ejecutar el pase desde la terminal del servidor
+
+La etiqueta de esta entrega es `itsanet-20261016-cierre-guiado`. Tras avisar a los
+operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
+en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
+
+```bash
+cd ~/bryan/IV_ITSANET &&
+git fetch origin tag itsanet-20261016-cierre-guiado &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-cierre-guiado^{commit}') &&
+SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
+git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
+bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
+```
+
+El procedimiento prepara las dependencias antes de detener el servicio, comprueba
+la carpeta operativa y los cambios locales, y necesita `sudo`, `systemd-run` y
+`mysqldump` o `mariadb-dump`. Si falta este último, se detiene antes de pausar la
+app. El usuario MySQL del servicio debe poder exportar sus tablas y disparadores.
+Una conexión con opciones TLS especiales requiere un respaldo compatible y se
+rechaza antes de detener el servicio, sin desactivar verificaciones.
+
+Pausa únicamente `iv-itsanet`. Guarda MySQL, `VAL_DATA_DIR` completo —incluida la
+clave de cifrado—, el entorno operativo y el cambio local SQL en un directorio
+privado `~/bryan/respaldos-itsanet/pase-...`. Comprueba la integridad de los archivos
+comprimidos y registra sus hashes. Aplica el commit por avance directo, instala
+las dependencias preparadas y comprueba el servicio y `/health`. Si falla después
+de detenerlo, intenta recuperar el código anterior y arrancar el servicio; no
+restaura una base antigua sobre registros nuevos. Una recuperación de código
+puede dejar el repositorio en HEAD separado, identificado en el respaldo.
+
+No importa bases, recepciones de prueba, usuarios, secretos ni volúmenes Docker
+de desarrollo. Conserva las conexiones ya guardadas en producción. Si Drive se
+configuró únicamente en localhost, registrar el puente y repositorio desde ADMIN
+de producción con los mismos permisos de Google; no copiar toda la base para
+transportar esa configuración.
+
+Al terminar, revisar una recepción real existente, sus cantidades e imágenes,
+registrar un conteo controlado y verificar Drive desde ADMIN. Solo entonces avisar
+a los operadores para recargar y retomar. La cámara móvil sigue requiriendo HTTPS.
 
 Si falla la comprobación del arranque, volver al código anterior con su mismo entorno; las tablas agregadas pueden permanecer y no requieren restaurar una base antigua sobre conteos nuevos. Si la recuperación exige restaurar datos, detener las escrituras y reconciliar primero lo registrado después del respaldo. No ejecutar las pruebas destructivas en la base real.
 
@@ -67,3 +110,16 @@ Se verificaron conteos concurrentes sobre MySQL con 80 unidades: 10 PNC y 70 con
 En Chromium móvil se ejercitaron registro parcial, mapeo de columnas, exportación archivada, promoción/aprobación por supervisor y ocultación del diagnóstico. En un origen HTTP de prueba sin `crypto.randomUUID` funcionaron sesión, escaneo manual, historial y Administración. Se comprobó la selección de etiquetas para 4 unidades conformes de un SKU con otras 2 PNC: cuatro copias de una unidad.
 
 Muestras con datos sintéticos: [revisión de incidencias](muestras/revision-incidencias-movil.png) y [gestión por supervisor](muestras/permisos-supervisor-movil.png). Ninguna de estas comprobaciones envió un correo real, imprimió en una Zebra física ni modificó el servidor empresarial.
+
+La entrega `itsanet-20261016-cierre-guiado` pasó 864 comprobaciones de la suite
+completa (441 Python y 423 JavaScript). Los cinco casos del cierre guiado pasaron
+también contra MySQL 8.4 aislado. La prueba de navegador móvil verificó avisos sin
+desplazamiento ni pérdida de foco, visibilidad sobre diálogos y reintento seguido
+de confirmación. [Muestra de la ayuda de cierre](muestras/cierre-pendiente-movil.png)
+con datos sintéticos y respuestas simuladas de Drive.
+
+El procedimiento de pase se ensayó con servicios simulados: éxito, fallo de
+respaldo y fallo de salud, conservando datos y SQL local. Además se generó y
+restauró el SQL de una base MySQL 8.4 desechable, distinta de la de desarrollo.
+Estas pruebas no sustituyen el respaldo ni la comprobación de salud en el
+servidor real.

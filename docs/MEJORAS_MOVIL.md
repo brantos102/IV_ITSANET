@@ -136,10 +136,10 @@ Tambien comprobar directamente en un handheld de la red.
 5. Posicion, observaciones, ubicaciones e historial estan disponibles al
    desplegarlos. PNC abre observaciones y mantiene captura de fotos; DP abre
    la posicion real. No aparecio sigue exigiendo nota y confirmacion.
-6. **Recepción actual (rev):** referencias en tarjetas para movil, filtros y etiquetas.
+6. **Recepción actual:** referencias en tarjetas para movil, filtros y etiquetas.
    **Novedades:** recorta las referencias revisadas con diferencias o PNC.
-   Las referencias pendientes siguen visibles en Recepción actual (rev).
-7. El supervisor finaliza o exporta desde Recepción actual (rev). El cierre y la entrega
+   Las referencias pendientes siguen visibles en Recepción actual.
+7. El supervisor finaliza o exporta desde Recepción actual. El cierre y la entrega
    conservan los estados pendientes y reintentos de la version anterior.
 
 ## Zebra ZD421-203dpi ZPL · formato existente 10 X 5

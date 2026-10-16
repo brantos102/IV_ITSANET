@@ -18,6 +18,66 @@ from app.services import app_modelo as m
 _verificados = {}
 
 
+def pendientes_cierre(db, codigo, offset=0, limite=30):
+    """Solo información operativa: no expone remitentes, claves ni errores del puente."""
+    from app.services.informes import metadatos, requiere_enlaces
+    codigo = m.obtener(db, codigo).codigo
+    meta = metadatos(db, codigo)
+    filas = db.execute(select(AppArchivo, AppEvidencia, AppCopiaDrive, AppUnidadLogistica)
+        .join(AppEvidencia, AppEvidencia.archivo_id == AppArchivo.id)
+        .outerjoin(AppCopiaDrive, AppCopiaDrive.archivo_id == AppArchivo.id)
+        .outerjoin(AppUnidadLogistica, AppUnidadLogistica.id == AppEvidencia.unidad_id)
+        .where(AppEvidencia.recepcion == codigo, AppEvidencia.eliminado_en.is_(None),
+            AppEvidencia.sku.is_not(None), AppEvidencia.sku != '')
+        .order_by(AppArchivo.creado_en, AppArchivo.id, AppEvidencia.id))
+    pendientes = {}
+    for a, e, j, u in filas:
+        if j and j.estado == 'COPIADA' and (j.datos.get('carpetaSkuUrl') or j.datos.get('carpeta')):
+            continue
+        f = pendientes.setdefault(a.id, {'archivoId': a.id, 'nombre': a.nombre,
+            'estado': j.estado if j else 'SIN_COLA', 'intentos': j.intentos if j else 0,
+            'proximoEn': m._iso(j.proximo_en) if j else None,
+            'requiereAyuda': bool(j and j.error), 'vinculos': []})
+        f['vinculos'].append({'sku': e.sku, 'tipo': e.tipo, 'categoria': e.categoria,
+            'origen': e.origen or '', 'unidad': f'{u.tipo} {u.numero} · {u.codigo or "Sin código"}' if u else ''})
+    fotos = list(pendientes.values())
+    return {'total': len(fotos), 'bloqueaCierre': requiere_enlaces(meta) and bool(fotos),
+        'procesando': sum(f['estado'] == 'PROCESANDO' for f in fotos),
+        'requierenAyuda': sum(f['requiereAyuda'] for f in fotos),
+        'archivos': fotos[offset:offset + limite], 'offset': offset,
+        'hayMas': offset + limite < len(fotos)}
+
+
+def reintentar_pendientes(db, codigo, usuario):
+    """Adelanta copias pendientes; mantiene las reservas activas y sus claves."""
+    r = m.obtener(db, codigo, bloquear=True)
+    codigo = r.codigo
+    if r.estado not in m.ABIERTAS:
+        raise HTTPException(409, 'La recepción está cerrada; revisa su entrega del informe.')
+    # Incluye fotos generales para que la recepción completa pueda sincronizarse.
+    fotos = list(db.scalars(select(AppArchivo).join(AppEvidencia,
+        AppEvidencia.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
+        AppArchivo.tipo == 'foto', AppEvidencia.eliminado_en.is_(None)).distinct()))
+    ahora = utcnow()
+    cantidad = 0
+    for a in fotos:
+        j = db.scalar(select(AppCopiaDrive).where(AppCopiaDrive.archivo_id == a.id)
+            .with_for_update().execution_options(populate_existing=True))
+        if not j:
+            if a.drive_id: continue
+            j = encolar(db, a)
+            db.flush()
+        # Nunca adelantar una reserva activa ni una eliminación de evidencia.
+        if j.datos.get('accion') == 'papelera': continue
+        if j.estado == 'PENDIENTE':
+            j.proximo_en = ahora
+            cantidad += 1
+    operacion.auditoria(db, codigo, usuario, 'COPIAS_DRIVE_REINTENTADAS', {'cantidad': cantidad})
+    db.commit()
+    return {'programadas': cantidad,
+        'mensaje': f'{cantidad} foto(s) programadas para reintento. Se conserva cada archivo y su identificador; el correo todavía no se ha enviado.'}
+
+
 def verificar_puente(db, clave, datos):
     from app.services.integraciones import google
     g = google(db, datos['usuario'])
