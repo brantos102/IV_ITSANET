@@ -85,7 +85,7 @@ print('-- respaldo ' + 'x'*150)
     assert respaldo.opcion('x"\\\n') == '"x\\"\\\\\\n"'
 
 
-@pytest.mark.parametrize('fallo', ['', 'respaldo', 'salud'])
+@pytest.mark.parametrize('fallo', ['', 'respaldo', 'salud', 'interfaz'])
 def test_pase_preserva_datos_y_recupera_codigo_si_falla(tmp_path, fallo):
     raiz = Path(__file__).resolve().parents[1]
     repo = tmp_path / 'operacion'; repo.mkdir()
@@ -94,10 +94,13 @@ def test_pase_preserva_datos_y_recupera_codigo_si_falla(tmp_path, fallo):
     git('init'); git('config', 'user.name', 'Pruebas'); git('config', 'user.email', 'pruebas@example.test')
     (repo / 'mysql').mkdir(); sql = repo / 'mysql/01-crear-base.sql'; sql.write_text('SQL original\n')
     (repo / 'version.txt').write_text('anterior')
+    (repo / 'firebase/public').mkdir(parents=True)
+    (repo / 'firebase/public/index.html').write_text('<html><body>Anterior</body></html>')
     (repo / 'requirements.txt').write_text('')
     git('add', '.'); git('commit', '-m', 'Operación inicial'); anterior = git('rev-parse', 'HEAD')
     (repo / 'scripts').mkdir(); shutil.copy(raiz / 'scripts/respaldo_produccion.py', repo / 'scripts')
     (repo / 'version.txt').write_text('nueva')
+    (repo / 'firebase/public/index.html').write_text('<html><body>Nueva</body></html>')
     git('add', '.'); git('commit', '-m', 'Candidato'); revision = git('rev-parse', 'HEAD')
     git('checkout', '--detach', anterior)
     sql.write_text('SQL propio de producción\n')
@@ -109,11 +112,19 @@ import os,pathlib,shutil,subprocess,sys
 nombre=pathlib.Path(sys.argv[0]).name;a=sys.argv[1:];repo=os.environ['QA_REPO']
 with open(os.environ['QA_LOG'],'a') as f:f.write(nombre+' '+' '.join(a)+'\\n')
 if nombre=='systemctl':
- if a[0]=='show':print(repo)
+ if a[0]=='show':print('active' if 'ActiveState' in a else repo)
  sys.exit(0)
 if nombre=='curl':
- print('{"ok":true}')
- sys.exit(1 if os.environ.get('QA_FALLO')=='salud' else 0)
+ nueva=pathlib.Path(repo,'version.txt').read_text()=='nueva'
+ if os.environ.get('QA_FALLO')=='salud' and nueva:sys.exit(1)
+ contenido=pathlib.Path(repo,'firebase/public/index.html').read_text() if any('/app/index.html' in v for v in a) else '{"ok":true}'
+ if os.environ.get('QA_FALLO')=='interfaz' and nueva and any('/app/index.html' in v for v in a):contenido=''
+ if '--output' in a:pathlib.Path(a[a.index('--output')+1]).write_text(contenido)
+ else:print(contenido)
+ sys.exit(0)
+if nombre=='journalctl':
+ print('Application startup failed: diagnóstico privado de prueba')
+ sys.exit(0)
 if nombre=='mysqldump':
  print('-- MySQL '+ 'x'*150)
  sys.exit(1 if os.environ.get('QA_FALLO')=='respaldo' else 0)
@@ -129,13 +140,14 @@ if nombre=='python':
  sys.exit(subprocess.call([os.environ['QA_PYTHON'],*a]))
 raise SystemExit(2)
 '''
-    for nombre in ['sudo', 'systemctl', 'systemd-run', 'curl', 'mysqldump']:
+    for nombre in ['sudo', 'systemctl', 'systemd-run', 'curl', 'mysqldump', 'journalctl']:
         f = binarios / nombre; f.write_text(dispatcher); f.chmod(0o700)
     venv = repo / '.venv/bin'; venv.mkdir(parents=True)
     (venv / 'python').write_text(dispatcher); (venv / 'python').chmod(0o700)
     env = {**os.environ, 'PATH': str(binarios) + ':' + os.environ['PATH'],
         'QA_REPO': str(repo), 'QA_LOG': str(llamadas), 'QA_PYTHON': sys.executable, 'QA_FALLO': fallo,
-        'VAL_DATABASE_URL': 'mysql+pymysql://u:clave@localhost/operativa?charset=utf8mb4', 'VAL_DATA_DIR': str(datos)}
+        'VAL_DATABASE_URL': 'mysql+pymysql://u:clave@localhost/operativa?charset=utf8mb4', 'VAL_DATA_DIR': str(datos),
+        'ESPERA_ARRANQUE_ITSANET': '2'}
     r = subprocess.run(['bash', str(raiz / 'scripts/actualizar_produccion.sh'), str(repo), revision],
         env=env, capture_output=True, text=True, timeout=30)
     assert r.returncode == (1 if fallo else 0), r.stdout + r.stderr
@@ -144,7 +156,7 @@ raise SystemExit(2)
     assert (datos / 'foto.jpg').read_bytes() == b'foto-operativa'
     assert 'systemctl stop iv-itsanet' in llamadas.read_text()
     assert 'systemctl start iv-itsanet' in llamadas.read_text()
-    if fallo == 'salud':
+    if fallo in ('salud', 'interfaz'):
         assert llamadas.read_text().splitlines().count('systemctl stop iv-itsanet') == 2
     copia = next((tmp_path / 'respaldos-itsanet').glob('pase-*'))
     if fallo == 'respaldo': assert not (copia / 'respaldo.json').exists()
@@ -152,3 +164,9 @@ raise SystemExit(2)
         assert (copia / 'respaldo.json').exists()
         with tarfile.open(copia / 'archivos.tar.gz') as t:
             assert t.extractfile('datos/foto.jpg').read() == b'foto-operativa'
+    if fallo in ('salud', 'interfaz'):
+        assert 'Application startup failed' in (copia / 'arranque-nuevo.log').read_text()
+        assert 'Application startup failed' not in r.stdout
+        assert 'versión anterior volvió a responder' in r.stdout
+    if not fallo:
+        assert (repo / 'scripts/respaldo_produccion.py').stat().st_mode & 0o444 == 0o444

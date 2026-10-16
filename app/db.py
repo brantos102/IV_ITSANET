@@ -13,7 +13,8 @@ el primer escaneo de la mañana se encuentra una conexión muerta y falla con un
 """
 from __future__ import annotations
 
-from sqlalchemy import Table, create_engine, event, inspect, text
+from sqlalchemy import MetaData, Table, create_engine, event, inspect, text
+from sqlalchemy.sql.sqltypes import String
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.schema import CreateColumn
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -107,8 +108,49 @@ def get_db():
 def init_db() -> None:
     from app import models  # noqa: F401  (registra los modelos)
 
-    Base.metadata.create_all(bind=engine)
+    crear_tablas_compatibles(engine)
     actualizar_email_operadores(engine)
+
+
+def crear_tablas_compatibles(bind) -> None:
+    """Crea solo tablas ausentes, respetando tipos/collations de claves existentes.
+
+    MySQL exige la misma collation en ambos extremos de una FK textual.
+    Especificar CHARSET=utf8mb4 en una tabla nueva puede elegir 0900_ai_ci
+    aunque las tablas operativas usen unicode_ci. No se convierten tablas ni
+    se modifican columnas operativas para solucionar esa incompatibilidad.
+    """
+    if bind.dialect.name not in ('mysql', 'mariadb'):
+        Base.metadata.create_all(bind=bind)
+        return
+    with bind.begin() as cx:
+        inspector = inspect(cx)
+        existentes = set(inspector.get_table_names())
+        # Una copia evita cambiar los tipos ORM globales entre motores/hilos.
+        modelo = MetaData()
+        for tabla in Base.metadata.sorted_tables:
+            tabla.to_metadata(modelo)
+        textos = {(r.TABLE_NAME, r.COLUMN_NAME): (r.CHARACTER_SET_NAME, r.COLLATION_NAME)
+            for r in cx.execute(text('''SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
+                FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+                AND CHARACTER_SET_NAME IS NOT NULL'''))}
+        columnas = {}
+        for tabla in modelo.sorted_tables:
+            if tabla.name in existentes:
+                continue
+            for columna in tabla.columns:
+                for fk in columna.foreign_keys:
+                    origen = fk.column
+                    if origen.table.name not in existentes:
+                        continue
+                    nombre = origen.table.name
+                    if nombre not in columnas:
+                        columnas[nombre] = {c['name']: c['type'] for c in inspector.get_columns(nombre)}
+                    tipo = columnas[nombre][origen.name].copy()
+                    if isinstance(tipo, String) and (nombre, origen.name) in textos:
+                        tipo.charset, tipo.collation = textos[(nombre, origen.name)]
+                    columna.type = tipo
+        modelo.create_all(bind=cx)
 
 
 def actualizar_email_operadores(bind) -> None:

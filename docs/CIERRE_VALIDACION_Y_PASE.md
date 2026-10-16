@@ -44,7 +44,7 @@ La cuenta autenticada que finaliza es el remitente responsable. Escribir otro co
 
 ## Red de producción y cámaras móviles
 
-Dirección informada: `http://192.168.4.64:3002/app/`. Desde este entorno de desarrollo la comprobación de `/health` fue rechazada con HTTP 403 por el proxy; no se verificó conexión con el servidor empresarial y no hay SSH configurado aquí.
+Dirección actual informada: `http://192.168.4.94:3002/app/` (antes `192.168.4.64`). Desde este entorno de desarrollo la comprobación de `/health` fue rechazada con HTTP 403 por el proxy; no se verificó conexión con el servidor empresarial y no hay SSH configurado aquí.
 
 El acceso con usuario y contraseña puede funcionar por esa red interna. Los navegadores móviles requieren **HTTPS con certificado de confianza** para la cámara en vivo; Google también requiere una URI HTTPS autorizada para el login desde esos equipos. `localhost` es una excepción de desarrollo en la PC, no la dirección del servidor desde el celular. Configurar el dominio y certificado en el proxy web de la empresa sin sustituir otros servicios. La URI OAuth final será `https://DOMINIO/api/auth/google/callback`, exactamente igual en Google Cloud y en Administración. No introducir excepciones inseguras en el navegador de los operadores.
 
@@ -60,14 +60,14 @@ La actualización agrega tablas de clasificación, presencia, generaciones de in
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta de esta entrega es `itsanet-20261016-cierre-guiado`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261016-arranque-compatible`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-cierre-guiado &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-cierre-guiado^{commit}') &&
+git fetch origin tag itsanet-20261016-arranque-compatible &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-arranque-compatible^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
@@ -84,7 +84,12 @@ Pausa únicamente `iv-itsanet`. Guarda MySQL, `VAL_DATA_DIR` completo —incluid
 clave de cifrado—, el entorno operativo y el cambio local SQL en un directorio
 privado `~/bryan/respaldos-itsanet/pase-...`. Comprueba la integridad de los archivos
 comprimidos y registra sus hashes. Aplica el commit por avance directo, instala
-las dependencias preparadas y comprueba el servicio y `/health`. Si falla después
+las dependencias preparadas y comprueba el servicio, `/health` y que el HTML de
+acceso servido corresponde al archivo de la entrega. Espera hasta 90 segundos
+para permitir el arranque. Si falla, guarda el registro acotado del intento en
+`arranque-nuevo.log`, dentro del respaldo privado, antes de recuperar el código.
+El código se escribe con permisos de lectura para el usuario del servicio y los
+respaldos permanecen privados. Si falla después
 de detenerlo, intenta recuperar el código anterior y arrancar el servicio; no
 restaura una base antigua sobre registros nuevos. Una recuperación de código
 puede dejar el repositorio en HEAD separado, identificado en el respaldo.
@@ -101,7 +106,36 @@ a los operadores para recargar y retomar. La cámara móvil sigue requiriendo HT
 
 Si falla la comprobación del arranque, volver al código anterior con su mismo entorno; las tablas agregadas pueden permanecer y no requieren restaurar una base antigua sobre conteos nuevos. Si la recuperación exige restaurar datos, detener las escrituras y reconciliar primero lo registrado después del respaldo. No ejecutar las pruebas destructivas en la base real.
 
-El pase no se considera realizado por publicar una rama de Git. Requiere ejecución y comprobación en `192.168.4.64`, además del acuse real de Drive/correo.
+El pase no se considera realizado por publicar una rama de Git. Requiere ejecución y comprobación en `192.168.4.94`, además del acuse real de Drive/correo.
+
+### Compatibilidad al actualizar una instalación anterior
+
+Se reprodujo en MySQL 8.4 el error 3780 al añadir relaciones a tablas antiguas
+con `utf8mb4_unicode_ci`: las tablas nuevas elegían otra collation por defecto.
+El arranque corregido consulta los tipos y collations de las claves existentes
+y los aplica a las columnas de relación de las tablas que faltan. No convierte
+ni reemplaza tablas anteriores, y no cambia los tipos ORM globales entre motores.
+También conserva tipos enteros y sus atributos al tomar una clave ya existente.
+
+La comprobación sobre esquemas antiguos con `unicode_ci` y `general_ci`, además
+de collations distintas entre archivos y recepciones, verifica que el DDL de las
+tablas antiguas permanezca idéntico. Se conservaron usuarios, hashes, archivos y
+cantidades, y se arrancó Uvicorn con acceso y salud válidos sobre ese esquema.
+Esto reproduce un fallo de actualización; el error exacto del servidor real se
+comprueba en su propio registro, sin inferirlo de una pantalla negra.
+La revisión corregida pasó 865 comprobaciones de la suite general; los dos
+escenarios de collations, omitidos al ejecutar con SQLite, se ejecutaron y
+pasaron aparte contra MySQL 8.4. El pase también rechazó una interfaz vacía aun
+cuando `/health` respondió correctamente, y conservó un diagnóstico privado antes
+de comprobar la recuperación de la versión anterior.
+
+Si el servicio atiende consultas y conteos pero una PC muestra una pantalla negra,
+probar primero `/app/index.html` desde una ventana de incógnito y comprobar la
+respuesta desde esa misma PC. `localhost:3003` corresponde al desarrollo de Windows;
+`192.168.4.94:3002` corresponde a producción. Evitar reinicios del servicio mientras
+otros operadores siguen registrando. Para extraer el fallo anterior, acotar el
+registro al horario UTC del respaldo, en lugar de tomar las últimas líneas llenas
+de consultas normales.
 
 ## Evidencia de la validación de desarrollo
 
