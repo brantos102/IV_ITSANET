@@ -56,18 +56,18 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-29`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-30`; recargar las pantallas antes de retomar operación.
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261016-cliente-con-barra`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261016-sin-fotos`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-cliente-con-barra &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-cliente-con-barra^{commit}') &&
+git fetch origin tag itsanet-20261016-sin-fotos &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-sin-fotos^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
@@ -80,7 +80,7 @@ el parámetro de la ruta descartaba nombres con `/`, incluso cuando el navegador
 enviaba `%2F`, porque ASGI lo decodifica antes de resolver la ruta. La consulta
 ahora captura el identificador completo y conserva autenticación y reglas del
 cliente, sin sustituirlas por los valores de otro cliente. No cambia el nombre
-`VENTURA/VW`, el esquema, los registros ni la versión del frontend `20261016-29`.
+`VENTURA/VW`, el esquema ni los registros.
 Después del pase, abrir una recepción existente de ese cliente y verificar que
 aparecen el escáner, el avance y los conteos previos. No recrear la recepción ni
 volver a importar su packing list para resolver este error.
@@ -90,6 +90,23 @@ escáner bloqueado); después respondió 200 y permitió consultar un SKU existe
 conservando conteos y bitácora. Pasaron 869 pruebas del proyecto y 23 de gestión
 contra una base MySQL de pruebas separada. Estas verificaciones se realizaron en
 desarrollo, sin acceso directo a los registros de producción.
+
+La entrega añade **Sin registro fotográfico** al ingreso de recepción. La decisión
+solo la puede guardar un supervisor/ADMIN, con versión para evitar sobrescrituras
+y bitácora de autor/fecha. Permite pasar al packing list aunque se exijan las fotos
+de los otros protocolos, sin generar unidades ficticias ni borrar evidencia previa.
+Se pueden añadir después fotos de incidencias con su clasificación habitual.
+
+La cámara continúa leyendo video en vivo. Se distinguen los mensajes de origen
+HTTP, permiso denegado, cámara ocupada y navegador incompatible. El pase de código
+no convierte una IP HTTP en un origen seguro: para el móvil de producción queda
+pendiente que TI habilite HTTPS confiable, según [CAMARA_EN_VIVO.md](CAMARA_EN_VIVO.md).
+En navegador se verificó el ingreso sin fotos en 390 y 1280 px, la continuación al
+packing list, el video continuo con dispositivo simulado en localhost y el bloqueo
+real de un origen HTTP de red. Esto no sustituye la prueba del teléfono físico.
+La suite actual pasó 872 pruebas y se ejecutaron cinco comprobaciones adicionales
+contra MySQL de pruebas, incluidas las restricciones de supervisor, la versión
+para evitar sobrescrituras y la conservación de evidencias existentes.
 
 El registro real del pase del 16 de octubre de 2026 confirmó una reversión
 prematura: el proceso empezó a las 08:16:25 de Ecuador y completó el arranque a

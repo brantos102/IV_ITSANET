@@ -595,6 +595,22 @@ await test('con las dos cosas, se ofrece y no hay nada que explicar', () => {
   });
 });
 
+await test('cámara distingue HTTPS, permiso denegado, cámara ocupada y navegador incompatible', () => {
+  conEntorno({isSecureContext:false}, undefined, () => {
+    ok(camara.errorDeCamara({name:'NotAllowedError'}).includes('HTTPS'));
+  });
+  conEntorno({isSecureContext:true}, {getUserMedia:()=>{}}, () => {
+    ok(camara.errorDeCamara({name:'NotAllowedError'}).includes('permisos'));
+    ok(camara.errorDeCamara({name:'NotReadableError'}).includes('ocupada'));
+    ok(camara.errorDeCamara({name:'NotFoundError'}).includes('No se encontró'));
+    ok(!camara.errorDeCamara({name:'NotReadableError'}).includes('HTTPS'));
+  });
+  conEntorno({isSecureContext:true}, undefined, () => {
+    ok(!camara.camaraDisponible());ok(camara.motivoNoDisponible().includes('navegador'));
+    ok(!camara.motivoNoDisponible().includes('HTTPS'));
+  });
+});
+
 await test('lector en vivo evita repeticiones y apaga todas las pistas', async () => {
   const w=Object.getOwnPropertyDescriptor(globalThis,'window'),n=Object.getOwnPropertyDescriptor(globalThis,'navigator');
   const intervalo=globalThis.setInterval,limpiar=globalThis.clearInterval;

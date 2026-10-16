@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261016-29';
-import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261016-29';
+import {pedir} from './local.js?v=20261016-30';
+import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261016-30';
 const api=(r,o={})=>pedir(r,{...o,base:'/api/operacion'});
 export async function configurarColumnasInforme(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo),meta=await api(ruta+'/informe-metadatos');

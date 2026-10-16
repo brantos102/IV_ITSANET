@@ -29,6 +29,16 @@ del handheld se verifica después en el dispositivo real por HTTPS.
 
 ## Recorrido de recepción
 
+En **Protocolo de fotos**, el supervisor puede elegir **Sin registro fotográfico**,
+además de Reglamentario y Cotidiano / panorámicas. El botón principal pasa a
+**Continuar sin fotos → packing list**. Guarda la decisión con usuario y fecha,
+sin encender la cámara ni crear unidades ficticias. Conserva el total de bultos
+y cualquier evidencia o unidad registrada previamente. Este modo no genera
+recomendaciones fotográficas pendientes, incluso si ADMIN exige completar los
+otros protocolos. Los operadores no pueden cambiarlo. Se pueden añadir después
+evidencias opcionales de un SKU con clasificación General o Reglamentaria;
+recibir sin fotos no borra ni impide esas evidencias.
+
 1. SUPERVISOR/ADMIN crea la recepción con cliente, descripción/embarque y
    total de bultos. En **Bultos / evidencias** se muestran solamente **marca** y
    **protocolo**. El embarque ya registrado se conserva; el responsable se toma

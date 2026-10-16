@@ -18,6 +18,31 @@ dirigir todas las rutas `/app/` y `/api/` al mismo servicio; no apuntar el front
 HTTPS a una API HTTP desde el navegador. Conservar la configuración de los
 otros sitios del servidor.
 
+### Solicitud concreta para TI
+
+La URL operativa actual es `http://192.168.4.94:3002/app/`. Proporcionar un
+nombre DNS interno que resuelva a ese servidor y un certificado válido para ese
+nombre. Los teléfonos deben confiar en la CA emisora. Si es una CA corporativa,
+distribuirla a los dispositivos; omitir la advertencia del navegador no basta.
+El certificado no lo puede instalar ni hacer confiable la aplicación web.
+
+Preferir un proxy HTTPS del mismo servidor en el puerto 443, manteniendo Uvicorn
+en HTTP/3002 para conservar las comprobaciones y el procedimiento de actualización
+actuales. Enrutar **toda** la aplicación, incluidas `/app/`, `/api/`, las descargas
+y las fotos; no cambiar solo el enlace del botón Cámara. El proxy debe reenviar
+`Host`, `X-Forwarded-Proto` y la dirección de origen. Permitir cargas del tamaño
+admitido por la app (incluido base64); el límite de 1 MB de algunos proxies
+rechaza fotos. Revisar DNS y acceso desde la WiFi real de bodega. No requiere
+abrir la aplicación a Internet ni modificar Drive, MySQL o las credenciales de Google.
+
+TI debe comprobar `https://DOMINIO/health` y `https://DOMINIO/app/` sin errores de
+certificado. Después probar con un móvil real: permitir Cámara para ese sitio,
+leer un código del packing list en video continuo y cerrar el visor para comprobar
+que se apaga la cámara. El operador confirma cada conteo como hasta ahora.
+Si también se usa login Google, registrar la URI OAuth HTTPS exacta del dominio.
+
+### Alternativa: TLS directamente en Uvicorn
+
 Si solo existe la IP interna, TI puede emitir un certificado para la IP
 `192.168.4.94` (Subject Alternative Name de tipo IP) mediante una CA corporativa
 confiable en los teléfonos, o proporcionar un dominio con certificado válido.
@@ -38,6 +63,11 @@ no se publica en Git ni en la carpeta web. Conservar el resto de las variables.
 Esta configuración cambia **solo IV_ITSANET en el 3002** a HTTPS: los dispositivos
 deben abrir la nueva dirección y volver a iniciar sesión. Elegir el momento del
 cambio, ya que la URL HTTP de ese puerto deja de servir la aplicación.
+
+El procedimiento actual `actualizar_produccion.sh` verifica HTTP/3002. Antes de
+elegir TLS directo se debe adaptar esa comprobación a la URL HTTPS y a su CA;
+el proxy en 443 evita ese cambio. No habilitar TLS directo y ejecutar después
+el procedimiento HTTP sin adaptarlo, porque no confirmaría el arranque.
 
 ```bash
 sudo systemctl restart iv-itsanet

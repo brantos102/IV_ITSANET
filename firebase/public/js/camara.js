@@ -25,11 +25,26 @@ export const camaraDisponible = () =>
 /** Por qué no se puede, en términos que digan qué hacer. */
 export function motivoNoDisponible() {
   if (typeof window === 'undefined') return 'Sin navegador.';
+  if (window.isSecureContext === true && !navigator.mediaDevices?.getUserMedia) {
+    return 'Este navegador no ofrece acceso a la cámara. Abre la app directamente en Chrome o Safari actualizado y revisa los permisos del dispositivo.';
+  }
   if (window.isSecureContext === false || !navigator.mediaDevices?.getUserMedia) {
     return 'La cámara en vivo requiere abrir la app por HTTPS con un certificado confiable. '
          + 'La IP interna por HTTP no permite activarla. Solicita al administrador la dirección HTTPS.';
   }
   return '';
+}
+
+/** Distingue el requisito HTTPS del permiso y de una cámara ocupada. */
+export function errorDeCamara(error) {
+  if (!camaraDisponible()) return motivoNoDisponible();
+  if (['NotAllowedError','SecurityError'].includes(error?.name))
+    return 'Permite Cámara en los permisos de este sitio y del navegador en el teléfono; vuelve a tocar Cámara.';
+  if (['NotFoundError','DevicesNotFoundError'].includes(error?.name))
+    return 'No se encontró una cámara disponible. Revisa la cámara del teléfono o usa el lector de códigos.';
+  if (['NotReadableError','TrackStartError','AbortError'].includes(error?.name))
+    return 'La cámara está ocupada o no pudo iniciarse. Cierra otras apps o pestañas que la usen y vuelve a intentarlo.';
+  return 'No se pudo iniciar la cámara. Cierra el visor y vuelve a intentarlo.';
 }
 
 async function lectorDeVideo() {
@@ -43,7 +58,7 @@ async function lectorDeVideo() {
       }
     } catch { /* Un lector nativo no compatible usa el respaldo sobre video. */ }
   }
-  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261016-29');
+  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261016-30');
   const lector = new MultiFormatReader();
   lector.setHints(new Map([[DecodeHintType.TRY_HARDER,true],
     [DecodeHintType.POSSIBLE_FORMATS,FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()])]]));

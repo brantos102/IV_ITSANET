@@ -285,6 +285,51 @@ def test_bloqueo_fotos_solo_si_admin_lo_habilita_y_operador_no_modifica_formato(
     assert cliente.put('/api/operacion/formatos-packing/VENTURA',json={}).status_code==403
 
 
+def test_ingreso_sin_fotos_permita_packing_y_conteo_con_decision_auditada(admin,cliente):
+    rec(cliente)
+    config=admin.get('/api/operacion/config').json();config['evidencias']['bloquear']=True
+    assert admin.put('/api/operacion/config',json=config).status_code==200
+    ruta='/api/operacion/recepciones/INGRESO/ingreso'
+    op=TestClient(app);op.post('/api/auth/login',json={'usuario':'op1','pin':'2222'})
+    assert op.put(ruta,json={'protocolo':'SIN_FOTOS','paso':'PACKING'}).status_code==403
+    for protocolo in ('REGLAMENTARIO','GENERAL'):
+        version=cliente.get(ruta).json()['version']
+        a=cliente.put(ruta,json={'protocolo':protocolo,'version':version})
+        assert a.status_code==200,a.text
+        assert cliente.put(ruta,json={'paso':'PACKING','version':a.json()['version']}).status_code==409
+    version=cliente.get(ruta).json()['version']
+    a=cliente.put(ruta,json={'protocolo':'SIN_FOTOS','paso':'PACKING','version':version})
+    assert a.status_code==200,a.text
+    assert a.json()['avisos']==[] and a.json()['unidades']==[]
+    assert a.json()['responsable']=='sup' and a.json()['protocolo']=='SIN_FOTOS'
+    assert cliente.put(ruta,json={'protocolo':'GENERAL','version':version}).status_code==409
+    carga=cliente.post('/api/app/recepciones/INGRESO/packing-list',json={'origen':'PRINCIPAL',
+        'resultado':{'lineas':[{'linea':1,'sku':'SKU1','cantidad':2}],'porSku':{'SKU1':2},'unidades':2}})
+    assert carga.status_code==200,carga.text
+    conteo=op.post('/api/app/recepciones/INGRESO/conteos',json={
+        'sku':'SKU1','cantidad':1,'pallet':'A1','idempotencyKey':'conteo-recepcion-sin-fotos'})
+    assert conteo.status_code==200,conteo.text
+    assert cliente.get('/api/app/recepciones/INGRESO/imagenes').json()['total']==0
+    eventos=cliente.get('/api/app/recepciones/INGRESO/eventos').json()
+    assert any(e.get('protocolo')=='SIN_FOTOS' and e['operadorEmail']=='sup' for e in eventos)
+
+
+def test_sin_fotos_conserva_evidencias_y_unidades_anteriores(cliente,monkeypatch,tmp_path):
+    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path);rec(cliente)
+    ruta='/api/operacion/recepciones/INGRESO'
+    antes=cliente.post(ruta+'/bultos',json={'cantidad':2}).json()
+    archivo=foto(cliente,'INGRESO',unidadId=antes['unidades'][0]['id']).json()
+    antes=cliente.get(ruta+'/ingreso').json()
+    r=cliente.put(ruta+'/ingreso',json={'protocolo':'SIN_FOTOS','paso':'PACKING','version':antes['version']})
+    assert r.status_code==200,r.text
+    assert r.json()['unidades']==antes['unidades'] and r.json()['evidencias']==antes['evidencias']
+    assert cliente.get(archivo['url']).status_code==200
+    # El modo de recepción no se usa como clasificación fotográfica.
+    assert foto(cliente,'INGRESO',protocolo='SIN_FOTOS',variante=1).status_code==422
+    assert foto(cliente,'INGRESO',protocolo='GENERAL',variante=2).status_code==201
+    assert cliente.get(ruta+'/ingreso').json()['protocolo']=='SIN_FOTOS'
+
+
 def test_identificador_de_conteo_no_se_reutiliza_en_otra_recepcion(cliente):
     for codigo in ['INGRESO','OTRA']:
         rec(cliente,codigo)

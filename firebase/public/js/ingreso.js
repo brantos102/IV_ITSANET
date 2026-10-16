@@ -1,8 +1,8 @@
-import {pedir} from './local.js?v=20261016-29';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261016-29';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-29';
-import {abrirCamara} from './camara.js?v=20261016-29';
-import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261016-29';
+import {pedir} from './local.js?v=20261016-30';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261016-30';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-30';
+import {abrirCamara,errorDeCamara} from './camara.js?v=20261016-30';
+import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261016-30';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -30,25 +30,37 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     const marca=$('[data-marca]').value.trim(),protocolo=$('[data-protocolo]').value;
     if(marca!==(ingreso.marca || '') || protocolo!==ingreso.protocolo || !ingreso.version)
       ingreso=await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{marca,protocolo,version:ingreso.version}});
-    if(!bultos().length)ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Math.max(1,Number(recepcion.bultos)||1)}});
+    if(protocolo!=='SIN_FOTOS' && !bultos().length)ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Math.max(1,Number(recepcion.bultos)||1)}});
+  }
+  async function continuarPacking(){
+    await guardarInicio();
+    await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{paso:'PACKING',version:ingreso.version}});
+    d.close();continuar();
   }
   function inicio(){
     apagar();u=null;conflicto=false;estado('');
     const bs=bultos(),completos=bs.filter(b=>b.concluido).length;
     $('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><b>${completos} de ${bs.length || recepcion.bultos || 1} bultos registrados</b><button class="b-sec" data-total>Corregir total</button></div>
       <div class="rejilla ingreso-opciones"><label class="campo"><span>Marca</span><input data-marca placeholder="Isuzu, Geely…" value="${esc(ingreso.marca || '')}"></label>
-      <label class="campo"><span>Protocolo de fotos</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">General / panorámicas</option></select></label></div>
+      <label class="campo"><span>Protocolo de fotos</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">Cotidiano / panorámicas</option><option value="SIN_FOTOS">Sin registro fotográfico</option></select></label></div>
+      <p class="mini" data-sin-fotos hidden>La decisión del supervisor queda registrada. Continúa al packing list sin tomar fotos.</p>
       <button class="b-primario ingreso-principal" data-empezar>${completos ? 'Continuar bultos' : 'Empezar primer bulto'} · escanear y fotografiar</button>
       <details class="ingreso-lista"><summary>Revisar bultos (${bs.length})</summary>${bs.map((b,i)=>`<button class="b-sec" data-ir="${i}">Bulto ${b.numero} · ${esc(b.codigo || 'sin etiqueta')} · ${b.concluido?'Registrado':'Pendiente'}</button>`).join('')}</details>
       <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button><footer class="ingreso-pie"><button class="b-sec" data-packing>Continuar a packing lists →</button></footer>`;
     $('[data-protocolo]').value=ingreso.protocolo || 'REGLAMENTARIO';
+    const pintarProtocolo=()=>{const sinFotos=$('[data-protocolo]').value==='SIN_FOTOS';
+      $('[data-sin-fotos]').hidden=!sinFotos;
+      $('[data-empezar]').textContent=sinFotos ? 'Continuar sin fotos → packing list' : `${completos ? 'Continuar bultos' : 'Empezar primer bulto'} · escanear y fotografiar`;
+      $('.ingreso-lista').hidden=sinFotos;
+    };
+    $('[data-protocolo]').onchange=pintarProtocolo;pintarProtocolo();
     $('[data-recargar]').onclick=seguro(async()=>{const marca=$('[data-marca]').value,protocolo=$('[data-protocolo]').value,anterior=ingreso;
       await refrescar();inicio();if(marca!==(anterior.marca || ''))$('[data-marca]').value=marca;if(protocolo!==anterior.protocolo)$('[data-protocolo]').value=protocolo;
-      estado('Ingreso actualizado. Revisa marca y protocolo antes de guardar.');});
-    $('[data-empezar]').onclick=seguro(async()=>{await guardarInicio();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
+      pintarProtocolo();estado('Ingreso actualizado. Revisa marca y protocolo antes de guardar.');});
+    $('[data-empezar]').onclick=seguro(async()=>{if($('[data-protocolo]').value==='SIN_FOTOS'){await continuarPacking();return;}await guardarInicio();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
     $('[data-total]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Total de bultos',campos:[{clave:'cantidad',etiqueta:'Bultos recibidos',tipo:'number',valor:recepcion.bultos || bs.length || 1,obligatorio:true}]});if(!v)return;
       ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Number(v.cantidad),cantidadAnterior:recepcion.bultos}});await refrescar();inicio();});
-    $('[data-packing]').onclick=seguro(async()=>{await guardarInicio();await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{paso:'PACKING',version:ingreso.version}});d.close();continuar();});
+    $('[data-packing]').onclick=seguro(continuarPacking);
     $('[data-cuerpo]').querySelectorAll('[data-ir]').forEach(b=>b.onclick=seguro(async()=>{await guardarInicio();indice=Number(b.dataset.ir);await mostrarBulto();}));
   }
   async function encender(){
@@ -64,7 +76,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       },{puedeLeer:()=>leyendo && !ocupado && !conflicto});
       if(sesion!==camaraSesion || !d.open){cerrar();return;}
       cerrarCamara=cerrar;$('[data-activar]').hidden=true;$('[data-error-camara]').hidden=true;video.parentElement.classList.remove('sin-camara');
-    }catch(e){if(sesion===camaraSesion){const mensaje=window.isSecureContext===false ? 'Abre la dirección HTTPS para activar la cámara.' : e.name==='NotAllowedError' ? 'Permite el uso de la cámara en el navegador.' : e.name==='NotFoundError' ? 'No se encontró cámara. Usa Galería o escribe el código.' : e.message;
+    }catch(e){if(sesion===camaraSesion){const mensaje=errorDeCamara(e);
       estado(mensaje);$('[data-error-camara]').textContent=mensaje;$('[data-error-camara]').hidden=false;video.parentElement.classList.add('sin-camara');$('[data-activar]').hidden=false;}}
     finally{if(camaraPendiente===sesion)camaraPendiente=null;}
   }
@@ -99,7 +111,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   }
   async function mostrarBulto(){
     apagar();pendientes=[];cache=new Map();conflicto=false;
-    await refrescar();u=bultos()[indice];if(!u){inicio();return;}
+    await refrescar();if(ingreso.protocolo==='SIN_FOTOS'){inicio();return;}u=bultos()[indice];if(!u){inicio();return;}
     leyendo=!u.codigo;versiones=new Map(ingreso.unidades.map(x=>[x.id,x.version]));
     const hijos=ingreso.unidades.filter(x=>x.padreId===u.id);
     $('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><h2>Bulto ${u.numero} de ${bultos().length}</h2><button class="b-sec" data-resumen>Resumen</button></div>

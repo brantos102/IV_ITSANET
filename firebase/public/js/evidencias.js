@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-29';
-import {comprimir} from './imagen.js?v=20261016-29';
-import {confirmar} from './modal.js?v=20261016-29';
+import {pedir} from './local.js?v=20261016-30';
+import {comprimir} from './imagen.js?v=20261016-30';
+import {confirmar} from './modal.js?v=20261016-30';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -48,7 +48,8 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supe
   if(supervisor){const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='Excel de trazabilidad';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
   $('[data-tipo]').value=sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO';
-  $('[data-protocolo]').value=ingreso.protocolo || 'REGLAMENTARIO';
+  // Recibir sin fotos no impide adjuntar posteriormente evidencia de una novedad.
+  $('[data-protocolo]').value=ingreso.protocolo==='SIN_FOTOS' ? 'GENERAL' : ingreso.protocolo || 'REGLAMENTARIO';
   const recomendar=()=>{$('[data-recomendacion]').textContent=$('[data-protocolo]').value==='GENERAL'
     ? 'Registro libre: fotos panorámicas o del detalle que necesites.'
     : sku ? 'Recomendado: caja cerrada, etiqueta de caja madre, caja abierta y detalle de la novedad.'

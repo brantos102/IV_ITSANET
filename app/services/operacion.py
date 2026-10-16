@@ -122,7 +122,7 @@ def obtener_ingreso(db, codigo):
                 avisos.append(f'Bulto {u.numero}: faltan fotos exteriores recomendadas')
             if fotos('ABIERTO_CON_PACKING', u.id) < p['abiertosMin']:
                 avisos.append(f'Bulto {u.numero}: faltan fotos abierto con packing list')
-    elif d and fotos('PANORAMICA') < p['panoramicasMin']:
+    elif d.get('protocolo') == 'GENERAL' and fotos('PANORAMICA') < p['panoramicasMin']:
         avisos.append(f"Recomendadas {p['panoramicasMin']} imágenes panorámicas")
     return {'recepcion': codigo, **d, 'version': d.get('version', 0), 'avisos': avisos, 'recomendaciones': p, 'unidades': [
         {'id': u.id, 'tipo': u.tipo, 'numero': u.numero, 'codigo': u.codigo,
@@ -143,7 +143,7 @@ def guardar_ingreso(db, codigo, datos, usuario):
     f = f or AppIngreso(recepcion=codigo, datos={})
     d = {**(f.datos or {}), **{k: datos[k] for k in
         ('marca', 'embarque', 'protocolo', 'paso') if k in datos}}
-    if d.get('protocolo', 'REGLAMENTARIO') not in ('REGLAMENTARIO', 'GENERAL'):
+    if d.get('protocolo', 'REGLAMENTARIO') not in ('REGLAMENTARIO', 'GENERAL', 'SIN_FOTOS'):
         raise HTTPException(422, 'Protocolo inválido')
     d.setdefault('protocolo', 'REGLAMENTARIO')
     for k in ('marca', 'embarque'):
