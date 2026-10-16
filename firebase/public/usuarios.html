@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-27"></script>
+<script src="./js/arranque.js?v=20261016-28"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Usuarios — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-27">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -113,9 +113,9 @@
 import {
   observarSesion, traducirError, crearOperario, cambiarClave, tipoDeAcceso,
   normalizarAlias, enviarRestablecimiento, modoLocal,
-} from './js/auth.js?v=20261015-27';
-import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261015-27';
-import { pedirDatos, confirmar } from './js/modal.js?v=20261015-27';
+} from './js/auth.js?v=20261016-28';
+import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261016-28';
+import { pedirDatos, confirmar } from './js/modal.js?v=20261016-28';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null, fichas = new Map();
@@ -143,14 +143,14 @@ observarSesion(async (e) => {
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
 
-  if (!['SUPERVISOR', 'ADMIN'].includes(perfil?.rol)) {
+  if (!(modoLocal()?perfil?.permisos?.gestionarUsuarios:['SUPERVISOR', 'ADMIN'].includes(perfil?.rol))) {
     $('sinPermiso').classList.remove('oculto');
     return;
   }
   $('panelUsuarios').classList.remove('oculto');
   if (perfil.rol === 'ADMIN' || modoLocal()) $('panelAlta').classList.remove('oculto');
   for (const opcion of $('fRol').options) {
-    opcion.disabled = perfil.rol !== 'ADMIN' && opcion.value !== 'OPERADOR';
+    opcion.disabled=perfil.rol!=='ADMIN'&&(opcion.value==='ADMIN'||opcion.value==='SUPERVISOR'&&!(modoLocal()&&perfil.permisos?.asignarSupervisor));
   }
   if (tipoDeAcceso(usuario) === 'CLAVE') $('panelClave').classList.remove('oculto');
 
@@ -184,9 +184,9 @@ function pintarUsuarios(usuarios) {
         <td>${esc(u.nombre || '')}${yo ? ' <span class="mini">(tú)</span>' : ''}
           <br><span class="mini">${u.tipoAcceso === 'CLAVE' ? 'usuario y contraseña' : 'cuenta de Google'}</span></td>
         <td class="mini">${esc(u.email || '')}</td>
-        <td>${esAdmin && !yo ? `
+        <td>${(esAdmin || modoLocal()&&perfil.permisos?.asignarSupervisor&&u.rol!=='ADMIN') && !yo ? `
           <select data-rol="${esc(u.uid)}" style="padding:7px 9px;font-size:12px">
-            ${['OPERADOR', 'SUPERVISOR', 'ADMIN'].map((r) =>
+            ${(esAdmin?['OPERADOR','SUPERVISOR','ADMIN']:['OPERADOR','SUPERVISOR']).map((r) =>
               `<option value="${r}"${u.rol === r ? ' selected' : ''}>${r}</option>`).join('')}
           </select>` : `<span class="pastilla ${clase[u.rol] || 'p-off'}">${esc(u.rol || '')}</span>`}</td>
         <td><span class="pastilla ${u.activo === false ? 'p-err' : 'p-ok'}">
@@ -253,14 +253,15 @@ async function editar(uid) {
         ? 'Con lo que entra en el handheld. Cambiarlo cambia lo que teclea.'
         : 'Entra con el botón de Google; el usuario sirve para identificarlo en la lista.' },
   ];
-  if (esAdmin && !yo) {
+  if ((esAdmin || modoLocal()&&perfil.permisos?.asignarSupervisor&&u.rol!=='ADMIN') && !yo) {
     campos.push({ clave: 'rol', etiqueta: 'Rol', tipo: 'lista', valor: u.rol || 'OPERADOR',
       opciones: [
         { valor: 'OPERADOR', titulo: 'Operario — escanea y cuenta' },
         { valor: 'SUPERVISOR', titulo: 'Supervisor — además crea y cierra recepciones' },
-        { valor: 'ADMIN', titulo: 'Administrador — además credenciales y usuarios' },
+        ...(esAdmin?[{ valor: 'ADMIN', titulo: 'Administrador — además credenciales y usuarios' }]:[]),
       ] });
   }
+  if(modoLocal()&&esAdmin)campos.push({clave:'email',etiqueta:'Correo real para Google y entregas',tipo:'email',valor:u.email||'',obligatorio:true});
   if (!yo) {
     campos.push({ clave: 'activo', etiqueta: 'Puede entrar', tipo: 'interruptor',
       valor: u.activo !== false,
@@ -281,6 +282,7 @@ async function editar(uid) {
   }
 
   const cambio = {};
+  if(modoLocal()&&'email' in datos&&datos.email!==u.email)cambio.email=datos.email;
   if ((datos.nombre || '') !== (u.nombre || '')) cambio.nombre = datos.nombre;
   if (alias !== (u.usuario || '')) cambio.usuario = alias;
   if ('rol' in datos && datos.rol !== u.rol) cambio.rol = datos.rol;

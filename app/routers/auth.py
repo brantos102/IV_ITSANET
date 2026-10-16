@@ -14,6 +14,7 @@ from app.security import (
     COOKIE, cerrar_sesion, crear_sesion, hash_pin, requiere_supervisor,
     usuario_actual, verify_pin,
 )
+from app.services import ajustes
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -45,13 +46,16 @@ def logout(request: Request, response: Response,
     if not token:
         token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if token:
+        import hashlib
+        from app.models import AppPresencia
+        db.query(AppPresencia).filter(AppPresencia.sesion_hash == hashlib.sha256(token.encode()).hexdigest()).delete()
         cerrar_sesion(db, token)
     response.delete_cookie(COOKIE)
     return {"ok": True}
 
 
 @router.get("/yo")
-def yo(op: Operador = Depends(usuario_actual)):
+def yo(op: Operador = Depends(usuario_actual), db: Session = Depends(get_db)):
     """Quien esta dentro, en el vocabulario de la aplicacion de los operarios.
 
     `uid`, `email` y `tipoAcceso` estan porque es lo que las pantallas leen del
@@ -68,6 +72,7 @@ def yo(op: Operador = Depends(usuario_actual)):
         "rol": op.rol.value,
         "activo": op.activo,
         "tipoAcceso": "CLAVE",
+        'permisos': ajustes.permisos(db, op),
     }
 
 
@@ -102,7 +107,10 @@ def _comprobar_duplicado(db: Session, usuario: str, email: str | None, excluir: 
         consulta = consulta.where(Operador.id != excluir)
     if db.scalar(consulta) is not None:
         raise HTTPException(409, "Ese usuario ya existe. Elige otro.")
-    if email and db.scalar(select(Operador.id).where(func.lower(Operador.email) == email)) is not None:
+    correo = select(Operador.id).where(func.lower(Operador.email) == email)
+    if excluir is not None:
+        correo = correo.where(Operador.id != excluir)
+    if email and db.scalar(correo) is not None:
         raise HTTPException(409, "Ese correo ya tiene una cuenta. Entra con ella o pide ayuda al supervisor.")
 
 
@@ -125,35 +133,37 @@ def registro(datos: RegistroIn, db: Session = Depends(get_db)):
 
 
 @router.get("/operadores")
-def listar(db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+def listar(db: Session = Depends(get_db), _: Operador = Depends(ajustes.requiere('gestionarUsuarios'))):
     return [_ficha(op) for op in db.scalars(select(Operador).order_by(Operador.id))]
 
 
 @router.post("/operadores", status_code=201)
 def crear(datos: OperadorIn, db: Session = Depends(get_db),
-          autor: Operador = Depends(requiere_supervisor)):
+          autor: Operador = Depends(ajustes.requiere('gestionarUsuarios'))):
     _comprobar_duplicado(db, datos.usuario, datos.email)
     try:
         rol = Rol(datos.rol.upper())
     except ValueError:
         raise HTTPException(400, "Rol invalido") from None
-    if autor.rol != Rol.ADMIN and rol != Rol.OPERADOR:
+    if autor.rol != Rol.ADMIN and (rol == Rol.ADMIN or rol == Rol.SUPERVISOR and not ajustes.permisos(db, autor).get('asignarSupervisor')):
         raise HTTPException(403, "Solo un administrador asigna roles.")
     op = Operador(usuario=datos.usuario, nombre=datos.nombre.strip(), email=datos.email,
                   pin_hash=hash_pin(datos.pin), rol=rol, activo=True)
+    ajustes.auditar(db, autor.email or autor.usuario, 'USUARIO_CREADO', datos.usuario, {'rol': rol.value})
     return _guardar(db, op)
 
 
 @router.patch("/operadores/{operador_id}")
 def actualizar(operador_id: int, datos: OperadorCambio, db: Session = Depends(get_db),
-               autor: Operador = Depends(requiere_supervisor)):
+               autor: Operador = Depends(ajustes.requiere('gestionarUsuarios'))):
     op = db.get(Operador, operador_id)
     if op is None:
         raise HTTPException(404, "Usuario no encontrado")
     cambios = datos.model_dump(exclude_unset=True)
     if any(v is None for v in cambios.values()):
         raise HTTPException(422, "Los campos no pueden quedar vacios")
-    if autor.rol != Rol.ADMIN and (op.rol == Rol.ADMIN or "rol" in cambios):
+    if autor.rol != Rol.ADMIN and (op.rol == Rol.ADMIN or cambios.get('rol', '').upper() == 'ADMIN'
+            or 'rol' in cambios and not ajustes.permisos(db, autor).get('asignarSupervisor')):
         raise HTTPException(403, "Solo un administrador modifica administradores o asigna roles.")
     if "rol" in cambios:
         try:
@@ -164,6 +174,12 @@ def actualizar(operador_id: int, datos: OperadorCambio, db: Session = Depends(ge
         raise HTTPException(400, "No puedes desactivarte ni cambiar tu propio rol.")
     if "usuario" in cambios:
         _comprobar_duplicado(db, cambios["usuario"], None, excluir=op.id)
+    if 'email' in cambios and autor.rol != Rol.ADMIN:
+        raise HTTPException(403, 'Solo ADMIN vincula el correo responsable de Google')
+    if 'email' in cambios:
+        _comprobar_duplicado(db, op.usuario, cambios['email'], excluir=op.id)
+    ajustes.auditar(db, autor.email or autor.usuario, 'USUARIO_ACTUALIZADO', op.usuario,
+        {k: v.value if isinstance(v, Rol) else v for k, v in cambios.items()})
     for campo, valor in cambios.items():
         setattr(op, campo, valor)
     return _guardar(db, op)

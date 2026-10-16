@@ -51,9 +51,7 @@ export const TERMINOS = {
   verificado: {
     titulo: 'Verificado',
     corto: 'Verificado',
-    ayuda: 'Qué parte de lo declarado ya se comprobó físicamente. El tope se ' +
-           'aplica por referencia, así que contar de más en un producto no tapa ' +
-           'lo que falta en otro.',
+    ayuda: 'Referencias revisadas respecto al total. Una referencia buscada con faltante confirmado también está revisada. Las diferencias de unidades se muestran por separado.',
   },
   exactitud: {
     titulo: 'Exactitud',

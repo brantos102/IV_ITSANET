@@ -13,11 +13,15 @@ from app.models import AppArchivo, AppEvidencia, AppIngreso, AppUnidadLogistica
 from app.services import app_modelo as m
 
 
-def generar(db, codigo):
+def generar(db, codigo, informe=None):
     r=m.obtener(db,codigo)
     ingreso=db.get(AppIngreso,codigo)
     unidades={u.id:u for u in db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion==codigo))}
     libro=Workbook();hoja=libro.active;hoja.title='EVIDENCIAS'
+    if informe:
+        libro.properties.identifier=informe.id
+        libro.properties.creator=informe.usuario
+        libro.properties.subject=f'Informe R{informe.numero:04d}'
     logo=BASE_DIR/'firebase/public/logo-itsa.png'
     if logo.is_file():
         img=Image(str(logo));img.width=132;img.height=44;hoja.add_image(img,'A1')

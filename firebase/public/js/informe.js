@@ -10,11 +10,11 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261015-27';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261015-27';
-import { db } from './auth.js?v=20261015-27';
-import * as local from './local.js?v=20261015-27';
-import { aNumero, decodificarPallets } from './datos.js?v=20261015-27';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261016-28';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261016-28';
+import { db } from './auth.js?v=20261016-28';
+import * as local from './local.js?v=20261016-28';
+import { aNumero, decodificarPallets } from './datos.js?v=20261016-28';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -74,10 +74,11 @@ export async function reunirInforme(recepcionId, recepcion) {
   // por su número de línea original.
   lineas.sort((a, b) => aNumero(a.orden, a.linea) - aNumero(b.orden, b.linea));
 
+  const meta=local.modoLocal()?await local.pedir('/recepciones/'+encodeURIComponent(recepcionId)+'/informe-metadatos',{base:'/api/operacion'}):{};
   const porSku = {};
   const palletsPorSku = {};
   const palletsSimplePorSku = {};
-  const pncPorSku = {};
+  const pncPorSku = {},pncPendientePorSku={};
   for (const s of skus) {
     porSku[s.sku] = aNumero(s.contado, 0);
     const mapa = decodificarPallets(s.pallets);
@@ -92,6 +93,7 @@ export async function reunirInforme(recepcionId, recepcion) {
       .map(([p, c]) => `${p}(${c})`)
       .join('-');
     pncPorSku[s.sku] = s.tienePnc === true;
+    pncPendientePorSku[s.sku]=s.tienePnc&&s.cantidadPnc==null;
   }
 
   // Observaciones del operario, por SKU y sin repetir.
@@ -171,16 +173,19 @@ export async function reunirInforme(recepcionId, recepcion) {
       })
     : repartirPorLinea(lineas, porSku);
 
-  const detalle = repartido.map((l) => ({
+  const detalleBase = repartido.map((l) => ({
     ...l,
     pallets: palletsPorSku[l.sku] || '',
     palletsSimple: palletsSimplePorSku[l.sku] || '',
     estado: etiquetaEstado(aNumero(l.cantidad, 0), l.fisica),
     pnc: pncPorSku[l.sku] ? 'PNC' : '',
+    calidadPorRevisar: !!pncPendientePorSku[l.sku],
     posicionReal: [...(posPorSku[l.sku] || [])].join(' / ').slice(0, 120),
     destino: destinoTexto(l.sku).slice(0, 180),
     observacion: [...(obsPorSku[l.sku] || [])].join(' | ').slice(0, 300),
   }));
+
+  const detalle=completarIncidencias(detalleBase,eventos,meta);
 
   const adicionalesDetalle = adicionales.map((a) => {
     const s = skus.find((x) => x.sku === a.sku);
@@ -207,7 +212,7 @@ export async function reunirInforme(recepcionId, recepcion) {
   const origenes = [...new Set(detalle.map((l) => l.origen || 'PRINCIPAL'))];
   const porOrigen = origenes.map((origen) => ({
     origen,
-    formato: formatos[origen] || formatos[origen.replace(/\./g, '~')] || null,
+    formato: (()=>{const f=formatos[origen] || formatos[origen.replace(/\./g, '~')] || null;return f?{...f,columnas:f.salida||{...f.columnas,...meta.columnas}}:null;})(),
     detalle: detalle.filter((l) => (l.origen || 'PRINCIPAL') === origen),
   }));
 
@@ -259,6 +264,8 @@ function hojaOriginal(filas, formato) {
   const enc = (formato?.encabezados || []).slice();
   const col = formato?.columnas || {};
   const ancho = enc.length;
+  const salida=new Set(['marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia']);
+  for(const [rol,i] of Object.entries(col))if(salida.has(rol)&&(!Number.isInteger(i)||i<0||i>=ancho))throw Error('La columna de '+rol+' no existe en este packing list. Revisa Columnas del informe.');
 
   const matriz = [enc];
   for (const l of filas) {
@@ -273,6 +280,10 @@ function hojaOriginal(filas, formato) {
     poner('desface', l.diferencia);
     poner('pallet', l.palletsSimple || '');
     poner('observacion', l.observacion || '');
+    for(const rol of ['marca','cliente','posicion','codigoBarra','cantidadIncidencia','incidencia','evidencia']){
+      const valor=rol==='posicion'?l.posicionReal:l[rol];
+      if(valor!==undefined&&valor!==null&&valor!=='')poner(rol,valor);
+    }
 
     matriz.push(fila);
   }
@@ -317,6 +328,9 @@ function hojaValidada(filas) {
     'DESGLOSE PALLET → POSICION': l.destino,
     'PACKING LIST': l.origen || '',
     'ESTADO MERCADERIA': l.pnc || 'BUENO',
+    'UNIDADES CONFORMES':l.cantidadConforme??'', 'UNIDADES PNC':l.cantidadPnc??'',
+    'TIPO DE INCIDENCIA':l.incidencia||'', 'CANT CON INCIDENCIA':l.cantidadIncidencia??'',
+    'CODIGO DE BARRAS':l.codigoBarra||'', 'CARPETA DRIVE':l.evidencia||'',
     'OBSERVACION': l.observacion,
   }));
 
@@ -348,6 +362,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   }
   const soloEnvio = opciones.version === 'envio';
   const libro = XLSX.utils.book_new();
+  libro.Props={Company:'ITSANET',Author:recepcion.informe?.usuario||'ITSANET',Title:recepcion.codigo,Subject:recepcion.informe?'Informe '+recepcion.informe.numero+' · '+recepcion.informe.id:'Validación de recepción'};
 
   // --- Una hoja por packing list, con SU formato y SUS filas --- //
   const listas = (porOrigen && porOrigen.length)
@@ -445,7 +460,12 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
 }
 
 const nombreArchivo = (recepcion, sufijo) =>
-  nombreDeInforme(recepcion, { auditable: sufijo === 'auditable' });
+  nombreVersionado(nombreDeInforme(recepcion, { auditable: sufijo === 'auditable' }),recepcion);
+function nombreVersionado(nombre,rec,lista=''){
+  if(!rec.informe)return nombre;
+  const final=lista+rec.informe.sufijo+'.xlsx';
+  return nombre.slice(0,190-final.length)+final;
+}
 
 /**
  * Un archivo POR PACKING LIST cuando la recepción consolida varios.
@@ -464,13 +484,13 @@ export function construirLibros(datos, opciones = {}) {
     return [construirLibro(datos, opciones)];
   }
 
-  return listas.map((lista) => {
+  return listas.map((lista,indice) => {
     const libro = construirLibro(
       { ...datos, porOrigen: [lista], detalle: lista.detalle }, opciones);
     return {
       ...libro,
       origen: lista.origen,
-      nombre: nombreDeInforme(datos.recepcion, { origen: lista.origen }),
+      nombre: nombreVersionado(nombreDeInforme(datos.recepcion, { origen: lista.origen }),datos.recepcion,'_L'+String(indice+1).padStart(2,'0')),
     };
   });
 }
@@ -488,7 +508,7 @@ export function descargarLibro(libro) {
     { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = libro.nombre + '.xlsx';
+  a.download = /\.xlsx$/i.test(libro.nombre)?libro.nombre:libro.nombre+'.xlsx';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
@@ -503,4 +523,26 @@ export function fotosDe(eventos, max = 12) {
     }
   }
   return out;
+}
+
+/** Asigna unidades con incidencia a las filas y listas del conteo que las originó. */
+export function completarIncidencias(filas,eventos,meta={}){
+ const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>e.anulaA||String(e.id).replace(/^anula-/,'')));
+ const correcciones=new Map(eventos.filter(e=>e.tipo==='CALIDAD'&&e.eventoId&&!anulados.has(e.id)).map(e=>[e.eventoId,e.incidencias]));
+ const grupos=new Map();
+ for(const e of eventos){if(anulados.has(e.id)||e.anulado||e.tipo==='ANULACION'||!(Number(e.cantidad)>0))continue;
+  const fs=correcciones.get(e.id)||e.incidencias||(e.estadoFisico==='PNC'?[{tipo:'MAL_ESTADO',nombre:'MAL ESTADO',cantidad:Number(e.cantidad),pnc:true}]:[]);
+  const clave=JSON.stringify([e.sku,e.origen||'']);if(!grupos.has(clave))grupos.set(clave,[]);
+  for(const f of fs)grupos.get(clave).push({...f,cantidad:Number(f.cantidad)});
+ }
+ return filas.map(l=>{let disponible=Number(l.fisica)||0,pnc=0,novedad=0;const tipos=[];
+  for(const origen of [l.origen||'PRINCIPAL','']){const gs=grupos.get(JSON.stringify([l.sku,origen]))||[];
+   for(const f of gs){const n=Math.min(disponible,f.cantidad);if(n<=0)continue;f.cantidad-=n;disponible-=n;novedad+=n;if(f.pnc)pnc+=n;tipos.push((f.nombre||f.tipo)+' ('+n+')');}
+  }
+  if(l.diferencia)tipos.push((l.diferencia<0?'FALTANTE':'SOBRANTE')+' ('+Math.abs(l.diferencia)+')');
+  const sinDesglose=l.calidadPorRevisar&&pnc===0;if(sinDesglose)tipos.push('PNC · cantidad por revisar');
+  return {...l,pnc:pnc?'PNC ('+pnc+')':sinDesglose?'PNC · cantidad por revisar':'',cantidadPnc:sinDesglose?null:pnc,cantidadConforme:sinDesglose?null:Number(l.fisica)-pnc,
+   cantidadIncidencia:sinDesglose?null:novedad||Math.abs(l.diferencia||0),incidencia:tipos.join(' / ')||'OK',
+   marca:meta.marca||undefined,cliente:meta.cliente||undefined,codigoBarra:meta.barras?.[l.sku],evidencia:meta.carpetas?.[l.sku]?.join(' | ')};
+ });
 }

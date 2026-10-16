@@ -484,15 +484,17 @@ function limpiarNombre_(v) {
 function accionEnviarInforme_(p, usuario) {
   if (!p.destinatarios) throw new Error('Faltan los destinatarios.');
   var r = p.resumen || {};
+  var htmlSeguro = function(v) {return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+  var novedades = (r.novedades || []).map(function(n) {return '<li><b>'+htmlSeguro(n.sku)+'</b>: '+(n.incidencias || []).map(function(i){return htmlSeguro(i.nombre || i.tipo)+' ('+Number(i.cantidad)+')';}).join(' · ')+' | PNC: '+(n.cantidadPnc === null ? 'por revisar' : Number(n.cantidadPnc || 0))+' | conformes: '+(n.cantidadConforme === null ? 'por revisar' : Number(n.cantidadConforme || 0))+'</li>';}).join('');
 
   var filas = (r.discrepancias || []).map(function (d) {
     var color = d.estado === 'Sobrante' ? '#ef4444' : '#f59e0b';
     return '<tr>' +
-      '<td style="padding:10px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:bold;">' + d.sku + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:bold;">' + htmlSeguro(d.sku) + '</td>' +
       '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#64748b;">' + d.esperado + '</td>' +
       '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:bold;">' + d.fisico + '</td>' +
       '<td style="padding:10px;text-align:center;color:' + color + ';font-weight:bold;border-bottom:1px solid #e2e8f0;">' +
-        (d.diferencia > 0 ? '+' + d.diferencia : d.diferencia) + ' (' + d.estado + ')</td></tr>';
+        (d.diferencia > 0 ? '+' + d.diferencia : d.diferencia) + ' (' + htmlSeguro(d.estado) + ')</td></tr>';
   }).join('');
 
   if (!filas) {
@@ -525,10 +527,11 @@ function accionEnviarInforme_(p, usuario) {
     '<div style="font-family:Segoe UI,sans-serif;max-width:680px;margin:0 auto;' +
     'border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;">' +
       '<div style="background:#0f172a;color:#fff;padding:25px;text-align:center;">' +
-        '<h2 style="margin:0;">ITSANET IMS — Informe de Recepción</h2>' +
+        '<h2 style="margin:0;">ITSANET — Informe de Recepción</h2>' +
         '<p style="margin:5px 0 0;color:#94a3b8;font-size:14px;">' + (p.recepcion || '') + '</p>' +
       '</div>' +
       '<div style="padding:30px;background:#f8fafc;">' +
+        (p.informe ? '<p><b>Informe R'+String(p.informe.numero).padStart(4,'0')+'</b> · '+htmlSeguro(p.informe.id)+' · '+htmlSeguro(p.informe.creadoEn)+'</p>' : '') +
         '<p><b>Cerrada por:</b> ' + usuario.email + ' &nbsp;|&nbsp; ' +
            '<b>Duración:</b> ' + (p.duracion || '—') + '</p>' +
         '<p><b>Unidades sistema:</b> ' + (r.unidadesEsperadas || 0) + ' &nbsp;|&nbsp; ' +
@@ -537,6 +540,7 @@ function accionEnviarInforme_(p, usuario) {
         '<p><b>SKU:</b> ' + (r.ok || 0) + ' Ok · ' + (r.faltante || 0) + ' Faltante · ' +
            (r.sobrante || 0) + ' Sobrante' +
            (r.adicionales ? ' · ' + r.adicionales + ' adicionales' : '') + '</p>' +
+        (novedades ? '<h3>Incidencias físicas · '+Number(r.unidadesPnc || 0)+' unidades PNC</h3><ul>'+novedades+'</ul>' : '') +
         '<h3 style="border-bottom:2px solid #2563eb;padding-bottom:8px;">Discrepancias</h3>' +
         '<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;">' +
           '<thead><tr style="background:#f1f5f9;text-align:left;font-size:12px;color:#475569;">' +

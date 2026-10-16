@@ -18,10 +18,10 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261015-27';
-import { db } from './auth.js?v=20261015-27';
-import * as local from './local.js?v=20261015-27';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261015-27';
+} from '../vendor/firebase-sdk.js?v=20261016-28';
+import { db } from './auth.js?v=20261016-28';
+import * as local from './local.js?v=20261016-28';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261016-28';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -60,13 +60,15 @@ export const CAMPOS = {
  * El administrador los ajusta en Administración. Están aquí para que el día uno
  * haya algo que descargar, no para quedarse fijos.
  */
-export const FORMATOS_BASE = [...MODELOS_DEPOT, {
+export const FORMATOS_BASE = [...MODELOS_DEPOT];
+// Compatibilidad con archivos de revisión antiguos; no es una plantilla WMS.
+export const FORMATO_REVISION_BARRAS = {
   id:'BARRAS', nombre:'Códigos de barras · revisión', archivo:'codigos-barras-revision',
   descripcion:'Opcional. Asociaciones a SKU existentes; confirmar este formato con Depot antes de cargar. No es un modelo oficial del WMS.',
   separador:',', hoja:'Modelo a Utilizar',
   columnas:[{encabezado:'SKU',campo:'sku',obligatorio:true},
     {encabezado:'CODIGO DE BARRAS',campo:'codigoBarras',obligatorio:true}],
-}];
+};
 
 /** Un formato guardado puede venir incompleto: se completa con el de base. */
 export function normalizarFormato(formato, base) {
@@ -144,12 +146,14 @@ export function agruparConteos(eventos, { skus = [] } = {}) {
   const anulados = new Set(
     (eventos || [])
       .filter((e) => e.tipo === 'ANULACION')
-      .map((e) => String(e.id || '').replace(/^anula-/, '')),
+      .map((e) => e.anulaA || String(e.id || '').replace(/^anula-/, '')),
   );
   const descripcionDe = Object.fromEntries(skus.map((s) => [s.sku, s.descripcion || '']));
 
   const grupos = new Map();
-  for (const e of eventos || []) {
+  const corregidos=new Map((eventos||[]).filter(e=>e.tipo==='CALIDAD'&&e.eventoId&&!anulados.has(e.id)).map(e=>[e.eventoId,e.incidencias]));
+  const fisicos=(eventos||[]).flatMap(e=>{if(e.tipo==='ANULACION'||anulados.has(e.id)||!(Number(e.cantidad)>0))return [];const inc=corregidos.get(e.id)??e.incidencias;if(!inc)return [e];const pnc=inc.filter(i=>i.pnc).reduce((n,i)=>n+Number(i.cantidad),0),total=Number(e.cantidad)||0;return [{...e,estadoFisico:'BUENO',cantidad:total-pnc},{...e,estadoFisico:'PNC',cantidad:pnc}];});
+  for (const e of fisicos) {
     if (e.tipo === 'ANULACION' || anulados.has(e.id)) continue;
     const cantidad = Number(e.cantidad) || 0;
     if (cantidad <= 0) continue;          // los «no apareció» se registran con 0
@@ -238,7 +242,7 @@ export function csvDeProductos(formato, datos) {
 
 /** Excel opcional de revisión: actualizar etiqueta no equivale a alta de SKU. */
 export function csvDeCodigosBarras(formato, datos) {
-  const f=normalizarFormato(formato,FORMATOS_BASE[2]),rec=datos?.recepcion || {};
+  const f=normalizarFormato(formato,FORMATO_REVISION_BARRAS),rec=datos?.recepcion || {};
   const filas=(datos?.codigosBarras || []).map(d=>filaDe(f,d,{cliente:rec.cliente || '',recepcion:rec.codigo || ''}));
   return resultadoModelo(f,filas,rec.codigo);
 }

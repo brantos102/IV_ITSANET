@@ -23,6 +23,14 @@ export const BASE = '/api/app';
 /** La sesión cuelga de otra rama: la comparte con las pantallas del servidor. */
 export const BASE_SESION = '/api/auth';
 
+/** Identificador de operación, también por HTTP en la WiFi del almacén. */
+export function nuevoIdentificador() {
+  if (globalThis.crypto?.getRandomValues) {
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)), b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  return (Date.now().toString(16).padStart(12,'0')+Math.random().toString(16).slice(2).padEnd(20,'0')).slice(0,32);
+}
+
 const CLAVE_MODO = 'itsanet.modo';
 
 /**
@@ -344,6 +352,7 @@ const aPerfil = (yo) => (yo ? {
   usuario: yo.usuario,
   nombre: yo.nombre,
   rol: yo.rol,
+  permisos: yo.permisos || {},
   activo: yo.activo !== false,
   tipoAcceso: 'CLAVE',
 } : null);

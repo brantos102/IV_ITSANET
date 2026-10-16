@@ -18,11 +18,25 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto'] };
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo'] };
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    if (p.operacion === 'pruebaCorreo') {
+      var destinatario = String(p.datos.destinatario || '').trim();
+      if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(destinatario)) throw new Error('Destinatario de prueba inválido.');
+      var llave = 'SERVIDOR_PRUEBA_' + p.clave;
+      var anterior = PROPS.getProperty(llave);
+      if (anterior && anterior.split('|')[1] !== destinatario) throw new Error('Esta referencia corresponde a otro destinatario.');
+      if (anterior === 'ENVIADO|'+destinatario) return {exito:true,remitente:remitente,destinatario:destinatario};
+      if (anterior) return {exito:false,revision:true};
+      PROPS.setProperty(llave,'ENVIANDO|'+destinatario);
+      MailApp.sendEmail({to:destinatario,subject:'ITSANET · prueba de conexión de recepción',
+        body:'Prueba autorizada de conexión de Drive y correo. Remitente responsable: '+remitente+'. Referencia: '+p.clave+'. No corresponde a un informe final de recepción.'});
+      PROPS.setProperty(llave,'ENVIADO|'+destinatario);
+      return {exito:true,remitente:remitente,destinatario:destinatario};
+    }
     if (p.operacion === 'archivo') return archivoServidor_(p.clave, p.datos);
     if (p.operacion === 'papelera') {
       if (!/^[A-Za-z0-9_-]{5,128}$/.test(String(p.datos.fileId || ''))) throw new Error('Archivo no valido.');
@@ -83,7 +97,9 @@ function archivoServidor_(clave, p) {
   archivo.setDescription('ITSANET ' + clave + ' | Recepcion ' + p.recepcion + ' | ' + p.usuario);
   return { exito: true, fileId: archivo.getId(), nombre: original, tipoArchivo: p.tipoArchivo,
     enlace: archivo.getUrl(), url: 'https://drive.google.com/uc?id=' + archivo.getId(),
-    carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl() };
+    carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl(),
+    carpetaSkuUrl: p.sku && p.ruta && p.ruta.length > 1
+      ? carpetaEvidenciaServidor_(recepcion, {ruta:p.ruta.slice(0,-1)}).getUrl() : '' };
 }
 
 function celdaServidor_(valor) {
@@ -162,14 +178,14 @@ function finalizarServidor_(id, p) {
     // Persistir ANTES de enviar: si se interrumpe la respuesta, no reenviar a ciegas.
     archivo.setContent(JSON.stringify({ estado: 'CORREO_EN_CURSO', id: id }));
     accionEnviarInforme_({ recepcion: p.codigo, destinatarios: p.destinatarios,
-      duracion: p.duracion, resumen: p.resumen, adjuntos: adjuntos,
+      duracion: p.duracion, resumen: p.resumen, adjuntos: adjuntos, informe: p.informe,
       carpetaUrl: carpeta.getUrl(), sheetUrl: sheet,
       fotos: (p.archivos || []).filter(function(a) { return a.tipoArchivo === 'foto'; }).slice(0, 12)
     }, { email: p.usuario });
   }
   acuse = { exito: true, id: id, carpeta: carpeta.getUrl(), sheet: sheet,
     carpetaFotos: (p.archivos || []).some(function(a) { return a.tipoArchivo === 'foto'; }) ? (p.cliente ? carpeta.getUrl() : carpetaDe_(carpeta, 'imagenes').getUrl()) : '',
-    enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA' };
+    enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA', confirmadoEn: new Date().toISOString() };
   archivo.setContent(JSON.stringify(acuse));
   return acuse;
 }

@@ -22,6 +22,7 @@ const SUITES = [
   ['Usuarios — registro y aprobación en nube y servidor', 'firebase/test/usuarios.test.mjs'],
   ['Usuarios — permisos de aprobación', 'firebase/test/reglas.test.mjs'],
   ['Operacion — fechas locales y etiquetas Zebra', 'firebase/test/operacion.test.mjs'],
+  ['Gestión — incidencias y columnas del informe', 'firebase/test/gestion.test.mjs'],
   ['Ingreso — formatos variables y copias de etiquetas', 'firebase/test/ingreso.test.mjs'],
   ['Navegador — páginas: sintaxis, imports y referencias', 'firebase/test/paginas.test.mjs'],
   ['Formato — el informe devuelve el packing list igual', 'firebase/test/formato.test.mjs'],

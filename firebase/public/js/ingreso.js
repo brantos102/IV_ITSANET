@@ -1,8 +1,8 @@
-import {pedir} from './local.js?v=20261015-27';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261015-27';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261015-27';
-import {abrirCamara} from './camara.js?v=20261015-27';
-import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261015-27';
+import {pedir} from './local.js?v=20261016-28';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261016-28';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-28';
+import {abrirCamara} from './camara.js?v=20261016-28';
+import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261016-28';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {

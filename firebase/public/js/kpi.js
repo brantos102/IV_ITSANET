@@ -9,10 +9,10 @@
  * el operario. Lo que se ve en la tabla es lo mismo que está en Firestore.
  */
 import { collection, getDocs, query, orderBy, limit }
-  from '../vendor/firebase-sdk.js?v=20261015-27';
-import { db } from './auth.js?v=20261015-27';
-import * as local from './local.js?v=20261015-27';
-import { aNumero, listarRecepciones } from './datos.js?v=20261015-27';
+  from '../vendor/firebase-sdk.js?v=20261016-28';
+import { db } from './auth.js?v=20261016-28';
+import * as local from './local.js?v=20261016-28';
+import { aNumero, listarRecepciones } from './datos.js?v=20261016-28';
 
 /** Fecha de un campo de Firestore, venga como Timestamp o como texto. */
 export function aFecha(v) {
@@ -94,12 +94,13 @@ export function referenciasDe(detalles) {
  */
 export function indicadoresDe({ recepcion, skus, eventos }) {
   let ok = 0, faltante = 0, sobrante = 0, sinContar = 0, conPnc = 0;
-  let esperadas = 0, fisicas = 0, cubiertas = 0;
+  let esperadas = 0, fisicas = 0, cubiertas = 0, verificadas=0;
   const adicionales = [];
 
   for (const s of skus) {
     const e = aNumero(s.esperado, 0);
     const f = aNumero(s.contado, 0);
+    if(s.verificado===true||f!==0)verificadas++;
     esperadas += e;
     fisicas += f;
     cubiertas += Math.min(f, e);
@@ -112,8 +113,8 @@ export function indicadoresDe({ recepcion, skus, eventos }) {
   }
 
   // Los eventos de anulación no son trabajo: son corrección de trabajo.
-  const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>String(e.id).replace(/^anula-/,'')));
-  const conteos = eventos.filter(e=>!['ANULACION','CIERRE','REAPERTURA','AUDITORIA','EXPORT','AJUSTE'].includes(e.tipo) && !e.anulado && !anulados.has(e.id));
+  const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>e.anulaA||String(e.id).replace(/^anula-/,'')));
+  const conteos = eventos.filter(e=>!['ANULACION','CIERRE','REAPERTURA','AUDITORIA','EXPORT','AJUSTE','CALIDAD'].includes(e.tipo) && !e.anulado && !anulados.has(e.id));
   const anulaciones = eventos.filter((e) => e.tipo === 'ANULACION');
 
   const fechas = eventos.map((e) => aFecha(e.creadoEn)).filter(Boolean);
@@ -132,10 +133,11 @@ export function indicadoresDe({ recepcion, skus, eventos }) {
     skus: skus.length,
     ok, faltante, sobrante, sinContar, conPnc,
     adicionales: adicionales.length,
-    esperadas, fisicas, cubiertas,
+    esperadas, fisicas, cubiertas, verificadas,
     diferencia: fisicas - esperadas,
     exactitud: skus.length ? Math.round((ok / skus.length) * 1000) / 10 : 0,
-    avance: esperadas ? Math.round((cubiertas / esperadas) * 100) : 0,
+    avance: skus.length ? Math.round(100*verificadas/skus.length) : 0,
+    coberturaUnidades: esperadas ? Math.round((cubiertas / esperadas) * 100) : 0,
     conteos: conteos.length,
     anulaciones: anulaciones.length,
     // Lo que de verdad mide la productividad: unidades por hora de trabajo.
@@ -151,7 +153,7 @@ export function consolidar(lista) {
   const base = {
     recepciones: lista.length, skus: 0, ok: 0, faltante: 0, sobrante: 0,
     sinContar: 0, conPnc: 0, adicionales: 0, esperadas: 0, fisicas: 0,
-    cubiertas: 0, conteos: 0, anulaciones: 0, minutos: 0,
+    cubiertas: 0, verificadas:0, conteos: 0, anulaciones: 0, minutos: 0,
   };
   for (const r of lista) {
     for (const k of Object.keys(base)) {
@@ -164,7 +166,8 @@ export function consolidar(lista) {
     // Promediar los porcentajes de cada recepción daría el mismo peso a una de
     // 3 líneas que a una de 300. Se recalculan sobre los totales.
     exactitud: base.skus ? Math.round((base.ok / base.skus) * 1000) / 10 : 0,
-    avance: base.esperadas ? Math.round((base.cubiertas / base.esperadas) * 100) : 0,
+    avance: base.skus ? Math.round(100*base.verificadas/base.skus) : 0,
+    coberturaUnidades: base.esperadas ? Math.round((base.cubiertas / base.esperadas) * 100) : 0,
     unidadesHora: base.minutos > 0 ? Math.round((base.fisicas / base.minutos) * 60) : 0,
   };
 }
@@ -172,9 +175,9 @@ export function consolidar(lista) {
 /** Productividad por operario, a partir de los eventos. */
 export function porOperario(eventos) {
   const mapa = {};
-  const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>String(e.id).replace(/^anula-/,'')));
+  const anulados=new Set(eventos.filter(e=>e.tipo==='ANULACION').map(e=>e.anulaA||String(e.id).replace(/^anula-/,'')));
   for (const e of eventos) {
-    if(['CIERRE','REAPERTURA','AUDITORIA','EXPORT','AJUSTE'].includes(e.tipo))continue;
+    if(['CIERRE','REAPERTURA','AUDITORIA','EXPORT','AJUSTE','CALIDAD'].includes(e.tipo))continue;
     const clave = e.operadorEmail || '—';
     const o = (mapa[clave] = mapa[clave] || {
       email: clave, nombre: e.operadorNombre || clave,

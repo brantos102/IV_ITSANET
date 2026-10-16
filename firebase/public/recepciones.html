@@ -2,16 +2,16 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-27"></script>
+<script src="./js/arranque.js?v=20261016-28"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-27">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261015-27"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-28"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -153,20 +153,20 @@
 </div>
 
 <script type="module">
-import { observarSesion, modoLocal } from './js/auth.js?v=20261015-27';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261016-28';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261015-27';
-import { Proxy } from './js/proxy.js?v=20261015-27';
-import { resumir } from './js/conteo.js?v=20261015-27';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261015-27';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261015-27';
-import { leerCodigos } from './js/codigos.js?v=20261015-27';
-import { pedir } from './js/local.js?v=20261015-27';
-import { abrirIngreso } from './js/ingreso.js?v=20261015-27';
-import { operacion } from './js/evidencias.js?v=20261015-27';
+} from './js/datos.js?v=20261016-28';
+import { Proxy } from './js/proxy.js?v=20261016-28';
+import { resumir } from './js/conteo.js?v=20261016-28';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261016-28';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261016-28';
+import { leerCodigos } from './js/codigos.js?v=20261016-28';
+import { pedir } from './js/local.js?v=20261016-28';
+import { abrirIngreso } from './js/ingreso.js?v=20261016-28';
+import { operacion } from './js/evidencias.js?v=20261016-28';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -599,9 +599,12 @@ async function cargarListado() {
 
 let todas = [];
 let soloMias = false;
+let observadoresAvance=[];
+setInterval(()=>{if(modoLocal()&&usuario&&!document.hidden)cargarListado();},15000);
 
 function pintarListado() {
   try {
+    observadoresAvance.forEach(f=>f());observadoresAvance=[];
     const q = $('fBuscar').value.trim().toUpperCase();
     const estado = $('fEstadoLista').value;
     const recs = todas.filter((r) =>
@@ -638,8 +641,8 @@ function pintarListado() {
           ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
         <td class="num">${t.skus ?? 0}</td>
         <td class="num">${t.unidades ?? 0}</td>
-        <td class="num" id="fis_${esc(r.id)}">—</td>
-        <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}"></i></div></td>
+        <td class="num" id="fis_${esc(r.id)}">${r.seguimiento?.contado ?? "—"}</td>
+        <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}" style="width:${Number(r.seguimiento?.avance)||0}%"></i></div><span class="mini" id="av_${esc(r.id)}">${r.seguimiento?.avance ?? 0}% revisado</span>${puedeConsolidar?`<div class="mini">${(r.equipoActivo||[]).map(o=>esc(o.nombre)).join(" · ")}</div>`:""}</td>
         <td>${puedeConsolidar
           ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
                ${vacia ? 'Cargar packing list' : '+ Lista'}</button>${modoLocal() ? `<button class="b-sec" data-ingreso="${esc(r.id)}">Bultos / evidencias</button>` : ''}`
@@ -654,14 +657,15 @@ function pintarListado() {
     }).join('');
 
     // Avance en vivo de las recepciones abiertas.
-    recs.filter((r) => r.estado !== 'CERRADA').forEach((r) => {
-      escucharSkus(r.id, (skus) => {
+    recs.filter(r=>!modoLocal()).forEach((r) => {
+      observadoresAvance.push(escucharSkus(r.id, (skus) => {
         const res = resumir(skus);
         const celda = $(`fis_${r.id}`);
         const barra = $(`bar_${r.id}`);
         if (celda) celda.textContent = res.unidadesFisicas;
         if (barra) barra.style.width = res.avance + '%';
-      }, () => {});
+        if($(`av_${r.id}`))$(`av_${r.id}`).textContent=res.avance+'% revisado';
+      }, () => {}));
     });
   } catch (e) {
     $('tRecepciones').innerHTML =

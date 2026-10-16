@@ -48,6 +48,7 @@ def descripcion(db, archivo, evidencia=None):
         d['ruta'] += [f'{u.tipo}_{u.numero:03d}_{u.codigo}' for u in unidades if u]
     if e and e.origen: d['ruta'].append('LISTA_' + e.origen)
     if e and e.sku: d['ruta'].append(e.sku)
+    d['sku'] = e.sku if e else ''
     if e: d['ruta'].append(e.tipo)
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
         recepcion=archivo.recepcion, evidencia=e.id if e else None)
@@ -100,7 +101,8 @@ def procesar_uno():
                     if not re.fullmatch(r'[A-Za-z0-9_-]{5,128}', ident):
                         raise RuntimeError('Drive no confirmó el archivo')
                     a.drive_id, a.drive_url = ident, 'https://drive.google.com/file/d/' + ident + '/view'
-                    j.datos = {**j.datos, 'carpeta': r.get('carpeta', ''), 'carpetaRecepcionUrl': r.get('carpetaRecepcionUrl', '')}
+                    j.datos = {**j.datos, 'carpeta': r.get('carpeta', ''), 'carpetaRecepcionUrl': r.get('carpetaRecepcionUrl', ''),
+                        'carpetaSkuUrl': r.get('carpetaSkuUrl', '')}
                 j.estado = 'COPIADA'
             j.error = None
             db.commit()

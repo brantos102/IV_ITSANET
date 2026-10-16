@@ -20,7 +20,7 @@ from app.models import Operador, Rol
 from app.routers import app_api, auth, catalogo, google_auth, integraciones, kpi, recepciones, reportes, scans, ui
 from app.security import hash_pin
 from app.services.validation import ErrorValidacion
-from app.routers import operacion, impresion
+from app.routers import operacion, impresion, gestion
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("iv_itsanet")
@@ -95,11 +95,18 @@ app.include_router(google_auth.router)
 app.include_router(reportes.router)
 app.include_router(operacion.router)
 app.include_router(impresion.router)
+app.include_router(gestion.router)
 
 
 @app.exception_handler(ErrorValidacion)
 async def _error_validacion(_request: Request, exc: ErrorValidacion):
     return JSONResponse(status_code=400, content={"codigo": exc.codigo, "mensaje": str(exc)})
+
+
+@app.exception_handler(app_api.m.ErrorApp)
+async def _error_operativo(_request: Request, exc):
+    error = app_api._traducir(exc)
+    return JSONResponse(status_code=error.status_code, content={'detail': error.detail})
 
 
 @app.get("/health", include_in_schema=False)

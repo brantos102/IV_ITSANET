@@ -7,7 +7,7 @@ const ok = (cond, msg='Condicion falsa') => { if (!cond) throw new Error(msg); }
 const secreto = 'secreto-prueba-'.repeat(4);
 function entorno() {
   let correos = 0, creados = 0, falloCorreo = false, sheets = 0,cuenta='supervisor@gmail.com';
-  const archivos = new Map(), blobs = new Map();
+  const archivos = new Map(), blobs = new Map(), propiedades=new Map();
   const carpeta = { getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
     createFile(blob) { creados++; const f = { getId: () => 'archivo-'+creados, getUrl: () => 'https://drive.google.com/file', setDescription() {},
       getBlob: () => ({ getDataAsString: () => String(blobs.get(f)), getBytes: () => Buffer.from(String(blobs.get(f))) }),
@@ -17,14 +17,14 @@ function entorno() {
   };
   const g = {
     Session:{getEffectiveUser:()=>({getEmail:()=>cuenta})},
-    PROPS: { getProperty: (k) => k === 'SERVIDOR_HMAC' ? secreto : '' },
+    PROPS: { getProperty: (k) => k === 'SERVIDOR_HMAC' ? secreto : propiedades.get(k)||'', setProperty:(k,v)=>propiedades.set(k,v) },
     Utilities: { computeHmacSha256Signature: (p,s) => [...crypto.createHmac('sha256',s).update(p).digest()],
       newBlob: (datos,tipo,nombre) => ({datos,tipo,nombre}), base64Decode: s => Buffer.from(s,'base64'), base64Encode: b => Buffer.from(b).toString('base64') },
     LockService: { getScriptLock: () => ({waitLock(){},releaseLock(){}}) },
     DriveApp: { getFolderById: () => carpeta, getFileById: () => ({ moveTo() {}, getBlob: () => ({getBytes: () => Buffer.from('informe-prueba')}) }) },
     exigirCarpeta_: () => 'carpeta', carpetaDeRecepcion_: () => carpeta, carpetaDe_: () => carpeta,
     limpiarNombre_: s => s,
-    MailApp: { getRemainingDailyQuota: () => 100 },
+    MailApp: { getRemainingDailyQuota: () => 100,sendEmail(){correos++;if(falloCorreo)throw Error('Confirmación interrumpida');} },
     SpreadsheetApp: { create() { sheets++; const hoja = {clearContents(){},getMaxRows:()=>1000,getMaxColumns:()=>26,getRange:()=>({setValues(){}}),setFrozenRows(){}}; return {getId:()=> 'sheet-nuevo',getUrl:()=> 'https://docs.google.com/spreadsheets/d/nuevo',getSheetByName:()=>hoja,insertSheet:()=>hoja}; } },
     accionEnviarInforme_() { correos++; if (falloCorreo) throw new Error('Confirmacion interrumpida'); return {exito:true}; }
   };
@@ -48,4 +48,7 @@ test('exportar texto no ejecuta formulas de hoja',()=>{const e=entorno();ok(e.g.
 test('Sheets solo se crea si se pide una exportacion expresa',()=>{const e=entorno(); const r=e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',archivos:[],exportarSheet:true,skus:[{sku:'SKU1',contado:3}]}));ok(r.exito);ok(e.sheets()===1);ok(r.sheet.includes('nuevo'));ok(e.correos()===0);});
 test('cuenta distinta del supervisor no escribe ni envia',()=>{const e=entorno();e.cambiarCuenta('otra@gmail.com');let fallo=false;try{e.g.entregaServidor_(e.peticion('finalizar',id,{destinatarios:'ejecutivo@example.test',archivos:[]}));}catch{fallo=true;}ok(fallo);ok(e.creados()===0);ok(e.correos()===0);});
 test('probar puente verifica remitente y Drive sin crear ni enviar',()=>{const e=entorno();const r=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(r.remitente==='supervisor@gmail.com');ok(e.creados()===0);ok(e.correos()===0);});
+test('prueba de correo autorizada se envía una vez por referencia',()=>{const e=entorno(),p=e.peticion('pruebaCorreo',id,{destinatario:'destino@example.test'});ok(e.g.entregaServidor_(p).remitente==='supervisor@gmail.com');ok(e.g.entregaServidor_(p).exito);ok(e.correos()===1);});
+test('prueba interrumpida no reenvía sin revisión',()=>{const e=entorno();e.romperCorreo();const p=e.peticion('pruebaCorreo',id,{destinatario:'destino@example.test'});try{e.g.entregaServidor_(p);}catch{}ok(e.g.entregaServidor_(p).revision);ok(e.correos()===1);});
+test('reutilizar referencia para otro correo se rechaza',()=>{const e=entorno();e.g.entregaServidor_(e.peticion('pruebaCorreo',id,{destinatario:'uno@example.test'}));let fallo=false;try{e.g.entregaServidor_(e.peticion('pruebaCorreo',id,{destinatario:'dos@example.test'}));}catch{fallo=true;}ok(fallo);ok(e.correos()===1);});
 console.log(`${pasadas} pasadas, ${falladas} falladas`); process.exitCode=falladas?1:0;

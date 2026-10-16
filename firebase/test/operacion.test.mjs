@@ -25,7 +25,7 @@ await test('producto presente en el maestro no se vuelve a dar de alta por ser a
   eq(r.filas,1);eq(r.tabla[1][1],'NUEVO');
 });
 await test('códigos de barras se exportan aparte, como texto y con columnas editables',()=>{
-  const f=structuredClone(csv.FORMATOS_BASE[2]);f.columnas[0].encabezado='PRODUCTO';
+  const f=structuredClone(csv.FORMATO_REVISION_BARRAS);f.columnas[0].encabezado='PRODUCTO';
   const r=csv.csvDeCodigosBarras(f,{recepcion:{codigo:'R'},codigosBarras:[{sku:'EXISTE',codigoBarras:'00001234'}]});
   eq(r.tabla,[['PRODUCTO','CODIGO DE BARRAS'],['EXISTE','00001234']]);eq(r.incidencias.length,0);
 });

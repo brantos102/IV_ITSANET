@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-27"></script>
+<script src="./js/arranque.js?v=20261016-28"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261015-27">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261015-27" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261015-27" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261016-28" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-28" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -65,6 +65,7 @@
 </div>
 
 <!-- Paso 1: escanear -->
+<p class="mini" id="equipoActivo" aria-live="polite"></p>
 <div class="panel oculto" id="panelEscaneo">
   <div class="herramientas-conteo"><b>Escanea y valida</b><button type="button" class="b-sec" id="bCaceria" aria-pressed="true">Cacería activa</button></div>
   <p class="mini" id="ayudaCaceria">Consulta el estado antes de registrar.</p>
@@ -171,8 +172,12 @@
     <label class="campo"><span>Estado físico</span>
       <select id="fEstado">
         <option value="BUENO">Buen estado</option>
-        <option value="PNC">PNC — producto no conforme</option>
+        <option value="PNC">Registrar incidencia / PNC</option>
       </select></label>
+  </div>
+  <div id="camposIncidencia" class="rejilla oculto">
+    <label class="campo"><span>Tipo de incidencia</span><select id="fTipoIncidencia"><option value="MAL_ESTADO">MAL ESTADO</option></select></label>
+    <label class="campo"><span>Unidades con esta incidencia</span><input id="fCantidadIncidencia" type="number" inputmode="decimal" min="0" step="any" placeholder="Ej.: 2 de las 6 contadas"><span class="mini">El resto se registra conforme. Faltantes y sobrantes se calculan automáticamente.</span></label>
   </div>
   <div class="chips" style="margin-top:9px">
     <button type="button" class="chip" data-pallet-rapido="DP">DP · directo a posición</button>
@@ -253,7 +258,7 @@
     </select>
     <button class="b-sec" id="bBitacora">Bitácora</button>
     <button class="b-sec" id="bFotosRecepcion">Imágenes de la recepción</button>
-    <button class="b-sec oculto" id="bExportar">Exportar ahora</button>
+    <button class="b-sec oculto" id="bExportar">Exportar ahora</button><button class="b-sec oculto" id="bHistorialInformes">Historial de informes</button><button class="b-sec oculto" id="bColumnasInforme">Columnas del informe</button>
     <button class="b-sec oculto" id="bCsvDepot">CSV para Depot</button>
     <button class="b-sec oculto" id="bReabrir">Reabrir</button>
     <button class="b-ok oculto" id="bCerrar">Finalizar</button>
@@ -296,39 +301,46 @@
 </dialog>
 
 <script type="module">
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261015-27';
-import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261015-27';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261015-27';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-28';
+import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-28';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-28';
 
-import { observarSesion } from './js/auth.js?v=20261015-27';
+import { pedir as pedirLocal } from './js/local.js?v=20261016-28';
+const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-28';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-28';
+import { observarSesion } from './js/auth.js?v=20261016-28';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261015-27';
+} from './js/datos.js?v=20261016-28';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261015-27';
+} from './js/conteo.js?v=20261016-28';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261015-27';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261015-27';
-import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js?v=20261015-27';
-import { conectarGlosario } from './js/glosario.js?v=20261015-27';
-import { parecidos } from './js/sugerir.js?v=20261015-27';
-import { confirmar, pedirTexto, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261015-27';
+} from './js/informe.js?v=20261016-28';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-28';
+import { camaraDisponible, motivoNoDisponible, abrirCamara } from './js/camara.js?v=20261016-28';
+import { conectarGlosario } from './js/glosario.js?v=20261016-28';
+import { parecidos } from './js/sugerir.js?v=20261016-28';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-28';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261015-27';
-import { Proxy } from './js/proxy.js?v=20261015-27';
-import { modoLocal } from './js/local.js?v=20261015-27';
+} from './js/csv.js?v=20261016-28';
+import { Proxy } from './js/proxy.js?v=20261016-28';
+import { modoLocal } from './js/local.js?v=20261016-28';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const RECEPCION = params.get('r');
 
 let usuario = null, perfil = null, recepcion = null;
+let reglasCliente={palletRequerido:true,posicionRequerida:false,incidencias:[]};
+let presenciaIntervalo=null;
+const dispositivoPresencia=nuevaClave();
 let skus = [];                 // agregado en vivo
 let actual = null;             // SKU en curso
 let claveEnvio = null;         // idempotencia por intento
@@ -424,7 +436,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261015-27');
+      const l=await import('./js/local.js?v=20261016-28');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -466,16 +478,21 @@ function presentarFicha(s) {
   $('ficha').classList.toggle('solo-consulta', modoCaceria);
   $('bContarFicha').classList.toggle('oculto', !modoCaceria);
   $('bContarFicha').textContent = s.verificado ? 'Agregar otro conteo' : 'Contar este producto';
-  $('estadoCaceria').className = s.verificado && s.estado === 'OK' && !s.tienePnc ? 'consulta-validada' : 'consulta-pendiente';
-  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${s.contado || 0} de ${s.esperado || 0} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC' : ''}` : `Por validar · faltan ${Math.max((s.esperado || 0) - (s.contado || 0), 0)} unidades`;
+  $('estadoCaceria').className = s.verificado && s.estado === 'OK' && !s.tienePnc && !s.cantidadConIncidencia ? 'consulta-validada' : 'consulta-pendiente';
+  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${s.contado || 0} de ${s.esperado || 0} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC: '+(s.cantidadPnc??'cantidad por revisar')+' · conformes: '+(s.cantidadConforme??'—') : ''}` : `Por validar · faltan ${Math.max((s.esperado || 0) - (s.contado || 0), 0)} unidades`;
   detallesConteo.open = false; detallesFicha.open = false;
   if (!modoCaceria) $('fCantidad').focus();
   else $('bContarFicha').focus();
   $('ficha').scrollIntoView({block:'nearest'});
 }
-function etiquetaDe(s, cantidad) {
+async function etiquetaDe(s, cantidad) {
+  let estadoEtiqueta=s.tienePnc?'PNC':'NUV',unidadesEtiqueta=cantidad||s.contado||1;
+  if(Number(s.cantidadPnc)>0&&Number(s.cantidadConforme)>0){
+    const grupo=await elegir({titulo:'¿Qué unidades vas a etiquetar?',texto:'Este SKU tiene unidades conformes y unidades no conformes. Cada etiqueta indica 1 unidad.',opciones:[{valor:'NUV',titulo:s.cantidadConforme+' unidades conformes'},{valor:'PNC',titulo:s.cantidadPnc+' unidades PNC'}]});
+    if(!grupo)return;estadoEtiqueta=grupo;unidadesEtiqueta=grupo==='PNC'?s.cantidadPnc:s.cantidadConforme;
+  }
   abrirEtiqueta({sku:s.sku,descripcion:s.descripcion || actual?.producto?.descripcion || '',cliente:recepcion?.cliente || 'ITSANET',
-    cantidad:1,unidadesReferencia:cantidad || s.contado || 1,recepcion:RECEPCION,estado:s.tienePnc ? 'PNC' : 'NUV',responsable:'',unidad:actual?.producto?.unidad || 'CS'});
+    cantidad:1,unidadesReferencia:unidadesEtiqueta,recepcion:RECEPCION,estado:estadoEtiqueta,responsable:'',unidad:actual?.producto?.unidad || 'CS'});
 }
 $('bAccionCodigo').onclick=()=>{if(actual)$('bAsociarCodigo').click();};
 $('bAccionHistorial').onclick=async()=>{
@@ -515,9 +532,9 @@ $('bCaceria').onclick = () => { modoCaceria = !modoCaceria; try {localStorage.se
 pintarModo();
 for (const b of document.querySelectorAll('[data-vista]')) b.onclick = () => {
   vistaOperacion = b.dataset.vista;
-  if (vistaOperacion !== 'contar') apagarCamara();
+  if (vistaOperacion === 'novedades') apagarCamara();
   document.querySelectorAll('[data-vista]').forEach(x => x.setAttribute('aria-pressed',String(x === b)));
-  $('panelEscaneo').classList.toggle('oculto',vistaOperacion !== 'contar');
+  $('panelEscaneo').classList.toggle('oculto',vistaOperacion === 'novedades');
   $('panelInventario').classList.toggle('oculto',vistaOperacion === 'contar');
   $('fEstadoFiltro').value = '';
   if (actual) reiniciar();
@@ -543,6 +560,20 @@ observarSesion(async (e) => {
     recepcion = await obtenerRecepcion(RECEPCION);
     $('lblRecepcion').textContent = recepcion.codigo;
     document.title = recepcion.codigo + ' — Validación';
+    if(modoLocal()){
+      reglasCliente=await pedirOperacion('/reglas/'+encodeURIComponent(recepcion.cliente));
+      $('fPallet').closest('label').querySelector('span').textContent='Pallet / subpallet'+(reglasCliente.palletRequerido?' *':' · opcional');
+      $('fPallet').required=reglasCliente.palletRequerido;
+      $('fPosReal').required=reglasCliente.posicionRequerida;
+      $('fTipoIncidencia').innerHTML=reglasCliente.incidencias.filter(i=>i.activo&&!['OK','FALTANTE','SOBRANTE'].includes(i.codigo)).map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('');
+      $('fTipoIncidencia').value='MAL_ESTADO';
+      clearInterval(presenciaIntervalo);
+      const latido=async()=>{if(document.hidden)return;try{
+        await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/presencia',{metodo:'PUT',cuerpo:{dispositivo:dispositivoPresencia,actividad:vistaOperacion==='contar'?'CONTANDO':'REVISANDO'}});
+        if(perfil?.permisos?.verEquipo){const e=await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/equipo');$('equipoActivo').textContent='En esta recepción: '+(e.equipoActivo.map(x=>x.nombre+' · '+x.actividad.toLowerCase()).join(' | ')||'sin otros usuarios activos');}
+      }catch{/* La presencia no bloquea el registro físico. */}};
+      latido();presenciaIntervalo=setInterval(latido,45000);
+    }
     pintarListas();
     aplicarEstado();
   } catch (err) {
@@ -560,7 +591,7 @@ observarSesion(async (e) => {
 
   let codigoInicial=params.get('sku');
   escucharSkus(RECEPCION, (lista) => {
-    $('panelEscaneo').classList.toggle('oculto',vistaOperacion !== 'contar');
+    $('panelEscaneo').classList.toggle('oculto',vistaOperacion === 'novedades');
     $('redOperacion').textContent = '● Servidor conectado';
     $('redOperacion').dataset.estado = 'ok';
     skus = lista.sort((a, b) => (a.sku < b.sku ? -1 : 1));
@@ -628,9 +659,11 @@ function aplicarEstado() {
   $('bRegistrar').disabled = cerrada;
   $('bBuscar').disabled = cerrada;
   $('bCamara').disabled = cerrada;
-  $('bExportar').classList.toggle('oculto', !manda);
+  $('bExportar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.exportarInformes:manda));
+  $('bColumnasInforme').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes||cerrada);
+  $('bHistorialInformes').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes);
   $('bCsvDepot').classList.toggle('oculto', !manda);
-  $('bCerrar').classList.toggle('oculto', !manda || cerrada);
+  $('bCerrar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.cerrarRecepciones:manda) || cerrada);
   $('bReabrir').classList.toggle('oculto', !manda || !cerrada);
   $('panelEntrega').classList.toggle('oculto', !modoLocal() || !manda || !cerrada);
   if (modoLocal() && manda && cerrada) actualizarEntrega();
@@ -715,7 +748,7 @@ function pintarTabla() {
   const filtro = $('fFiltro').value.trim().toUpperCase();
   const estado = $('fEstadoFiltro').value;
   const filas = skus.filter((s) => {
-    if (vistaOperacion === 'novedades' && (!s.verificado || (s.estado === 'OK' && !s.tienePnc))) return false;
+    if (vistaOperacion === 'novedades' && (!s.verificado || (s.estado === 'OK' && !s.tienePnc && !s.cantidadConIncidencia))) return false;
     if (estado && s.estado !== estado) return false;
     if (!filtro) return true;
     return s.sku.includes(filtro) || (s.descripcion || '').toUpperCase().includes(filtro);
@@ -730,7 +763,8 @@ function pintarTabla() {
     return `<tr data-estado="${esc(s.estado)}">
       <td class="id"><button type="button" class="referencia-operacion" data-ver="${esc(s.sku)}">${esc(s.sku)}</button>
         ${s.enPackingList === false ? '<br><span class="pastilla p-info">ADICIONAL</span>' : ''}
-        ${s.tienePnc ? '<br><span class="pastilla p-err">PNC</span>' : ''}
+        ${s.tienePnc ? `<br><span class="pastilla p-err">PNC: ${s.cantidadPnc??'cantidad por revisar'} · conformes: ${s.cantidadConforme??'—'}</span>` : ''}
+        ${!s.tienePnc&&s.cantidadConIncidencia?`<br><span class="pastilla p-warn">${esc((s.incidencias||[]).map(i=>i.nombre+' ('+i.cantidad+')').join(' · '))}</span>`:''}
         <br><span class="mini">${esc((s.descripcion || '').slice(0, 42))}</span>${s.verificado ? `<br><time class="mini">${esc(fechaCompleta(s.actualizadoEn))}</time>` : ''}</td>
       <td class="num">${s.esperado || 0}</td>
       <td class="num">${s.contado || 0}</td>
@@ -905,7 +939,7 @@ async function escanear(codigo) {
   $('fPallet').value = '';
   $('fObs').value = '';
   $('fPosReal').value = '';
-  $('fEstado').value = 'BUENO';
+  $('fEstado').value = 'BUENO'; $('camposIncidencia').classList.add('oculto'); $('fCantidadIncidencia').value='';
   $('filaFotos').classList.toggle('oculto', recepcion.estado === 'CERRADA');
   $('filaFotos').open = false;
   $('fFotos').value = '';
@@ -933,7 +967,7 @@ async function escanear(codigo) {
 function refrescarFicha(s) {
   const esperado = s.esperado || 0;
   const contado = s.contado || 0;
-  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${contado} de ${esperado} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC' : ''}` : `Por validar · faltan ${Math.max(esperado - contado,0)} unidades`;
+  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${contado} de ${esperado} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC: '+(s.cantidadPnc??'cantidad por revisar')+' · conformes: '+(s.cantidadConforme??'—') : ''}` : `Por validar · faltan ${Math.max(esperado - contado,0)} unidades`;
   $('fSku').textContent = s.sku;
   $('fDesc').textContent = s.descripcion || actual?.producto?.descripcion || '(sin descripción)';
 
@@ -1214,6 +1248,7 @@ $('fChips').addEventListener('click', (ev) => {
 
 $('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
 $('fEstado').addEventListener('change', () => {
+  $('camposIncidencia').classList.toggle('oculto',$('fEstado').value!=='PNC');
   if ($('fEstado').value === 'PNC') $('filaFotos').open = true;
 });
 
@@ -1290,6 +1325,7 @@ async function registrar(confirmarSobrante) {
     if (!Number.isFinite(Number($('fCantidad').value)) || Number($('fCantidad').value) <= 0) {
       throw new Error('Registra una cantidad mayor que 0. Si no apareció, usa «No apareció» para declarar 0.');
     }
+    if(modoLocal()&&$('fEstado').value==='PNC'&&!(Number($('fCantidadIncidencia').value)>0&&Number($('fCantidadIncidencia').value)<=Number($('fCantidad').value)))throw new Error('Indica cuántas de las unidades contadas tienen esta incidencia.');
     if (fotosElegidas.length && !fotosSubidas.length) {
       fotosSubidas = await subirFotos(actual.sku);
     }
@@ -1309,6 +1345,7 @@ async function registrar(confirmarSobrante) {
       cantidad: parseFloat($('fCantidad').value),
       pallet: $('fPallet').value,
       estadoFisico: $('fEstado').value,
+      ...(modoLocal()?{incidencias:$('fEstado').value==='PNC'?[{tipo:$('fTipoIncidencia').value,cantidad:Number($('fCantidadIncidencia').value)}]:[]}:{}),
       posicionReal: $('fPosReal').value,
       observacion: $('fObs').value,
       fotos: fotosSubidas,
@@ -1318,7 +1355,7 @@ async function registrar(confirmarSobrante) {
     });
 
     const actualizado = skus.find(s => s.sku === r.sku);
-    if (actualizado) { actualizado.contado = r.contado; actualizado.estado = r.estado; actualizado.verificado = true; if(r.actualizadoEn)actualizado.actualizadoEn=r.actualizadoEn; }
+    if (actualizado) { actualizado.contado = r.contado; actualizado.estado = r.estado; actualizado.verificado = true; if(r.pallets)actualizado.pallets=r.pallets; for(const k of ['cantidadPnc','cantidadConforme','cantidadConIncidencia','incidencias'])if(k in r)actualizado[k]=r[k]; actualizado.tienePnc=Number(r.cantidadPnc)>0; if(r.actualizadoEn)actualizado.actualizadoEn=r.actualizadoEn; }
     pintarKpis(); pintarTabla();
     bip('ok');
     ultimoPallet = r.pallet || ultimoPallet;   // solo para el chip de «el mismo»
@@ -1607,7 +1644,7 @@ $('bBitacora').addEventListener('click', async () => {
         <td class="num">${e.cantidad}</td>
         <td class="mini">${esc(e.pallet || '')}</td>
         <td class="mini">${esc(e.operadorNombre || e.operadorEmail || '')}</td>
-        <td>${puede ? `<button class="b-sec" data-anular="${esc(e.id)}">Anular</button>` : ''}</td>
+        <td>${puede ? `<button class="b-sec" data-anular="${esc(e.id)}">Anular</button>` : ''}${modoLocal()&&!tachado&&Number(e.cantidad)>0&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-calidad="${esc(e.id)}" data-total="${Number(e.cantidad)}">Clasificar unidades</button>`:''}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="6" class="mini">Sin conteos aún.</td></tr>';
   } catch (e) {
@@ -1615,6 +1652,13 @@ $('bBitacora').addEventListener('click', async () => {
   }
 });
 
+$('tBitacora').addEventListener('click',async ev=>{const b=ev.target.closest('[data-calidad]');if(!b)return;
+ const d=await pedirDatos({titulo:'Clasificar unidades del conteo',texto:`Total físico: ${b.dataset.total}. Esta corrección no cambia lo contado y conserva el registro original.`,campos:[
+ {clave:'tipo',etiqueta:'Incidencia',tipo:'lista',valor:'MAL_ESTADO',opciones:[{valor:'OK',titulo:'Todo conforme'},...reglasCliente.incidencias.filter(i=>i.activo&&!['OK','FALTANTE','SOBRANTE'].includes(i.codigo)).map(i=>({valor:i.codigo,titulo:i.nombre}))]},
+ {clave:'cantidad',etiqueta:'Unidades con incidencia (0 si todo es conforme)',tipo:'numero',valor:'',obligatorio:true},
+ {clave:'motivo',etiqueta:'Motivo de la corrección',obligatorio:true}]});if(!d)return;
+ try{await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/eventos/'+encodeURIComponent(b.dataset.calidad)+'/calidad',{cuerpo:{motivo:d.motivo,incidencias:d.tipo==='OK'?[]:[{tipo:d.tipo,cantidad:Number(d.cantidad)}]}});aviso('Clasificación corregida con fecha, hora y responsable. El total físico se conserva.','ok');$('bBitacora').click();$('bBitacora').click();}catch(e){aviso(e.message,'err');}
+});
 $('tBitacora').addEventListener('click', async (ev) => {
   const id = ev.target.dataset.anular;
   if (!id) return;
@@ -1666,6 +1710,12 @@ const elegirVersion = (titulo) => elegir({
  * trabajando. El archivo sale igual, marcado como parcial, y queda en la
  * auditoría igual que cualquier otra exportación.
  */
+$('bColumnasInforme').onclick=async()=>{try{if(await configurarColumnasInforme(RECEPCION)){recepcion=await obtenerRecepcion(RECEPCION);aviso('Columnas del informe guardadas.','ok');}}catch(e){aviso(e.message,'err');}};
+$('bHistorialInformes').onclick=async()=>{try{const hs=await historialInformes(RECEPCION);if(!hs.length){aviso('Aún no se generaron informes de esta recepción.');return;}
+ const dialogo=document.createElement('dialog');dialogo.className='modal-operativa';const cerrar=document.createElement('button');cerrar.textContent='Cerrar';cerrar.className='b-sec';cerrar.onclick=()=>dialogo.close();dialogo.append(cerrar);
+ for(const h of hs){const p=document.createElement('p');p.textContent=`R${String(h.numero).padStart(4,'0')} · ${h.estado} · ${h.usuario} · ${fechaCompleta(h.creadoEn)} · ${h.descargas?.length||0} descargas solicitadas${h.confirmadoEn?' · Entrega confirmada: '+fechaCompleta(h.confirmadoEn):''}`;if(h.archivos?.length){const b=document.createElement('button');b.textContent='Descargar esta versión';b.className='b-sec';b.onclick=async()=>{b.disabled=true;try{await descargarInforme(h);}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}};p.append(b);}dialogo.append(p);if(h.descargas?.length){const detalle=document.createElement('details'),titulo=document.createElement('summary');titulo.textContent='Quién solicitó las descargas';detalle.append(titulo);for(const x of h.descargas){const linea=document.createElement('p');linea.className='mini';linea.textContent=x.usuario+' · '+fechaCompleta(x.fecha);detalle.append(linea);}dialogo.append(detalle);}}
+ document.body.append(dialogo);dialogo.addEventListener('close',()=>dialogo.remove());dialogo.showModal();
+ }catch(e){aviso(e.message,'err');}};
 $('bExportar').addEventListener('click', async () => {
   limpiarAvisos();
   const versionElegida = await elegirVersion('Descargar un avance');
@@ -1673,10 +1723,14 @@ $('bExportar').addEventListener('click', async () => {
   $('bExportar').disabled = true;
   const d = aviso('Armando el informe…', 'info');
   try {
+    const informe=modoLocal()?await iniciarInforme(RECEPCION,'DESCARGA'):null;
+    if(modoLocal()&&!informe)return;
     const datos = await reunirInforme(RECEPCION, recepcion);
+    if(informe)datos.recepcion={...datos.recepcion,informe};
     const libros = construirLibros(datos, { version: versionElegida });
+    const archivado=informe?await archivarInforme(RECEPCION,informe,libros):null;
     d.remove();
-    libros.forEach(descargarLibro);
+    if(archivado)await descargarInforme(archivado);else libros.forEach(descargarLibro);
     const libro = { filas: libros.reduce((a, l) => a + l.filas, 0),
                     nombre: libros.map((l) => l.nombre).join(', ') };
 
@@ -1686,7 +1740,7 @@ $('bExportar').addEventListener('click', async () => {
            ` Quedan ${r.sinVerificar} referencias sin buscar: este archivo es un avance, no el final.`),
           'ok', recepcion.estado === 'CERRADA' ? 'Informe' : 'Avance descargado');
 
-    registrarAuditoria(RECEPCION, usuario, 'EXPORTACION', {
+    if(!modoLocal())await registrarAuditoria(RECEPCION, usuario, 'EXPORTACION', {
       destino: 'DESCARGA',
       archivo: libro.nombre,
       parcial: recepcion.estado !== 'CERRADA',
@@ -1716,7 +1770,7 @@ $('bCsvDepot').addEventListener('click', async () => {
   limpiarAvisos();
   const cual = await elegir({
     titulo: 'Exportar para Depot',
-    texto: 'Las columnas se mantienen en Administración. Los códigos de barras son una revisión opcional separada del alta de productos.',
+    texto: 'Los dos formatos de Depot se mantienen en Administración. Los códigos de barras nuevos se incluyen en el packing list cuando se asigna su columna.',
     opciones: [
       { valor: 'cantidades',
         titulo: 'Cantidades contadas',
@@ -1726,8 +1780,7 @@ $('bCsvDepot').addEventListener('click', async () => {
         titulo: 'Productos nuevos',
         detalle: 'Los códigos que aparecieron y no estaban en el catálogo. Hay '
                + 'que darlos de alta ANTES de cargarles cantidad.' },
-      ...(modoLocal() ? [{valor:'barras',titulo:'Códigos de barras · Excel de revisión',
-        detalle:'Etiquetas nuevas de SKU existentes. Opcional; confirma los encabezados con Depot antes de cargar.'}] : []),
+
       { valor: 'plantilla',
         titulo: 'Plantilla vacía',
         detalle: 'Solo los encabezados, para rellenar a mano o para comparar con '
@@ -1742,8 +1795,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261015-27').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261015-27').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-28').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-28').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
             : cual === 'productos' ? csvDeProductos(formatos[1], datos)
             : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)
@@ -1882,7 +1935,10 @@ $('bCerrar').addEventListener('click', async () => {
   try {
     // El archivo se arma ANTES de cerrar: si algo falla, la recepción sigue
     // abierta y se puede reintentar sin haber perdido nada.
+    const informe=modoLocal()?await iniciarInforme(RECEPCION,'CORREO'):null;
+    if(modoLocal()&&!informe)return;
     const datos = await reunirInforme(RECEPCION, recepcion);
+    if(informe)datos.recepcion={...datos.recepcion,informe};
     // Un archivo POR packing list: si la recepción consolidó dos listas, salen
     // dos archivos, cada uno con las filas de la suya. Quien recibe cada uno
     // espera el suyo, no un libro con las dos hojas que tenga que separar.
@@ -1893,7 +1949,9 @@ $('bCerrar').addEventListener('click', async () => {
 
     if (modoLocal()) {
       d = aviso('Guardando informes y preparando la entrega al ejecutivo…', 'info');
+      const archivado=await archivarInforme(RECEPCION,informe,libros);
       const entrega = await finalizarConEntrega(RECEPCION, {
+        informeId:informe.id,
         destinatarios: destinatarios.trim(), ...destino,
         eventos: datos.eventos.map((e) => e.id), exportarSheet,
         duracion: duracionDe(recepcion),
@@ -1906,7 +1964,7 @@ $('bCerrar').addEventListener('click', async () => {
       });
       recepcion.estado = 'CERRADA';
       aplicarEstado();
-      libros.forEach(descargarLibro);
+      try{await descargarInforme(archivado);}catch(e){aviso('La recepción ya se finalizó. '+e.message+'; puedes descargar desde el historial.','warn');}
       d.remove();
       aviso('Recepción cerrada. Informes y fotos guardados en el servidor. ' +
         'La copia a Drive' + (destinatarios.trim() ? ' y el correo' : '') +

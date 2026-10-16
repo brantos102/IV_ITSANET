@@ -26,6 +26,8 @@ from app.security import requiere_supervisor, usuario_actual
 from app.services import app_modelo as m
 from app.services import depot as depot_svc
 from app.services import entregas
+from app.services import ajustes
+from app.routers.integraciones import admin
 
 router = APIRouter(prefix="/api/app", tags=["app-operarios"])
 
@@ -35,7 +37,7 @@ COLECCIONES = ("lineas", "skus", "adicionales", "eventos", "auditoria")
 
 
 @router.get('/estado')
-def estado_local(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+def estado_local(db: Session = Depends(get_db), op: Operador = Depends(admin)):
     estado = {'destino': 'servidor',
             'recepciones': db.scalar(select(func.count()).select_from(AppRecepcion)),
             'productos': db.scalar(select(func.count()).select_from(Producto)),
@@ -99,7 +101,7 @@ def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador =
 
 @router.post('/recepciones/{codigo}/entrega', status_code=201)
 def cerrar_con_entrega(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db),
-                      op: Operador = Depends(requiere_supervisor)):
+                      op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
     try:
         return entregas.preparar(db, codigo, datos, _quien(op))
     except m.ErrorApp as exc:
@@ -234,11 +236,13 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
 
 
 @router.get('/archivos/{archivo_id}')
-def archivo_local(archivo_id: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+def archivo_local(archivo_id: str, db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     a = db.get(AppArchivo, archivo_id)
     if a is None:
         raise HTTPException(404, 'Archivo no encontrado')
+    if a.tipo == 'informe' and not ajustes.permisos(db, op).get('exportarInformes'):
+        raise HTTPException(403, 'Solo los usuarios autorizados pueden descargar informes')
     from app.models import AppCopiaDrive
     copia = db.get(AppCopiaDrive, archivo_id)
     if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
@@ -470,7 +474,7 @@ def recalcular(codigo: str, sku: str, db: Session = Depends(get_db),
 # --------------------------------------------------------------------------- #
 @router.post("/recepciones/{codigo}/cerrar")
 def cerrar(codigo: str, db: Session = Depends(get_db),
-           op: Operador = Depends(requiere_supervisor)):
+           op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
     try:
         return m.cerrar_recepcion(db, codigo, _quien(op))
     except m.ErrorApp as exc:

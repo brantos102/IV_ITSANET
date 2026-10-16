@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AppEvento, AppHuella, AppLinea, AppRecepcion, AppSku, utcnow,
 )
+from app.services import calidad, ajustes
 
 ABIERTAS = ("ABIERTA", "EN_VALIDACION")
 
@@ -131,6 +132,7 @@ def doc_recepcion(r: AppRecepcion, operarios: list[str] | None = None) -> dict:
 
 def doc_sku(s: AppSku) -> dict:
     return {
+        **calidad.documento(s),
         "id": s.sku,
         "sku": s.sku,
         "descripcion": s.descripcion or "",
@@ -237,7 +239,10 @@ def listar_recepciones(db: Session, max_filas: int = 50,
         suyas = select(AppEvento.recepcion).where(AppEvento.usuario == usuario).distinct()
         q = (select(AppRecepcion).where(AppRecepcion.codigo.in_(suyas))
              .order_by(AppRecepcion.creado_en.desc()).limit(max_filas))
-    return [doc_recepcion(r) for r in db.execute(q).scalars().all()]
+    from app.services.seguimiento import resumenes
+    filas = list(db.execute(q).scalars().all())
+    metricas = resumenes(db, [r.codigo for r in filas])
+    return [{**doc_recepcion(r), **metricas.get(r.codigo, {})} for r in filas]
 
 
 def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0, *, actual: bool = False) -> list[dict]:
@@ -521,8 +526,6 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
     if not sku:
         raise ErrorApp("Falta el código del producto.", "SKU_REQUERIDO")
     pallet = normalizar_pallet(p.get("pallet"))
-    if not pallet:
-        raise ErrorApp("Falta el pallet.", "PALLET_REQUERIDO")
     cantidad = a_numero(p.get("cantidad"), 0)
     if not math.isfinite(cantidad) or cantidad < 0:
         raise ErrorApp('La cantidad física no admite negativos. Si no apareció, declara 0; para corregir, anula el conteo.', 'CANTIDAD_INVALIDA')
@@ -541,17 +544,28 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
             raise ErrorApp('El identificador ya corresponde a otro movimiento. Inicia un nuevo registro.', 'CLAVE_EN_CONFLICTO')
         s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
             AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
+        if s:
+            from app.models import AppCalidadSku
+            s.calidad=db.scalar(select(AppCalidadSku).where(AppCalidadSku.sku_id==s.id).with_for_update().execution_options(populate_existing=True))
         esperado = a_numero(s.esperado, 0) if s else 0
         contado = a_numero(s.contado, 0) if s else 0
         return {
             "duplicado": True, "sku": sku, "esperado": esperado, "contado": contado,
             "pendiente": max(esperado - contado, 0),
             "estado": (s.estado if s else estado_de(esperado, contado)),
+            'pallets': s.pallets if s else {},
+            **(calidad.documento(s) if s else {}),
         }
 
     if r.estado not in ABIERTAS:
         raise ErrorApp(
             f"La recepción está {r.estado}: no admite más conteos.", "RECEPCION_CERRADA")
+
+    reglas = ajustes.cliente(db, r.cliente)
+    if not pallet and reglas['palletRequerido']:
+        raise ErrorApp("Falta el pallet.", "PALLET_REQUERIDO")
+    if cantidad > 0 and reglas['posicionRequerida'] and not normalizar_pallet(p.get('posicionReal')):
+        raise ErrorApp('Este cliente requiere la posición real.', 'POSICION_REQUERIDA')
 
     s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
         AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
@@ -577,7 +591,9 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
         raise ErrorApp(msg, "CONFIRMAR_SOBRANTE")
 
     ahora = utcnow().replace(tzinfo=None)
+    incidencias = calidad.validar(db, p, cantidad)
     datos = {
+        'incidencias': incidencias,
         "codigoEscaneado": limpiar(p.get("codigoEscaneado")) or None,
         "estadoFisico": limpiar(p.get("estadoFisico")) or None,
         "observacion": limpiar(p.get("observacion")) or None,
@@ -588,7 +604,7 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
     db.add(AppEvento(
         id=idem, recepcion=codigo, tipo=limpiar(p.get("tipo")) or "CONTEO", sku=sku,
         cantidad=cantidad, pallet=pallet,
-        posicion=normalizar_pallet(p.get("posicionReal")) or None,
+        posicion=re.sub(r"\s", "", limpiar(p.get("posicionReal"))).upper() or None,
         origen=limpiar(p.get("origen")).upper() or None,
         usuario=usuario, motivo=None, datos=datos, creado_en=ahora,
     ))
@@ -619,15 +635,18 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
     if r.estado == "ABIERTA":
         r.estado = "EN_VALIDACION"
 
+    calidad.actualizar(db, s)
     db.commit()
     return {
         "duplicado": False, "eventoId": idem, "sku": sku,
         "cantidadRegistrada": cantidad, "pallet": pallet,
+        'pallets': s.pallets or {},
         "actualizadoEn": _iso(s.actualizado_en),
         "esperado": esperado, "contado": a_numero(s.contado, 0),
         "pendiente": max(esperado - a_numero(s.contado, 0), 0),
         "estado": s.estado,
         "esAdicional": not en_packing and esperado == 0,
+        **calidad.documento(s),
     }
 
 
@@ -673,6 +692,7 @@ def anular_conteo(db: Session, codigo: str, usuario: str | None,
             "pallet": original.pallet, "origen": original.origen,
             "estado_fisico": None, "tipo": "ANULACION",
         }, usuario)
+        calidad.actualizar(db, s)
 
     db.commit()
     return {
@@ -778,5 +798,6 @@ def recalcular_sku(db: Session, codigo: str, sku: str) -> dict:
             "cantidad": a_numero(e.cantidad, 0), "pallet": e.pallet, "origen": e.origen,
             "estado_fisico": (e.datos or {}).get("estadoFisico"), "tipo": e.tipo,
         }, e.usuario)
+    calidad.actualizar(db, s)
     db.commit()
     return doc_sku(s)

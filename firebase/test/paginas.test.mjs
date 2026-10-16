@@ -274,7 +274,7 @@ function revisarImports(etiqueta, codigo, base) {
     const ruta = m[2].split('?')[0];
     if (ruta.startsWith('http')) continue;
     const resuelta = ruta.replace(/^\.\/js\//, './').replace(/^\.\//, './');
-    const clave = Object.keys(exportados).find((k) => k.endsWith(path.basename(ruta)));
+    const clave = Object.keys(exportados).find((k) => path.basename(k)===path.basename(ruta));
     if (!clave) { malo(`${etiqueta}: módulo no encontrado ${ruta}`); continue; }
     for (const nombre of m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0]).filter(Boolean)) {
       if (!exportados[clave].has(nombre)) malo(`${etiqueta}: '${nombre}' no está exportado por ${ruta}`);

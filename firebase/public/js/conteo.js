@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261015-27';
-import { db } from './auth.js?v=20261015-27';
-import * as local from './local.js?v=20261015-27';
+} from '../vendor/firebase-sdk.js?v=20261016-28';
+import { db } from './auth.js?v=20261016-28';
+import * as local from './local.js?v=20261016-28';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261015-27';
+} from './datos.js?v=20261016-28';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -405,7 +405,8 @@ export function registrosDe(eventos, sku) {
       posicionReal: e.posicionReal || '',
       origen: e.origen || null,
       operador: e.operadorNombre || e.operadorEmail || '',
-      cuando: e.creadoEn?.toDate ? e.creadoEn.toDate() : null,
+      cuando: e.creadoEn?.toDate ? e.creadoEn.toDate()
+        : e.creadoEn && Number.isFinite(new Date(e.creadoEn).getTime()) ? new Date(e.creadoEn) : null,
     }))
     .sort((a, b) => (b.cuando?.getTime() || 0) - (a.cuando?.getTime() || 0));
 }
@@ -461,22 +462,13 @@ export function resumir(skus) {
   return {
     skus: total, ok, faltante, sobrante, sinContar: pendiente, noEncontrado,
     // Lo que de verdad bloquea el cierre: ningún SKU puede quedarse sin dato.
-    sinVerificar: pendiente,
+    sinVerificar: skus.filter(s=>!s.verificado&&!aNumero(s.contado,0)).length,
     unidadesEsperadas, unidadesFisicas,
     diferencia: unidadesFisicas - unidadesEsperadas,
     exactitud: total ? Math.round((ok / total) * 1000) / 10 : 0,
     unidadesCubiertas,
-    /**
-     * Avance = unidades verificadas sobre unidades declaradas.
-     *
-     * El tope se aplica POR SKU, no al total. Comparando los totales, contar de
-     * más en un producto tapaba lo que faltaba en otro: con 20 SKU faltantes y
-     * un sobrante grande la barra marcaba 100%, y lo que queda por buscar es
-     * justo lo que hay que ver.
-     */
-    avance: unidadesEsperadas
-      ? Math.round((unidadesCubiertas / unidadesEsperadas) * 100)
-      : 0,
+    avance: total ? Math.round(100*skus.filter(s=>s.verificado===true||aNumero(s.contado,0)!==0).length/total) : 0,
+    coberturaUnidades: unidadesEsperadas ? Math.round(100*unidadesCubiertas/unidadesEsperadas) : 0,
     discrepancias,
     adicionales: skus.filter((s) => s.enPackingList === false).length,
   };

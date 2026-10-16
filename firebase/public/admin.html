@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-27"></script>
+<script src="./js/arranque.js?v=20261016-28"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261015-27" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-28" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261015-27">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
 </head>
 <body>
 <div class="envoltorio">
@@ -321,17 +321,18 @@
 </div>
 
 <script type="module">
-import { configurarOperacion } from './js/admin-operacion.js?v=20261015-27';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261015-27';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261015-27';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega } from './js/local.js?v=20261015-27';
-import { confirmar } from './js/modal.js?v=20261015-27';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-28';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261016-28';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-28';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-28';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-28';
+import { confirmar } from './js/modal.js?v=20261016-28';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261015-27';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261015-27';
+} from './js/csv.js?v=20261016-28';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-28';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261015-27';
+  from './vendor/firebase-sdk.js?v=20261016-28';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -380,6 +381,7 @@ observarSesion(({ usuario, perfil, error }) => {
     $('panelLocal').classList.remove('oculto');
     $('panelIntegraciones').classList.remove('oculto');
     cargarIntegraciones();
+    configurarPoliticas($('panelAdmin')).catch(e=>aviso(e.message,'err','Permisos y reglas'));
     configurarOperacion($('panelAdmin')).catch(e=>aviso(e.message,'err','Configuración operativa'));
     actualizarEstadoLocal();
   } else {
@@ -435,6 +437,14 @@ for (const [formulario, destino, construir, secretos] of [
 $('formDepotLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formDepotLocal(ev); });
 $('formGoogleLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formGoogleLocal(ev); });
 $('formOAuthLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formOAuthLocal(ev); });
+const pruebaCorreo=document.createElement('details');
+pruebaCorreo.innerHTML='<summary>Enviar correo de prueba</summary><p class="mini">Usa el correo de un supervisor activo con su puente autorizado. La prueba confirma Drive y envía un mensaje identificable.</p><label class="campo"><span>Destinatario de prueba</span><input type="email" id="correoDestinoPrueba" value="brantos102@gmail.com"></label><button type="button" class="b-sec" id="enviarCorreoPrueba">Enviar prueba desde el supervisor indicado</button>';
+$('bProbarPuente').after(pruebaCorreo);
+let clavePruebaCorreo=nuevoIdentificador();
+$('enviarCorreoPrueba').onclick=async()=>{const b=$('enviarCorreoPrueba');
+ if(!await confirmar({titulo:'Enviar correo de prueba',texto:`De ${$('iGoogleSupervisor').value} a ${$('correoDestinoPrueba').value}. Google debe confirmar al remitente.`,aceptar:'Enviar prueba'}))return;
+ b.disabled=true;try{const r=await pedir('/integraciones/google/correo-prueba',{cuerpo:{supervisor:$('iGoogleSupervisor').value,destinatario:$('correoDestinoPrueba').value,clave:clavePruebaCorreo}});aviso(`${r.mensaje} De ${r.remitente} a ${r.destinatario}`,'ok');clavePruebaCorreo=nuevoIdentificador();}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}
+};
 $('bProbarPuente').onclick=async()=>{
   $('bProbarPuente').disabled=true;
   try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value}});
@@ -508,8 +518,8 @@ function pintarFormatosCsv() {
     .join('');
 
   $('formatosCsv').innerHTML = formatosCsv.map((f, fi) => `
-    <div class="panel" style="margin:16px 0 0;background:var(--bg)">
-      <h3 style="margin:0 0 4px">${esc(f.nombre)}</h3>
+    <details class="panel" style="margin:16px 0 0;background:var(--bg)">
+      <summary><b>${esc(f.nombre)}</b> · ${f.columnas.length} columnas · Editar formato</summary>
       <p class="mini" style="margin:0 0 14px">${esc(f.descripcion)}</p>
       <div class="rejilla">
         <label class="campo"><span>Nombre del archivo</span>
@@ -548,7 +558,7 @@ function pintarFormatosCsv() {
           ? `<button type="button" class="b-sec" data-restablecer="${fi}">Restablecer columnas de revisión</button>`
           : `<button type="button" class="b-sec" data-oficial="${fi}">Aplicar modelo oficial (${FORMATOS_BASE[fi].columnas.length} columnas)</button>`}
       </div>
-    </div>`).join('');
+    </details>`).join('');
 }
 
 $('formatosCsv').addEventListener('input', (ev) => {

@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261015-27"></script>
+<script src="./js/arranque.js?v=20261016-28"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>ITSANET — Acceso</title>
@@ -150,7 +150,7 @@
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
                         text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261015-27">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-28">
 </head>
 <body>
 <div class="caja">
@@ -289,16 +289,16 @@
 </div>
 
 <script type="module">
-import { fechaDe, recientes } from './js/fechas.js?v=20261015-27';
-import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261015-27';
-import { modoLocal, estadoServidor } from './js/local.js?v=20261015-27';
+import { fechaDe, recientes } from './js/fechas.js?v=20261016-28';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261016-28';
+import { modoLocal, estadoServidor } from './js/local.js?v=20261016-28';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
-         normalizarAlias, db, auth } from './js/auth.js?v=20261015-27';
-import { pedirDatos } from './js/modal.js?v=20261015-27';
+         normalizarAlias, db, auth } from './js/auth.js?v=20261016-28';
+import { pedirDatos } from './js/modal.js?v=20261016-28';
 import { doc, getDoc, collection, getDocs, limit, query }
-  from './vendor/firebase-sdk.js?v=20261015-27';
-import { listarRecepciones } from './js/datos.js?v=20261015-27';
+  from './vendor/firebase-sdk.js?v=20261016-28';
+import { listarRecepciones } from './js/datos.js?v=20261016-28';
 
 const $ = (id) => document.getElementById(id);
 $('dominioTxt').textContent = '@' + DOMINIO;
@@ -531,6 +531,8 @@ observarSesion(async ({ usuario, perfil, error }) => {
   limpiar('avisos-login');
   limpiar('avisos-sesion');
   $('tDiag').innerHTML = '';
+  $('bloqueDiag').classList.add('oculto');
+  for(const id of ['accesoUsuarios','accesoAdmin','accesoKpis'])$(id).classList.add('oculto');
 
   if (error) aviso('avisos-login', error, 'err', 'Atención');
 
@@ -569,7 +571,7 @@ observarSesion(async ({ usuario, perfil, error }) => {
 
   // --- Qué puede abrir cada quien ---
   if (perfil && ['SUPERVISOR', 'ADMIN'].includes(perfil.rol)) {
-    $('accesoUsuarios').classList.remove('oculto');
+    if(!modoLocal()||perfil.permisos?.gestionarUsuarios)$('accesoUsuarios').classList.remove('oculto');
     $('accesoKpis').classList.remove('oculto');
   }
   if (perfil && perfil.rol === 'ADMIN') {

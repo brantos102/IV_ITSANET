@@ -101,8 +101,44 @@ def probar_google(datos: dict = Body(...), db: Session = Depends(get_db), _: Ope
             raise HTTPException(409, 'El despliegue no pertenece a este supervisor')
         return {'ok': True, 'remitente': supervisor, 'carpeta': r.get('carpeta', ''), 'nombreCarpeta': r.get('nombreCarpeta', ''),
                 'mensaje': 'Remitente y acceso a la carpeta Drive verificados. No se envio correo.'}
-    except (RuntimeError, httpx.HTTPError):
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from None
+    except httpx.HTTPError:
         raise HTTPException(502, 'No se pudo verificar el puente. Revisa despliegue, cuenta ejecutora, carpeta y clave compartida.') from None
+
+
+@router.post('/google/correo-prueba')
+def correo_prueba(datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    import re
+    from sqlalchemy import select
+    from app.models import AppConfig
+    from app.services import entregas, ajustes
+    supervisor = str(datos.get('supervisor') or '').strip().lower()
+    destinatario = str(datos.get('destinatario') or '').strip().lower()
+    clave = str(datos.get('clave') or '')
+    if not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', destinatario) or not re.fullmatch(r'[a-f0-9]{32}', clave):
+        raise HTTPException(422, 'Indica un destinatario válido y una clave de prueba')
+    perfil = db.scalar(select(Operador).where(Operador.email == supervisor, Operador.activo.is_(True), Operador.rol.in_([Rol.ADMIN, Rol.SUPERVISOR])))
+    if not perfil:
+        raise HTTPException(422, 'Registra ese correo en la ficha de un supervisor activo, en Usuarios → Editar. El remitente debe identificar a la persona responsable.')
+    try:
+        estado = entregas.llamar('estado', uuid4().hex, {'usuario': supervisor})
+        if estado.get('remitente') != supervisor:
+            raise HTTPException(409, 'Google no confirma a este remitente')
+        if 'pruebaCorreo' not in estado.get('capacidades', []):
+            raise HTTPException(409, 'Actualiza Servidor.gs y publica una versión nueva del despliegue /exec para habilitar la prueba.')
+        r = entregas.llamar('pruebaCorreo', clave, {'usuario': supervisor, 'destinatario': destinatario})
+        ajustes.auditar(db, op.email or op.usuario, 'CORREO_PRUEBA', supervisor,
+            {'destinatario': destinatario, 'clave': clave, 'remitente': r.get('remitente')})
+        db.commit()
+        return {'ok': True, 'remitente': r.get('remitente'), 'destinatario': destinatario,
+            'carpeta': estado.get('carpeta'), 'mensaje': 'Google confirmó el envío de prueba. Revisa la bandeja del destinatario.'}
+    except entregas.RevisionEntrega:
+        raise HTTPException(409, 'El envío requiere revisión. Comprueba Enviados y la bandeja de destino antes de repetir una prueba nueva.') from None
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from None
+    except httpx.HTTPError:
+        raise HTTPException(502, 'No se confirmó comunicación con Google. Revisa la conectividad del servidor.') from None
 
 
 @router.put('/oauth-google')

@@ -73,7 +73,8 @@ def test_csv_local_permiso_admin_y_estado_sin_credenciales(cliente, db):
     admin.post('/api/auth/login', json={'usuario': 'jefe', 'pin': 'prueba123'})
     assert admin.put('/api/app/config/csv', json=datos).status_code == 200
     assert cliente.get('/api/app/config/csv').json() == datos
-    estado = cliente.get('/api/app/estado').json()
+    assert cliente.get('/api/app/estado').status_code == 403
+    estado = admin.get('/api/app/estado').json()
     assert estado['destino'] == 'servidor'
     assert estado['firebase_requerido'] is False
     assert 'url' not in estado and 'password' not in estado

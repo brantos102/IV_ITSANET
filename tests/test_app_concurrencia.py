@@ -37,6 +37,8 @@ def test_operarios_simultaneos_conservan_eventos_y_totales(db, monkeypatch):
                     m.registrar_conteo(sesion, codigo, f'operario{numero}', {
                         'sku': 'SKU1', 'cantidad': 1, 'pallet': f'A{numero + 1}',
                         'origen': 'PRINCIPAL', 'idempotencyKey': f'paralelo-{numero}-{i}',
+                        'incidencias': [{'tipo': 'MAL_ESTADO', 'cantidad': 1}]
+                            if numero == 0 and i % 2 == 0 else [],
                     })
                 except Exception as exc:
                     sesion.rollback()
@@ -54,4 +56,6 @@ def test_operarios_simultaneos_conservan_eventos_y_totales(db, monkeypatch):
         assert s.scalar(select(func.count()).select_from(AppEvento).where(AppEvento.recepcion == codigo)) == 80
         assert s.scalar(select(func.sum(AppEvento.cantidad)).where(AppEvento.recepcion == codigo)) == 80
         assert sku.contado == 80
+        assert m.doc_sku(sku)['cantidadPnc'] == 10
+        assert m.doc_sku(sku)['cantidadConforme'] == 70
         assert sku.pallets == {'A1': 20, 'A2': 20, 'A3': 20, 'A4': 20}

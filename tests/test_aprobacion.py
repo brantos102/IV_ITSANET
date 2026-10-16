@@ -84,7 +84,7 @@ def test_actualizar_alias_y_nombre_conserva_identidad_y_password(db, operadores)
     assert r.status_code == 200, r.text
     db.refresh(op)
     assert op.id == operadores["op1"].id and op.pin_hash == anterior
-    assert c.patch(f"/api/auth/operadores/{op.id}", json={"email": "otro@itsanet.com"}).status_code == 422
+    assert c.patch(f"/api/auth/operadores/{op.id}", json={"email": "otro@itsanet.com"}).status_code == 403
     assert c.patch(f"/api/auth/operadores/{op.id}", json={"usuario": "sup"}).status_code == 409
 
 

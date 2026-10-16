@@ -89,6 +89,12 @@ class OperadorCambio(BaseModel):
     nombre: str | None = Field(default=None, min_length=2, max_length=120)
     rol: str | None = None
     activo: bool | None = None
+    email: str | None = Field(default=None, max_length=160)
+
+    @field_validator('email')
+    @classmethod
+    def validar_email(cls, value):
+        return OperadorIn.validar_email(value)
 
     @field_validator("usuario")
     @classmethod

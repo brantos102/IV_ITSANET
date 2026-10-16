@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261015-27';
-import { db } from './auth.js?v=20261015-27';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261015-27';
-import * as local from './local.js?v=20261015-27';
+} from '../vendor/firebase-sdk.js?v=20261016-28';
+import { db } from './auth.js?v=20261016-28';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261016-28';
+import * as local from './local.js?v=20261016-28';
 
 /**
  * Dónde se guardan los datos.
@@ -182,6 +182,10 @@ export const ROL_COLUMNA = {
   'DESFACE': 'desface', 'DESFASE': 'desface', 'DIFERENCIA': 'desface',
   'PALLET': 'pallet', 'PALETA': 'pallet',
   'CODIGO BARRA': 'codigoBarra', 'CODIGOBARRA': 'codigoBarra',
+  'MARCA':'marca','CLIENTE':'cliente','TIPO DE INCIDENCIA':'incidencia','TIPO INCIDENCIA':'incidencia',
+  'CANT CON INCIDENCIA':'cantidadIncidencia','CANTIDAD CON INCIDENCIA':'cantidadIncidencia',
+  'EVIDENCIA FOTOGRAFICA DIR URL DRIVE':'evidencia','CARPETA DRIVE':'evidencia',
+  'CODIGO DE BARRAS':'codigoBarra','CODIGO BARRAS':'codigoBarra',
   'OBSERVACION': 'observacion', 'OBSERVACIONES': 'observacion',
 };
 

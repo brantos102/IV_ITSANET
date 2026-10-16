@@ -449,6 +449,48 @@ class AppSku(Base):
     esperado_por_origen: Mapped[dict | None] = mapped_column(JSON_MAPA)
     creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
     actualizado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+    calidad: Mapped['AppCalidadSku | None'] = relationship(lazy='selectin', uselist=False, cascade='all, delete-orphan')
+
+
+class AppCalidadSku(Base):
+    __tablename__ = 'app_calidad_skus'
+    sku_id: Mapped[int] = mapped_column(ForeignKey('app_skus.id', ondelete='CASCADE'), primary_key=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA, default=dict)
+
+
+class AppPresencia(Base):
+    __tablename__ = 'app_presencias'
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), primary_key=True)
+    dispositivo: Mapped[str] = mapped_column(String(64), primary_key=True)
+    operador_id: Mapped[int] = mapped_column(ForeignKey('operadores.id', ondelete='CASCADE'), index=True)
+    sesion_hash: Mapped[str] = mapped_column(String(64), index=True)
+    actividad: Mapped[str] = mapped_column(String(30))
+    visto_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+
+
+class AppInforme(Base):
+    __tablename__ = 'app_informes'
+    __table_args__ = (UniqueConstraint('recepcion', 'numero', name='uq_app_informe_numero'),)
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    clave: Mapped[str] = mapped_column(String(80), unique=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    numero: Mapped[int] = mapped_column(Integer)
+    tipo: Mapped[str] = mapped_column(String(20))
+    estado: Mapped[str] = mapped_column(String(20), default='RESERVADO')
+    usuario: Mapped[str] = mapped_column(String(160))
+    huella: Mapped[str] = mapped_column(String(64))
+    datos: Mapped[dict] = mapped_column(JSON_MAPA, default=dict)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
+
+
+class AppAuditoriaGeneral(Base):
+    __tablename__ = 'app_auditoria_general'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    usuario: Mapped[str] = mapped_column(String(160))
+    accion: Mapped[str] = mapped_column(String(40), index=True)
+    referencia: Mapped[str] = mapped_column(String(120), index=True)
+    datos: Mapped[dict] = mapped_column(JSON_MAPA, default=dict)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow, index=True)
 
 
 class AppEvento(Base):

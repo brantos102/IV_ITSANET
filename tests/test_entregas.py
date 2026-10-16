@@ -125,9 +125,11 @@ def test_firma_solo_servidor_sin_exponer_el_secreto(db, monkeypatch):
         def post(self, url, json):
             capturado.update(json)
             class R:
+                status_code = 200
                 def raise_for_status(self): pass
                 def json(self): return {'exito': True}
             return R()
+    monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_URL', 'https://script.google.com/macros/s/test/exec')
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_SECRET', 'clave-test-' * 4)
     monkeypatch.setattr(entregas.httpx, 'Client', Cliente)
     entregas.llamar('archivo', 'a' * 32 + ':' + 'b' * 32, {'nombre': 'Validación.xlsx'})

@@ -167,7 +167,8 @@ await test('resumir no divide por cero con la recepción vacía', () => {
 
 await test('el avance no pasa de 100 aunque haya sobrantes', () => {
   eq(conteo.resumir([{ sku: 'A', esperado: 10, contado: 25 }]).avance, 100);
-  eq(conteo.resumir([{ sku: 'A', esperado: 10, contado: 5 }]).avance, 50);
+  eq(conteo.resumir([{ sku: 'A', esperado: 10, contado: 5 }]).avance, 100);
+  eq(conteo.resumir([{ sku: 'A', esperado: 10, contado: 5 }]).coberturaUnidades, 50);
 });
 
 // Pasó de verdad: 221 declaradas, 385 contadas, 20 SKU faltantes, y la barra

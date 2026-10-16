@@ -18,7 +18,7 @@ from sqlalchemy import or_, select, update
 
 from app import config
 from app.db import SessionLocal
-from app.models import AppArchivo, AppEntrega, utcnow
+from app.models import AppArchivo, AppEntrega, AppInforme, utcnow
 from app.services import app_modelo as m, archivos
 
 log = logging.getLogger('iv_itsanet.entregas')
@@ -45,18 +45,23 @@ def documento(e, tecnico=False):
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'resultado': (e.resultado or {}) if tecnico else {
                 k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'carpetaFotos', 'sheet', 'enviadoA', 'remitente')},
+            'informe': e.datos.get('informe'),
             'creadoEn': m._iso(e.creado_en)}
 
 
 def resumen_final(skus):
     """Las cifras del correo salen de la instantanea SQL del cierre."""
     r = {'ok': 0, 'faltante': 0, 'sobrante': 0, 'unidadesEsperadas': 0,
-         'unidadesFisicas': 0, 'adicionales': 0, 'discrepancias': []}
+         'unidadesFisicas': 0, 'adicionales': 0, 'discrepancias': [], 'unidadesPnc': 0, 'novedades': []}
     for s in skus:
         e, f = s.get('esperado', 0), s.get('contado', 0)
         r['unidadesEsperadas'] += e
         r['unidadesFisicas'] += f
         r['adicionales'] += s.get('enPackingList') is False
+        r['unidadesPnc'] += s.get('cantidadPnc') or 0
+        if s.get('incidencias') or s.get('tienePnc'):
+            r['novedades'].append({'sku': s['sku'], 'contado': f, 'cantidadPnc': s.get('cantidadPnc'),
+                'cantidadConforme': s.get('cantidadConforme'), 'incidencias': s.get('incidencias', [])})
         if f == e:
             r['ok'] += 1
         else:
@@ -83,10 +88,21 @@ def preparar(db, codigo, datos, usuario):
         if anterior and anterior.clave == hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest():
             return documento(anterior)
         raise HTTPException(409, 'La recepcion ya estaba cerrada sin esta entrega')
-    informes = [archivos.guardar(db, r.codigo, 'informe', l, usuario).id for l in libros]
     r = m.obtener(db, codigo, bloquear=True)
     if r.estado == 'CERRADA':
         raise HTTPException(409, 'Otro supervisor ya cerro esta recepcion; actualiza la pantalla')
+    informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
+    if datos.get('informeId'):
+        from app.services.informes import huella
+        if not informe or informe.recepcion != r.codigo or informe.usuario != usuario or informe.tipo != 'CORREO':
+            raise HTTPException(409, 'La generación del informe no corresponde a este cierre')
+        if informe.estado != 'GENERADO' or informe.huella != huella(db, r):
+            raise HTTPException(409, 'El informe cambió o ya se utilizó; actualiza antes de finalizar')
+        informes = [a['id'] for a in informe.datos.get('archivos', [])]
+        if not informes:
+            raise HTTPException(422, 'Archiva los informes antes de finalizar')
+    else:
+        informes = [archivos.guardar(db, r.codigo, 'informe', l, usuario, confirmar=False).id for l in libros]
     skus = m.leer_coleccion(db, r.codigo, 'skus', actual=True)
     if not skus or any(not s.get('verificado') for s in skus):
         raise HTTPException(409, 'Verifica todas las referencias antes de finalizar')
@@ -115,6 +131,12 @@ def preparar(db, codigo, datos, usuario):
             'eventos': eventos},
         error=None if configurado(db) else 'Pendiente de configurar el puente con Google')
     db.add(e)
+    if informe:
+        informe.estado = 'EN_COLA'
+        informe.datos = {**informe.datos, 'entregaId': e.id}
+        e.datos = {**e.datos, 'informeId': informe.id, 'informe': {
+            'id': informe.id, 'numero': informe.numero, 'usuario': informe.usuario,
+            'creadoEn': m._iso(informe.creado_en)}}
     db.commit()
     return documento(e)
 
@@ -130,17 +152,30 @@ def llamar(operacion, clave, datos):
     from app.services.integraciones import google
     with SessionLocal() as db:
         destino = google(db, datos.get('usuario'))
+    if not destino['url'] or len(destino['secreto']) < 32:
+        raise RuntimeError('Guarda el enlace /exec y la clave compartida del puente de este supervisor en Administración.')
     firma = hmac.new(destino['secreto'].encode(), payload.encode(), hashlib.sha256).hexdigest()
     # Solo el servidor contacta Google; nunca se envia esta clave al navegador.
     with httpx.Client(timeout=120, follow_redirects=True) as cliente:
         respuesta = cliente.post(destino['url'],
             json={'accion': 'entregaServidor', 'payload': payload, 'firma': firma})
-        respuesta.raise_for_status()
-        r = respuesta.json()
+        if respuesta.status_code >= 400:
+            raise RuntimeError(f'Google respondió HTTP {respuesta.status_code}. Revisa el despliegue web /exec y su acceso; vuelve a publicarlo después de actualizar el script.')
+        try:
+            r = respuesta.json()
+        except ValueError:
+            raise RuntimeError('El enlace devolvió una página web en lugar del puente. Usa el despliegue /exec, ejecutado como el supervisor y con acceso para las peticiones del servidor.') from None
+    if not isinstance(r, dict):
+        raise RuntimeError('La respuesta de Google no corresponde al puente de ITSANET.')
     if not r.get('exito'):
         if r.get('revision'):
             raise RevisionEntrega('Google requiere revisar el correo antes de reintentar')
-        raise RuntimeError('Google no confirmo la entrega; revisa el despliegue, permisos y cuota')
+        mensaje = str(r.get('mensaje') or r.get('error') or '').lower()
+        if 'firma' in mensaje or 'hmac' in mensaje:
+            raise RuntimeError('La clave compartida no coincide con SERVIDOR_HMAC de este Apps Script.')
+        if 'supervisor' in mensaje or 'ejecut' in mensaje:
+            raise RuntimeError('El despliegue debe ejecutarse con la misma cuenta Google que el supervisor indicado.')
+        raise RuntimeError('Google no confirmó la operación. Revisa autorización de Drive y correo, carpeta raíz y versión publicada del script.')
     return r
 
 
@@ -172,9 +207,11 @@ def procesar_uno():
                 imagenes=[db.get(AppArchivo,aid) for aid in d['fotos']]
                 if all(a and a.drive_id for a in imagenes):
                     from app.services.reporte_evidencias import generar
+                    generacion=db.get(AppInforme,d['informeId']) if d.get('informeId') else None
+                    sufijo=generacion.datos.get('sufijo','') if generacion else ''
                     informe=archivos.guardar(db,e.recepcion,'informe',{
-                        'nombre':'Evidencias_'+e.recepcion+'.xlsx',
-                        'base64':base64.b64encode(generar(db,e.recepcion)).decode()},e.usuario,confirmar=False)
+                        'nombre':'Evidencias_'+e.recepcion+sufijo+'.xlsx',
+                        'base64':base64.b64encode(generar(db,e.recepcion,generacion)).decode()},e.usuario,confirmar=False)
                     d={**d,'informes':d['informes']+[informe.id],'informeEvidencias':informe.id}
                     e.datos=d;db.commit()
             guardados = []
@@ -226,9 +263,24 @@ def procesar_uno():
                 for campo in ('skus', 'lineas', 'eventos'):
                     payload.pop(campo, None)
             resultado = llamar('finalizar', e.id, payload)
+            resultado = {**resultado, 'confirmadoEn': resultado.get('confirmadoEn') or m._iso(utcnow())}
             e.estado, e.resultado, e.error = 'ENTREGADA', resultado, None
+            if d.get('informeId'):
+                informe = db.get(AppInforme, d['informeId'])
+                if informe:
+                    informe.estado = 'ENVIADO' if d.get('destinatarios') else 'EN_DRIVE'
+                    informe.datos = {**informe.datos, 'confirmadoEn': resultado['confirmadoEn'],
+                        'destinatarios': d.get('destinatarios', '')}
+                    from app.services.ajustes import auditar
+                    auditar(db, e.usuario, 'ENTREGA_CONFIRMADA', e.recepcion,
+                        {'informeId': informe.id, 'destinatarios': d.get('destinatarios', ''),
+                         'confirmadoEn': resultado['confirmadoEn']})
         except RevisionEntrega as exc:
             e.estado, e.error = 'REVISION', str(exc)
+            if d.get('informeId'):
+                informe = db.get(AppInforme, d['informeId'])
+                if informe:
+                    informe.estado = 'REVISION'
         except Exception as exc:
             # No persistir textos HTTP que pueden contener URL firmada o datos secretos.
             e.estado = 'PENDIENTE'
