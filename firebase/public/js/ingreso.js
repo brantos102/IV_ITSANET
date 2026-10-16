@@ -1,12 +1,13 @@
-import {pedir} from './local.js?v=20261016-30';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261016-30';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-30';
-import {abrirCamara,errorDeCamara} from './camara.js?v=20261016-30';
-import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261016-30';
+import {pedir} from './local.js?v=20261016-31';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261016-31';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-31';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261016-31';
+import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261016-31';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   const ruta=`/recepciones/${encodeURIComponent(codigo)}`;
+  const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
   let [recepcion,ingreso]=await Promise.all([pedir(ruta),operacion(ruta+'/ingreso')]);
   let indice=0,u=null,cerrarCamara=null,camaraSesion=0,ocupado=false,leyendo=false,pendientes=[],cache=new Map(),conflicto=false;
   const d=document.createElement('dialog');d.className='dialogo-operativo ingreso-guiado';
@@ -82,7 +83,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   }
   function pintarEtiqueta(){
     $('[data-etiqueta]').textContent=u.codigo ? `Etiqueta: ${u.codigo}${u.pallet ? ' · Pallet: '+u.pallet : ''}` : 'Escanea la etiqueta madre';
-    $('[data-tomar]').textContent='📷 Tomar foto';
+    $('[data-tomar]').textContent=esWindows && !camaraDisponible() ? 'Adjuntar foto' : '📷 Tomar foto';
     $('[data-pallet]').value=u.pallet || '';
   }
   function pintarCantidad(){
@@ -118,7 +119,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       <p data-etiqueta class="etiqueta-madre"></p><div class="camara-bulto"><video data-video playsinline muted></video><p data-error-camara class="mini" hidden></p><button class="b-sec" data-activar>Activar cámara</button></div>
       <div class="acciones ingreso-herramientas"><button class="b-sec" data-escanear>↻ Escanear etiqueta</button><button class="b-sec" data-manual>Escribir código</button></div>
       <label class="campo"><span>Fotos de</span><select data-tipo>${['EXTERIOR_BULTO','ABIERTO_CON_PACKING','ETIQUETA_CAJA','DANO_EMBALAJE','PACKING_INICIAL','PANORAMICA','ADICIONAL'].map(k=>`<option value="${k}">${esc(TIPOS_EVIDENCIA[k])}</option>`).join('')}</select></label>
-      <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Tomar foto</button><button class="b-sec" data-archivos>＋ Galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-ficheros accept="image/*" multiple hidden>
+      <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Tomar foto</button><button class="b-sec" data-nativa>Cámara del equipo</button><a class="b-sec" data-nativa-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button class="b-sec" data-archivos>＋ Galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-captura accept="image/*" capture="environment" hidden><input type="file" data-ficheros accept="image/*" multiple hidden>
       <p class="mini" data-cantidad-fotos></p><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
       <details class="nota-bulto"><summary>＋ Observación opcional</summary><textarea data-nota rows="2" maxlength="300" placeholder="Estado del embalaje o novedad…">${esc(u.observacion || '')}</textarea></details>
       <details><summary>Guía de fotos</summary><p class="mini">${ingreso.protocolo==='GENERAL' ? `${ingreso.recomendaciones.panoramicasMin} panorámicas recomendadas por recepción.` : `${ingreso.recomendaciones.exterioresMin} exteriores por bulto (objetivo ${ingreso.recomendaciones.exterioresObjetivo}), ${ingreso.recomendaciones.abiertosMin} abierto con lista visible y ${ingreso.recomendaciones.packingMin} packing inicial por recepción.`} Sin máximo de imágenes.</p></details>
@@ -129,12 +130,18 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       <footer class="ingreso-pie"><button class="b-primario" data-siguiente>${indice<bultos().length-1 ? 'Guardar y siguiente bulto →' : 'Guardar y terminar bultos ✓'}</button></footer>`;
     $('[data-tipo]').value=ingreso.protocolo==='GENERAL' ? 'PANORAMICA' : 'EXTERIOR_BULTO';
     pintarEtiqueta();pintarCantidad();estado('');
+    $('[data-nativa]').hidden=esWindows;$('[data-nativa-windows]').hidden=!esWindows;
+    $('[data-nativa-windows]').onclick=ev=>{if(ocupado || conflicto){ev.preventDefault();return;}apagar();leyendo=false;estado('Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a este bulto.');};
     $('[data-activar]').onclick=seguro(encender);
     $('[data-escanear]').onclick=seguro(async()=>{leyendo=true;estado('Enfoca el código de la etiqueta madre.');await encender();});
     $('[data-manual]').onclick=seguro(async()=>{leyendo=false;const v=await pedirCampos({titulo:'Etiqueta madre',campos:[{clave:'codigo',etiqueta:'Código madre',valor:u.codigo,obligatorio:true}]});
       if(!v){leyendo=!u.codigo;return;}const e=interpretarEtiquetaMadre(v.codigo);await guardarUnidad({...e,pallet:e.pallet || (u.codigo===e.codigo ? u.pallet : '')});pintarEtiqueta();});
     $('[data-tomar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de adjuntar fotos.');
+      if(!camaraDisponible()){abrirNativa();return;}
       if(!cerrarCamara){await encender();return;}leyendo=false;pendientes.push(await fotografiarVideo($('[data-video]')));try{await subir();}finally{pintarCantidad();if(!u.codigo)leyendo=true;}});
+    function abrirNativa(){apagar();leyendo=false;$('[data-activar]').hidden=false;$('[data-video]').parentElement.classList.add('sin-camara');$('[data-captura]').click();}
+    $('[data-nativa]').onclick=()=>{if(!ocupado && !conflicto)abrirNativa();};
+    $('[data-captura]').onchange=seguro(async()=>{pendientes.push(...$('[data-captura]').files);$('[data-captura]').value='';try{await subir();}finally{pintarCantidad();}});
     $('[data-archivos]').onclick=()=>{if(!ocupado && !conflicto)$('[data-ficheros]').click();};
     $('[data-ficheros]').onchange=seguro(async()=>{const files=$('[data-ficheros]').files;pendientes.push(...files);$('[data-ficheros]').value='';try{await subir();}finally{pintarCantidad();}});
     $('[data-reintentar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de reintentar.');await subir();});

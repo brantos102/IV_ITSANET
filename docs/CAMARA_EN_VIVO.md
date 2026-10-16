@@ -11,6 +11,43 @@ video, no toma una foto para buscar y no registra unidades automáticamente.
 Se pausa al abrir la ficha para no reemplazar los datos que se están editando.
 Las fotos opcionales de evidencia se conservan por separado.
 
+## Cámara de la PC sobre los registros de producción
+
+La captura de desarrollo muestra `localhost:3003`, que Chrome considera seguro.
+Para usar esa excepción en una PC autorizada con acceso SSH al servidor, abrir
+**PowerShell de Windows en la PC**, fuera de la sesión SSH existente, y ejecutar:
+
+```powershell
+ssh -N -L 127.0.0.1:3004:127.0.0.1:3002 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 enicolalde@192.168.4.94
+```
+
+Conservar la comprobación de identidad SSH habitual y utilizar el acceso del
+servidor. Cuando termine la autenticación, el comando queda esperando: mantener
+esa ventana abierta. Abrir `http://localhost:3004/app/` e iniciar sesión con la
+cuenta habitual de producción. La cámara solicita permiso para localhost.
+El túnel solo escucha en esa PC y transmite al mismo servicio real; no ejecuta
+Docker ni copia bases, y no requiere reiniciar `iv-itsanet`. El puerto 3003 sigue
+siendo desarrollo; el 3004 se reserva aquí para el acceso a producción.
+Cerrar con Ctrl+C al terminar. Si el puerto está ocupado, usar otro libre; si SSH
+rechaza el reenvío, TI debe autorizarlo o habilitar HTTPS. Este acceso sirve para
+PCs con SSH autorizado; los teléfonos necesitan su dirección HTTPS confiable.
+
+## Fotos mediante la cámara del sistema
+
+En bultos, **Cámara del equipo** utiliza un selector de imagen con captura nativa
+(`capture="environment"`). Android/iOS pueden abrir su cámara y devolver la foto
+a la recepción, sin depender del visor de video de la página. La imagen utiliza
+la misma compresión, vinculación al bulto/packing list, control de versión y cola
+Drive de las demás evidencias. La selección no registra unidades ni modifica el
+conteo. Si no hay cámara web disponible, **Tomar foto** ofrece esta captura.
+
+En Windows se ofrece **Cámara de Windows**, que solicita abrir la aplicación
+del sistema mediante su enlace registrado. Tomar la foto y seleccionarla desde **Galería**, normalmente
+en Imágenes → Álbum de cámara. Una página no puede leer automáticamente esa
+carpeta ni recuperar archivos sin selección o autorización del usuario. El
+selector nativo es para fotos de evidencia; el escaneo continuo permanece en
+el visor de video. Abrir ITSANET como PWA no cambia el requisito de origen seguro.
+
 ## Habilitar el acceso seguro sin cambiar otros proyectos
 
 Si la empresa ya ofrece una URL HTTPS para esta aplicación, utilizarla. Debe

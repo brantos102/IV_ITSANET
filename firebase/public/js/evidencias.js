@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-30';
-import {comprimir} from './imagen.js?v=20261016-30';
-import {confirmar} from './modal.js?v=20261016-30';
+import {pedir} from './local.js?v=20261016-31';
+import {comprimir} from './imagen.js?v=20261016-31';
+import {confirmar} from './modal.js?v=20261016-31';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -40,11 +40,14 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supe
     <label class="campo"><span>Clasificación</span><select data-categoria>${['RECEPCION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label>
     <label class="campo"><span>Bulto / caja madre</span><select data-unidad><option value="">Sin unidad específica</option>${ingreso.unidades.map(u=>`<option value="${u.id}">${esc(u.tipo)} ${u.numero} · ${esc(u.codigo || 'sin código')}</option>`).join('')}</select></label>
     <label class="campo"><span>Packing list vinculado</span><input data-origen placeholder="PRINCIPAL o embarque"></label></div>
-    <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Tomar foto</button><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
+    <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Cámara del equipo</button><a class="b-sec" data-camara-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
     <input data-captura type="file" accept="image/*" capture="environment" hidden><input data-archivos type="file" accept="image/*" multiple hidden>
     <div data-seleccion></div><p data-estado role="status"></p><div data-carpetas></div><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
   document.body.append(d); d.showModal();
   const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false;
+  const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
+  $('[data-camara]').hidden=esWindows;$('[data-camara-windows]').hidden=!esWindows;
+  $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
   if(supervisor){const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='Excel de trazabilidad';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
   $('[data-tipo]').value=sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO';

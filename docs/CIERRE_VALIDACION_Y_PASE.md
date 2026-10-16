@@ -56,18 +56,18 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-30`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-31`; recargar las pantallas antes de retomar operación.
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261016-sin-fotos`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261016-camara-sistema`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-sin-fotos &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-sin-fotos^{commit}') &&
+git fetch origin tag itsanet-20261016-camara-sistema &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-camara-sistema^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
@@ -107,6 +107,18 @@ real de un origen HTTP de red. Esto no sustituye la prueba del teléfono físico
 La suite actual pasó 872 pruebas y se ejecutaron cinco comprobaciones adicionales
 contra MySQL de pruebas, incluidas las restricciones de supervisor, la versión
 para evitar sobrescrituras y la conservación de evidencias existentes.
+
+La versión 31 añade **Cámara del equipo** para evidencias del bulto y SKU. En
+móvil usa el selector de captura nativa; en Windows ofrece el enlace a la app
+Cámara y la selección posterior desde Galería. El visor se detiene antes de
+ceder la cámara al sistema. Las fotos del bulto mantienen el control de versión,
+la compresión, la asociación de unidad y la cola Drive. No se leen automáticamente
+carpetas privadas del equipo. El escaneo de códigos permanece en video continuo.
+Pasaron 872 pruebas y la selección/subida en navegador con perfiles Android y
+Windows, sobre un origen HTTP inseguro: evidencia vinculada a bulto y SKU,
+conteos conservados. La captura física en teléfonos y el lanzamiento de Cámara
+de Windows requieren comprobarse en esos equipos. Ver alternativas de acceso
+de PC y requisitos móviles en [CAMARA_EN_VIVO.md](CAMARA_EN_VIVO.md).
 
 El registro real del pase del 16 de octubre de 2026 confirmó una reversión
 prematura: el proceso empezó a las 08:16:25 de Ecuador y completó el arranque a

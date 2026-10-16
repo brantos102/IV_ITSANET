@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-30"></script>
+<script src="./js/arranque.js?v=20261016-31"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-30">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-31">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261016-30" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261016-30" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261016-31" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-31" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -199,6 +199,7 @@
     <label class="campo"><span>Fotos de la evidencia</span></label>
     <div class="acciones" style="margin:0">
       <button type="button" class="b-sec" id="bTomarFoto">📷 Tomar foto</button>
+      <a class="b-sec" id="bCamaraWindows" href="microsoft.windows.camera:" hidden>Cámara de Windows</a>
       <button type="button" class="b-sec" id="bElegirFoto">Elegir de la galería</button>
       <span class="mini" id="contadorFotos">Se recomiendan 2: una del bulto y otra del detalle.</span>
     </div>
@@ -302,39 +303,39 @@
 </dialog>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-30';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-30';
-import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-30';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-30';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-30';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-31';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-31';
+import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-31';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-31';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-31';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261016-30';
+import { pedir as pedirLocal } from './js/local.js?v=20261016-31';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-30';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-30';
-import { observarSesion } from './js/auth.js?v=20261016-30';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-31';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-31';
+import { observarSesion } from './js/auth.js?v=20261016-31';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261016-30';
+} from './js/datos.js?v=20261016-31';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261016-30';
+} from './js/conteo.js?v=20261016-31';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261016-30';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-30';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261016-30';
-import { conectarGlosario } from './js/glosario.js?v=20261016-30';
-import { parecidos } from './js/sugerir.js?v=20261016-30';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-30';
+} from './js/informe.js?v=20261016-31';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-31';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261016-31';
+import { conectarGlosario } from './js/glosario.js?v=20261016-31';
+import { parecidos } from './js/sugerir.js?v=20261016-31';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-31';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261016-30';
-import { Proxy } from './js/proxy.js?v=20261016-30';
-import { modoLocal } from './js/local.js?v=20261016-30';
+} from './js/csv.js?v=20261016-31';
+import { Proxy } from './js/proxy.js?v=20261016-31';
+import { modoLocal } from './js/local.js?v=20261016-31';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -434,7 +435,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261016-30');
+      const l=await import('./js/local.js?v=20261016-31');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -501,6 +502,7 @@ $('bAccionHistorial').onclick=async()=>{
 };
 $('bAccionEvidencias').onclick=async()=>{
   if(!actual)return;
+  apagarCamara();
   const s=skus.find(s=>s.sku===actual.sku) || {};
   const categoria=$('fEstado').value==='PNC' || s.tienePnc ? 'PNC' : s.estado==='SOBRANTE' || s.enPackingList===false ? 'SOBRANTE' : ['FALTANTE','NO_ENCONTRADO'].includes(s.estado) ? 'FALTANTE' : 'GENERAL';
   try{if(modoLocal())await abrirEvidencias({recepcion:RECEPCION,sku:actual.sku,categoria,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});
@@ -510,7 +512,7 @@ $('bAccionEvidencias').onclick=async()=>{
 function ofrecerEvidencias(avisoElemento,sku,categoria){
   if(!modoLocal())return;
   const b=document.createElement('button');b.className='b-sec';b.textContent='📷 Evidencias de la novedad';
-  b.onclick=async()=>{try{await abrirEvidencias({recepcion:RECEPCION,sku,categoria,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});}catch(e){aviso(e.message,'err');}};
+  b.onclick=async()=>{apagarCamara();try{await abrirEvidencias({recepcion:RECEPCION,sku,categoria,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});}catch(e){aviso(e.message,'err');}};
   avisoElemento.append(b);
 }
 function fechaCompleta(v){const f=v?.toDate ? v.toDate() : new Date(v);return !v || Number.isNaN(f.getTime()) ? '—' : f.toLocaleString('es-EC',{timeZone:'America/Guayaquil'});}
@@ -1419,7 +1421,11 @@ const anadirFotos = (lista) => {
   pintarFotos();
 };
 
-$('bTomarFoto').addEventListener('click', () => $('fCamara').click());
+const fotosWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
+$('bCamaraWindows').hidden=!fotosWindows;
+$('bCamaraWindows').onclick=()=>{apagarCamara();aviso('Toma la foto en Cámara de Windows. Regresa y pulsa Elegir de la galería para adjuntarla al ítem.','info');};
+$('bTomarFoto').textContent=fotosWindows ? 'Adjuntar foto' : '📷 Cámara del equipo';
+$('bTomarFoto').addEventListener('click', () => {apagarCamara();$('fCamara').click();});
 $('bElegirFoto').addEventListener('click', () => $('fFotos').click());
 
 // Se limpia el valor para que tomar dos veces la misma foto vuelva a disparar
@@ -1790,8 +1796,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-30').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-30').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-31').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-31').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
             : cual === 'productos' ? csvDeProductos(formatos[1], datos)
             : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)

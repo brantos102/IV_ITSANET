@@ -1,4 +1,4 @@
-import {operacion, abrirEvidencias, TIPOS_EVIDENCIA, esc} from './evidencias.js?v=20261016-30';
+import {operacion, abrirEvidencias, TIPOS_EVIDENCIA, esc} from './evidencias.js?v=20261016-31';
 
 /** Guía del cierre: distingue una foto por tomar de una copia todavía pendiente. */
 export async function abrirAyudaCierre({recepcion, alFinalizar, alDescargar}) {
@@ -40,7 +40,7 @@ export async function abrirAyudaCierre({recepcion, alFinalizar, alDescargar}) {
         const sku = r.archivos[Number(b.dataset.ver)].vinculos[0]?.sku || '';
         d.close();
         try { await abrirEvidencias({recepcion, sku, supervisor: true}); }
-        catch (e) { await import('./modal.js?v=20261016-30').then(m => m.avisarModal({titulo:'No se pudieron abrir las fotos',texto:esc(e.message)})); }
+        catch (e) { await import('./modal.js?v=20261016-31').then(m => m.avisarModal({titulo:'No se pudieron abrir las fotos',texto:esc(e.message)})); }
       }; });
       $('[data-pagina]').textContent = r.total ? `${pagina * 30 + 1}–${Math.min((pagina + 1) * 30, r.total)} de ${r.total}` : '';
       $('[data-anterior]').hidden = !pagina;
