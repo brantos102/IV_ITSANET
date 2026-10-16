@@ -21,7 +21,9 @@ def politicas(db:Session=Depends(get_db),_=Depends(admin)):
 def guardar(datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(admin)):
     return ajustes.guardar(db,datos,op.email or op.usuario)
 
-@router.get('/reglas/{cliente}')
+# El identificador comercial puede contener barras (p. ej. VENTURA/VW).
+# ASGI decodifica %2F antes del enrutamiento: debe capturarse el nombre entero.
+@router.get('/reglas/{cliente:path}')
 def reglas(cliente:str,db:Session=Depends(get_db),op=Depends(usuario_actual)):
     return {**ajustes.cliente(db,cliente),'incidencias':ajustes.configuracion(db)['incidencias']}
 

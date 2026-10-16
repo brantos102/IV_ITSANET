@@ -60,18 +60,36 @@ La actualización agrega tablas de clasificación, presencia, generaciones de in
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261016-arranque-compatible`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261016-cliente-con-barra`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-arranque-compatible &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-arranque-compatible^{commit}') &&
+git fetch origin tag itsanet-20261016-cliente-con-barra &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-cliente-con-barra^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
 ```
+
+Esta etiqueta incluye el parche del error `Not Found` al abrir recepciones de
+clientes con barra. El registro de producción confirmó solicitudes a
+`/api/operacion/reglas/VENTURA/VW` con respuesta 404. La recepción sí existía:
+el parámetro de la ruta descartaba nombres con `/`, incluso cuando el navegador
+enviaba `%2F`, porque ASGI lo decodifica antes de resolver la ruta. La consulta
+ahora captura el identificador completo y conserva autenticación y reglas del
+cliente, sin sustituirlas por los valores de otro cliente. No cambia el nombre
+`VENTURA/VW`, el esquema, los registros ni la versión del frontend `20261016-29`.
+Después del pase, abrir una recepción existente de ese cliente y verificar que
+aparecen el escáner, el avance y los conteos previos. No recrear la recepción ni
+volver a importar su packing list para resolver este error.
+
+La regresión se reprodujo antes del parche en navegador móvil y PC (404 y
+escáner bloqueado); después respondió 200 y permitió consultar un SKU existente,
+conservando conteos y bitácora. Pasaron 869 pruebas del proyecto y 23 de gestión
+contra una base MySQL de pruebas separada. Estas verificaciones se realizaron en
+desarrollo, sin acceso directo a los registros de producción.
 
 El registro real del pase del 16 de octubre de 2026 confirmó una reversión
 prematura: el proceso empezó a las 08:16:25 de Ecuador y completó el arranque a

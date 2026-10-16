@@ -3,6 +3,7 @@ import base64
 import io
 from datetime import timedelta
 from uuid import uuid4
+from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
@@ -70,6 +71,36 @@ def test_cliente_sin_pallet_y_posicion_configurable(admin,cliente,db):
     p['clientes']['VENTURA']['posicionRequerida']=True;assert admin.put('/api/operacion/politicas',json=p).status_code==200
     assert contar(cliente,cantidad=1,pallet='').status_code==422
     assert contar(cliente,cantidad=1,pallet='',posicionReal='A01').status_code==200
+
+
+@pytest.mark.parametrize('nombre', ['VENTURA/VW', 'IMPOFACTOR / IMPOVENTURA', 'VENTURA'])
+def test_reglas_de_cliente_con_barra_abren_recepcion_existente_sin_cambiar_conteos(admin,cliente,db,nombre):
+    codigo='RECEPCION-EXISTENTE'
+    m.crear_recepcion(db,{'codigo':codigo,'cliente':nombre},'sup')
+    m.guardar_packing_list(db,codigo,{'lineas':[{'linea':1,'sku':'SKU1','cantidad':6}],
+        'porSku':{'SKU1':6},'unidades':6},'PL')
+    assert contar(cliente,codigo,cantidad=2).status_code==200
+    politica=admin.get('/api/operacion/politicas').json()
+    politica['clientes'][nombre]={'palletRequerido':False,'posicionRequerida':True}
+    assert admin.put('/api/operacion/politicas',json=politica).status_code==200
+    recibida=cliente.get(f'/api/app/recepciones/{codigo}').json()
+    antes=cliente.get(f'/api/app/recepciones/{codigo}/skus').json()
+    eventos=cliente.get(f'/api/app/recepciones/{codigo}/eventos').json()
+    for identificador in (quote(recibida['cliente'],safe=''), recibida['cliente']):
+        r=cliente.get('/api/operacion/reglas/'+identificador)
+        assert r.status_code==200,r.text
+        assert r.json()['palletRequerido'] is False
+        assert r.json()['posicionRequerida'] is True
+        assert {i['codigo'] for i in r.json()['incidencias']}=={i['codigo'] for i in politica['incidencias']}
+    assert cliente.get(f'/api/app/recepciones/{codigo}').json()==recibida
+    assert cliente.get(f'/api/app/recepciones/{codigo}/skus').json()==antes
+    assert antes[0]['contado']==2
+    assert cliente.get(f'/api/app/recepciones/{codigo}/eventos').json()==eventos
+    # La consulta no rebaja las reglas al valor predeterminado de otro cliente.
+    assert contar(cliente,codigo,cantidad=1,pallet='').status_code==422
+    assert contar(cliente,codigo,cantidad=1,pallet='',posicionReal='A01').status_code==200
+    anonimo=TestClient(app)
+    assert anonimo.get('/api/operacion/reglas/'+quote(nombre,safe='')).status_code==401
 
 
 def test_presencia_expira_y_cierra_solo_su_sesion(cliente,db):
