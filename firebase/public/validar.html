@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-33"></script>
+<script src="./js/arranque.js?v=20261016-34"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-33">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-34">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261016-33" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261016-33" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261016-34" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-34" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -241,6 +241,7 @@
   <div class="acciones"><h2 style="flex:1">Entrega del informe</h2><button class="b-sec" id="bActualizarEntrega">Actualizar estado</button></div>
   <p id="estadoEntrega" role="status"></p>
   <p class="mini" id="cuentasEntrega"></p>
+  <div class="acciones"><button class="b-sec" id="bFotosEntrega">Revisar fotos pendientes</button><button class="b-primario" id="bReintentarEntrega" hidden>Reintentar esta entrega</button></div>
   <div id="archivosEntrega"></div>
 </div>
 
@@ -305,40 +306,40 @@
 </dialog>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-33';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-33';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261016-33';
-import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-33';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-33';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-33';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-34';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-34';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261016-34';
+import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-34';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-34';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-34';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261016-33';
+import { pedir as pedirLocal } from './js/local.js?v=20261016-34';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-33';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-33';
-import { observarSesion } from './js/auth.js?v=20261016-33';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-34';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-34';
+import { observarSesion } from './js/auth.js?v=20261016-34';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261016-33';
+} from './js/datos.js?v=20261016-34';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261016-33';
+} from './js/conteo.js?v=20261016-34';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261016-33';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-33';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261016-33';
-import { conectarGlosario } from './js/glosario.js?v=20261016-33';
-import { parecidos } from './js/sugerir.js?v=20261016-33';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-33';
+} from './js/informe.js?v=20261016-34';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-34';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261016-34';
+import { conectarGlosario } from './js/glosario.js?v=20261016-34';
+import { parecidos } from './js/sugerir.js?v=20261016-34';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-34';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261016-33';
-import { Proxy } from './js/proxy.js?v=20261016-33';
-import { modoLocal } from './js/local.js?v=20261016-33';
+} from './js/csv.js?v=20261016-34';
+import { Proxy } from './js/proxy.js?v=20261016-34';
+import { modoLocal } from './js/local.js?v=20261016-34';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -438,7 +439,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261016-33');
+      const l=await import('./js/local.js?v=20261016-34');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -688,6 +689,8 @@ async function actualizarEntrega() {
   $('bActualizarEntrega').disabled = true;
   try {
     const [e] = await entregasRecepcion(RECEPCION);
+    $('bReintentarEntrega').hidden = !e || !['PENDIENTE','REVISION'].includes(e.estado) || e.estado==='REVISION'&&e.revisionMotivo!=='ENTREGAS_MULTIPLES';
+    $('bReintentarEntrega').dataset.entrega=e?.id || '';
     $('estadoEntrega').textContent = e ? `${e.estado} · ${e.mensaje}` : 'Esta recepción no tiene una entrega registrada.';
     $('cuentasEntrega').textContent = e ? `Remitente: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'} · Solicitado por: ${e.supervisor}` : '';
     $('archivosEntrega').replaceChildren();
@@ -702,6 +705,14 @@ async function actualizarEntrega() {
   } finally { $('bActualizarEntrega').disabled = false; }
 }
 $('bActualizarEntrega').onclick = actualizarEntrega;
+$('bFotosEntrega').onclick = () => abrirAyudaCierre({recepcion:RECEPCION}).catch(e=>aviso(e.message,'err'));
+$('bReintentarEntrega').onclick = async () => {
+  const b=$('bReintentarEntrega');if(b.disabled || !b.dataset.entrega)return;b.disabled=true;
+  try{await pedir(`/entregas/${encodeURIComponent(b.dataset.entrega)}/reintentar`,{cuerpo:{}});
+    aviso('Se reintentará la misma entrega. Espera la confirmación de Google; no se generó otro informe.','info');}
+  catch(e){aviso(e.message,'warn');}
+  finally{await actualizarEntrega();b.disabled=false;}
+};
 
 async function refrescarEventos() {
   try { eventosCache = await leerBitacora(RECEPCION, 400); } catch { /* sin historial */ }
@@ -1804,8 +1815,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-33').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-33').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-34').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-34').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
             : cual === 'productos' ? csvDeProductos(formatos[1], datos)
             : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)

@@ -22,6 +22,13 @@ from app.models import AppArchivo, AppEntrega, AppInforme, utcnow
 from app.services import app_modelo as m, archivos
 
 log = logging.getLogger('iv_itsanet.entregas')
+ACTIVAS = ('PENDIENTE', 'PROCESANDO', 'REVISION')
+
+
+def activas(db, codigo):
+    return list(db.scalars(select(AppEntrega).where(AppEntrega.recepcion == codigo,
+        AppEntrega.estado.in_(ACTIVAS)).order_by(AppEntrega.id).with_for_update()
+        .execution_options(populate_existing=True)))
 
 
 def configurado(db=None, supervisor=None):
@@ -39,11 +46,15 @@ def documento(e, tecnico=False):
         'PROCESANDO': 'Preparando archivos y envío. Espera la confirmación.',
         'REVISION': 'La entrega necesita revisión del administrador antes de repetir el envío.',
         'ENTREGADA': 'Envío confirmado.' if e.datos.get('destinatarios') else 'Archivos confirmados en Drive. Sin envío de correo.',
+        'CANCELADA': 'Envío automático anulado. Se conservan los informes y su auditoría.',
     }
+    if e.datos.get('revisionMotivo') == 'ENTREGAS_MULTIPLES':
+        mensajes['REVISION'] = 'Hay varias entregas de esta recepción. ADMIN debe revisar fechas e informes y anular los envíos que no correspondan antes de reintentar.'
     return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'intentos': e.intentos, 'mensaje': e.error if tecnico else mensajes.get(e.estado, 'Comprobando entrega.'),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'remitente': e.datos.get('remitente') or e.usuario,
+            'revisionMotivo': e.datos.get('revisionMotivo'),
             'resultado': (e.resultado or {}) if tecnico else {
                 k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'carpetaFotos', 'sheet', 'enviadoA', 'remitente')},
             'informe': e.datos.get('informe'),
@@ -92,6 +103,8 @@ def preparar(db, codigo, datos, usuario):
     r = m.obtener(db, codigo, bloquear=True)
     if r.estado == 'CERRADA':
         raise HTTPException(409, 'Otro supervisor ya cerro esta recepcion; actualiza la pantalla')
+    if activas(db, r.codigo):
+        raise HTTPException(409, 'Esta recepción ya tiene una entrega sin resolver. Revisa Entrega del informe antes de generar otro envío.')
     from app.services.remitentes import elegir
     remitente, modo_remitente = elegir(db, r.codigo, datos, usuario)
     informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
@@ -185,6 +198,8 @@ def llamar(operacion, clave, datos):
     with httpx.Client(timeout=120, follow_redirects=True) as cliente:
         respuesta = cliente.post(destino['url'],
             json={'accion': 'entregaServidor', 'payload': payload, 'firma': firma})
+        if respuesta.status_code == 404:
+            raise RuntimeError('Google respondió HTTP 404: la URL del despliegue /exec no está disponible para el servidor. En Apps Script → Implementar → Administrar implementaciones, copia la URL de la aplicación web activa (no el ID del proyecto ni la carpeta Drive), guárdala en Guardar puente y vuelve a verificar. Conserva la clave compartida.')
         if respuesta.status_code >= 400:
             raise RuntimeError(f'Google respondió HTTP {respuesta.status_code}. Revisa el despliegue web /exec y su acceso; vuelve a publicarlo después de actualizar el script.')
         try:
@@ -211,12 +226,29 @@ def procesar_uno():
                           .order_by(AppEntrega.creado_en).limit(1))
         if not ident:
             return False
+        seleccionada = db.get(AppEntrega, ident)
+        m.obtener(db, seleccionada.recepcion, bloquear=True)
+        grupo = activas(db, seleccionada.recepcion)
+        if len(grupo) > 1:
+            for pendiente in grupo:
+                if pendiente.estado == 'PENDIENTE':
+                    pendiente.estado = 'REVISION'
+                    pendiente.datos = {**pendiente.datos, 'revisionMotivo': 'ENTREGAS_MULTIPLES'}
+                    pendiente.error = 'Hay varias entregas de esta recepción. Revisa fechas e informes, anula las que no correspondan y reintenta únicamente la entrega elegida.'
+                elif pendiente.estado == 'PROCESANDO' and pendiente.proximo_en.replace(tzinfo=None) <= ahora.replace(tzinfo=None):
+                    pendiente.estado = 'REVISION'
+                    pendiente.datos = {**pendiente.datos, 'revisionMotivo': 'ENTREGA_INTERRUMPIDA'}
+                    pendiente.error = 'Entrega interrumpida con otras versiones pendientes. Revisa Enviados antes de decidir qué informe corresponde; no se reenvía automáticamente.'
+            db.commit()
+            return True
         cambio = db.execute(update(AppEntrega).where(AppEntrega.id == ident, elegible,
-            AppEntrega.proximo_en <= ahora).values(estado='PROCESANDO', proximo_en=ahora + timedelta(minutes=15)))
+            AppEntrega.proximo_en <= ahora).values(estado='PROCESANDO', proximo_en=ahora + timedelta(minutes=15))
+            .execution_options(synchronize_session=False))
         db.commit()
         if cambio.rowcount != 1:
             return False
         e = db.get(AppEntrega, ident)
+        db.refresh(e)
         e.intentos += 1
         db.commit()
         try:

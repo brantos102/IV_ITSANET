@@ -2,21 +2,21 @@
  * Autenticación con Google corporativo y alta automática del operario.
  */
 import { initializeApp, deleteApp }
-  from '../vendor/firebase-sdk.js?v=20261016-33';
+  from '../vendor/firebase-sdk.js?v=20261016-34';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   getRedirectResult, signOut, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential,
   sendPasswordResetEmail,
-} from '../vendor/firebase-sdk.js?v=20261016-33';
+} from '../vendor/firebase-sdk.js?v=20261016-34';
 import {
   initializeFirestore, doc, getDoc, setDoc, serverTimestamp,
   persistentLocalCache, persistentMultipleTabManager, writeBatch,
-} from '../vendor/firebase-sdk.js?v=20261016-33';
+} from '../vendor/firebase-sdk.js?v=20261016-34';
 
-import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js?v=20261016-33';
-import * as local from './local.js?v=20261016-33';
+import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js?v=20261016-34';
+import * as local from './local.js?v=20261016-34';
 
 /**
  * Dónde se resuelve el acceso.

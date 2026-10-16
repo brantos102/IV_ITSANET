@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-33';
-import {comprimir} from './imagen.js?v=20261016-33';
-import {confirmar} from './modal.js?v=20261016-33';
+import {pedir} from './local.js?v=20261016-34';
+import {comprimir} from './imagen.js?v=20261016-34';
+import {confirmar} from './modal.js?v=20261016-34';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -45,9 +45,11 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     <label class="campo"><span>Packing list vinculado</span><input data-origen placeholder="PRINCIPAL o embarque"></label></div>
     <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Cámara del equipo</button><a class="b-sec" data-camara-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
     <input data-captura type="file" accept="image/*" capture="environment" hidden><input data-archivos type="file" accept="image/*" multiple hidden>
-    <div data-seleccion></div><p data-estado role="status"></p><div data-carpetas></div><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
+    <div data-seleccion></div><p data-estado role="status"></p>
+    <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-actualizar>Actualizar fotos y Drive</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar fotos pendientes</button></div>
+    <div data-carpetas></div><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
   document.body.append(d); d.showModal();
-  const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false;
+  const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='';
   const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
   $('[data-camara]').hidden=esWindows;$('[data-camara-windows]').hidden=!esWindows;
   $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
@@ -74,6 +76,9 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     $(`[data-${input}]`).onchange=ev=>{elegidas.push(...ev.target.files);ev.target.value='';pintar();};
   }
   async function cargar(reset=true) {
+    if(consultando || !d.open)return;
+    consultando=true;
+    try {
     if(reset){offset=0;$('[data-imagenes]').replaceChildren();}
     const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent(sku)}&contexto=true&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':''}`);
     for(const [i,f] of r.archivos.entries()) {
@@ -91,12 +96,28 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       $('[data-imagenes]').append(card);
     }
     offset+=r.archivos.length;$('[data-mas]').hidden=offset>=r.total;
+    await actualizarDrive();
+    } finally {consultando=false;}
+  }
+  async function actualizarDrive(refrescar=false) {
+    if(!supervisor || !d.open || consultandoDrive)return;
+    consultandoDrive=true;let refrescarGaleria=false;
     try { const estado=await operacion(`/recepciones/${encodeURIComponent(recepcion)}/drive`);
+      if(!d.open)return;
+      const revision=JSON.stringify([estado.sincronizacion,estado.carpetas]);
+      const cambio=revisionDrive && revisionDrive!==revision;revisionDrive=revision;
+      const s=estado.sincronizacion;
+      if(s){$('[data-estado-drive]').textContent=`${s.guardadas} fotos guardadas · ${s.copiadas} confirmadas en Drive · ${s.pendientes} pendientes (${s.procesando} en proceso).`+
+        (s.requierenAyuda?' Si persiste, ADMIN debe verificar el puente y el acceso a la carpeta. Las fotos siguen guardadas.':'');
+        $('[data-reintentar]').hidden=!s.pendientes;}
       $('[data-carpetas]').replaceChildren();for(const url of estado.carpetas || []){
         if(!/^https:\/\/drive\.google\.com\//.test(url))continue;
         const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='Abrir carpeta en Drive';a.className='b-sec';$('[data-carpetas]').append(a);
       }
+      refrescarGaleria=refrescar && cambio && offset<=24 && !ocupado;
     }catch{/* El operario ve sus imágenes; las carpetas y la cola son de supervisión. */}
+    finally{consultandoDrive=false;}
+    if(refrescarGaleria)await cargar();
   }
   $('[data-subir]').onclick=async()=>{
     if(!elegidas.length || ocupado)return;ocupado=true;pintar();
@@ -114,7 +135,15 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}$('[data-subir]').disabled=false;$('[data-cerrar]').disabled=false;}
   };
   $('[data-mas]').onclick=()=>cargar(false).catch(e=>{$('[data-estado]').textContent=e.message;});
+  $('[data-actualizar]').onclick=()=>{if(!ocupado)cargar().catch(e=>{$('[data-estado]').textContent=e.message;});};
+  $('[data-reintentar]').onclick=async()=>{
+    if(ocupado)return;const b=$('[data-reintentar]');b.disabled=true;
+    try{const r=await operacion(`/recepciones/${encodeURIComponent(recepcion)}/drive/reintentar`,{cuerpo:{}});$('[data-estado]').textContent=r.mensaje;await cargar();}
+    catch(e){$('[data-estado]').textContent=e.message;}finally{b.disabled=false;}
+  };
   $('[data-cerrar]').onclick=()=>d.close();
-  d.addEventListener('cancel',ev=>{if(ocupado)ev.preventDefault();});d.addEventListener('close',()=>d.remove());
+  const temporizador=supervisor?setInterval(()=>{if(d.open&&!document.hidden&&!ocupado&&!consultando)
+    actualizarDrive(true).catch(e=>{if(d.open)$('[data-estado-drive]').textContent=e.message;});},5000):null;
+  d.addEventListener('cancel',ev=>{if(ocupado)ev.preventDefault();});d.addEventListener('close',()=>{clearInterval(temporizador);d.remove();});
   try{await cargar();}catch(e){$('[data-estado]').textContent=e.message;}return d;
 }

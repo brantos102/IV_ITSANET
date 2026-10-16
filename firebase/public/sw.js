@@ -10,16 +10,16 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-20261016-33';
+const VERSION = 'iv-20261016-34';
 
 /** Lo mínimo para que la app arranque sin red. */
 const BASE = new URL(self.registration.scope);
 const recurso = (ruta) => new URL(ruta.replace(/^\//, ''), BASE).href;
-const VERSION_RECURSOS = '20261016-33';
+const VERSION_RECURSOS = '20261016-34';
 const CONCHA = [
   '/', '/index.html', '/recepciones.html', '/validar.html', '/admin.html',
   '/usuarios.html', '/cuenta.html', '/kpis.html',
-  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261016-33', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
+  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261016-34', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
   '/js/arranque.js', '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
   '/js/admin-politicas.js','/js/columnas-informe.js','/js/informes-registro.js',
   '/js/notificaciones.js', '/js/cierre-ayuda.js',

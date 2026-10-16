@@ -79,9 +79,10 @@ def eliminar_evidencia(archivo_id: str, db: Session = Depends(get_db), op: Opera
 def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     from app.models import AppCopiaDrive
     from app.services.operacion import destino_drive
-    m.obtener(db, codigo)
+    codigo = m.obtener(db, codigo).codigo
     copias = list(db.scalars(select(AppCopiaDrive).where(AppCopiaDrive.recepcion == codigo)))
-    salida = {'estados': {e: sum(c.estado == e for c in copias)
+    from app.services.drive import resumen_fotos
+    salida = {'sincronizacion': resumen_fotos(db, codigo), 'estados': {e: sum(c.estado == e for c in copias)
         for e in ('PENDIENTE', 'PROCESANDO', 'COPIADA', 'ELIMINADA')},
         'carpetas': sorted({c.datos.get('carpetaRecepcionUrl') for c in copias if c.datos.get('carpetaRecepcionUrl')})}
     if op.rol == Rol.ADMIN:

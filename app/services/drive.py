@@ -18,6 +18,25 @@ from app.services import app_modelo as m
 _verificados = {}
 
 
+def resumen_fotos(db, codigo):
+    """Estado de todas las fotos guardadas, también panorámicas y finales."""
+    filas = db.execute(select(AppArchivo, AppCopiaDrive).outerjoin(AppCopiaDrive,
+        AppCopiaDrive.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
+        AppArchivo.tipo == 'foto'))
+    resumen = {'guardadas': 0, 'copiadas': 0, 'pendientes': 0, 'procesando': 0, 'requierenAyuda': 0}
+    for a, j in filas:
+        if j and (j.estado == 'ELIMINADA' or j.datos.get('accion') == 'papelera'):
+            continue
+        resumen['guardadas'] += 1
+        if a.drive_id and j and j.estado == 'COPIADA':
+            resumen['copiadas'] += 1
+        else:
+            resumen['pendientes'] += 1
+            resumen['procesando'] += bool(j and j.estado == 'PROCESANDO')
+            resumen['requierenAyuda'] += bool(j and j.error)
+    return resumen
+
+
 def pendientes_cierre(db, codigo, offset=0, limite=30):
     """Solo información operativa: no expone remitentes, claves ni errores del puente."""
     from app.services.informes import metadatos, requiere_enlaces
@@ -44,6 +63,7 @@ def pendientes_cierre(db, codigo, offset=0, limite=30):
     return {'total': len(fotos), 'bloqueaCierre': requiere_enlaces(meta) and bool(fotos),
         'procesando': sum(f['estado'] == 'PROCESANDO' for f in fotos),
         'requierenAyuda': sum(f['requiereAyuda'] for f in fotos),
+        'sincronizacion': resumen_fotos(db, codigo),
         'archivos': fotos[offset:offset + limite], 'offset': offset,
         'hayMas': offset + limite < len(fotos)}
 
@@ -52,8 +72,8 @@ def reintentar_pendientes(db, codigo, usuario):
     """Adelanta copias pendientes; mantiene las reservas activas y sus claves."""
     r = m.obtener(db, codigo, bloquear=True)
     codigo = r.codigo
-    if r.estado not in m.ABIERTAS:
-        raise HTTPException(409, 'La recepción está cerrada; revisa su entrega del informe.')
+    if r.estado not in {*m.ABIERTAS, 'CERRADA'}:
+        raise HTTPException(409, 'La recepción no permite reintentar sus fotos en este estado')
     # Incluye fotos generales para que la recepción completa pueda sincronizarse.
     fotos = list(db.scalars(select(AppArchivo).join(AppEvidencia,
         AppEvidencia.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
@@ -100,6 +120,8 @@ def descripcion(db, archivo, evidencia=None):
     e = evidencia or (es[0] if es else None)
     d = operacion.destino_drive(db, archivo.recepcion)
     d['usuario'] = d.pop('supervisor')
+    from app.services.remitentes import responsable
+    d['usuario'] = responsable(db, archivo.recepcion, d['usuario']) or d['usuario']
     d['ruta'] = [e.categoria if e else 'GENERAL']
     if e and e.unidad_id:
         u = db.get(AppUnidadLogistica, e.unidad_id)

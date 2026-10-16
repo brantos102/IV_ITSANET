@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-33"></script>
+<script src="./js/arranque.js?v=20261016-34"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261016-33" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-34" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261016-33">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-34">
 </head>
 <body>
 <div class="envoltorio">
@@ -145,7 +145,7 @@
       <div id="puentesSupervisores" class="acciones"></div>
       <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
         <label class="campo"><span>Correo del supervisor responsable</span><input id="iGoogleSupervisor" type="email" placeholder="supervisor@gmail.com"></label>
-        <label class="campo"><span>Apps Script /exec</span><input id="iGoogleUrl" type="url" required></label>
+        <label class="campo"><span>Apps Script /exec</span><input id="iGoogleUrl" type="url" required placeholder="https://script.google.com/macros/s/…/exec"><span class="mini">URL de la aplicación web en Implementar → Administrar implementaciones. La carpeta Drive se configura en Repositorios.</span></label>
         <label class="campo"><span>Clave compartida SERVIDOR_HMAC</span><input id="iGoogleSecret" type="password" autocomplete="new-password" placeholder="Conservar guardada"></label>
         <button type="submit" class="b-primario">Guardar puente</button>
         <button type="button" id="bProbarPuente" class="b-sec">Verificar remitente y Drive</button>
@@ -321,19 +321,19 @@
 </div>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-33';
-import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-33';
-import { configurarOperacion } from './js/admin-operacion.js?v=20261016-33';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-33';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-33';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-33';
-import { confirmar } from './js/modal.js?v=20261016-33';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-34';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-34';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261016-34';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-34';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-34';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-34';
+import { confirmar, pedirDatos } from './js/modal.js?v=20261016-34';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261016-33';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-33';
+} from './js/csv.js?v=20261016-34';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-34';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261016-33';
+  from './vendor/firebase-sdk.js?v=20261016-34';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];
@@ -439,11 +439,13 @@ $('bProbarPuente').after(pruebaCorreo);
 let clavePruebaCorreo=nuevoIdentificador();
 $('enviarCorreoPrueba').onclick=async()=>{const b=$('enviarCorreoPrueba');
  if(!await confirmar({titulo:'Enviar correo de prueba',texto:`De ${$('iGoogleSupervisor').value} a ${$('correoDestinoPrueba').value}. Google debe confirmar al remitente.`,aceptar:'Enviar prueba'}))return;
- b.disabled=true;try{const r=await pedir('/integraciones/google/correo-prueba',{cuerpo:{supervisor:$('iGoogleSupervisor').value,destinatario:$('correoDestinoPrueba').value,clave:clavePruebaCorreo}});aviso(`${r.mensaje} De ${r.remitente} a ${r.destinatario}`,'ok');clavePruebaCorreo=nuevoIdentificador();}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}
+ if($('iGoogleSecret').value){aviso('Guarda primero el puente para aplicar la clave modificada.','warn');return;}
+ b.disabled=true;try{const r=await pedir('/integraciones/google/correo-prueba',{cuerpo:{supervisor:$('iGoogleSupervisor').value,url:$('iGoogleUrl').value,destinatario:$('correoDestinoPrueba').value,clave:clavePruebaCorreo}});aviso(`${r.mensaje} De ${r.remitente} a ${r.destinatario}`,'ok');clavePruebaCorreo=nuevoIdentificador();}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}
 };
 $('bProbarPuente').onclick=async()=>{
+  if($('iGoogleSecret').value){aviso('Guarda primero el puente para aplicar la clave modificada.','warn');return;}
   $('bProbarPuente').disabled=true;
-  try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value}});
+  try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value,url:$('iGoogleUrl').value}});
     const mensaje=aviso(`${r.mensaje} Remitente: ${r.remitente}`,'ok');
     if(/^https:\/\/drive\.google\.com\//.test(r.carpeta || '')) {
       const a=document.createElement('a');a.href=r.carpeta;a.target='_blank';a.rel='noopener';a.textContent=`Abrir carpeta verificada: ${r.nombreCarpeta || 'Drive'}`;mensaje.append(a);
@@ -464,7 +466,9 @@ async function pintarEntregasLocales() {
   contenedor.replaceChildren();
   for (const e of await entregasServidor()) {
     const fila = document.createElement('p');
-    fila.textContent = `${e.recepcion} · ${e.estado} · ${e.destinatarios || 'Sin correo'} · ${e.mensaje || ''} `;
+    const fecha=new Date(e.creadoEn).toLocaleString('es-EC',{timeZone:'America/Guayaquil'});
+    const referencia=e.informe?.numero?'R'+String(e.informe.numero).padStart(4,'0'):e.id.slice(0,8);
+    fila.textContent = `${e.recepcion} · ${referencia} · ${fecha} · ${e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'} · ${e.mensaje || ''} `;
     for (const [campo, etiqueta] of [['carpeta', 'Drive'], ['sheet', 'Sheets']]) {
       const url = e.resultado?.[campo];
       if (url && /^https:\/\/(drive|docs)\.google\.com\//.test(url)) {
@@ -472,11 +476,21 @@ async function pintarEntregasLocales() {
         a.target = '_blank'; a.rel = 'noopener'; fila.append(a);
       }
     }
-    if (e.estado === 'PENDIENTE') {
+    if (e.estado === 'PENDIENTE' || e.estado==='REVISION'&&e.revisionMotivo==='ENTREGAS_MULTIPLES') {
       const b = document.createElement('button'); b.className = 'b-sec'; b.textContent = 'Reintentar';
       b.onclick = async () => { b.disabled = true; try { await reintentarEntrega(e.id); await pintarEntregasLocales(); }
-        catch (err) { aviso(err.message, 'err'); b.disabled = false; } };
+        catch (err) { aviso(err.message, 'err'); await pintarEntregasLocales(); } };
       fila.append(b);
+    }
+    if(['PENDIENTE','REVISION'].includes(e.estado)){
+      const b=document.createElement('button');b.className='b-peligro';b.textContent='Anular este envío';
+      b.onclick=async()=>{
+        const datos=await pedirDatos({titulo:`Anular envío ${referencia}`,texto:`${esc(e.recepcion)} · ${esc(fecha)}. Revisa los informes y Enviados de Google antes de decidir qué entrega corresponde. Esta acción detiene este envío automático y conserva los archivos, conteos y auditoría.`,
+          campos:[{clave:'motivo',etiqueta:'Motivo de anulación (mínimo 10 caracteres)',obligatorio:true}],aceptar:'Anular este envío'});
+        if(!datos)return;b.disabled=true;
+        try{await pedir('/entregas/'+encodeURIComponent(e.id)+'/cancelar',{cuerpo:datos});aviso('Envío automático anulado; sus archivos y la auditoría se conservan.','ok');}
+        catch(err){aviso(err.message,'err');}finally{await pintarEntregasLocales();}
+      };fila.append(b);
     }
     contenedor.append(fila);
   }

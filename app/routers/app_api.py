@@ -103,11 +103,47 @@ def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador =
     e = db.get(AppEntrega, ident)
     if not e:
         raise HTTPException(404, 'Entrega no encontrada')
+    m.obtener(db, e.recepcion, bloquear=True)
+    grupo = entregas.activas(db, e.recepcion)
+    e = db.scalar(select(AppEntrega).where(AppEntrega.id == ident).with_for_update()
+                  .execution_options(populate_existing=True))
+    if len(grupo) > 1:
+        raise HTTPException(409, 'Hay varias entregas sin resolver. ADMIN debe revisar sus fechas e informes y anular las que no correspondan antes de reintentar.')
+    if e.estado == 'REVISION' and e.datos.get('revisionMotivo') == 'ENTREGAS_MULTIPLES':
+        e.estado = 'PENDIENTE'
+    if e.estado == 'PROCESANDO':
+        raise HTTPException(409, 'La entrega ya se está procesando. Actualiza el estado y espera su confirmación; no se creó otro envío.')
     if e.estado != 'PENDIENTE':
         raise HTTPException(409, 'Solo se reintentan entregas pendientes. Si requiere revisión, contacta al administrador.')
     e.proximo_en = utcnow()
     db.commit()
     return entregas.documento(e, tecnico=op.rol == Rol.ADMIN)
+
+
+@router.post('/entregas/{ident}/cancelar')
+def cancelar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                     op: Operador = Depends(admin)):
+    e = db.get(AppEntrega, ident)
+    if not e: raise HTTPException(404, 'Entrega no encontrada')
+    m.obtener(db, e.recepcion, bloquear=True)
+    entregas.activas(db, e.recepcion)
+    e = db.scalar(select(AppEntrega).where(AppEntrega.id == ident).with_for_update()
+                  .execution_options(populate_existing=True))
+    if e.estado not in ('PENDIENTE', 'REVISION'):
+        raise HTTPException(409, 'Solo puedes anular un envío pendiente o en revisión; actualiza su estado.')
+    motivo = str(datos.get('motivo') or '').strip()
+    if not 10 <= len(motivo) <= 300:
+        raise HTTPException(422, 'Explica el motivo de anulación (10–300 caracteres)')
+    e.estado = 'CANCELADA'
+    e.datos = {**e.datos, 'anulacion': {'usuario': _quien(op), 'fecha': m._iso(utcnow()), 'motivo': motivo}}
+    ajustes.auditar(db, _quien(op), 'ENVIO_ANULADO', e.recepcion, {'entregaId': e.id, 'motivo': motivo})
+    if e.datos.get('informeId'):
+        from app.models import AppInforme
+        informe = db.get(AppInforme, e.datos['informeId'])
+        if informe and informe.datos.get('entregaId') == e.id:
+            informe.estado = 'CANCELADO'
+    db.commit()
+    return entregas.documento(e, tecnico=True)
 
 
 @router.post('/recepciones/{codigo}/entrega', status_code=201)

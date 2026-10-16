@@ -19,22 +19,28 @@ def _disponible(db, correo):
                 and str(puente.get('supervisor') or correo).lower() == correo)
 
 
-def opciones(db, codigo, usuario):
+def responsable(db, codigo, propuesto=None):
     politica = configuracion(db)['correo']
-    responsable = politica['responsable']
-    if not responsable:
-        propuesto = str(destino_drive(db, codigo).get('supervisor') or '').strip().lower()
+    correo = politica['responsable']
+    if not correo:
+        propuesto = str(propuesto if propuesto is not None else destino_drive(db, codigo).get('supervisor') or '').strip().lower()
         if '@' in propuesto:
-            responsable = propuesto
+            correo = propuesto
         else:
             puentes = {p['supervisor'].lower() for p in puentes_publicos(db) if p.get('supervisor')}
             if len(puentes) == 1:
-                responsable = next(iter(puentes))
+                correo = next(iter(puentes))
+    return correo
+
+
+def opciones(db, codigo, usuario):
+    politica = configuracion(db)['correo']
+    correo_responsable = responsable(db, codigo)
     perfiles = db.scalars(select(Operador).where(or_(func.lower(Operador.email) == usuario.lower(),
         func.lower(Operador.usuario) == usuario.lower())).limit(2)).all()
     personal = (perfiles[0].email or '').lower() if len(perfiles) == 1 else ''
     return {'predeterminado': 'RESPONSABLE', 'opciones': [
-        {'modo': 'RESPONSABLE', 'correo': responsable, 'disponible': _disponible(db, responsable)},
+        {'modo': 'RESPONSABLE', 'correo': correo_responsable, 'disponible': _disponible(db, correo_responsable)},
         {'modo': 'PERSONAL', 'correo': personal,
          'disponible': politica['permitirPersonal'] and _disponible(db, personal)}]}
 

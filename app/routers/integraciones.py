@@ -33,6 +33,16 @@ def admin(op: Operador = Depends(usuario_actual)):
     return op
 
 
+def _comprobar_url_guardada(db, datos, supervisor):
+    if 'url' not in datos:
+        return  # Compatibilidad con pantallas anteriores.
+    visible = svc._url(datos['url'], google=True)
+    guardada = svc.google(db, supervisor)['url']
+    if visible != guardada:
+        raise HTTPException(409, {'codigo': 'PUENTE_SIN_GUARDAR',
+            'mensaje': 'La URL mostrada todavía no está guardada para este responsable. Pulsa Guardar puente y después Verificar remitente y Drive. No se ha enviado correo.'})
+
+
 @router.get('')
 def estado(db: Session = Depends(get_db), _: Operador = Depends(admin)):
     g = svc.google(db)
@@ -95,6 +105,7 @@ def probar_google(datos: dict = Body(...), db: Session = Depends(get_db), _: Ope
     supervisor = str(datos.get('supervisor') or '').strip().lower()
     if not supervisor:
         raise HTTPException(422, 'Indica el correo del supervisor responsable')
+    _comprobar_url_guardada(db, datos, supervisor)
     try:
         r = entregas.llamar('estado', uuid4().hex, {'usuario': supervisor})
         if str(r.get('remitente') or '').lower() != supervisor:
@@ -114,6 +125,7 @@ def correo_prueba(datos: dict = Body(...), db: Session = Depends(get_db), op: Op
     from app.models import AppConfig
     from app.services import entregas, ajustes
     supervisor = str(datos.get('supervisor') or '').strip().lower()
+    _comprobar_url_guardada(db, datos, supervisor)
     destinatario = str(datos.get('destinatario') or '').strip().lower()
     clave = str(datos.get('clave') or '')
     if not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', destinatario) or not re.fullmatch(r'[a-f0-9]{32}', clave):
