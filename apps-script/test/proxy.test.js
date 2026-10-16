@@ -439,5 +439,41 @@ test('verificarConfiguracion detecta lo que falta', () => {
   ok(faltan.includes('DEPOT_BASE_URL') && faltan.includes('FIREBASE_API_KEY'), faltan.join(','));
 });
 
+test('correo empresarial separa novedades, faltantes y sobrantes sin confundir autor con remitente', () => {
+  const {ctx,estado}=entorno();
+  ctx.accionEnviarInforme_({recepcion:'R<&',cliente:'CLIENTE <img src=x>',marca:'MARCA',
+    destinatarios:'destino@example.test',cerradoPor:'autor@example.test',carpetaUrl:'https://drive.google.com/drive/folders/prueba',
+    informe:{numero:6,id:'informe-6',creadoEn:'2026-10-16T20:00:00Z'},resumen:{unidadesPnc:1,
+      novedades:[{sku:'SKU1',descripcion:'BOMBA',esperado:6,fisico:6,cantidadPnc:1,pallets:'A1',observacion:'roto <script>',incidencias:[{nombre:'Mal estado',cantidad:1}]}],
+      discrepancias:[{sku:'FALTA1',descripcion:'FILTRO',esperado:2,fisico:1,diferencia:-1},
+        {sku:'SOBRA1',esperado:1,fisico:2,diferencia:1}]}},{email:'responsable@example.test'});
+  const c=estado.correos[0];
+  ok(c.subject.includes('R0006'));ok(c.htmlBody.includes('Responsable del cierre: autor@example.test'));
+  ok(c.htmlBody.includes('Enviado por: responsable@example.test'));
+  ok(c.htmlBody.includes('Producto faltante') && c.htmlBody.includes('Producto sobrante') && c.htmlBody.includes('Cant. con incidencia'));
+  ok(c.htmlBody.includes('PNC: 1') && c.htmlBody.includes('BOMBA') && c.htmlBody.includes('A1'));
+  ok(c.htmlBody.includes('&lt;script&gt;') && !c.htmlBody.includes('<script>'));
+  ok(c.htmlBody.includes('CLIENTE &lt;img src=x&gt;'));
+});
+
+test('las miniaturas usan cid y enlaces Drive, nunca img privado de Drive', () => {
+  const {ctx,estado}=entorno();
+  const blob={getBytes:()=>Buffer.from('foto')};
+  ctx.accionEnviarInforme_({destinatarios:'destino@example.test',fotos:[
+    {blob,enlace:'https://drive.google.com/file/d/foto/view',url:'https://drive.google.com/uc?id=foto'},
+    {enlace:'javascript:alert(1)',url:'javascript:alert(1)'}]}, {email:'responsable@example.test'});
+  const c=estado.correos[0];ok(c.inlineImages.evidencia0===blob);
+  ok(c.htmlBody.includes('src="cid:evidencia0"'));
+  ok(!c.htmlBody.includes('src="https://drive.google.com/') && !c.htmlBody.includes('javascript:'));
+});
+
+test('validar adjuntos falla antes de registrar el intento de envío', () => {
+  const {ctx,estado}=entorno();let reservado=false;
+  ctx.Utilities.base64Decode=()=>({length:22*1024*1024});
+  let error='';try{ctx.accionEnviarInforme_({destinatarios:'destino@example.test',adjuntos:[{base64:'foto',nombre:'informe'}]},
+    {email:'responsable@example.test'},()=>{reservado=true;});}catch(e){error=e.message;}
+  ok(error.includes('20 MB'));ok(!reservado && estado.correos.length===0);
+});
+
 console.log(`\n${pasadas} pasadas, ${falladas} falladas`);
 process.exit(falladas ? 1 : 0);

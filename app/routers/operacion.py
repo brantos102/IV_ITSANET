@@ -77,7 +77,7 @@ def eliminar_evidencia(archivo_id: str, db: Session = Depends(get_db), op: Opera
 
 @router.get('/recepciones/{codigo}/drive')
 def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
-    from app.models import AppCopiaDrive
+    from app.models import AppCopiaDrive, AppEvento
     from app.services.operacion import destino_drive
     codigo = m.obtener(db, codigo).codigo
     copias = list(db.scalars(select(AppCopiaDrive).where(AppCopiaDrive.recepcion == codigo)))
@@ -85,10 +85,59 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
     salida = {'sincronizacion': resumen_fotos(db, codigo), 'estados': {e: sum(c.estado == e for c in copias)
         for e in ('PENDIENTE', 'PROCESANDO', 'COPIADA', 'ELIMINADA')},
         'carpetas': sorted({c.datos.get('carpetaRecepcionUrl') for c in copias if c.datos.get('carpetaRecepcionUrl')})}
+    confirmada = db.scalar(select(AppEvento).where(AppEvento.recepcion == codigo,
+        AppEvento.tipo == 'AUDITORIA', AppEvento.motivo == 'CARPETA_DRIVE_VERIFICADA')
+        .order_by(AppEvento.creado_en.desc(), AppEvento.id.desc()).limit(1))
+    if confirmada and (confirmada.datos or {}).get('carpeta'):
+        salida['carpetas'] = sorted(set(salida['carpetas']) | {confirmada.datos['carpeta']})
     if op.rol == Rol.ADMIN:
+        from app.services.remitentes import responsable
         salida['destino'] = destino_drive(db, codigo)
+        salida['destino']['supervisor'] = responsable(db, codigo) or salida['destino']['supervisor']
         salida['avisos'] = sorted({c.error for c in copias if c.error})
+        from app.models import AppArchivo
+        salida['archivos'] = [{'id': a.id, 'nombre': a.nombre, 'estado': c.estado if c else 'SIN_COLA',
+            'error': c.error if c and c.estado == 'PENDIENTE' else None,
+            'enlace': a.drive_url if a.drive_id else None,
+            'carpeta': (c.datos.get('carpeta') or '') if c and c.estado == 'COPIADA' else '',
+            'ruta': c.datos.get('ruta', []) if c else []}
+            for a, c in db.execute(select(AppArchivo, AppCopiaDrive).outerjoin(AppCopiaDrive,
+                AppCopiaDrive.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
+                AppArchivo.tipo == 'foto').order_by(AppArchivo.creado_en, AppArchivo.id))
+            if not c or c.estado != 'ELIMINADA' and c.datos.get('accion') != 'papelera']
     return salida
+
+
+@router.post('/recepciones/{codigo}/drive/preparar')
+def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    from uuid import uuid4
+    from app.services import entregas, remitentes, drive
+    destino = svc.destino_drive(db, codigo)
+    correo, _ = remitentes.elegir(db, codigo, {'modoRemitente': 'RESPONSABLE'}, op.email or op.usuario)
+    datos = {**destino, 'usuario': correo}
+    datos.pop('supervisor', None)
+    db.rollback()
+    try:
+        estado = entregas.llamar('estado', uuid4().hex, datos)
+        if str(estado.get('remitente') or '').lower() != correo:
+            raise RuntimeError('Google no confirmó la cuenta responsable.')
+        if destino['carpetaRaiz'] and estado.get('carpetaId') != destino['carpetaRaiz']:
+            raise RuntimeError('Google no confirmó la carpeta raíz configurada.')
+        if 'prepararCarpeta' not in estado.get('capacidades', []):
+            raise RuntimeError('Actualiza Servidor.gs en Apps Script y publica una versión nueva del mismo despliegue /exec para crear y comprobar las carpetas.')
+        resultado = entregas.llamar('prepararCarpeta', uuid4().hex, datos)
+        if not str(resultado.get('carpeta') or '').startswith('https://drive.google.com/'):
+            raise RuntimeError('Drive no confirmó el enlace de la carpeta de recepción.')
+    except Exception as exc:
+        mensaje = str(exc) if type(exc) is RuntimeError else 'No se pudo verificar Drive. Revisa el puente del responsable.'
+        raise HTTPException(502, mensaje + ' No se envió ningún correo.') from None
+    db.rollback()
+    m.obtener(db, codigo, bloquear=True)
+    svc.auditoria(db, codigo, op.email or op.usuario, 'CARPETA_DRIVE_VERIFICADA',
+        {'remitente': correo, 'carpeta': resultado['carpeta']})
+    reintento = drive.reintentar_pendientes(db, codigo, op.email or op.usuario)
+    return {'carpeta': resultado['carpeta'], 'remitente': correo,
+        'programadas': reintento['programadas'], 'mensaje': 'Carpeta confirmada. Las fotos pendientes se copiarán en segundo plano; este paso no envía correo.'}
 
 
 @router.post('/repositorios/{ident}/probar')

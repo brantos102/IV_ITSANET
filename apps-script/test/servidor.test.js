@@ -28,7 +28,7 @@ function entorno() {
     limpiarNombre_: s => s,
     MailApp: { getRemainingDailyQuota: () => 100,sendEmail(){correos++;if(falloCorreo)throw Error('Confirmación interrumpida');} },
     SpreadsheetApp: { create() { sheets++; const hoja = {clearContents(){},getMaxRows:()=>1000,getMaxColumns:()=>26,getRange:()=>({setValues(){}}),setFrozenRows(){}}; return {getId:()=> 'sheet-nuevo',getUrl:()=> 'https://docs.google.com/spreadsheets/d/nuevo',getSheetByName:()=>hoja,insertSheet:()=>hoja}; } },
-    accionEnviarInforme_() { correos++; if (falloCorreo) throw new Error('Confirmacion interrumpida'); return {exito:true}; }
+    accionEnviarInforme_(_p, _u, antes) { if(antes)antes(); correos++; if (falloCorreo) throw new Error('Confirmacion interrumpida'); return {exito:true}; }
   };
   g.PropertiesService={getScriptProperties:()=>g.PROPS};
   vm.createContext(g); vm.runInContext(fs.readFileSync(path.join(__dirname,'../proxy/Servidor.gs'),'utf8'),g);
@@ -51,6 +51,20 @@ test('exportar texto no ejecuta formulas de hoja',()=>{const e=entorno();ok(e.g.
 test('Sheets solo se crea si se pide una exportacion expresa',()=>{const e=entorno(); const r=e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',archivos:[],exportarSheet:true,skus:[{sku:'SKU1',contado:3}]}));ok(r.exito);ok(e.sheets()===1);ok(r.sheet.includes('nuevo'));ok(e.correos()===0);});
 test('cuenta distinta del supervisor no escribe ni envia',()=>{const e=entorno();e.cambiarCuenta('otra@gmail.com');let fallo=false;try{e.g.entregaServidor_(e.peticion('finalizar',id,{destinatarios:'ejecutivo@example.test',archivos:[]}));}catch{fallo=true;}ok(fallo);ok(e.creados()===0);ok(e.correos()===0);});
 test('probar puente verifica remitente y Drive sin crear ni enviar',()=>{const e=entorno();const r=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(r.remitente==='supervisor@gmail.com');ok(e.creados()===0);ok(e.correos()===0);});
+test('crear carpeta es una operación firmada independiente del correo',()=>{
+  const e=entorno(),p=e.peticion('prepararCarpeta',id,{cliente:'VENTURA',marca:'VW',carpetaRecepcion:'PRUEBA'});
+  const r=e.g.entregaServidor_(p);ok(r.exito && r.carpeta.includes('drive.google.com'));ok(r.remitente==='supervisor@gmail.com');
+  ok(e.g.entregaServidor_(p).carpeta===r.carpeta);ok(e.correos()===0);
+  const estado=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(estado.capacidades.includes('prepararCarpeta'));
+});
+test('miniaturas priorizan panorámicas y estado final y acotan el peso',()=>{
+  const e=entorno();e.g.DriveApp.getFileById=()=>({getThumbnail:()=>({getBytes:()=>Buffer.alloc(1024),getContentType:()=> 'image/jpeg'})});
+  const fotos=e.g.fotosCorreoServidor_([{fileId:'detalle',tipoArchivo:'foto'},{fileId:'final',tipoArchivo:'foto'},{fileId:'panorama',tipoArchivo:'foto'}],
+    [{fileId:'final',ruta:['RECEPCION','ESTADO_FINAL']},{fileId:'panorama',ruta:['RECEPCION','PANORAMICA']}]);
+  ok(fotos[0].etiqueta==='PANORAMICA' && fotos[1].etiqueta==='ESTADO FINAL');ok(fotos.every(f=>!!f.blob));
+  e.g.DriveApp.getFileById=()=>({getThumbnail:()=>({getBytes:()=>Buffer.alloc(300000),getContentType:()=> 'image/jpeg'})});
+  ok(!e.g.fotosCorreoServidor_([{fileId:'grande',tipoArchivo:'foto'}],[])[0].blob);
+});
 test('prueba de correo autorizada se envía una vez por referencia',()=>{const e=entorno(),p=e.peticion('pruebaCorreo',id,{destinatario:'destino@example.test'});ok(e.g.entregaServidor_(p).remitente==='supervisor@gmail.com');ok(e.g.entregaServidor_(p).exito);ok(e.correos()===1);});
 test('prueba interrumpida no reenvía sin revisión',()=>{const e=entorno();e.romperCorreo();const p=e.peticion('pruebaCorreo',id,{destinatario:'destino@example.test'});try{e.g.entregaServidor_(p);}catch{}ok(e.g.entregaServidor_(p).revision);ok(e.correos()===1);});
 test('reutilizar referencia para otro correo se rechaza',()=>{const e=entorno();e.g.entregaServidor_(e.peticion('pruebaCorreo',id,{destinatario:'uno@example.test'}));let fallo=false;try{e.g.entregaServidor_(e.peticion('pruebaCorreo',id,{destinatario:'dos@example.test'}));}catch{fallo=true;}ok(fallo);ok(e.correos()===1);});

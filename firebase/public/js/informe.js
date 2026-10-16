@@ -10,11 +10,11 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261016-34';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261016-34';
-import { db } from './auth.js?v=20261016-34';
-import * as local from './local.js?v=20261016-34';
-import { aNumero, decodificarPallets } from './datos.js?v=20261016-34';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261016-35';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261016-35';
+import { db } from './auth.js?v=20261016-35';
+import * as local from './local.js?v=20261016-35';
+import { aNumero, decodificarPallets } from './datos.js?v=20261016-35';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 

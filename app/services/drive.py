@@ -75,7 +75,7 @@ def reintentar_pendientes(db, codigo, usuario):
     if r.estado not in {*m.ABIERTAS, 'CERRADA'}:
         raise HTTPException(409, 'La recepción no permite reintentar sus fotos en este estado')
     # Incluye fotos generales para que la recepción completa pueda sincronizarse.
-    fotos = list(db.scalars(select(AppArchivo).join(AppEvidencia,
+    fotos = list(db.scalars(select(AppArchivo).outerjoin(AppEvidencia,
         AppEvidencia.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
         AppArchivo.tipo == 'foto', AppEvidencia.eliminado_en.is_(None)).distinct()))
     ahora = utcnow()
@@ -156,7 +156,7 @@ def procesar_uno():
         if not aid: return False
         cambio = db.execute(update(AppCopiaDrive).where(AppCopiaDrive.archivo_id == aid,
             elegible, AppCopiaDrive.proximo_en <= ahora).values(estado='PROCESANDO',
-            proximo_en=ahora + timedelta(minutes=5)))
+            proximo_en=ahora + timedelta(minutes=5)).execution_options(synchronize_session=False))
         db.commit()
         if cambio.rowcount != 1: return False
         j, a = db.get(AppCopiaDrive, aid), db.get(AppArchivo, aid)

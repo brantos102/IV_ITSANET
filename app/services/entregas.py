@@ -51,7 +51,9 @@ def documento(e, tecnico=False):
     if e.datos.get('revisionMotivo') == 'ENTREGAS_MULTIPLES':
         mensajes['REVISION'] = 'Hay varias entregas de esta recepción. ADMIN debe revisar fechas e informes y anular los envíos que no correspondan antes de reintentar.'
     return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
-            'intentos': e.intentos, 'mensaje': e.error if tecnico else mensajes.get(e.estado, 'Comprobando entrega.'),
+            'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
+                else mensajes.get(e.estado, 'Comprobando entrega.')),
+            **({'errorAnterior': e.error, 'anulacion': e.datos.get('anulacion')} if tecnico else {}),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'remitente': e.datos.get('remitente') or e.usuario,
             'revisionMotivo': e.datos.get('revisionMotivo'),
@@ -61,25 +63,31 @@ def documento(e, tecnico=False):
             'creadoEn': m._iso(e.creado_en)}
 
 
-def resumen_final(skus):
+def resumen_final(skus, eventos=None):
     """Las cifras del correo salen de la instantanea SQL del cierre."""
     r = {'ok': 0, 'faltante': 0, 'sobrante': 0, 'unidadesEsperadas': 0,
          'unidadesFisicas': 0, 'adicionales': 0, 'discrepancias': [], 'unidadesPnc': 0, 'novedades': []}
+    anulados = {e.get('anulaA') for e in eventos or [] if e.get('tipo') == 'ANULACION'}
     for s in skus:
         e, f = s.get('esperado', 0), s.get('contado', 0)
+        detalle = {'sku': s['sku'], 'descripcion': s.get('descripcion', ''),
+            'esperado': e, 'fisico': f, 'diferencia': f - e,
+            'pallets': ', '.join(str(p) for p, n in (s.get('pallets') or {}).items() if n),
+            'observacion': ' · '.join(dict.fromkeys(str(ev.get('observacion') or '').strip()
+                for ev in eventos or [] if ev.get('sku') == s['sku'] and ev.get('id') not in anulados
+                and not ev.get('anulaA') and str(ev.get('observacion') or '').strip()))}
         r['unidadesEsperadas'] += e
         r['unidadesFisicas'] += f
         r['adicionales'] += s.get('enPackingList') is False
         r['unidadesPnc'] += s.get('cantidadPnc') or 0
         if s.get('incidencias') or s.get('tienePnc'):
-            r['novedades'].append({'sku': s['sku'], 'contado': f, 'cantidadPnc': s.get('cantidadPnc'),
+            r['novedades'].append({**detalle, 'contado': f, 'cantidadPnc': s.get('cantidadPnc'),
                 'cantidadConforme': s.get('cantidadConforme'), 'incidencias': s.get('incidencias', [])})
         if f == e:
             r['ok'] += 1
         else:
             r['faltante' if f < e else 'sobrante'] += 1
-            r['discrepancias'].append({'sku': s['sku'], 'esperado': e, 'fisico': f,
-                'diferencia': f - e, 'estado': 'Faltante' if f < e else 'Sobrante'})
+            r['discrepancias'].append({**detalle, 'estado': 'Faltante' if f < e else 'Sobrante'})
     r['exactitud'] = round(r['ok'] / len(skus) * 100, 1) if skus else 0
     return r
 
@@ -142,7 +150,7 @@ def preparar(db, codigo, datos, usuario):
             'carpetaMes': str(datos.get('carpetaMes') or '')[:100],
             'carpetaRecepcion': str(datos.get('carpetaRecepcion') or r.codigo)[:200],
             'duracion': str(datos.get('duracion') or '')[:100],
-            'resumen': resumen_final(skus), 'exportarSheet': datos.get('exportarSheet') is True,
+            'resumen': resumen_final(skus, eventos), 'exportarSheet': datos.get('exportarSheet') is True,
             'recepcion': cierre, 'skus': skus, 'destino': destino,
             'lineas': m.leer_coleccion(db, r.codigo, 'lineas', actual=True),
             'eventos': eventos},
@@ -257,6 +265,19 @@ def procesar_uno():
             estado = llamar('estado', e.id, {**d.get('destino', {}), 'usuario': remitente})
             if str(estado.get('remitente') or '').strip().lower() != remitente.strip().lower():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
+            from app.services.drive import manifiesto
+            # Las fotos finales pueden agregarse después del cierre. Incluirlas
+            # antes de preparar el correo, sin alterar los informes de conteo.
+            fotos_actuales = list(dict.fromkeys(f['archivoId'] for f in manifiesto(db, e.recepcion)))
+            if fotos_actuales != d['fotos']:
+                d = {**d, 'fotos': fotos_actuales}
+                if d.get('informeEvidencias'):
+                    anterior = d['informeEvidencias']
+                    d = {**d, 'informes': [a for a in d['informes'] if a != anterior],
+                        'informeEvidencias': None,
+                        'evidenciasAnteriores': [*d.get('evidenciasAnteriores', []), anterior]}
+                e.datos = d
+                db.commit()
             if d['fotos'] and not d.get('informeEvidencias'):
                 imagenes=[db.get(AppArchivo,aid) for aid in d['fotos']]
                 if all(a and a.drive_id for a in imagenes):
@@ -264,7 +285,7 @@ def procesar_uno():
                     generacion=db.get(AppInforme,d['informeId']) if d.get('informeId') else None
                     sufijo=generacion.datos.get('sufijo','') if generacion else ''
                     informe=archivos.guardar(db,e.recepcion,'informe',{
-                        'nombre':'Evidencias_'+e.recepcion+sufijo+'.xlsx',
+                        'nombre':'Evidencias_'+e.recepcion+sufijo+'_'+hashlib.sha256('|'.join(d['fotos']).encode()).hexdigest()[:8]+'.xlsx',
                         'base64':base64.b64encode(generar(db,e.recepcion,generacion)).decode()},e.usuario,confirmar=False)
                     d={**d,'informes':d['informes']+[informe.id],'informeEvidencias':informe.id}
                     e.datos=d;db.commit()
@@ -304,8 +325,10 @@ def procesar_uno():
                         archivos.ruta(a).unlink(missing_ok=True)
                     except OSError:
                         log.warning('Entrega %s: foto copiada, limpieza local pendiente', e.id)
-            from app.services.drive import manifiesto
-            payload = {**d, **d.get('destino', {}), 'manifiesto': manifiesto(db, e.recepcion),
+            manifest = manifiesto(db, e.recepcion)
+            if {f['archivoId'] for f in manifest} != set(d['fotos']):
+                raise RuntimeError('Se actualizaron las fotos durante la preparación. La entrega se preparará nuevamente con las evidencias actuales.')
+            payload = {**d, **d.get('destino', {}), 'manifiesto': manifest,
                 'archivos': guardados, 'codigo': e.recepcion, 'usuario': remitente, 'solicitadoPor': e.usuario}
             if d.get('exportarSheet'):
                 referencias = {a.id: a.drive_url for a in db.scalars(select(AppArchivo).where(AppArchivo.recepcion == e.recepcion)) if a.drive_url}

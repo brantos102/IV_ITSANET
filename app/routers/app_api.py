@@ -120,6 +120,18 @@ def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador =
     return entregas.documento(e, tecnico=op.rol == Rol.ADMIN)
 
 
+@router.get('/entregas/{ident}/recuperar')
+def vista_recuperar(ident: str, db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    from app.services.recuperar_entrega import vista
+    return vista(db, ident, _quien(op))
+
+
+@router.post('/entregas/{ident}/recuperar')
+def recuperar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    from app.services.recuperar_entrega import recuperar
+    return recuperar(db, ident, datos, _quien(op))
+
+
 @router.post('/entregas/{ident}/cancelar')
 def cancelar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db),
                      op: Operador = Depends(admin)):

@@ -54,11 +54,18 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo'] };
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta'] };
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    if (p.operacion === 'prepararCarpeta') {
+      var recepcion = carpetaRecepcionServidor_(p.datos);
+      carpetaDe_(recepcion, 'INFORMES');
+      carpetaEvidenciaServidor_(recepcion, {ruta:['RECEPCION','PANORAMICA']});
+      carpetaEvidenciaServidor_(recepcion, {ruta:['RECEPCION','ESTADO_FINAL']});
+      return {exito:true,remitente:remitente,carpeta:recepcion.getUrl()};
+    }
     if (p.operacion === 'pruebaCorreo') {
       var destinatario = String(p.datos.destinatario || '').trim();
       if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(destinatario)) throw new Error('Destinatario de prueba inválido.');
@@ -211,17 +218,46 @@ function finalizarServidor_(id, p) {
     var adjuntos = (p.archivos || []).filter(function(a) { return a.tipoArchivo === 'informe'; }).map(function(a) {
       return { nombre: a.nombre.replace(/\.xlsx$/i, ''), base64: Utilities.base64Encode(DriveApp.getFileById(a.fileId).getBlob().getBytes()) };
     });
-    // Persistir ANTES de enviar: si se interrumpe la respuesta, no reenviar a ciegas.
-    archivo.setContent(JSON.stringify({ estado: 'CORREO_EN_CURSO', id: id }));
+    var fotos = fotosCorreoServidor_(p.archivos || [], p.manifiesto || []);
     accionEnviarInforme_({ recepcion: p.codigo, destinatarios: p.destinatarios,
       duracion: p.duracion, resumen: p.resumen, adjuntos: adjuntos, informe: p.informe,
+      cliente:p.cliente, marca:p.marca, cerradoPor:p.solicitadoPor, entregaId:id,
       carpetaUrl: carpeta.getUrl(), sheetUrl: sheet,
-      fotos: (p.archivos || []).filter(function(a) { return a.tipoArchivo === 'foto'; }).slice(0, 12)
-    }, { email: p.usuario });
+      fotos: fotos
+    }, { email: p.usuario }, function() {
+      // Persistir justo ANTES de MailApp, después de preparar y validar el correo.
+      archivo.setContent(JSON.stringify({ estado: 'CORREO_EN_CURSO', id: id }));
+    });
   }
   acuse = { exito: true, id: id, carpeta: carpeta.getUrl(), sheet: sheet,
     carpetaFotos: (p.archivos || []).some(function(a) { return a.tipoArchivo === 'foto'; }) ? (p.cliente ? carpeta.getUrl() : carpetaDe_(carpeta, 'imagenes').getUrl()) : '',
     enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA', confirmadoEn: new Date().toISOString() };
   archivo.setContent(JSON.stringify(acuse));
   return acuse;
+}
+
+function fotosCorreoServidor_(archivos, manifiesto) {
+  var tipos = {};
+  manifiesto.forEach(function(f) {
+    var ruta = f.ruta || [];
+    var tipo = ruta[ruta.length-1] || '';
+    if (!tipos[f.fileId] || tipo === 'PANORAMICA' || tipo === 'ESTADO_FINAL') tipos[f.fileId] = tipo;
+  });
+  var fotos = archivos.filter(function(a){return a.tipoArchivo === 'foto';});
+  var prioridad = function(a){var t=tipos[a.fileId];return t==='PANORAMICA'?0:t==='ESTADO_FINAL'?1:2;};
+  fotos.sort(function(a,b){return prioridad(a)-prioridad(b);});
+  var bytes = 0;
+  return fotos.slice(0,12).map(function(a) {
+    var foto = {enlace:a.enlace, nombre:a.nombre, etiqueta:(tipos[a.fileId] || 'Evidencia').replace(/_/g,' ')};
+    try {
+      var archivo = DriveApp.getFileById(a.fileId);
+      var blob = archivo.getThumbnail();
+      if (!blob && archivo.getSize() <= 262144) blob = archivo.getBlob();
+      if (blob && /^image\//.test(blob.getContentType())) {
+        var cantidad = blob.getBytes().length;
+        if (cantidad <= 262144 && bytes+cantidad <= 2097152) {foto.blob=blob;bytes+=cantidad;}
+      }
+    } catch (e) { /* La foto completa permanece enlazada en Drive. */ }
+    return foto;
+  });
 }

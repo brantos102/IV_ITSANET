@@ -56,25 +56,27 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-34`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-35`; recargar las pantallas antes de retomar operación.
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261016-drive-recuperacion`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261016-correo-carpetas`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-drive-recuperacion &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-drive-recuperacion^{commit}') &&
+git fetch origin tag itsanet-20261016-correo-carpetas &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-correo-carpetas^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
 ```
 
-La versión 34 mejora la recuperación de fotos, la comprobación del despliegue
-Google y la revisión de envíos duplicados; ver [DRIVE_RECUPERACION.md](DRIVE_RECUPERACION.md).
+La versión 35 permite crear y comprobar carpetas, localizar fotos pendientes y
+recuperar el último informe con el remitente responsable; ver
+[CORREO_Y_CARPETAS_RECUPERACION.md](CORREO_Y_CARPETAS_RECUPERACION.md).
+Conserva las mejoras de [DRIVE_RECUPERACION.md](DRIVE_RECUPERACION.md).
 Conserva las [lecturas con separadores y datos adicionales y el cambio de contraseña
 propia](LECTURAS_Y_CLAVE_PROPIA.md), además de las
 [etiquetas correlativas de bultos y fotos del estado

@@ -481,114 +481,68 @@ function limpiarNombre_(v) {
 }
 
 /** Envía el informe final de la recepción. */
-function accionEnviarInforme_(p, usuario) {
+function accionEnviarInforme_(p, usuario, antesDeEnviar) {
   if (!p.destinatarios) throw new Error('Faltan los destinatarios.');
   var r = p.resumen || {};
-  var htmlSeguro = function(v) {return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
-  var novedades = (r.novedades || []).map(function(n) {return '<li><b>'+htmlSeguro(n.sku)+'</b>: '+(n.incidencias || []).map(function(i){return htmlSeguro(i.nombre || i.tipo)+' ('+Number(i.cantidad)+')';}).join(' · ')+' | PNC: '+(n.cantidadPnc === null ? 'por revisar' : Number(n.cantidadPnc || 0))+' | conformes: '+(n.cantidadConforme === null ? 'por revisar' : Number(n.cantidadConforme || 0))+'</li>';}).join('');
-
-  var filas = (r.discrepancias || []).map(function (d) {
-    var color = d.estado === 'Sobrante' ? '#ef4444' : '#f59e0b';
-    return '<tr>' +
-      '<td style="padding:10px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-weight:bold;">' + htmlSeguro(d.sku) + '</td>' +
-      '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;color:#64748b;">' + d.esperado + '</td>' +
-      '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:bold;">' + d.fisico + '</td>' +
-      '<td style="padding:10px;text-align:center;color:' + color + ';font-weight:bold;border-bottom:1px solid #e2e8f0;">' +
-        (d.diferencia > 0 ? '+' + d.diferencia : d.diferencia) + ' (' + htmlSeguro(d.estado) + ')</td></tr>';
-  }).join('');
-
-  if (!filas) {
-    filas = '<tr><td colspan="4" style="padding:20px;text-align:center;color:#10b981;' +
-            'font-weight:bold;background:#ecfdf5;">Inventario cuadrado. Sin diferencias.</td></tr>';
-  }
-
-  var fotos = (p.fotos || []).map(function (f) {
-    return '<a href="' + f.enlace + '" style="display:inline-block;margin:4px;">' +
-           '<img src="' + f.url + '" style="max-width:150px;max-height:150px;border-radius:8px;' +
-           'border:1px solid #cbd5e1;"></a>';
-  }).join('');
-
-  // Cuantos archivos van y como se llaman, dentro del propio correo: quien lo
-  // recibe tiene que poder comprobar que no falta ninguno sin contar adjuntos.
-  var listaAdjuntos = (p.adjuntos || []).map(function (a) {
-    return '<li style="margin:3px 0;font-family:monospace;font-size:13px;">' +
-           limpiarNombre_(a.nombre) + '.xlsx</li>';
-  }).join('');
-  var bloqueAdjuntos = listaAdjuntos
-    ? '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;' +
-      'padding:14px;margin-top:20px;">' +
-      '<b>' + (p.adjuntos || []).length + ' packing list' +
-      ((p.adjuntos || []).length === 1 ? '' : 's') + ' adjunto' +
-      ((p.adjuntos || []).length === 1 ? '' : 's') + ':</b>' +
-      '<ul style="margin:8px 0 0 18px;padding:0;">' + listaAdjuntos + '</ul></div>'
-    : '';
-
-  var html =
-    '<div style="font-family:Segoe UI,sans-serif;max-width:680px;margin:0 auto;' +
-    'border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;">' +
-      '<div style="background:#0f172a;color:#fff;padding:25px;text-align:center;">' +
-        '<h2 style="margin:0;">ITSANET — Informe de Recepción</h2>' +
-        '<p style="margin:5px 0 0;color:#94a3b8;font-size:14px;">' + (p.recepcion || '') + '</p>' +
-      '</div>' +
-      '<div style="padding:30px;background:#f8fafc;">' +
-        (p.informe ? '<p><b>Informe R'+String(p.informe.numero).padStart(4,'0')+'</b> · '+htmlSeguro(p.informe.id)+' · '+htmlSeguro(p.informe.creadoEn)+'</p>' : '') +
-        '<p><b>Cerrada por:</b> ' + usuario.email + ' &nbsp;|&nbsp; ' +
-           '<b>Duración:</b> ' + (p.duracion || '—') + '</p>' +
-        '<p><b>Unidades sistema:</b> ' + (r.unidadesEsperadas || 0) + ' &nbsp;|&nbsp; ' +
-           '<b>Físicas:</b> ' + (r.unidadesFisicas || 0) + ' &nbsp;|&nbsp; ' +
-           '<b>Exactitud:</b> ' + (r.exactitud || 0) + '%</p>' +
-        '<p><b>SKU:</b> ' + (r.ok || 0) + ' Ok · ' + (r.faltante || 0) + ' Faltante · ' +
-           (r.sobrante || 0) + ' Sobrante' +
-           (r.adicionales ? ' · ' + r.adicionales + ' adicionales' : '') + '</p>' +
-        (novedades ? '<h3>Incidencias físicas · '+Number(r.unidadesPnc || 0)+' unidades PNC</h3><ul>'+novedades+'</ul>' : '') +
-        '<h3 style="border-bottom:2px solid #2563eb;padding-bottom:8px;">Discrepancias</h3>' +
-        '<table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;">' +
-          '<thead><tr style="background:#f1f5f9;text-align:left;font-size:12px;color:#475569;">' +
-            '<th style="padding:12px;">Referencia</th>' +
-            '<th style="padding:12px;text-align:center;">Esperado</th>' +
-            '<th style="padding:12px;text-align:center;">Físico</th>' +
-            '<th style="padding:12px;text-align:center;">Diferencia</th>' +
-          '</tr></thead><tbody>' + filas + '</tbody></table>' +
-        (p.carpetaUrl ? '<p><a href="' + p.carpetaUrl + '">Carpeta de la recepcion en Drive</a></p>' : '') +
-        (p.sheetUrl ? '<p><a href="' + p.sheetUrl + '">Datos validados y bitacora en Sheets</a></p>' : '') +
-        bloqueAdjuntos +
-        (fotos ? '<h3 style="border-bottom:2px solid #2563eb;padding-bottom:8px;margin-top:30px;">' +
-                 'Evidencias</h3><div>' + fotos + '</div>' : '') +
-      '</div></div>';
-
-  // Un adjunto POR PACKING LIST.
-  //
-  // Una recepcion puede consolidar varias listas para no recorrer el almacen
-  // dos veces, pero cada lista vuelve a su destinatario tal como llego. Mandar
-  // un solo archivo con dos hojas obliga a quien lo recibe a separarlas a mano,
-  // y a la primera manda la hoja equivocada.
+  var esc = function(v) {return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+  var link = function(url, texto) {return /^https:\/\/(drive|docs)\.google\.com\//.test(url || '') ? '<a href="'+esc(url)+'">'+esc(texto)+'</a>' : '';};
+  var tabla = function(titulo, filas, incidencia) {
+    if (!filas.length) return '';
+    return '<h3>'+esc(titulo)+'</h3><table style="width:100%;border-collapse:collapse;font-size:12px" border="1" cellpadding="6">'+
+      '<thead style="background:#edf3ff"><tr><th>ITEM</th><th>Descripción</th><th>Declarado</th><th>Físico</th><th>Diferencia</th><th>Pallet</th>'+
+      (incidencia ? '<th>Cant. con incidencia</th><th>Incidencia</th>' : '')+'<th>Observación</th></tr></thead><tbody>'+
+      filas.map(function(d) {return '<tr>'+[d.sku,d.descripcion,d.esperado,d.fisico === undefined ? d.contado : d.fisico,d.diferencia,d.pallets].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+
+        (incidencia ? '<td>'+esc((d.incidencias || []).reduce(function(n,i){return n+Number(i.cantidad || 0);},0))+'</td><td>'+(d.incidencias || []).map(function(i){return esc(i.nombre || i.tipo)+' ('+esc(i.cantidad)+')';}).join('<br>')+'<br>PNC: '+esc(d.cantidadPnc === null ? 'por revisar' : d.cantidadPnc || 0)+'</td>' : '')+
+        '<td>'+esc(d.observacion)+'</td></tr>';}).join('')+'</tbody></table>';
+  };
+  var inlineImages = {}, fotos = '', bytes = 0;
+  (p.fotos || []).slice(0,12).forEach(function(f,i) {
+    var imagen = '', cid = 'evidencia'+i;
+    if (f.blob && typeof f.blob.getBytes === 'function') {
+      var cantidad = f.blob.getBytes().length;
+      if (cantidad <= 262144 && bytes+cantidad <= 2097152) {
+        inlineImages[cid] = f.blob; bytes+=cantidad;
+        imagen='<img src="cid:'+cid+'" alt="'+esc(f.etiqueta || 'Evidencia de recepción')+'" style="max-width:150px;max-height:150px;border:1px solid #ddd">';
+      }
+    }
+    var destino=link(f.enlace, f.etiqueta || f.nombre || 'Abrir evidencia');
+    fotos+='<div style="display:inline-block;vertical-align:top;margin:4px;max-width:160px">'+imagen+'<br>'+destino+'</div>';
+  });
   var adjuntos = p.adjuntos || [];
-  if (!adjuntos.length && p.adjuntoBase64) {
-    adjuntos = [{ base64: p.adjuntoBase64, nombre: p.nombreAdjunto || 'packing-list-final' }];
-  }
-
-  var opciones = {
-    to: p.destinatarios,
-    subject: 'Informe de Recepción: ' + (p.recepcion || '') +
-             (adjuntos.length > 1 ? ' (' + adjuntos.length + ' packing lists)' : ''),
-    htmlBody: html
-  };
-  if (adjuntos.length) {
-    opciones.attachments = adjuntos.map(function (a) {
-      return Utilities.newBlob(
-        Utilities.base64Decode(a.base64),
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        limpiarNombre_(a.nombre) + '.xlsx');
-    });
-  }
+  if (!adjuntos.length && p.adjuntoBase64) adjuntos=[{base64:p.adjuntoBase64,nombre:p.nombreAdjunto || 'packing-list-final'}];
+  var nombres = adjuntos.map(function(a){return limpiarNombre_(String(a.nombre || 'informe').replace(/\.xlsx$/i,''))+'.xlsx';});
+  var informe = p.informe ? 'R'+String(p.informe.numero).padStart(4,'0') : '';
+  var textoFecha = p.informe && p.informe.creadoEn || '';
+  if (textoFecha && Number.isFinite(new Date(textoFecha).getTime())) textoFecha=Utilities.formatDate(new Date(textoFecha),'America/Guayaquil','yyyy-MM-dd HH:mm:ss')+' (Ecuador)';
+  var discrepancias=r.discrepancias || [];
+  var html='<div style="font-family:Arial,sans-serif;color:#172033;font-size:14px;max-width:1000px">'+
+    '<p>Estimados,</p><p>Se comparte el informe de recepción <b>'+esc(p.recepcion)+'</b>'+
+    (p.cliente ? ' del cliente <b>'+esc(p.cliente)+'</b>' : '')+(p.marca ? ' · '+esc(p.marca) : '')+'.</p>'+
+    '<p><b>'+link(p.carpetaUrl,'Abrir carpeta de la recepción y todas sus fotografías')+'</b></p>'+
+    (fotos ? '<h3>Evidencias de recepción</h3><div>'+fotos+'</div>' : '')+
+    '<p><b>Resumen de validación:</b> '+esc(r.unidadesEsperadas || 0)+' unidades declaradas · '+esc(r.unidadesFisicas || 0)+' físicas · '+esc(r.unidadesPnc || 0)+' PNC.<br>'+esc(r.ok || 0)+' referencias sin diferencias de cantidad · '+esc(r.faltante || 0)+' con faltantes · '+esc(r.sobrante || 0)+' con sobrantes.</p>'+
+    tabla('Novedades físicas detectadas',r.novedades || [],true)+
+    tabla('Producto sobrante',discrepancias.filter(function(d){return d.diferencia>0;}),false)+
+    tabla('Producto faltante',discrepancias.filter(function(d){return d.diferencia<0;}),false)+
+    (!(r.novedades || []).length && !discrepancias.length ? '<p>Inventario cuadrado. Sin diferencias ni incidencias registradas.</p>' : '')+
+    '<p>'+link(p.carpetaUrl,'Ver fotografías completas y estado final de la mercadería')+' '+link(p.sheetUrl,'Abrir validación en Sheets')+'</p>'+
+    (adjuntos.length ? '<p><b>'+adjuntos.length+' packing list'+(adjuntos.length===1?' adjunto:':'s adjuntos:')+'</b></p><ul>'+nombres.map(function(n){return '<li>'+esc(n)+'</li>';}).join('')+'</ul>' : '')+
+    '<p>Saludos cordiales,<br>'+esc(usuario.email)+'</p><hr><p style="font-size:11px;color:#586477">'+
+    esc(informe)+' · '+esc(p.informe && p.informe.id || p.entregaId || '')+' · '+esc(textoFecha)+'<br>Responsable del cierre: '+esc(p.cerradoPor || usuario.email)+'<br>Enviado por: '+esc(usuario.email)+
+    (p.duracion ? ' · Duración: '+esc(p.duracion) : '')+'</p></div>';
+  var opciones={to:p.destinatarios,subject:'Informe de Recepción: '+(p.recepcion || '')+(informe ? ' · '+informe : '')+
+    (adjuntos.length>1 ? ' ('+adjuntos.length+' packing lists)' : ''),
+    body:'Informe de recepción '+(p.recepcion || '')+' '+informe+'. Carpeta Drive: '+(p.carpetaUrl || '')+'. Remitente: '+usuario.email+'. Consulte los informes adjuntos.',htmlBody:html};
+  if (Object.keys(inlineImages).length) opciones.inlineImages=inlineImages;
+  if (adjuntos.length) opciones.attachments=adjuntos.map(function(a,i){
+    var contenido=Utilities.base64Decode(a.base64);bytes+=contenido.length;
+    return Utilities.newBlob(contenido,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',nombres[i]);
+  });
+  if (bytes>20971520) throw new Error('Los adjuntos superan 20 MB. Revisa los informes antes de enviar.');
+  // Validar y preparar todo antes de registrar el intento irreversible de MailApp.
+  if (antesDeEnviar) antesDeEnviar();
   MailApp.sendEmail(opciones);
-
-  return {
-    exito: true,
-    enviadoA: p.destinatarios,
-    adjuntos: adjuntos.map(function (a) { return limpiarNombre_(a.nombre) + '.xlsx'; }),
-    cuotaRestante: MailApp.getRemainingDailyQuota()
-  };
+  return {exito:true,enviadoA:p.destinatarios,adjuntos:nombres,cuotaRestante:MailApp.getRemainingDailyQuota()};
 }
 
 // ========================================================================== //
