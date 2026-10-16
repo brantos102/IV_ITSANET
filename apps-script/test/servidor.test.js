@@ -16,6 +16,7 @@ function entorno() {
     getUrl: () => 'https://drive.google.com/folders/prueba'
   };
   const g = {
+    ScriptApp:{AuthMode:{FULL:'FULL'},requireAllScopes(){}},
     Logger: {log:valor=>registros.push(String(valor))},
     Session:{getEffectiveUser:()=>({getEmail:()=>cuenta})},
     PROPS: { getProperty: (k) => k === 'SERVIDOR_HMAC' ? secreto : propiedades.get(k)||'', setProperty:(k,v)=>propiedades.set(k,v) },
@@ -58,6 +59,14 @@ test('diagnóstico del editor comprueba cuenta, carpeta y correo sin revelar HMA
   const abrir=e.g.DriveApp.getFolderById;let consultada='';e.g.DriveApp.getFolderById=id=>{consultada=id;return abrir(id);};
   e.g.verificarGoogleServidor();ok(consultada==='carpeta-prueba-1234567890');ok(e.registros().includes('supervisor@gmail.com'));
   ok(e.registros().includes('CUOTA DE CORREO DISPONIBLE: 100'));ok(!e.registros().includes(secreto));ok(e.correos()===0);ok(e.creados()===0);ok(e.sheets()===0);
+});
+test('diagnóstico solicita consentimiento completo antes de consultar cuenta o secretos',()=>{
+  const e=entorno();let llamadas=0,modo='';
+  e.g.ScriptApp.requireAllScopes=m=>{modo=m;throw Error('Consentimiento pendiente');};
+  e.g.Session.getEffectiveUser=()=>{llamadas++;throw Error('No debe consultar identidad');};
+  e.g.PropertiesService.getScriptProperties=()=>{llamadas++;throw Error('No debe leer propiedades');};
+  let fallo='';try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}
+  ok(fallo==='Consentimiento pendiente');ok(modo==='FULL');ok(llamadas===0);ok(e.correos()===0);ok(e.creados()===0);
 });
 test('diagnóstico identifica la falta de carpeta antes de consultar Drive',()=>{
   const e=entorno();let fallo='';e.g.DriveApp.getFolderById=()=>{throw Error('No debería llamarse');};

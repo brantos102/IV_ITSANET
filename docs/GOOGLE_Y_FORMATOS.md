@@ -138,14 +138,26 @@ terminado correctamente.
 
 1. Abrir el proyecto Apps Script correspondiente a la URL `/exec` de la app,
    con la cuenta **bespinoza@itsanet.com**. Actualizar su archivo `Servidor.gs`
-   desde `apps-script/proxy/Servidor.gs` de esta rama y guardar.
+   desde `apps-script/proxy/Servidor.gs` de esta rama y guardar. En Configuración
+   del proyecto, activar **Mostrar el archivo de manifiesto appsscript.json**.
+   Usar [el manifiesto completo del puente](../apps-script/proxy/appsscript.json):
+   incluye identidad, Drive, envío de correo, consultas HTTP de Depot/Firebase
+   y la exportación opcional a Sheets. No sustituir los permisos existentes por
+   una lista que contenga únicamente `userinfo.email`.
 2. En Propiedades del script, la carpeta actual indicada es
    `CARPETA_EVIDENCIAS = 1EOCoI3eNpe9lM1iQvgMgDo7e8_oGCBtY`.
    Mantener `SERVIDOR_HMAC` igual en el proyecto y en la app. Si hay un repositorio
    configurado por cliente/marca, comprobar también su enlace en Administración.
 3. En el selector de funciones del editor, elegir **verificarGoogleServidor**
    y pulsar **Ejecutar**. Autorizar los permisos solicitados desde la cuenta
-   responsable. La función consulta la cuenta efectiva, abre la carpeta
+   responsable. La función comienza con
+   `ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL)` para solicitar los
+   permisos pendientes antes de consultar `Session.getEffectiveUser`.
+   Declarar permisos en el manifiesto no concede el consentimiento: completar
+   **Revisar permisos**, seleccionar la cuenta correcta y autorizar los permisos
+   solicitados. Si Google interrumpe la ejecución para autorizarlos, volver a
+   ejecutar la función después de completar el consentimiento. La función
+   consulta la cuenta efectiva, abre la carpeta
    configurada y consulta la cuota de correo. No envía mensajes, no modifica
    archivos y no muestra el valor de HMAC.
 4. El registro debe indicar la cuenta correcta, la carpeta y la cuota. Si falla,
@@ -164,6 +176,9 @@ terminado correctamente.
 Este diagnóstico comprueba lectura de la carpeta y autorización/cuota de correo;
 la subida real se verifica con una evidencia de prueba y permiso de editor en
 Drive. Una cuota de cero requiere esperar a su recuperación antes de enviar.
+Si la organización bloquea el consentimiento, su administrador de Google
+Workspace debe revisar la autorización del proyecto. No revocar la conexión
+operativa, borrar el despliegue ni cambiar HMAC para resolver un permiso OAuth.
 
 ## De dónde obtener Client ID y Client secret de OAuth
 

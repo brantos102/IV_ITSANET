@@ -4,6 +4,9 @@
  */
 /** Ejecutar desde el editor para autorizar y diagnosticar Google sin enviar correo. */
 function verificarGoogleServidor() {
+  // En el editor, Google solicita los permisos pendientes antes de consultar
+  // la identidad. Declarar los scopes en el manifiesto no concede autorización.
+  ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
   var props = PropertiesService.getScriptProperties();
   var cuenta;
   try {
