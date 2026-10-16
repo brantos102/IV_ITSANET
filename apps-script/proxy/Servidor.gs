@@ -2,6 +2,39 @@
  * Propiedad: SERVIDOR_HMAC (min. 32 caracteres). MySQL conserva la trazabilidad.
  * Copiar este archivo al MISMO proyecto y actualizar su despliegue /exec.
  */
+/** Ejecutar desde el editor para autorizar y diagnosticar Google sin enviar correo. */
+function verificarGoogleServidor() {
+  var props = PropertiesService.getScriptProperties();
+  var cuenta;
+  try {
+    cuenta = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+    if (!cuenta) throw new Error('Google no devolvió el correo de la cuenta ejecutora.');
+  } catch (error) {
+    throw new Error('CUENTA GOOGLE: ' + String(error.message || error));
+  }
+  Logger.log('CUENTA GOOGLE: ' + cuenta);
+  Logger.log('CLAVE CONFIGURADA: ' + ((props.getProperty('SERVIDOR_HMAC') || '').length >= 32));
+  var valor = String(props.getProperty('CARPETA_EVIDENCIAS') || '').trim();
+  var enlace = valor.match(/\/folders\/([A-Za-z0-9_-]+)/);
+  var id = enlace ? enlace[1] : valor;
+  if (!/^[A-Za-z0-9_-]{10,128}$/.test(id)) {
+    throw new Error('CARPETA DRIVE: configura CARPETA_EVIDENCIAS con el ID o enlace de una carpeta.');
+  }
+  try {
+    var carpeta = DriveApp.getFolderById(id);
+    Logger.log('CARPETA DRIVE: ' + carpeta.getName());
+    Logger.log('ENLACE DRIVE: ' + carpeta.getUrl());
+  } catch (error) {
+    throw new Error('CARPETA DRIVE: ' + String(error.message || error));
+  }
+  try {
+    Logger.log('CUOTA DE CORREO DISPONIBLE: ' + MailApp.getRemainingDailyQuota());
+  } catch (error) {
+    throw new Error('PERMISO DE CORREO: ' + String(error.message || error));
+  }
+  Logger.log('COMPROBACIÓN TERMINADA: no se enviaron correos ni se modificaron archivos.');
+}
+
 function entregaServidor_(peticion) {
   var secreto = PROPS.getProperty('SERVIDOR_HMAC') || '';
   if (secreto.length < 32 || typeof peticion.payload !== 'string') throw new Error('Puente de servidor no configurado.');

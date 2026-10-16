@@ -128,6 +128,43 @@ para evitar un segundo envío. No se desactiva Firebase automáticamente.
 Conservar `VAL_DATA_DIR/secretos/integraciones.key` en los respaldos junto con
 MySQL; permite descifrar las credenciales guardadas en `app_config`.
 
+## Diagnosticar el aviso genérico de Google
+
+Si aparece «Google no confirmó la operación», conservar la clave mientras se
+identifica la causa. Ese mensaje no demuestra que la carpeta ni los permisos de
+Google estén validados. El puente captura los errores de `doPost`, por lo que
+una ejecución marcada como completada tampoco demuestra que la operación haya
+terminado correctamente.
+
+1. Abrir el proyecto Apps Script correspondiente a la URL `/exec` de la app,
+   con la cuenta **bespinoza@itsanet.com**. Actualizar su archivo `Servidor.gs`
+   desde `apps-script/proxy/Servidor.gs` de esta rama y guardar.
+2. En Propiedades del script, la carpeta actual indicada es
+   `CARPETA_EVIDENCIAS = 1EOCoI3eNpe9lM1iQvgMgDo7e8_oGCBtY`.
+   Mantener `SERVIDOR_HMAC` igual en el proyecto y en la app. Si hay un repositorio
+   configurado por cliente/marca, comprobar también su enlace en Administración.
+3. En el selector de funciones del editor, elegir **verificarGoogleServidor**
+   y pulsar **Ejecutar**. Autorizar los permisos solicitados desde la cuenta
+   responsable. La función consulta la cuenta efectiva, abre la carpeta
+   configurada y consulta la cuota de correo. No envía mensajes, no modifica
+   archivos y no muestra el valor de HMAC.
+4. El registro debe indicar la cuenta correcta, la carpeta y la cuota. Si falla,
+   el error comienza con `CUENTA GOOGLE`, `CARPETA DRIVE` o `PERMISO DE CORREO`,
+   seguido del motivo de Google. Compartir solo ese mensaje para diagnosticar;
+   no copiar claves ni propiedades privadas.
+5. Si termina correctamente, actualizar el despliegue existente mediante
+   **Implementar → Gestionar implementaciones → Editar → Nueva versión**.
+   Confirmar ejecución como el supervisor y que la URL `/exec` guardada en la app
+   corresponda a ese despliegue. Si la verificación desde la app sigue fallando
+   pese al diagnóstico correcto en el editor, revisar primero esa coincidencia
+   y la versión publicada.
+6. Repetir **Verificar remitente y Drive** desde Administración y, cuando esté
+   confirmado, enviar la prueba autorizada a **brantos102@gmail.com**.
+
+Este diagnóstico comprueba lectura de la carpeta y autorización/cuota de correo;
+la subida real se verifica con una evidencia de prueba y permiso de editor en
+Drive. Una cuota de cero requiere esperar a su recuperación antes de enviar.
+
 ## De dónde obtener Client ID y Client secret de OAuth
 
 1. Abrir [Google Cloud Console](https://console.cloud.google.com/) y seleccionar

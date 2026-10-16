@@ -141,7 +141,7 @@ La prueba completa de subir/abrir una foto y recibir un correo se hace primero
 con una recepción y destinatarios de prueba, mediante el cierre normal.
 
 Carpeta indicada por el proyecto:
-`1spPbedhG4y5FfQso1yJTV_aixPv0KWAr`. Confirmar que
+`1EOCoI3eNpe9lM1iQvgMgDo7e8_oGCBtY`. Confirmar que
 `CARPETA_EVIDENCIAS` de cada puente contiene ese ID y que el supervisor tiene
 permiso de edición. `SERVIDOR_HMAC` debe coincidir con el valor guardado por
 ADMIN para ese supervisor. No pegar esa clave en reportes/chat. El correo

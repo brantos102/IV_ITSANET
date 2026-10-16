@@ -135,7 +135,7 @@ en este entorno. No escribir secretos en el código o en el chat.
    sus permisos. Subir una evidencia de prueba y comprobar la carpeta mediante
    **Abrir carpeta en Drive**. Las credenciales y el diagnóstico solo son ADMIN.
 
-La carpeta previamente indicada, `1spPbedhG4y5FfQso1yJTV_aixPv0KWAr`, es una
+La carpeta previamente indicada, `1EOCoI3eNpe9lM1iQvgMgDo7e8_oGCBtY`, es una
 opción para la configuración operativa futura. No se activa automáticamente
 como destino de este desarrollo.
 

@@ -7,7 +7,7 @@ const ok = (cond, msg='Condicion falsa') => { if (!cond) throw new Error(msg); }
 const secreto = 'secreto-prueba-'.repeat(4);
 function entorno() {
   let correos = 0, creados = 0, falloCorreo = false, sheets = 0,cuenta='supervisor@gmail.com';
-  const archivos = new Map(), blobs = new Map(), propiedades=new Map();
+  const archivos = new Map(), blobs = new Map(), propiedades=new Map(), registros=[];
   const carpeta = { getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
     createFile(blob) { creados++; const f = { getId: () => 'archivo-'+creados, getUrl: () => 'https://drive.google.com/file', setDescription() {},
       getBlob: () => ({ getDataAsString: () => String(blobs.get(f)), getBytes: () => Buffer.from(String(blobs.get(f))) }),
@@ -16,6 +16,7 @@ function entorno() {
     getUrl: () => 'https://drive.google.com/folders/prueba'
   };
   const g = {
+    Logger: {log:valor=>registros.push(String(valor))},
     Session:{getEffectiveUser:()=>({getEmail:()=>cuenta})},
     PROPS: { getProperty: (k) => k === 'SERVIDOR_HMAC' ? secreto : propiedades.get(k)||'', setProperty:(k,v)=>propiedades.set(k,v) },
     Utilities: { computeHmacSha256Signature: (p,s) => [...crypto.createHmac('sha256',s).update(p).digest()],
@@ -28,12 +29,13 @@ function entorno() {
     SpreadsheetApp: { create() { sheets++; const hoja = {clearContents(){},getMaxRows:()=>1000,getMaxColumns:()=>26,getRange:()=>({setValues(){}}),setFrozenRows(){}}; return {getId:()=> 'sheet-nuevo',getUrl:()=> 'https://docs.google.com/spreadsheets/d/nuevo',getSheetByName:()=>hoja,insertSheet:()=>hoja}; } },
     accionEnviarInforme_() { correos++; if (falloCorreo) throw new Error('Confirmacion interrumpida'); return {exito:true}; }
   };
+  g.PropertiesService={getScriptProperties:()=>g.PROPS};
   vm.createContext(g); vm.runInContext(fs.readFileSync(path.join(__dirname,'../proxy/Servidor.gs'),'utf8'),g);
   function peticion(operacion,clave,datos,fecha=Math.floor(Date.now()/1000)) {
     const payload=JSON.stringify({operacion,clave,datos:{usuario:'supervisor@gmail.com',...datos},fecha});
     return {payload,firma:crypto.createHmac('sha256',secreto).update(payload).digest('hex')};
   }
-  return { g, peticion, cambiarCuenta:v=>{cuenta=v;}, correos:()=>correos, creados:()=>creados, sheets:()=>sheets, romperCorreo:()=>{falloCorreo=true;} };
+  return { g, peticion, registros:()=>registros.join('\n'), cambiarCuenta:v=>{cuenta=v;}, correos:()=>correos, creados:()=>creados, sheets:()=>sheets, romperCorreo:()=>{falloCorreo=true;} };
 }
 const id='a'.repeat(32), clave=id+':'+ 'b'.repeat(32);
 test('rechaza firma falsa antes de escribir',()=>{ const e=entorno(); const p=e.peticion('archivo',clave,{}); p.firma='0'.repeat(64); let fallo=false; try {e.g.entregaServidor_(p);}catch{fallo=true;} ok(fallo);ok(e.creados()===0); });
@@ -51,4 +53,23 @@ test('probar puente verifica remitente y Drive sin crear ni enviar',()=>{const e
 test('prueba de correo autorizada se envía una vez por referencia',()=>{const e=entorno(),p=e.peticion('pruebaCorreo',id,{destinatario:'destino@example.test'});ok(e.g.entregaServidor_(p).remitente==='supervisor@gmail.com');ok(e.g.entregaServidor_(p).exito);ok(e.correos()===1);});
 test('prueba interrumpida no reenvía sin revisión',()=>{const e=entorno();e.romperCorreo();const p=e.peticion('pruebaCorreo',id,{destinatario:'destino@example.test'});try{e.g.entregaServidor_(p);}catch{}ok(e.g.entregaServidor_(p).revision);ok(e.correos()===1);});
 test('reutilizar referencia para otro correo se rechaza',()=>{const e=entorno();e.g.entregaServidor_(e.peticion('pruebaCorreo',id,{destinatario:'uno@example.test'}));let fallo=false;try{e.g.entregaServidor_(e.peticion('pruebaCorreo',id,{destinatario:'dos@example.test'}));}catch{fallo=true;}ok(fallo);ok(e.correos()===1);});
+test('diagnóstico del editor comprueba cuenta, carpeta y correo sin revelar HMAC ni escribir',()=>{
+  const e=entorno();e.g.PROPS.setProperty('CARPETA_EVIDENCIAS','https://drive.google.com/drive/folders/carpeta-prueba-1234567890?usp=sharing');
+  const abrir=e.g.DriveApp.getFolderById;let consultada='';e.g.DriveApp.getFolderById=id=>{consultada=id;return abrir(id);};
+  e.g.verificarGoogleServidor();ok(consultada==='carpeta-prueba-1234567890');ok(e.registros().includes('supervisor@gmail.com'));
+  ok(e.registros().includes('CUOTA DE CORREO DISPONIBLE: 100'));ok(!e.registros().includes(secreto));ok(e.correos()===0);ok(e.creados()===0);ok(e.sheets()===0);
+});
+test('diagnóstico identifica la falta de carpeta antes de consultar Drive',()=>{
+  const e=entorno();let fallo='';e.g.DriveApp.getFolderById=()=>{throw Error('No debería llamarse');};
+  try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}ok(fallo.startsWith('CARPETA DRIVE: configura CARPETA_EVIDENCIAS'));
+});
+test('diagnóstico conserva la causa de acceso a Drive sin enviar correos',()=>{
+  const e=entorno();e.g.PROPS.setProperty('CARPETA_EVIDENCIAS','carpeta-prueba-1234567890');e.g.DriveApp.getFolderById=()=>{throw Error('Authorization required');};
+  let fallo='';try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}ok(fallo==='CARPETA DRIVE: Authorization required');ok(e.correos()===0);
+});
+test('diagnóstico distingue permiso de correo y cuenta no disponible',()=>{
+  const e=entorno();e.g.PROPS.setProperty('CARPETA_EVIDENCIAS','carpeta-prueba-1234567890');e.g.MailApp.getRemainingDailyQuota=()=>{throw Error('Authorization required');};
+  let fallo='';try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}ok(fallo==='PERMISO DE CORREO: Authorization required');
+  e.cambiarCuenta('');try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}ok(fallo.startsWith('CUENTA GOOGLE:'));ok(e.correos()===0);
+});
 console.log(`${pasadas} pasadas, ${falladas} falladas`); process.exitCode=falladas?1:0;
