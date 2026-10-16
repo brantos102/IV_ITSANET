@@ -19,6 +19,14 @@ export function interpretarEtiquetaMadre(valor) {
   return {codigo,pallet,lecturaOriginal:raw}; // Un código madre no inventa una ubicación.
 }
 
+/** La etiqueta interna identifica una unidad exacta sin reemplazar la del proveedor. */
+export function interpretarEtiquetaDeBulto(valor,unidadId){
+  const interna=String(valor || '').trim().replace(/^\][A-Za-z][0-9]/,'').match(/^LB([0-9a-f]{32})$/i);
+  if(!interna)return interpretarEtiquetaMadre(valor);
+  if(interna[1].toLowerCase()!==String(unidadId).toLowerCase())throw new Error('Esta etiqueta corresponde a otro bulto. Abre ese bulto antes de registrar sus fotos.');
+  return {interna:true};
+}
+
 export async function fotografiarVideo(video) {
   if(video.readyState<2 || !video.videoWidth)throw new Error('Espera a que la cámara muestre la imagen.');
   const canvas=document.createElement('canvas');

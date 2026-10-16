@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-31';
-import {comprimir} from './imagen.js?v=20261016-31';
-import {confirmar} from './modal.js?v=20261016-31';
+import {pedir} from './local.js?v=20261016-32';
+import {comprimir} from './imagen.js?v=20261016-32';
+import {confirmar} from './modal.js?v=20261016-32';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -10,6 +10,7 @@ export const TIPOS_EVIDENCIA = {
   ETIQUETA_CAJA:'Etiqueta de caja madre', CAJA_ABIERTA:'Caja abierta',
   ITEM_NOVEDAD:'Detalle del producto con novedad', PANORAMICA:'Vista panorámica', ADICIONAL:'Evidencia adicional',
   DANO_EMBALAJE:'Daño en embalaje / caja madre',
+  ESTADO_FINAL:'Estado final de la mercadería',
 };
 
 /** Lote secuencial sin máximo de imágenes. Cada archivo conserva su resultado al reintentar. */
@@ -31,10 +32,12 @@ export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=
   return urls;
 }
 
-export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supervisor=false}) {
-  const ingreso=await operacion(`/recepciones/${encodeURIComponent(recepcion)}/ingreso`);
+export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo='',supervisor=false}) {
+  const [ingreso,rec]=await Promise.all([operacion(`/recepciones/${encodeURIComponent(recepcion)}/ingreso`),pedir(`/recepciones/${encodeURIComponent(recepcion)}`)]);
+  const final=tipo==='ESTADO_FINAL';
+  if(final){sku='';categoria='RECEPCION';}
   const d=document.createElement('dialog');d.className='dialogo-operativo';
-  d.innerHTML=`<div class="acciones"><h2 style="flex:1">${sku ? 'Evidencias · '+esc(sku) : 'Evidencias de recepción'}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
+  d.innerHTML=`<div class="acciones"><h2 style="flex:1">${final?'Estado final de la mercadería':sku ? 'Evidencias · '+esc(sku) : 'Evidencias de recepción'}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
     <label class="campo"><span>Foto de</span><select data-tipo>${Object.entries(TIPOS_EVIDENCIA).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
     <details><summary>Clasificación y vínculos · ${esc(categoria)}</summary><div class="rejilla"><label class="campo"><span>Protocolo</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">General</option></select></label>
     <label class="campo"><span>Clasificación</span><select data-categoria>${['RECEPCION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label>
@@ -50,7 +53,8 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supe
   $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
   if(supervisor){const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='Excel de trazabilidad';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
-  $('[data-tipo]').value=sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO';
+  $('[data-tipo]').value=tipo || (sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO');
+  if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;$('[data-estado]').textContent=rec.estado==='CERRADA'?'Evidencia posterior al cierre: conserva autor y fecha; los informes emitidos permanecen iguales.':'Fotografía cómo queda la mercadería al terminar. Las imágenes se vinculan a esta recepción.';}
   // Recibir sin fotos no impide adjuntar posteriormente evidencia de una novedad.
   $('[data-protocolo]').value=ingreso.protocolo==='SIN_FOTOS' ? 'GENERAL' : ingreso.protocolo || 'REGLAMENTARIO';
   const recomendar=()=>{$('[data-recomendacion]').textContent=$('[data-protocolo]').value==='GENERAL'
@@ -71,15 +75,16 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supe
   }
   async function cargar(reset=true) {
     if(reset){offset=0;$('[data-imagenes]').replaceChildren();}
-    const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent(sku)}&contexto=true&offset=${offset}&limite=24`);
+    const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent(sku)}&contexto=true&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':''}`);
     for(const [i,f] of r.archivos.entries()) {
+      if(final && !(f.evidencias || []).some(e=>e.tipo==='ESTADO_FINAL'))continue;
       const card=document.createElement('article');
       const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
       const img=document.createElement('img');img.src=f.url;img.loading='lazy';img.alt=f.nombre;a.append(img);card.append(a);
       const p=document.createElement('p');p.className='mini';p.textContent=`${offset+i+1}/${r.total} · ${f.nombre} · ${f.almacen}`;card.append(p);
       const tags=document.createElement('p');tags.className='mini';tags.textContent=(f.evidencias || []).map(e=>`${e.categoria} · ${TIPOS_EVIDENCIA[e.tipo] || e.tipo}${e.origen ? ' · '+e.origen : ''}`).join(' / ');card.append(tags);
       img.onerror=()=>{img.hidden=true;a.textContent='Abrir imagen en Drive (requiere permiso de Google)';};
-      if(supervisor){const b=document.createElement('button');b.className='b-peligro';b.textContent='Retirar evidencia';b.onclick=async()=>{
+      if(supervisor && rec.estado!=='CERRADA'){const b=document.createElement('button');b.className='b-peligro';b.textContent='Retirar evidencia';b.onclick=async()=>{
         if(!await confirmar({titulo:'¿Retirar esta evidencia?',texto:'Se retira la imagen de todos sus vínculos con ítems y bultos. Se conserva la auditoría. La copia de Drive pasa a la papelera cuando haya conexión.',aceptar:'Retirar'}))return;
         try{await operacion('/evidencias/'+f.id,{metodo:'DELETE'});await cargar();}catch(e){$('[data-estado]').textContent=e.message;}
       };card.append(b);}
@@ -106,7 +111,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supe
       elegidas=[];cache=new Map();await cargar();
       $('[data-estado]').textContent=`${new Set(urls).size} imágenes únicas guardadas; copia a Drive en segundo plano.`;
     }catch(e){$('[data-estado]').textContent=e.message+' Puedes reintentar: las imágenes confirmadas no se repiten.';}
-    finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);$('[data-subir]').disabled=false;$('[data-cerrar]').disabled=false;}
+    finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}$('[data-subir]').disabled=false;$('[data-cerrar]').disabled=false;}
   };
   $('[data-mas]').onclick=()=>cargar(false).catch(e=>{$('[data-estado]').textContent=e.message;});
   $('[data-cerrar]').onclick=()=>d.close();

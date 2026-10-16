@@ -17,7 +17,7 @@ DEFECTO = {'evidencias': {'exterioresMin': 3, 'exterioresObjetivo': 6,
     'catalogo': {'activo': True, 'horas': [8, 10, 15], 'zona': 'America/Guayaquil'},
     'repositorios': [], 'impresoras': [], 'maxCopias': 500}
 TIPOS = {'EXTERIOR_BULTO', 'PACKING_INICIAL', 'ABIERTO_CON_PACKING',
-    'CAJA_CERRADA', 'ETIQUETA_CAJA', 'CAJA_ABIERTA', 'ITEM_NOVEDAD', 'PANORAMICA', 'ADICIONAL', 'DANO_EMBALAJE'}
+    'CAJA_CERRADA', 'ETIQUETA_CAJA', 'CAJA_ABIERTA', 'ITEM_NOVEDAD', 'PANORAMICA', 'ADICIONAL', 'DANO_EMBALAJE', 'ESTADO_FINAL'}
 CATEGORIAS = {'RECEPCION', 'FALTANTE', 'SOBRANTE', 'PNC', 'GENERAL'}
 
 
@@ -219,6 +219,8 @@ def validar_evidencia(db, codigo, datos):
     tipo, categoria = datos.get('tipoEvidencia', 'ADICIONAL'), datos.get('categoria', 'GENERAL')
     if tipo not in TIPOS or categoria not in CATEGORIAS:
         raise HTTPException(422, 'Clasificación de evidencia inválida')
+    if tipo == 'ESTADO_FINAL' and (categoria != 'RECEPCION' or str(datos.get('sku') or '').strip()):
+        raise HTTPException(422, 'El estado final corresponde a la recepción completa, sin SKU')
     protocolo = datos.get('protocolo', 'GENERAL')
     if protocolo not in ('REGLAMENTARIO', 'GENERAL'):
         raise HTTPException(422, 'Protocolo inválido')
@@ -239,6 +241,7 @@ def vincular_evidencia(db, archivo, datos, usuario, confirmar=True):
     q = select(AppEvidencia).where(AppEvidencia.archivo_id == archivo.id,
         AppEvidencia.eliminado_en.is_(None), *[getattr(AppEvidencia, k) == v for k, v in d.items()])
     e = db.scalar(q)
+    creada = e is None
     if not e:
         e = AppEvidencia(id=uuid4().hex, archivo_id=archivo.id, recepcion=archivo.recepcion,
             usuario=usuario, **d)
@@ -246,6 +249,7 @@ def vincular_evidencia(db, archivo, datos, usuario, confirmar=True):
         auditoria(db, archivo.recepcion, usuario, 'EVIDENCIA_REGISTRADA',
             {'archivoId': archivo.id, 'unidadId': d['unidad_id'], 'sku': d['sku'], 'categoria': d['categoria']})
         db.commit() if confirmar else db.flush()
+    return creada
     return e
 
 
@@ -264,3 +268,30 @@ def destino_drive(db, codigo):
     return {'cliente': r.cliente, 'marca': marca, 'carpetaRecepcion': r.codigo,
         'carpetaRaiz': candidatos[0]['carpetaId'] if candidatos else '',
         'supervisor': responsable}
+
+
+def ajustar_bultos(db, codigo, datos, usuario, confirmar=True):
+    try: r = m.obtener(db, codigo, bloquear=True)
+    except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
+    if r.estado not in m.ABIERTAS: raise HTTPException(409, 'Recepción cerrada')
+    n = datos.get('cantidad')
+    if type(n) is not int or not 1 <= n <= 1000: raise HTTPException(422, 'Cantidad de bultos: de 1 a 1000')
+    existentes = list(db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion == codigo,
+        AppUnidadLogistica.tipo == 'BULTO').order_by(AppUnidadLogistica.numero).with_for_update().execution_options(populate_existing=True)))
+    if existentes and n != r.bultos and datos.get('cantidadAnterior') != r.bultos:
+        raise HTTPException(409, 'El total de bultos cambió. Recarga antes de corregirlo.')
+    if n < len(existentes):
+        sobrantes = existentes[n:]
+        for u in sobrantes:
+            if u.codigo or any((u.datos or {}).get(k) for k in ('observacion','pallet','concluido','origenes','etiquetaEmitida')) or db.scalar(
+                select(AppEvidencia.id).where(AppEvidencia.unidad_id == u.id).limit(1)) or db.scalar(
+                select(AppUnidadLogistica.id).where(AppUnidadLogistica.padre_id == u.id).limit(1)):
+                raise HTTPException(409, 'Solo se pueden quitar bultos finales vacíos, sin etiquetas, fotos ni registros.')
+        for u in sobrantes: db.delete(u)
+    for numero in range(len(existentes)+1, n+1):
+        db.add(AppUnidadLogistica(id=uuid4().hex, recepcion=codigo, tipo='BULTO', numero=numero, codigo='', datos={}))
+    r.bultos = n
+    auditoria(db, codigo, usuario, 'BULTOS_RECIBIDOS', {'cantidad': n})
+    db.flush()
+    if confirmar: db.commit()
+    return obtener_ingreso(db, codigo)

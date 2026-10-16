@@ -3,7 +3,7 @@ import {cargar,test,eq,ok,resumen} from './cargador.mjs';
 const require=createRequire(import.meta.url);globalThis.XLSX=require('xlsx');
 const {leerPackingList}=await cargar('datos.js');
 const {generarZpl}=await cargar('etiquetas.js');
-const {interpretarEtiquetaMadre}=await cargar('bultos.js');
+const {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto}=await cargar('bultos.js');
 function libro(filas){const b=XLSX.utils.book_new();XLSX.utils.book_append_sheet(b,XLSX.utils.aoa_to_sheet(filas),'CLIENTE NUEVO');return b;}
 function leer(b,o){return leerPackingList(XLSX.write(b,{type:'array',bookType:'xlsx'}),o);}
 await test('mapea fila física 4, conserva encabezados y ceros de SKU',()=>{
@@ -37,5 +37,11 @@ await test('no inventa pallet desde un SKU ni interpreta QR arbitrario como caja
   for(const raw of ['{"sku":"SKU1","cantidad":2}', 'https://proveedor.test/datos', '']){
     let fallo=false;try{interpretarEtiquetaMadre(raw);}catch{fallo=true;}ok(fallo);
   }
+});
+await test('etiqueta interna no mezcla fotos de bultos ni reemplaza la etiqueta madre',()=>{
+  const id='a'.repeat(32);eq(interpretarEtiquetaDeBulto('LB'+id,id),{interna:true});
+  eq(interpretarEtiquetaDeBulto(']C1LB'+id,id),{interna:true});
+  let fallo=false;try{interpretarEtiquetaDeBulto('LB'+'b'.repeat(32),id);}catch(e){fallo=e.message.includes('otro bulto');}ok(fallo);
+  eq(interpretarEtiquetaDeBulto('MADRE-123',id).codigo,'MADRE-123');
 });
 resumen();

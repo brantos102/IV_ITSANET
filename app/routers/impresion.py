@@ -14,10 +14,29 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import AppConfig, AppImpresion, Operador, utcnow
 from app.routers.operacion import admin
-from app.security import usuario_actual
+from app.security import usuario_actual, requiere_supervisor
 from app.services import app_modelo as m, operacion
 
 router = APIRouter(prefix='/api/impresion', tags=['impresion'])
+
+
+@router.get('/recepciones/{codigo}/bultos')
+def etiquetas_bultos_estado(codigo: str, db: Session = Depends(get_db), _=Depends(requiere_supervisor)):
+    from app.services import etiquetas_bultos
+    try: return etiquetas_bultos.estado(db, codigo)
+    except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
+
+
+@router.post('/recepciones/{codigo}/bultos', status_code=201)
+def etiquetas_bultos_generar(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db), op=Depends(requiere_supervisor)):
+    from app.services import etiquetas_bultos
+    ident = None
+    if datos.get('destino') == 'ESTACION':
+        p = estacion(db, datos.get('estacion'))
+        if not p.get('activo', True) or not p.get('tokenHash'): raise HTTPException(409, 'Estación no habilitada')
+        ident = p['id']
+    try: return etiquetas_bultos.generar(db, codigo, datos, op.email or op.usuario, ident)
+    except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
 
 
 def estacion(db, ident):

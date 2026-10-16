@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-31"></script>
+<script src="./js/arranque.js?v=20261016-32"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-31">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-32">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261016-31" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261016-31" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261016-32" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-32" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -259,6 +259,8 @@
     </select>
     <button class="b-sec" id="bBitacora">Bitácora</button>
     <button class="b-sec" id="bFotosRecepcion">Imágenes de la recepción</button>
+    <button class="b-sec oculto" id="bEtiquetasBultos">Etiquetas de bultos</button>
+    <button class="b-sec oculto" id="bFotosFinales">Fotos del estado final</button>
     <button class="b-sec oculto" id="bPendientesDrive">Revisar envío a Drive</button>
     <button class="b-sec oculto" id="bExportar">Exportar ahora</button><button class="b-sec oculto" id="bHistorialInformes">Historial de informes</button><button class="b-sec oculto" id="bColumnasInforme">Columnas del informe</button>
     <button class="b-sec oculto" id="bCsvDepot">CSV para Depot</button>
@@ -303,39 +305,40 @@
 </dialog>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-31';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-31';
-import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-31';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-31';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-31';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-32';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261016-32';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261016-32';
+import { abrirEvidencias, operacion } from './js/evidencias.js?v=20261016-32';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261016-32';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261016-32';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261016-31';
+import { pedir as pedirLocal } from './js/local.js?v=20261016-32';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-31';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-31';
-import { observarSesion } from './js/auth.js?v=20261016-31';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261016-32';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261016-32';
+import { observarSesion } from './js/auth.js?v=20261016-32';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261016-31';
+} from './js/datos.js?v=20261016-32';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261016-31';
+} from './js/conteo.js?v=20261016-32';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261016-31';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-31';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261016-31';
-import { conectarGlosario } from './js/glosario.js?v=20261016-31';
-import { parecidos } from './js/sugerir.js?v=20261016-31';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-31';
+} from './js/informe.js?v=20261016-32';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261016-32';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261016-32';
+import { conectarGlosario } from './js/glosario.js?v=20261016-32';
+import { parecidos } from './js/sugerir.js?v=20261016-32';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261016-32';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261016-31';
-import { Proxy } from './js/proxy.js?v=20261016-31';
-import { modoLocal } from './js/local.js?v=20261016-31';
+} from './js/csv.js?v=20261016-32';
+import { Proxy } from './js/proxy.js?v=20261016-32';
+import { modoLocal } from './js/local.js?v=20261016-32';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -435,7 +438,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261016-31');
+      const l=await import('./js/local.js?v=20261016-32');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -663,6 +666,8 @@ function aplicarEstado() {
   $('bColumnasInforme').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes||cerrada);
   $('bHistorialInformes').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes);
   $('bCsvDepot').classList.toggle('oculto', !manda);
+  $('bEtiquetasBultos').classList.toggle('oculto',!modoLocal()||!manda||cerrada);
+  $('bFotosFinales').classList.toggle('oculto',!modoLocal()||!manda);
   $('bCerrar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.cerrarRecepciones:manda) || cerrada);
   $('bPendientesDrive').classList.toggle('oculto', !modoLocal() || !perfil?.permisos?.cerrarRecepciones || cerrada);
   $('bReabrir').classList.toggle('oculto', !manda || !cerrada);
@@ -1516,6 +1521,8 @@ function abrirGaleria(sku='') {
 }
 $('bFotosItem').onclick=()=>{if(actual)abrirGaleria(actual.sku);};
 $('bFotosRecepcion').onclick=()=>abrirGaleria();
+$('bEtiquetasBultos').onclick=async()=>{try{await abrirEtiquetasBultos(RECEPCION);}catch(e){aviso(e.message,'err');}};
+$('bFotosFinales').onclick=async()=>{apagarCamara();try{await abrirEvidencias({recepcion:RECEPCION,tipo:'ESTADO_FINAL',categoria:'RECEPCION',supervisor:true});}catch(e){aviso(e.message,'err');}};
 $('bCerrarGaleria').onclick=()=>$('galeriaFotos').close();
 $('bBuscarFotos').onclick=()=>cargarGaleria();
 $('bMasFotos').onclick=()=>cargarGaleria(false);
@@ -1796,8 +1803,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-31').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-31').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261016-32').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261016-32').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
             : cual === 'productos' ? csvDeProductos(formatos[1], datos)
             : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)

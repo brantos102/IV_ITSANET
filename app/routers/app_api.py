@@ -143,14 +143,20 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
         except m.ErrorApp as exc:
             raise _traducir(exc) from None
         if r.estado not in m.ABIERTAS:
-            raise HTTPException(409, 'Reabre la recepción antes de adjuntar nuevas fotos; el informe cerrado se conserva.')
+            final = datos.get('tipoEvidencia') == 'ESTADO_FINAL' and not str(datos.get('sku') or '').strip()
+            if not final:
+                raise HTTPException(409, 'Recepción cerrada: solo se pueden añadir fotos del estado final, sin modificar el informe emitido.')
+            if op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
+                raise HTTPException(403, 'Solo un supervisor añade evidencias posteriores al cierre')
         operacion.validar_evidencia(db, codigo, datos)
     a = None
     try:
         a = archivos.guardar(db, codigo, tipo, datos, _quien(op), confirmar=False)
         if tipo == 'foto':
-            operacion.vincular_evidencia(db, a, datos, _quien(op), confirmar=False)
+            creada = operacion.vincular_evidencia(db, a, datos, _quien(op), confirmar=False)
             drive.encolar(db, a)
+            if r.estado not in m.ABIERTAS and creada:
+                operacion.auditoria(db, codigo, _quien(op), 'EVIDENCIA_POSTCIERRE', {'archivoId': a.id, 'tipo': 'ESTADO_FINAL'})
         db.commit()
     except Exception:
         db.rollback()
@@ -163,7 +169,7 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
 
 
 @router.get('/recepciones/{codigo}/imagenes')
-def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str = '', offset: int = Query(0, ge=0),
+def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str = '', tipoEvidencia: str = '', offset: int = Query(0, ge=0),
              limite: int = Query(40, ge=1, le=100), db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     from app.services.normalize import normalizar_sku
@@ -176,6 +182,12 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
     retiradas = select(AppCopiaDrive.archivo_id).where(AppCopiaDrive.recepcion == r.codigo,
         (AppCopiaDrive.estado == 'ELIMINADA') | (AppCopiaDrive.datos['accion'].as_string() == 'papelera'))
     consulta = consulta.where(AppArchivo.id.not_in(retiradas))
+    if tipoEvidencia:
+        from app.models import AppEvidencia
+        from app.services.operacion import TIPOS
+        if tipoEvidencia not in TIPOS: raise HTTPException(422, 'Tipo de evidencia inválido')
+        consulta = consulta.where(AppArchivo.id.in_(select(AppEvidencia.archivo_id).where(
+            AppEvidencia.recepcion == r.codigo, AppEvidencia.tipo == tipoEvidencia, AppEvidencia.eliminado_en.is_(None))))
     if unidadId:
         from app.models import AppEvidencia, AppUnidadLogistica
         unidad = db.get(AppUnidadLogistica, unidadId)
