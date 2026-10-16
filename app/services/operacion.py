@@ -124,9 +124,9 @@ def obtener_ingreso(db, codigo):
                 avisos.append(f'Bulto {u.numero}: faltan fotos abierto con packing list')
     elif d and fotos('PANORAMICA') < p['panoramicasMin']:
         avisos.append(f"Recomendadas {p['panoramicasMin']} imágenes panorámicas")
-    return {'recepcion': codigo, **d, 'avisos': avisos, 'recomendaciones': p, 'unidades': [
+    return {'recepcion': codigo, **d, 'version': d.get('version', 0), 'avisos': avisos, 'recomendaciones': p, 'unidades': [
         {'id': u.id, 'tipo': u.tipo, 'numero': u.numero, 'codigo': u.codigo,
-         'padreId': u.padre_id, **(u.datos or {})} for u in unidades],
+         'padreId': u.padre_id, **(u.datos or {}), 'version': (u.datos or {}).get('version', 0)} for u in unidades],
         'evidencias': [{'id': e.id, 'archivoId': e.archivo_id, 'unidadId': e.unidad_id,
             'sku': e.sku, 'origen': e.origen, 'categoria': e.categoria, 'tipo': e.tipo,
             'protocolo': e.protocolo, 'creadoEn': m._iso(e.creado_en)} for e in evidencias]}
@@ -136,9 +136,13 @@ def guardar_ingreso(db, codigo, datos, usuario):
     r = m.obtener(db, codigo, bloquear=True)
     if r.estado not in m.ABIERTAS:
         raise HTTPException(409, 'Reabre la recepción para modificar su ingreso')
-    f = db.get(AppIngreso, codigo) or AppIngreso(recepcion=codigo, datos={})
+    f = db.scalar(select(AppIngreso).where(AppIngreso.recepcion == codigo).with_for_update().execution_options(populate_existing=True))
+    revision = (f.datos or {}).get('version', 0) if f else 0
+    if revision and datos.get('version') != revision:
+        raise HTTPException(409, 'Otro supervisor actualizó el ingreso. Recarga sus datos antes de guardar tus cambios.')
+    f = f or AppIngreso(recepcion=codigo, datos={})
     d = {**(f.datos or {}), **{k: datos[k] for k in
-        ('marca', 'embarque', 'protocolo', 'responsable', 'paso') if k in datos}}
+        ('marca', 'embarque', 'protocolo', 'paso') if k in datos}}
     if d.get('protocolo', 'REGLAMENTARIO') not in ('REGLAMENTARIO', 'GENERAL'):
         raise HTTPException(422, 'Protocolo inválido')
     d.setdefault('protocolo', 'REGLAMENTARIO')
@@ -153,6 +157,7 @@ def guardar_ingreso(db, codigo, datos, usuario):
     if d.get('paso', 'EVIDENCIAS') not in ('EVIDENCIAS', 'PACKING', 'VALIDACION'):
         raise HTTPException(422, 'Paso de recepción inválido')
     d.setdefault('paso', 'EVIDENCIAS')
+    d['version'] = revision + 1
     f.datos, f.actualizado_en = d, utcnow()
     db.add(f)
     db.flush()
@@ -171,28 +176,41 @@ def guardar_unidad(db, codigo, datos, usuario):
     tipo = datos.get('tipo', 'BULTO')
     if tipo not in ('BULTO', 'CAJA_MADRE'):
         raise HTTPException(422, 'Tipo de unidad inválido')
-    padre = db.get(AppUnidadLogistica, datos.get('padreId')) if datos.get('padreId') else None
-    if tipo == 'CAJA_MADRE' and (not padre or padre.recepcion != codigo or padre.tipo != 'BULTO'):
-        raise HTTPException(422, 'La caja madre necesita un bulto de esta recepción')
-    if tipo == 'BULTO' and datos.get('padreId'):
-        raise HTTPException(422, 'Un bulto no puede estar dentro de otro bulto')
     ident = datos.get('id')
-    u = db.get(AppUnidadLogistica, ident) if ident else None
+    u = db.scalar(select(AppUnidadLogistica).where(AppUnidadLogistica.id == ident).with_for_update().execution_options(populate_existing=True)) if ident else None
     if ident and (not u or u.recepcion != codigo or u.tipo != tipo):
         raise HTTPException(404, 'Unidad logística no encontrada')
+    anterior = dict(u.datos or {}) if u else {}
+    revision = anterior.get('version', 0)
+    if u and revision and datos.get('version') != revision:
+        raise HTTPException(409, 'Otro supervisor modificó este bulto. Revisa sus cambios antes de guardar; tus fotos no se pierden.')
+    padre_id = datos.get('padreId', u.padre_id if u else None)
+    padre = db.scalar(select(AppUnidadLogistica).where(AppUnidadLogistica.id == padre_id).with_for_update()) if padre_id else None
+    if tipo == 'CAJA_MADRE' and (not padre or padre.recepcion != codigo or padre.tipo != 'BULTO'):
+        raise HTTPException(422, 'La caja madre necesita un bulto de esta recepción')
+    if tipo == 'BULTO' and padre_id:
+        raise HTTPException(422, 'Un bulto no puede estar dentro de otro bulto')
     if not u:
         numero = (db.scalar(select(func.max(AppUnidadLogistica.numero)).where(
             AppUnidadLogistica.recepcion == codigo, AppUnidadLogistica.tipo == tipo)) or 0) + 1
         u = AppUnidadLogistica(id=uuid4().hex, recepcion=codigo, tipo=tipo, numero=numero)
-    if len(str(datos.get('codigo') or '')) > 80:
+    cod = str(datos.get('codigo', u.codigo or '') or '').strip()
+    if len(cod) > 80:
         raise HTTPException(422, 'Código de unidad demasiado largo')
-    origenes = datos.get('origenes') or []
+    origenes = datos.get('origenes', anterior.get('origenes', [])) or []
     if not isinstance(origenes, list) or any(not isinstance(o, str) or len(o) > 40 for o in origenes):
         raise HTTPException(422, 'Listas vinculadas inválidas')
-    u.codigo, u.padre_id = str(datos.get('codigo') or '').strip(), padre.id if padre else None
-    u.datos = {'origenes': list(dict.fromkeys(origenes)), 'observacion': str(datos.get('observacion') or '')[:300]}
+    if 'concluido' in datos and type(datos['concluido']) is not bool:
+        raise HTTPException(422, 'Estado del bulto inválido')
+    u.codigo, u.padre_id = cod, padre.id if padre else None
+    u.datos = {**anterior, 'origenes': list(dict.fromkeys(origenes)),
+        'observacion': str(datos.get('observacion', anterior.get('observacion', '')) or '')[:300],
+        'pallet': str(datos.get('pallet', anterior.get('pallet', '')) or '').strip().upper()[:80],
+        'lecturaOriginal': str(datos.get('lecturaOriginal', anterior.get('lecturaOriginal', '')) or '')[:2048],
+        'concluido': datos.get('concluido', anterior.get('concluido', False)),
+        'version': revision + 1, 'actualizadoPor': usuario, 'actualizadoEn': m._iso(utcnow())}
     db.add(u)
-    auditoria(db, codigo, usuario, 'UNIDAD_LOGISTICA', {'unidadId': u.id, 'tipo': tipo, 'codigo': u.codigo})
+    auditoria(db, codigo, usuario, 'UNIDAD_LOGISTICA', {'unidadId': u.id, 'tipo': tipo, 'codigo': u.codigo, **u.datos})
     db.commit()
     return obtener_ingreso(db, codigo)
 
@@ -204,9 +222,11 @@ def validar_evidencia(db, codigo, datos):
     protocolo = datos.get('protocolo', 'GENERAL')
     if protocolo not in ('REGLAMENTARIO', 'GENERAL'):
         raise HTTPException(422, 'Protocolo inválido')
-    u = db.get(AppUnidadLogistica, datos.get('unidadId')) if datos.get('unidadId') else None
+    u = db.scalar(select(AppUnidadLogistica).where(AppUnidadLogistica.id == datos.get('unidadId')).with_for_update().execution_options(populate_existing=True)) if datos.get('unidadId') else None
     if datos.get('unidadId') and (not u or u.recepcion != codigo):
         raise HTTPException(422, 'La unidad no pertenece a esta recepción')
+    if u and 'unidadVersion' in datos and datos['unidadVersion'] != (u.datos or {}).get('version', 0):
+        raise HTTPException(409, 'Otro supervisor cambió este bulto. Revisa su etiqueta antes de adjuntar las fotos.')
     origen = str(datos.get('origen') or '')
     if len(origen) > 40: raise HTTPException(422, 'Identificador de lista demasiado largo')
     return {'tipo': tipo, 'categoria': categoria, 'protocolo': protocolo,

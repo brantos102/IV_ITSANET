@@ -24,3 +24,19 @@
 .acciones-item{position:sticky;top:0;z-index:2;background:var(--surface);padding:8px 0;display:flex;gap:8px;flex-wrap:wrap}
 .acciones-item button{min-height:44px;flex:1;font-size:13px}
 @media(max-width:520px){.dialogo-operativo{padding:14px}.dialogo-operativo .rejilla{grid-template-columns:1fr}.unidad-logistica button{flex:1;min-height:44px}}
+.ingreso-guiado{width:min(640px,96vw);padding:14px;overscroll-behavior:contain}
+.ingreso-cabecera,.ingreso-resumen{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 12px}
+.ingreso-cabecera{position:sticky;top:-14px;background:var(--surface);z-index:3;padding:10px 0}
+.ingreso-cabecera>div{min-width:0}.codigo-recepcion{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65vw;margin:4px 0}
+.ingreso-resumen h2{font-size:18px;margin:0}.ingreso-resumen button{font-size:12px;padding:8px;min-height:40px}
+.ingreso-opciones{grid-template-columns:1fr 1fr!important;gap:10px}.ingreso-principal{width:100%;margin:12px 0;min-height:48px}
+.ingreso-lista button{display:block;width:100%;text-align:left;margin-top:8px}
+.ingreso-pie{position:sticky;bottom:-14px;background:var(--surface);padding:10px 0 max(10px,env(safe-area-inset-bottom));z-index:2}.ingreso-pie button{width:100%;min-height:48px}
+.etiqueta-madre{font-size:14px;font-weight:700;overflow-wrap:anywhere;margin:6px 0}
+.camara-bulto{position:relative;background:#0f172a;border-radius:12px;overflow:hidden;min-height:80px;margin:10px 0}.camara-bulto video{display:block;width:100%;height:min(29dvh,220px);object-fit:cover}
+.camara-bulto button{position:absolute;bottom:8px;left:8px}.ingreso-herramientas{display:flex;gap:8px;margin:8px 0}.ingreso-herramientas button{flex:1;min-height:44px;font-size:13px;padding:10px}
+.camara-bulto.sin-camara{min-height:110px;padding:10px 10px 48px}.camara-bulto.sin-camara video{display:none}.camara-bulto [data-error-camara]{color:#fff;margin:0}
+.ingreso-guiado textarea{display:block;width:100%;font:inherit;font-size:16px;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px}
+.fotos-bulto{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.fotos-bulto img{display:block;width:100%;height:90px;object-fit:cover;border-radius:8px}
+.ingreso-guiado[data-ocupado] [data-cuerpo] button{opacity:.65;pointer-events:none}
+@media(max-width:520px){.ingreso-guiado input,.ingreso-guiado select,#modal input,#modal textarea{font-size:16px}}

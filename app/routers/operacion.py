@@ -66,15 +66,24 @@ def resolver(datos: dict = Body(...), db: Session = Depends(get_db), _: Operador
 @router.post('/recepciones/{codigo}/bultos')
 def bultos(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     from uuid import uuid4
-    from app.models import AppUnidadLogistica
+    from app.models import AppUnidadLogistica, AppEvidencia
     try: r = m.obtener(db, codigo, bloquear=True)
     except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
     if r.estado not in m.ABIERTAS: raise HTTPException(409, 'Recepción cerrada')
     n = datos.get('cantidad')
     if type(n) is not int or not 1 <= n <= 1000: raise HTTPException(422, 'Cantidad de bultos: de 1 a 1000')
     existentes = list(db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion == codigo,
-        AppUnidadLogistica.tipo == 'BULTO')))
-    if n < len(existentes): raise HTTPException(409, 'Ya hay más bultos registrados; no se eliminan sus evidencias')
+        AppUnidadLogistica.tipo == 'BULTO').order_by(AppUnidadLogistica.numero).with_for_update().execution_options(populate_existing=True)))
+    if existentes and n != r.bultos and datos.get('cantidadAnterior') != r.bultos:
+        raise HTTPException(409, 'El total de bultos cambió. Recarga antes de corregirlo.')
+    if n < len(existentes):
+        sobrantes = existentes[n:]
+        for u in sobrantes:
+            if u.codigo or any((u.datos or {}).get(k) for k in ('observacion','pallet','concluido','origenes')) or db.scalar(
+                select(AppEvidencia.id).where(AppEvidencia.unidad_id == u.id).limit(1)) or db.scalar(
+                select(AppUnidadLogistica.id).where(AppUnidadLogistica.padre_id == u.id).limit(1)):
+                raise HTTPException(409, 'Solo se pueden quitar bultos finales vacíos, sin etiquetas, fotos ni registros.')
+        for u in sobrantes: db.delete(u)
     for numero in range(len(existentes)+1, n+1):
         db.add(AppUnidadLogistica(id=uuid4().hex, recepcion=codigo, tipo='BULTO', numero=numero, codigo='', datos={}))
     r.bultos = n

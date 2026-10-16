@@ -64,7 +64,8 @@ def test_bultos_codigos_repetidos_cajas_y_avisos_no_bloquean(cliente,db):
         assert cliente.post(ruta+'/unidades',json={'tipo':'CAJA_MADRE','padreId':b['id'],'codigo':'SUB-REPETIDA'}).status_code==200
     r=cliente.post(ruta+'/bultos',json={'cantidad':2})
     assert len(r.json()['unidades'])==4
-    r=cliente.put(ruta+'/ingreso',json={'paso':'PACKING'})
+    version=cliente.get(ruta+'/ingreso').json()['version']
+    r=cliente.put(ruta+'/ingreso',json={'paso':'PACKING','version':version})
     assert r.status_code==200 and r.json()['avisos']
     assert len([u for u in r.json()['unidades'] if u['codigo']=='MADRE-REPETIDA'])==2
 
@@ -278,7 +279,9 @@ def test_bloqueo_fotos_solo_si_admin_lo_habilita_y_operador_no_modifica_formato(
     c=admin.get('/api/operacion/config').json();c['evidencias']['bloquear']=True
     assert admin.put('/api/operacion/config',json=c).status_code==200
     assert cliente.put('/api/operacion/recepciones/INGRESO/ingreso',json={'protocolo':'REGLAMENTARIO'}).status_code==200
-    assert cliente.put('/api/operacion/recepciones/INGRESO/ingreso',json={'paso':'PACKING'}).status_code==409
+    version=cliente.get('/api/operacion/recepciones/INGRESO/ingreso').json()['version']
+    r=cliente.put('/api/operacion/recepciones/INGRESO/ingreso',json={'paso':'PACKING','version':version})
+    assert r.status_code==409 and 'recomendaciones' in r.text
     assert cliente.put('/api/operacion/formatos-packing/VENTURA',json={}).status_code==403
 
 
@@ -292,3 +295,58 @@ def test_identificador_de_conteo_no_se_reutiliza_en_otra_recepcion(cliente):
     r=cliente.post('/api/app/recepciones/OTRA/conteos',json=cuerpo)
     assert r.status_code==409 and r.json()['detail']['codigo']=='CLAVE_EN_CONFLICTO'
     assert cliente.get('/api/app/recepciones/OTRA/skus').json()[0]['contado']==0
+
+
+def test_dos_supervisores_no_sobrescriben_bulto_y_foto_obsoleta_no_se_asocia(admin,cliente,db,monkeypatch,tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path);rec(cliente)
+    ruta='/api/operacion/recepciones/INGRESO'
+    u=cliente.post(ruta+'/bultos',json={'cantidad':2}).json()['unidades'][0]
+    barrera=threading.Barrier(2)
+    def editar(c,n):
+        barrera.wait(timeout=5)
+        return c.post(ruta+'/unidades',json={'id':u['id'],'version':u['version'],'codigo':'MADRE-'+n,'observacion':n})
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        respuestas=list(ex.map(lambda p:editar(*p),[(cliente,'UNO'),(admin,'DOS')]))
+    assert sorted(r.status_code for r in respuestas)==[200,409]
+    actual=cliente.get(ruta+'/ingreso').json()['unidades'][0]
+    assert actual['version']==1 and actual['observacion'] in ('UNO','DOS')
+    assert foto(cliente,'INGRESO',unidadId=u['id'],unidadVersion=0).status_code==409
+    assert not list(tmp_path.glob('app_archivos/*'))
+    r=cliente.post(ruta+'/unidades',json={'id':actual['id'],'version':actual['version'],'pallet':'A1'})
+    assert r.status_code==200
+    siguiente=r.json()['unidades'][0]
+    assert siguiente['codigo']==actual['codigo'] and siguiente['observacion']==actual['observacion']
+    assert siguiente['pallet']=='A1' and siguiente['version']==2
+
+
+def test_ingreso_responsable_automatico_y_revision_no_pierde_embarque(cliente):
+    rec(cliente);ruta='/api/operacion/recepciones/INGRESO/ingreso'
+    a=cliente.put(ruta,json={'marca':'ISUZU','embarque':'RB-ORIGINAL','responsable':'otra@example.test'}).json()
+    assert a['responsable']=='sup'
+    assert cliente.put(ruta,json={'marca':'GEELY','version':0}).status_code==409
+    b=cliente.put(ruta,json={'protocolo':'GENERAL','version':a['version']})
+    assert b.status_code==200 and b.json()['embarque']=='RB-ORIGINAL' and b.json()['marca']=='ISUZU'
+
+
+def test_corregir_total_solo_quita_bultos_vacios_y_no_pierde_evidencia(cliente,monkeypatch,tmp_path):
+    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path);rec(cliente)
+    ruta='/api/operacion/recepciones/INGRESO'
+    bs=cliente.post(ruta+'/bultos',json={'cantidad':3}).json()['unidades']
+    assert cliente.post(ruta+'/bultos',json={'cantidad':2,'cantidadAnterior':3}).status_code==200
+    assert cliente.post(ruta+'/bultos',json={'cantidad':4,'cantidadAnterior':3}).status_code==409
+    assert foto(cliente,'INGRESO',unidadId=bs[1]['id']).status_code==201
+    assert cliente.post(ruta+'/bultos',json={'cantidad':1,'cantidadAnterior':2}).status_code==409
+    assert len(cliente.get(ruta+'/ingreso').json()['unidades'])==2
+
+
+def test_galeria_por_bulto_incluye_cajas_internas_y_excluye_otras(cliente,monkeypatch,tmp_path):
+    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path);rec(cliente)
+    ruta='/api/operacion/recepciones/INGRESO'
+    bs=cliente.post(ruta+'/bultos',json={'cantidad':2}).json()['unidades']
+    caja=cliente.post(ruta+'/unidades',json={'tipo':'CAJA_MADRE','codigo':'CAJA1','padreId':bs[0]['id']}).json()['unidades'][-1]
+    for i,u in enumerate([bs[0],bs[1],caja]):
+        assert foto(cliente,'INGRESO',variante=i,unidadId=u['id']).status_code==201
+    r=cliente.get('/api/app/recepciones/INGRESO/imagenes',params={'unidadId':bs[0]['id']}).json()
+    assert r['total']==2
+    assert cliente.get('/api/app/recepciones/INGRESO/imagenes?unidadId=unidad-inexistente').status_code==422

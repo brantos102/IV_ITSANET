@@ -161,7 +161,7 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
 
 
 @router.get('/recepciones/{codigo}/imagenes')
-def imagenes(codigo: str, sku: str = '', contexto: bool = False, offset: int = Query(0, ge=0),
+def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str = '', offset: int = Query(0, ge=0),
              limite: int = Query(40, ge=1, le=100), db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     from app.services.normalize import normalizar_sku
@@ -174,6 +174,15 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, offset: int = Q
     retiradas = select(AppCopiaDrive.archivo_id).where(AppCopiaDrive.recepcion == r.codigo,
         (AppCopiaDrive.estado == 'ELIMINADA') | (AppCopiaDrive.datos['accion'].as_string() == 'papelera'))
     consulta = consulta.where(AppArchivo.id.not_in(retiradas))
+    if unidadId:
+        from app.models import AppEvidencia, AppUnidadLogistica
+        unidad = db.get(AppUnidadLogistica, unidadId)
+        if not unidad or unidad.recepcion != r.codigo:
+            raise HTTPException(422, 'El bulto no pertenece a esta recepción')
+        ids_unidades = [unidad.id] + list(db.scalars(select(AppUnidadLogistica.id).where(
+            AppUnidadLogistica.padre_id == unidad.id, AppUnidadLogistica.recepcion == r.codigo)))
+        consulta = consulta.where(AppArchivo.id.in_(select(AppEvidencia.archivo_id).where(
+            AppEvidencia.recepcion == r.codigo, AppEvidencia.unidad_id.in_(ids_unidades), AppEvidencia.eliminado_en.is_(None))))
     if sku:
         normal = normalizar_sku(sku)
         ids = set(db.scalars(select(AppArchivoSku.archivo_id).join(AppArchivo, AppArchivo.id == AppArchivoSku.archivo_id)

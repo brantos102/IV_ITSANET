@@ -1,67 +1,161 @@
-import {pedir} from './local.js?v=20261015-26';
-import {operacion,esc,abrirEvidencias} from './evidencias.js?v=20261015-26';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261015-26';
+import {pedir} from './local.js?v=20261015-27';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA} from './evidencias.js?v=20261015-27';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261015-27';
+import {abrirCamara} from './camara.js?v=20261015-27';
+import {interpretarEtiquetaMadre,fotografiarVideo} from './bultos.js?v=20261015-27';
 
+/** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
-  const [recepcion,supervisores]=await Promise.all([
-    pedir('/recepciones/'+encodeURIComponent(codigo)),operacion('/supervisores')]);
-  let ingreso=await operacion(`/recepciones/${encodeURIComponent(codigo)}/ingreso`);
-  const d=document.createElement('dialog');d.className='dialogo-operativo';
-  d.innerHTML=`<div class="acciones"><h2 style="flex:1">Ingreso · ${esc(codigo)}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
-    <nav class="pasos-ingreso" aria-label="Pasos de recepción"><span>1 · Registro</span><span>2 · Bultos y evidencias</span><span>3 · Packing lists</span></nav>
-    <div class="rejilla"><label class="campo"><span>Marca</span><input data-marca placeholder="Geely, Isuzu…"></label>
-    <label class="campo"><span>Embarque / documento de transporte</span><input data-embarque></label>
-    <label class="campo"><span>Supervisor responsable</span><select data-responsable>${supervisores.map(s=>`<option value="${esc(s.email)}">${esc(s.nombre)} · ${esc(s.email)}</option>`).join('')}</select></label>
-    <label class="campo"><span>Protocolo fotográfico</span><select data-protocolo><option value="REGLAMENTARIO">Registro técnico reglamentario</option><option value="GENERAL">Registro operativo general / panorámicas</option></select></label>
-    <label class="campo"><span>Total de bultos recibidos</span><input data-cantidad type="number" min="1" max="1000" value="${Number(recepcion.bultos)||1}"></label></div>
-    <div class="acciones"><button data-guardar class="b-sec">Guardar datos y bultos</button><button data-fotos class="b-primario">📷 Registrar evidencias</button></div>
-    <p class="mini">Cada bulto físico tiene número propio. Un código de caja madre puede repetirse en varios bultos. Las fotos recomendadas no bloquean el avance.</p>
-    <div data-unidades></div><div data-avisos role="status"></div>
-    <div class="acciones"><button data-continuar class="b-primario">Continuar a packing lists →</button></div>`;
-  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
-  for(const k of ['marca','embarque','responsable','protocolo'])if(ingreso[k])$(`[data-${k}]`).value=ingreso[k];
-  if(!ingreso.responsable && supervisores.some(s=>s.email===recepcion.creadoPor)) $('[data-responsable]').value=recepcion.creadoPor;
   const ruta=`/recepciones/${encodeURIComponent(codigo)}`;
-  async function pintar() {
-    ingreso=await operacion(ruta+'/ingreso');
-    $('[data-unidades]').innerHTML=ingreso.unidades.map(u=>`<article class="unidad-logistica"><b>${esc(u.tipo)} ${u.numero}</b><span>${esc(u.codigo || 'Código por registrar')}</span>
-      <span class="mini">${esc((u.origenes||[]).join(' · '))}${u.padreId ? ' · Dentro de bulto '+esc(ingreso.unidades.find(p=>p.id===u.padreId)?.numero || '') : ''}</span>
-      <button class="b-sec" data-editar="${u.id}">Editar código / listas</button>${u.tipo==='BULTO' ? `<button class="b-sec" data-caja="${u.id}">＋ Caja madre</button>` : ''}</article>`).join('');
-    $('[data-avisos]').replaceChildren();for(const texto of ingreso.avisos){const p=document.createElement('p');p.className='mini';p.textContent='○ '+texto;$('[data-avisos]').append(p);}
+  let [recepcion,ingreso]=await Promise.all([pedir(ruta),operacion(ruta+'/ingreso')]);
+  let indice=0,u=null,cerrarCamara=null,camaraSesion=0,ocupado=false,leyendo=false,pendientes=[],cache=new Map(),conflicto=false;
+  const d=document.createElement('dialog');d.className='dialogo-operativo ingreso-guiado';
+  d.innerHTML=`<header class="ingreso-cabecera"><div><strong>Recepción</strong><p class="mini codigo-recepcion">${esc(codigo)}</p></div><button data-cerrar class="b-sec">Cerrar</button></header><div data-cuerpo></div><p data-estado role="status" aria-live="polite"></p>`;
+  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
+  let versiones=new Map(),camaraPendiente=null;
+  const estado=t=>{$('[data-estado]').textContent=t;};
+  const bultos=()=>ingreso.unidades.filter(x=>x.tipo==='BULTO');
+  const viewport=()=>{if(window.visualViewport)d.style.maxHeight=Math.max(180,window.visualViewport.height-20)+'px';};
+  viewport();window.visualViewport?.addEventListener('resize',viewport);
+  const apagar=()=>{camaraSesion++;cerrarCamara?.();cerrarCamara=null;};
+  const manejarError=e=>{estado(e.message);if(e.estado===409){conflicto=true;if($('[data-recargar]'))$('[data-recargar]').hidden=false;}};
+  const seguro=fn=>async()=>{if(ocupado)return;ocupado=true;d.dataset.ocupado='1';
+    try{await fn();}catch(e){manejarError(e);}finally{ocupado=false;delete d.dataset.ocupado;}};
+  async function refrescar(){ingreso=await operacion(ruta+'/ingreso');recepcion=await pedir(ruta);}
+  async function guardarUnidad(cambios){
+    ingreso=await operacion(ruta+'/unidades',{cuerpo:{id:u.id,tipo:u.tipo,version:u.version,...cambios}});
+    u=ingreso.unidades.find(x=>x.id===u.id);versiones.set(u.id,u.version);return u;
   }
-  async function guardar() {
-    await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{marca:$('[data-marca]').value,
-      embarque:$('[data-embarque]').value,responsable:$('[data-responsable]').value,
-      protocolo:$('[data-protocolo]').value}});
-    await operacion(ruta+'/bultos',{cuerpo:{cantidad:Number($('[data-cantidad]').value)}});
-    await pintar();
+  async function guardarInicio(){
+    const marca=$('[data-marca]').value.trim(),protocolo=$('[data-protocolo]').value;
+    if(marca!==(ingreso.marca || '') || protocolo!==ingreso.protocolo || !ingreso.version)
+      ingreso=await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{marca,protocolo,version:ingreso.version}});
+    if(!bultos().length)ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Math.max(1,Number(recepcion.bultos)||1)}});
   }
-  const seguro=fn=>async()=>{try{await fn();}catch(e){$('[data-avisos]').textContent=e.message;}};
-  $('[data-guardar]').onclick=seguro(guardar);
-  $('[data-fotos]').onclick=seguro(async()=>{await guardar();const fotos=await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',supervisor:true});fotos.addEventListener('close',()=>pintar());});
-  $('[data-unidades]').onclick=seguro(async()=>{});
-  $('[data-unidades]').addEventListener('click',async ev=>{
-    const b=ev.target.closest('[data-editar],[data-caja]');if(!b)return;
+  function inicio(){
+    apagar();u=null;conflicto=false;estado('');
+    const bs=bultos(),completos=bs.filter(b=>b.concluido).length;
+    $('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><b>${completos} de ${bs.length || recepcion.bultos || 1} bultos registrados</b><button class="b-sec" data-total>Corregir total</button></div>
+      <div class="rejilla ingreso-opciones"><label class="campo"><span>Marca</span><input data-marca placeholder="Isuzu, Geely…" value="${esc(ingreso.marca || '')}"></label>
+      <label class="campo"><span>Protocolo de fotos</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">General / panorámicas</option></select></label></div>
+      <button class="b-primario ingreso-principal" data-empezar>${completos ? 'Continuar bultos' : 'Empezar primer bulto'} · escanear y fotografiar</button>
+      <details class="ingreso-lista"><summary>Revisar bultos (${bs.length})</summary>${bs.map((b,i)=>`<button class="b-sec" data-ir="${i}">Bulto ${b.numero} · ${esc(b.codigo || 'sin etiqueta')} · ${b.concluido?'Registrado':'Pendiente'}</button>`).join('')}</details>
+      <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button><footer class="ingreso-pie"><button class="b-sec" data-packing>Continuar a packing lists →</button></footer>`;
+    $('[data-protocolo]').value=ingreso.protocolo || 'REGLAMENTARIO';
+    $('[data-recargar]').onclick=seguro(async()=>{const marca=$('[data-marca]').value,protocolo=$('[data-protocolo]').value,anterior=ingreso;
+      await refrescar();inicio();if(marca!==(anterior.marca || ''))$('[data-marca]').value=marca;if(protocolo!==anterior.protocolo)$('[data-protocolo]').value=protocolo;
+      estado('Ingreso actualizado. Revisa marca y protocolo antes de guardar.');});
+    $('[data-empezar]').onclick=seguro(async()=>{await guardarInicio();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
+    $('[data-total]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Total de bultos',campos:[{clave:'cantidad',etiqueta:'Bultos recibidos',tipo:'number',valor:recepcion.bultos || bs.length || 1,obligatorio:true}]});if(!v)return;
+      ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Number(v.cantidad),cantidadAnterior:recepcion.bultos}});await refrescar();inicio();});
+    $('[data-packing]').onclick=seguro(async()=>{await guardarInicio();await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{paso:'PACKING',version:ingreso.version}});d.close();continuar();});
+    $('[data-cuerpo]').querySelectorAll('[data-ir]').forEach(b=>b.onclick=seguro(async()=>{await guardarInicio();indice=Number(b.dataset.ir);await mostrarBulto();}));
+  }
+  async function encender(){
+    if(cerrarCamara || camaraPendiente===camaraSesion)return;
+    const sesion=++camaraSesion,video=$('[data-video]');camaraPendiente=sesion;
     try{
-      const u=ingreso.unidades.find(u=>u.id===(b.dataset.editar || b.dataset.caja));
-      const crear=!!b.dataset.caja;
-      const campos=await pedirCampos({titulo:crear ? 'Nueva caja madre' : `Unidad ${u.numero}`,
-        campos:[{clave:'codigo',etiqueta:'Código de caja madre / etiqueta',valor:crear ? '' : u.codigo},
-          {clave:'origenes',etiqueta:'Packing lists vinculados, separados por coma',valor:crear ? '' : (u.origenes||[]).join(',')},
-          {clave:'observacion',etiqueta:'Observación',valor:crear ? '' : u.observacion}]});
-      if(!campos)return;
-      await operacion(ruta+'/unidades',{cuerpo:{id:crear ? undefined : u.id,tipo:crear ? 'CAJA_MADRE' : u.tipo,
-        padreId:crear ? u.id : u.padreId,...campos,origenes:campos.origenes.split(',').map(v=>v.trim()).filter(Boolean)}});
-      await pintar();
-    }catch(e){$('[data-avisos]').textContent=e.message;}
-  });
-  $('[data-continuar]').onclick=seguro(async()=>{
-    await guardar();
-    if(ingreso.avisos.length && !await confirmar({titulo:'Continuar con evidencias pendientes',
-      texto:'Las recomendaciones quedan registradas. Puedes completar las fotos durante la recepción.',aceptar:'Continuar'}))return;
-    await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{paso:'PACKING'}});
-    d.close();continuar();
-  });
-  $('[data-cerrar]').onclick=()=>d.close();d.addEventListener('close',()=>d.remove());
-  await pintar();return d;
+      const cerrar=await abrirCamara(video,raw=>{
+        if(ocupado || conflicto || !leyendo || !d.open || sesion!==camaraSesion)return;
+        leyendo=false;seguro(async()=>{const etiqueta=interpretarEtiquetaMadre(raw);
+          await guardarUnidad({...etiqueta,pallet:etiqueta.pallet || (u.codigo===etiqueta.codigo ? u.pallet : '')});
+          pintarEtiqueta();estado('Etiqueta registrada. Puedes tomar las fotos.');
+        })().finally(()=>{if(!u?.codigo)leyendo=true;});
+      },{puedeLeer:()=>leyendo && !ocupado && !conflicto});
+      if(sesion!==camaraSesion || !d.open){cerrar();return;}
+      cerrarCamara=cerrar;$('[data-activar]').hidden=true;$('[data-error-camara]').hidden=true;video.parentElement.classList.remove('sin-camara');
+    }catch(e){if(sesion===camaraSesion){const mensaje=window.isSecureContext===false ? 'Abre la dirección HTTPS para activar la cámara.' : e.name==='NotAllowedError' ? 'Permite el uso de la cámara en el navegador.' : e.name==='NotFoundError' ? 'No se encontró cámara. Usa Galería o escribe el código.' : e.message;
+      estado(mensaje);$('[data-error-camara]').textContent=mensaje;$('[data-error-camara]').hidden=false;video.parentElement.classList.add('sin-camara');$('[data-activar]').hidden=false;}}
+    finally{if(camaraPendiente===sesion)camaraPendiente=null;}
+  }
+  function pintarEtiqueta(){
+    $('[data-etiqueta]').textContent=u.codigo ? `Etiqueta: ${u.codigo}${u.pallet ? ' · Pallet: '+u.pallet : ''}` : 'Escanea la etiqueta madre';
+    $('[data-tomar]').textContent='📷 Tomar foto';
+    $('[data-pallet]').value=u.pallet || '';
+  }
+  function pintarCantidad(){
+    const ids=new Set([u.id,...ingreso.unidades.filter(x=>x.padreId===u.id).map(x=>x.id)]);
+    const fotos=new Set(ingreso.evidencias.filter(e=>ids.has(e.unidadId)).map(e=>e.archivoId)).size;
+    $('[data-cantidad-fotos]').textContent=`${fotos} foto${fotos===1?'':'s'} guardada${fotos===1?'':'s'}`;
+    $('[data-reintentar]').hidden=!pendientes.length;
+    for(const selector of ['[data-tipo]','[data-unidad-foto]','[data-origen]'])$(selector).disabled=!!pendientes.length;
+  }
+  async function subir(){
+    if(!pendientes.length)return;
+    const unidad=$('[data-unidad-foto]').value || u.id;
+    pintarCantidad();
+    await cargarEvidencias(codigo,pendientes,{unidadId:unidad,unidadVersion:versiones.get(unidad),
+      categoria:'RECEPCION',tipoEvidencia:$('[data-tipo]').value,protocolo:ingreso.protocolo || 'REGLAMENTARIO',
+      origen:$('[data-origen]').value.trim()},(n,t)=>estado(`Guardando foto ${n} de ${t}…`),cache);
+    pendientes=[];cache=new Map();ingreso=await operacion(ruta+'/ingreso');
+    pintarCantidad();estado('Fotos guardadas.');
+  }
+  async function galeria(){
+    const r=await pedir(`${ruta}/imagenes?unidadId=${encodeURIComponent(u.id)}&limite=100`);
+    $('[data-galeria]').replaceChildren();
+    for(const f of r.archivos){const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
+      const img=document.createElement('img');img.src=f.url;img.alt='Evidencia del bulto '+u.numero;img.loading='lazy';a.append(img);$('[data-galeria]').append(a);}
+    $('[data-galeria-nota]').textContent=r.total>100 ? `Se muestran las últimas 100 de ${r.total}. Todas se conservan en la galería de recepción.` : `${r.total} imágenes de este bulto y sus cajas.`;
+  }
+  async function mostrarBulto(){
+    apagar();pendientes=[];cache=new Map();conflicto=false;
+    await refrescar();u=bultos()[indice];if(!u){inicio();return;}
+    leyendo=!u.codigo;versiones=new Map(ingreso.unidades.map(x=>[x.id,x.version]));
+    const hijos=ingreso.unidades.filter(x=>x.padreId===u.id);
+    $('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><h2>Bulto ${u.numero} de ${bultos().length}</h2><button class="b-sec" data-resumen>Resumen</button></div>
+      <p data-etiqueta class="etiqueta-madre"></p><div class="camara-bulto"><video data-video playsinline muted></video><p data-error-camara class="mini" hidden></p><button class="b-sec" data-activar>Activar cámara</button></div>
+      <div class="acciones ingreso-herramientas"><button class="b-sec" data-escanear>↻ Escanear etiqueta</button><button class="b-sec" data-manual>Escribir código</button></div>
+      <label class="campo"><span>Fotos de</span><select data-tipo>${['EXTERIOR_BULTO','ABIERTO_CON_PACKING','ETIQUETA_CAJA','DANO_EMBALAJE','PACKING_INICIAL','PANORAMICA','ADICIONAL'].map(k=>`<option value="${k}">${esc(TIPOS_EVIDENCIA[k])}</option>`).join('')}</select></label>
+      <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Tomar foto</button><button class="b-sec" data-archivos>＋ Galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-ficheros accept="image/*" multiple hidden>
+      <p class="mini" data-cantidad-fotos></p><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
+      <details class="nota-bulto"><summary>＋ Observación opcional</summary><textarea data-nota rows="2" maxlength="300" placeholder="Estado del embalaje o novedad…">${esc(u.observacion || '')}</textarea></details>
+      <details><summary>Guía de fotos</summary><p class="mini">${ingreso.protocolo==='GENERAL' ? `${ingreso.recomendaciones.panoramicasMin} panorámicas recomendadas por recepción.` : `${ingreso.recomendaciones.exterioresMin} exteriores por bulto (objetivo ${ingreso.recomendaciones.exterioresObjetivo}), ${ingreso.recomendaciones.abiertosMin} abierto con lista visible y ${ingreso.recomendaciones.packingMin} packing inicial por recepción.`} Sin máximo de imágenes.</p></details>
+      <details><summary>Caja interior, pallet o lista (opcional)</summary><label class="campo"><span>Packing list</span><input data-origen value="${esc((u.origenes || recepcion.origenes || [])[0] || 'PRINCIPAL')}"></label>
+      <label class="campo"><span>Ubicación / pallet</span><input data-pallet value="${esc(u.pallet || '')}"></label>
+      <label class="campo"><span>Unidad de las fotos</span><select data-unidad-foto><option value="${u.id}">Bulto ${u.numero}</option>${hijos.map(h=>`<option value="${h.id}">Caja ${h.numero} · ${esc(h.codigo)}</option>`).join('')}</select></label><button class="b-sec" data-caja>＋ Caja interior</button><button class="b-sec" data-editar-unidad>Editar unidad seleccionada</button></details>
+      <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button>
+      <footer class="ingreso-pie"><button class="b-primario" data-siguiente>${indice<bultos().length-1 ? 'Guardar y siguiente bulto →' : 'Guardar y terminar bultos ✓'}</button></footer>`;
+    $('[data-tipo]').value=ingreso.protocolo==='GENERAL' ? 'PANORAMICA' : 'EXTERIOR_BULTO';
+    pintarEtiqueta();pintarCantidad();estado('');
+    $('[data-activar]').onclick=seguro(encender);
+    $('[data-escanear]').onclick=seguro(async()=>{leyendo=true;estado('Enfoca el código de la etiqueta madre.');await encender();});
+    $('[data-manual]').onclick=seguro(async()=>{leyendo=false;const v=await pedirCampos({titulo:'Etiqueta madre',campos:[{clave:'codigo',etiqueta:'Código madre',valor:u.codigo,obligatorio:true}]});
+      if(!v){leyendo=!u.codigo;return;}const e=interpretarEtiquetaMadre(v.codigo);await guardarUnidad({...e,pallet:e.pallet || (u.codigo===e.codigo ? u.pallet : '')});pintarEtiqueta();});
+    $('[data-tomar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de adjuntar fotos.');
+      if(!cerrarCamara){await encender();return;}leyendo=false;pendientes.push(await fotografiarVideo($('[data-video]')));try{await subir();}finally{pintarCantidad();if(!u.codigo)leyendo=true;}});
+    $('[data-archivos]').onclick=()=>{if(!ocupado && !conflicto)$('[data-ficheros]').click();};
+    $('[data-ficheros]').onchange=seguro(async()=>{const files=$('[data-ficheros]').files;pendientes.push(...files);$('[data-ficheros]').value='';try{await subir();}finally{pintarCantidad();}});
+    $('[data-reintentar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de reintentar.');await subir();});
+    $('[data-fotos-guardadas]').addEventListener('toggle',ev=>{if(ev.target.open)galeria().catch(manejarError);});
+    const terminar=async()=>{if(conflicto)throw new Error('Revisa los cambios antes de guardar.');await subir();
+      await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value,
+        origenes:[...new Set([...(u.origenes || []),$('[data-origen]').value.trim()].filter(Boolean))],concluido:true});};
+    $('[data-siguiente]').onclick=seguro(async()=>{await terminar();indice++;if(indice>=bultos().length)inicio();else await mostrarBulto();});
+    $('[data-resumen]').onclick=seguro(async()=>{await subir();await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value});inicio();});
+    $('[data-caja]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Caja interior de bulto '+u.numero,campos:[{clave:'codigo',etiqueta:'Código de caja madre',obligatorio:true}]});if(!v)return;
+      const antes=new Set(ingreso.unidades.map(x=>x.id));ingreso=await operacion(ruta+'/unidades',{cuerpo:{tipo:'CAJA_MADRE',padreId:u.id,codigo:v.codigo,origenes:[$('[data-origen]').value.trim()].filter(Boolean)}});
+      const h=ingreso.unidades.find(x=>!antes.has(x.id));versiones.set(h.id,h.version);const o=document.createElement('option');o.value=h.id;o.textContent='Caja '+h.numero+' · '+h.codigo;$('[data-unidad-foto]').append(o);$('[data-unidad-foto]').value=h.id;});
+    $('[data-editar-unidad]').onclick=seguro(async()=>{const seleccion=$('[data-unidad-foto]').value,unidad=seleccion===u.id ? u : ingreso.unidades.find(x=>x.id===seleccion);
+      const v=await pedirCampos({titulo:'Código y listas de la unidad',campos:[{clave:'codigo',etiqueta:'Código madre',valor:unidad.codigo},{clave:'origenes',etiqueta:'Listas vinculadas, separadas por coma',valor:(unidad.origenes || []).join(',')}]});if(!v)return;
+      ingreso=await operacion(ruta+'/unidades',{cuerpo:{id:unidad.id,tipo:unidad.tipo,version:versiones.get(unidad.id),codigo:v.codigo,origenes:v.origenes.split(',').map(s=>s.trim()).filter(Boolean)}});
+      const nueva=ingreso.unidades.find(x=>x.id===unidad.id);versiones.set(nueva.id,nueva.version);
+      if(nueva.id===u.id){u=nueva;$('[data-etiqueta]').textContent='Etiqueta: '+u.codigo+(u.pallet ? ' · Pallet: '+u.pallet : '');}
+      else $('[data-unidad-foto]').selectedOptions[0].textContent='Caja '+nueva.numero+' · '+nueva.codigo;
+    });
+    $('[data-recargar]').onclick=seguro(async()=>{const nota=$('[data-nota]').value,pallet=$('[data-pallet]').value,anterior=u;
+      await refrescar();u=ingreso.unidades.find(x=>x.id===u.id);conflicto=false;leyendo=false;versiones=new Map(ingreso.unidades.map(x=>[x.id,x.version]));pintarEtiqueta();$('[data-recargar]').hidden=true;
+      if(nota===(anterior.observacion || ''))$('[data-nota]').value=u.observacion || '';
+      if(pallet!==(anterior.pallet || ''))$('[data-pallet]').value=pallet;
+      estado(`Último registro: ${u.actualizadoPor || 'otro supervisor'}. Observación guardada: ${u.observacion || '—'}. Revisa tus datos antes de guardar.`);pintarCantidad();});
+    void encender();
+  }
+  async function cerrar(){if(ocupado)return;
+    if(u && !conflicto){try{ocupado=true;await subir();await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value});}catch(e){manejarError(e);return;}finally{ocupado=false;}}
+    if(conflicto && !await confirmar({titulo:'Salir sin sobrescribir cambios',texto:`Las fotos ya guardadas permanecen. Se descartarán la observación local sin guardar${pendientes.length ? ' y '+pendientes.length+' foto(s) pendientes de guardar' : ''}.`,aceptar:'Salir'}))return;
+    d.close();
+  }
+  $('[data-cerrar]').onclick=cerrar;
+  d.addEventListener('cancel',ev=>{ev.preventDefault();cerrar();});
+  d.addEventListener('close',()=>{apagar();window.visualViewport?.removeEventListener('resize',viewport);d.remove();});
+  inicio();return d;
 }

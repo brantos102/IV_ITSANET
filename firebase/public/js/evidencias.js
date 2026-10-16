@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261015-26';
-import {comprimir} from './imagen.js?v=20261015-26';
-import {confirmar} from './modal.js?v=20261015-26';
+import {pedir} from './local.js?v=20261015-27';
+import {comprimir} from './imagen.js?v=20261015-27';
+import {confirmar} from './modal.js?v=20261015-27';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -35,13 +35,12 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',supe
   const ingreso=await operacion(`/recepciones/${encodeURIComponent(recepcion)}/ingreso`);
   const d=document.createElement('dialog');d.className='dialogo-operativo';
   d.innerHTML=`<div class="acciones"><h2 style="flex:1">${sku ? 'Evidencias · '+esc(sku) : 'Evidencias de recepción'}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
-    <p class="mini">Fotos opcionales, sin máximo por ítem. Se copian a Drive en segundo plano.</p>
-    <div class="rejilla"><label class="campo"><span>Protocolo</span><select data-protocolo><option value="REGLAMENTARIO">Registro técnico reglamentario</option><option value="GENERAL">Registro operativo general</option></select></label>
+    <label class="campo"><span>Foto de</span><select data-tipo>${Object.entries(TIPOS_EVIDENCIA).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
+    <details><summary>Clasificación y vínculos · ${esc(categoria)}</summary><div class="rejilla"><label class="campo"><span>Protocolo</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">General</option></select></label>
     <label class="campo"><span>Clasificación</span><select data-categoria>${['RECEPCION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label>
-    <label class="campo"><span>Tipo de evidencia</span><select data-tipo>${Object.entries(TIPOS_EVIDENCIA).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
     <label class="campo"><span>Bulto / caja madre</span><select data-unidad><option value="">Sin unidad específica</option>${ingreso.unidades.map(u=>`<option value="${u.id}">${esc(u.tipo)} ${u.numero} · ${esc(u.codigo || 'sin código')}</option>`).join('')}</select></label>
     <label class="campo"><span>Packing list vinculado</span><input data-origen placeholder="PRINCIPAL o embarque"></label></div>
-    <p class="mini" data-recomendacion></p><div class="acciones"><button data-camara class="b-primario">📷 Tomar foto</button><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
+    <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Tomar foto</button><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
     <input data-captura type="file" accept="image/*" capture="environment" hidden><input data-archivos type="file" accept="image/*" multiple hidden>
     <div data-seleccion></div><p data-estado role="status"></p><div data-carpetas></div><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
   document.body.append(d); d.showModal();

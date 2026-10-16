@@ -24,7 +24,7 @@ def generar(db, codigo):
     hoja['D1']='TRAZABILIDAD DE EVIDENCIAS · ITSANET';hoja['D1'].font=Font(bold=True,size=14,color='1D4ED8')
     hoja['D2']=f'{r.codigo} · {r.cliente}';hoja['D2'].data_type='s';hoja['D3']='Origen: base de datos del servidor'
     columnas=['CLIENTE','MARCA','RECEPCION','SKU','CLASIFICACION','TIPO','PROTOCOLO','BULTO',
-        'CODIGO BULTO','CAJA MADRE','CODIGO CAJA','PACKING LIST','FECHA ECUADOR','USUARIO','ARCHIVO ID','ENLACE DRIVE']
+        'CODIGO BULTO','CAJA MADRE','CODIGO CAJA','PACKING LIST','FECHA ECUADOR','USUARIO','ARCHIVO ID','ENLACE DRIVE','PALLET BULTO','OBSERVACION BULTO']
     for i,nombre in enumerate(columnas,1):
         c=hoja.cell(5,i,nombre);c.font=Font(bold=True,color='FFFFFF');c.fill=PatternFill('solid',fgColor='1D4ED8')
     filas=db.execute(select(AppEvidencia,AppArchivo).join(AppArchivo,AppArchivo.id==AppEvidencia.archivo_id)
@@ -36,11 +36,11 @@ def generar(db, codigo):
         valores=[r.cliente,(ingreso.datos if ingreso else {}).get('marca',''),codigo,e.sku,e.categoria,e.tipo,e.protocolo,
             b.numero if b else '',b.codigo if b else '',u.numero if u and u.tipo=='CAJA_MADRE' else '',
             u.codigo if u and u.tipo=='CAJA_MADRE' else '',e.origen,fecha.astimezone(ZoneInfo('America/Guayaquil')).strftime('%d/%m/%Y %H:%M:%S'),
-            e.usuario,a.id,a.drive_url or 'Pendiente de copia a Drive']
+            e.usuario,a.id,a.drive_url or 'Pendiente de copia a Drive',(b.datos or {}).get('pallet','') if b else '',(b.datos or {}).get('observacion','') if b else '']
         hoja.append(valores)
         for c in hoja[hoja.max_row]:
             if isinstance(c.value,str):c.data_type='s'
-    hoja.freeze_panes='A6';hoja.auto_filter.ref=f'A5:P{max(5,hoja.max_row)}'
+    hoja.freeze_panes='A6';hoja.auto_filter.ref=f'A5:R{max(5,hoja.max_row)}'
     for columna in hoja.columns:hoja.column_dimensions[columna[0].column_letter].width=24
     hoja.column_dimensions['P'].width=60
     salida=BytesIO();libro.save(salida);return salida.getvalue()

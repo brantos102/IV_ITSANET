@@ -29,26 +29,37 @@ del handheld se verifica después en el dispositivo real por HTTPS.
 
 ## Recorrido de recepción
 
-1. SUPERVISOR/ADMIN crea la recepción e ingresa cliente, descripción y bultos.
-   **Ingreso** permite completar marca, embarque, supervisor responsable y
-   protocolo fotográfico. Se puede volver mediante **Bultos / evidencias**.
-2. Cada bulto físico recibe un número independiente. Se permiten códigos de
-   caja madre repetidos. **Editar código / listas** relaciona una unidad con
-   varios packing lists. **＋ Caja madre** registra una caja interior vinculada
-   a su bulto. Es preferible identificar primero la unidad física y después
-   seleccionar esa unidad al cargar las fotos del producto.
-3. **Registrar evidencias** permite cámara para fotos y galería con selección
-   múltiple. Esta cámara de evidencia es independiente del escáner de códigos
-   en video en vivo. Elegir clasificación, tipo, bulto/caja y lista vinculada.
-   No existe máximo de fotos por producto; cada archivo admite hasta 12 MB antes
-   de la compresión del navegador. Las cargas son secuenciales, con progreso y
-   reintento de los archivos pendientes.
-4. Las recomendaciones reglamentarias son 3 exteriores por bulto, objetivo 6,
-   1 packing inicial por recepción y 2 de cada bulto abierto con lista visible.
-   En protocolo general se recomiendan 6 panorámicas. **No bloquean el avance**.
-   ADMIN puede ajustar los valores y, si posteriormente lo decide, activar la
-   exigencia. No hay máximo de imágenes.
-5. Continuar a packing lists. Se conserva la importación y consolidación
+1. SUPERVISOR/ADMIN crea la recepción con cliente, descripción/embarque y
+   total de bultos. En **Bultos / evidencias** se muestran solamente **marca** y
+   **protocolo**. El embarque ya registrado se conserva; el responsable se toma
+   de la identidad autenticada, sin pedirlo nuevamente. El total se corrige con
+   un botón pequeño. Solo se pueden quitar bultos finales que todavía estén
+   vacíos, sin etiqueta, fotos, cajas interiores u observaciones.
+2. **Empezar primer bulto** abre un solo bulto por pantalla y solicita permiso
+   de cámara. El escaneo usa el video en vivo con BarcodeDetector o ZXing. Lee
+   el código madre y, cuando está identificado en el QR, el pallet/ubicación.
+   Los códigos simples conservan sus ceros y separadores. Si la etiqueta no
+   incluye ubicación, esta queda editable dentro de las opciones del bulto.
+   **Escribir código** sirve para etiquetas ilegibles o cámara no disponible.
+3. Tras leer la etiqueta, la cámara permanece disponible: **Tomar foto** captura
+   un fotograma como evidencia y lo guarda. Esa fotografía no se utiliza para
+   escanear códigos. **Galería** permite incorporar varias fotos existentes.
+   Elegir exterior, abierto con packing, etiqueta, daño, packing inicial o general
+   en el selector. El bulto actual se vincula automáticamente; las opciones de
+   caja interior, pallet y packing list quedan plegadas. Se mantienen los códigos
+   repetidos para distintos bultos físicos, con números e IDs independientes.
+4. Después de las fotos, desplegar **Observación opcional** si hay algo que
+   registrar. **Guardar y siguiente bulto** conserva la nota y pasa al siguiente;
+   el último vuelve al resumen. Se puede retomar cualquier bulto desde la lista
+   plegada. La cámara se apaga al salir. Las imágenes ya guardadas nunca dependen
+   de escribir una nota ni de pulsar el último botón para persistirse.
+5. Las recomendaciones reglamentarias siguen siendo 3 exteriores por bulto,
+   objetivo 6, 1 packing inicial por recepción y 2 del bulto abierto con lista
+   visible. En general, 6 panorámicas por recepción. **No bloquean el avance**
+   por defecto; pueden consultarse en **Guía de fotos**. ADMIN conserva la opción
+   de ajustar valores y exigirlos. No hay máximo de fotos por producto o bulto;
+   cada archivo enviado admite hasta 12 MB y el navegador comprime las fotos.
+6. Continuar a packing lists. Se conserva la importación y consolidación
    existentes, accesibles a supervisión. Si el archivo varía, desplegar
    **Ajustar hoja y columnas**: hoja, fila real del encabezado y letras de
    columnas. Vista previa antes de guardar. ADMIN puede guardar el modelo por
@@ -56,6 +67,17 @@ del handheld se verifica después en el dispositivo real por HTTPS.
    mantiene sus propias columnas para el informe final. Cantidades negativas
    o no numéricas se rechazan; cero es válido. Códigos con ceros iniciales se
    conservan; los números demasiado largos deben venir como texto en Excel.
+
+### Trabajo simultáneo
+
+Los cambios de ingreso y unidad llevan versión y bloqueo transaccional de la
+recepción. Si otra sesión ya guardó, el servidor rechaza la edición obsoleta con
+409. **Revisar cambios del otro supervisor** permite compararlos antes de guardar;
+una observación local modificada se conserva para revisión. Las fotos se anexan
+con unidad física, autor y fecha propios. El flujo nuevo comprueba también la
+versión de la unidad antes de adjuntar una foto; un cambio de etiqueta requiere
+revisión. Las notas y el pallet del bulto aparecen en el Excel de trazabilidad.
+Las modificaciones no suman unidades a los conteos ni alteran packing lists.
 
 ## Conteo y novedades
 
