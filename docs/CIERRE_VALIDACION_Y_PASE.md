@@ -40,7 +40,7 @@ Remitente de prueba indicado: **bespinoza@itsanet.com**. Destinatario de prueba:
 7. Desplegar **Enviar correo de prueba**, confirmar remitente y destinatario, y pulsar enviar. El botón verifica al ejecutor y al repositorio antes de enviar un mensaje identificable. Si se interrumpe la confirmación del correo, revisar Enviados y la bandeja del destinatario antes de iniciar otra prueba; el mismo identificador no se reenvía automáticamente.
 8. Revisar una recepción de prueba → Imágenes de la recepción → carpeta Drive; registrar evidencias por tipo y comprobar la copia. Depurar imágenes antes de finalizar. La columna de evidencia utiliza carpetas confirmadas por Drive, sin inventar enlaces de imágenes pendientes. Si esa columna está asignada y todavía hay fotos de SKU pendientes, el cierre final espera su confirmación; se puede continuar contando y descargar avances. La entrega incluye el enlace a la carpeta de la recepción.
 
-La cuenta autenticada que finaliza es el remitente responsable. Escribir otro correo en una pantalla no concede autorización para enviarlo como esa persona. El botón Google de login usa otro mecanismo: OAuth web. No exige la contraseña de Gmail y no reemplaza el permiso del puente para Drive/correo.
+El cierre propone el correo responsable configurado en Operación → Remitente de informes. La cuenta que finaliza queda como autora del cierre; puede elegir su correo propio solo si ADMIN lo permite y tiene un puente autorizado. Escribir otro correo en una petición no concede autorización para enviarlo como esa persona. El botón Google de login usa otro mecanismo: OAuth web. No exige la contraseña de Gmail y no reemplaza el permiso del puente para Drive/correo.
 
 ## Red de producción y cámaras móviles
 
@@ -56,24 +56,26 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-32`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-33`; recargar las pantallas antes de retomar operación.
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261016-bultos-etiquetas`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261016-lecturas-claves-correo`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-bultos-etiquetas &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-bultos-etiquetas^{commit}') &&
+git fetch origin tag itsanet-20261016-lecturas-claves-correo &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-lecturas-claves-correo^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
 ```
 
-La versión 32 incorpora [etiquetas correlativas de bultos y fotos del estado
+La versión 33 corrige [lecturas con separadores y datos adicionales y habilita
+el cambio de contraseña propia](LECTURAS_Y_CLAVE_PROPIA.md). Conserva las
+[etiquetas correlativas de bultos y fotos del estado
 final](BULTOS_ETIQUETAS_Y_ESTADO_FINAL.md). Conserva todas las mejoras de las
 etiquetas anteriores. No requiere cambiar el esquema de la base: utiliza las
 unidades físicas, el ingreso, la cola de impresión y la auditoría ya existentes.

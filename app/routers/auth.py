@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.config import SESSION_HOURS
 from app.db import get_db
-from app.models import Operador, Rol
-from app.schemas import LoginIn, OperadorCambio, OperadorIn, RegistroIn
+from app.models import AppPresencia, Operador, Rol, Sesion
+from app.schemas import CambioClaveIn, LoginIn, OperadorCambio, OperadorIn, RegistroIn
 from app.security import (
     COOKIE, cerrar_sesion, crear_sesion, hash_pin, requiere_supervisor,
     usuario_actual, verify_pin,
@@ -27,7 +27,13 @@ def login(datos: LoginIn, response: Response, request: Request, db: Session = De
     if len(candidatos) > 1:
         raise HTTPException(409, "Ese correo pertenece a varias fichas. Entra con tu usuario y avisa al supervisor.")
     op = candidatos[0] if candidatos else None
-    if not op or not verify_pin(datos.pin, op.pin_hash):
+    if op:
+        # Bloquear por PK únicamente esta cuenta: LOWER(usuario/email) puede
+        # provocar un recorrido amplio en MySQL y bloquear otros operarios.
+        op = db.scalar(select(Operador).where(Operador.id == op.id).with_for_update()
+                       .execution_options(populate_existing=True))
+    identificador = (op.email if "@" in entrada else op.usuario) if op else None
+    if not op or (identificador or '').lower() != entrada or not verify_pin(datos.pin, op.pin_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Usuario o contrasena incorrectos")
     if not op.activo:
         raise HTTPException(403, {"codigo": "PENDIENTE_APROBACION",
@@ -77,22 +83,29 @@ def yo(op: Operador = Depends(usuario_actual), db: Session = Depends(get_db)):
 
 
 @router.post("/clave")
-def cambiar_clave(datos: dict = Body(...), op: Operador = Depends(usuario_actual),
+def cambiar_clave(datos: CambioClaveIn, request: Request, op: Operador = Depends(usuario_actual),
                   db: Session = Depends(get_db)):
     """Cambiar la contrasena de uno mismo.
 
     Hace falta la actual: una sesion abierta en un handheld compartido que se
     quedo encima de una mesa no puede servir para dejar fuera a su dueno.
     """
-    actual = str(datos.get("actual") or "")
-    nueva = str(datos.get("nueva") or "")
-    if not verify_pin(actual, op.pin_hash):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "La contrasena actual no es correcta")
-    if len(nueva) < 6:
-        raise HTTPException(422, "La contrasena nueva necesita al menos 6 caracteres")
-    op.pin_hash = hash_pin(nueva)
+    op = db.scalar(select(Operador).where(Operador.id == op.id).with_for_update()
+                   .execution_options(populate_existing=True))
+    if not verify_pin(datos.actual, op.pin_hash):
+        raise HTTPException(401, {"codigo": "CLAVE_ACTUAL_INVALIDA",
+                                  "mensaje": "La contraseña actual no es correcta. Revísala e intenta de nuevo."})
+    if datos.actual == datos.nueva:
+        raise HTTPException(422, "La contraseña nueva debe ser diferente de la actual")
+    import hashlib
+    token = request.cookies.get(COOKIE) or request.headers.get("Authorization", "").removeprefix("Bearer ")
+    otras = db.query(Sesion).filter(Sesion.operador_id == op.id, Sesion.token != token).delete()
+    db.query(AppPresencia).filter(AppPresencia.operador_id == op.id,
+        AppPresencia.sesion_hash != hashlib.sha256(token.encode()).hexdigest()).delete()
+    op.pin_hash = hash_pin(datos.nueva)
+    ajustes.auditar(db, op.usuario, 'CAMBIO_CLAVE_PROPIA', op.id, {'sesionesCerradas': otras})
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "sesionesCerradas": otras}
 
 
 def _ficha(op: Operador) -> dict:

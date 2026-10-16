@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-32"></script>
+<script src="./js/arranque.js?v=20261016-33"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261016-32" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261016-33" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261016-32">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-33">
 </head>
 <body>
 <div class="envoltorio">
@@ -141,7 +141,7 @@
       </form>
     </details>
     <details style="margin-top:18px"><summary>Drive y envío de correo</summary>
-      <p class="mini">Configuración única por ADMIN para cada supervisor. Ese supervisor autoriza su cuenta Google al desplegar el puente como «Yo». Al finalizar solo elegirá los destinatarios: el remitente se toma de su sesión y debe coincidir con la cuenta autorizada.</p>
+      <p class="mini">ADMIN configura el puente de cada cuenta remitente. Esa persona autoriza Google al desplegarlo como «Yo». El cierre propone el correo responsable de Operación → Remitente de informes; también permite el correo propio cuando está autorizado. El remitente real debe coincidir con la cuenta Google ejecutora.</p>
       <div id="puentesSupervisores" class="acciones"></div>
       <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
         <label class="campo"><span>Correo del supervisor responsable</span><input id="iGoogleSupervisor" type="email" placeholder="supervisor@gmail.com"></label>
@@ -321,19 +321,19 @@
 </div>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-32';
-import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-32';
-import { configurarOperacion } from './js/admin-operacion.js?v=20261016-32';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-32';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-32';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-32';
-import { confirmar } from './js/modal.js?v=20261016-32';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-33';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-33';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261016-33';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-33';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-33';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-33';
+import { confirmar } from './js/modal.js?v=20261016-33';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261016-32';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-32';
+} from './js/csv.js?v=20261016-33';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-33';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261016-32';
+  from './vendor/firebase-sdk.js?v=20261016-33';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];

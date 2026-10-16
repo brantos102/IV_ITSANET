@@ -101,11 +101,13 @@ export function confirmar({ titulo, texto = '', aceptar = 'Aceptar',
  *
  * Con `obligatorio`, el botón no deja seguir hasta que haya algo escrito: el
  * motivo de una anulación en blanco no sirve para nada seis meses después.
+ * Con `seleccion` añade una lista y devuelve {texto, seleccion}; sin ella
+ * mantiene el resultado de texto. Una opción deshabilitada no permite aceptar.
  */
 export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
                              marcador = '', obligatorio = false,
                              aceptar = 'Aceptar', cancelar = 'Cancelar',
-                             lineas = 1, sugerencias = [] } = {}) {
+                             lineas = 1, sugerencias = [], seleccion = null } = {}) {
   const campo = lineas > 1
     ? `<textarea id="modalCampo" rows="${lineas}" placeholder="${esc(marcador)}">${esc(valor)}</textarea>`
     : `<input id="modalCampo" value="${esc(valor)}" placeholder="${esc(marcador)}"
@@ -113,6 +115,9 @@ export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
 
   return abrir(
     `${cabecera(titulo, texto)}
+     ${seleccion ? `<label class="campo"><span>${esc(seleccion.etiqueta)}</span><select id="modalSeleccion">
+       ${seleccion.opciones.map(o=>`<option value="${esc(o.valor)}"${o.valor===seleccion.valor?' selected':''}${o.disabled?' disabled':''}>${esc(o.titulo)}</option>`).join('')}
+     </select></label>` : ''}
      <label class="campo">${etiqueta ? `<span>${esc(etiqueta)}</span>` : ''}${campo}</label>
      ${sugerencias.length ? `<div class="modal-sugerencias"><span class="mini">Destinatarios recientes de este cliente</span>
        ${sugerencias.map((s, i) => `<button type="button" class="b-sec" data-sugerencia="${i}">${esc(s)}</button>`).join('')}
@@ -124,7 +129,9 @@ export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
     (d, cerrar) => {
       const campoEl = d.querySelector('#modalCampo');
       const si = d.querySelector('[data-si]');
-      const revisar = () => { si.disabled = obligatorio && !campoEl.value.trim(); };
+      const lista = d.querySelector('#modalSeleccion');
+      const revisar = () => { si.disabled = (obligatorio && !campoEl.value.trim()) || !!lista?.selectedOptions[0]?.disabled; };
+      lista?.addEventListener('change', revisar);
 
       campoEl.addEventListener('input', revisar);
       d.querySelectorAll('[data-sugerencia]').forEach(b => {
@@ -134,7 +141,7 @@ export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
         if (ev.key === 'Enter' && lineas === 1) { ev.preventDefault(); si.click(); }
       });
       d.querySelector('[data-no]').onclick = () => cerrar(null);
-      si.onclick = () => { if (!si.disabled) cerrar(campoEl.value); };
+      si.onclick = () => { if (!si.disabled) cerrar(seleccion ? {texto:campoEl.value,seleccion:lista.value} : campoEl.value); };
 
       revisar();
       campoEl.focus();

@@ -1,9 +1,9 @@
-import {pedir} from './local.js?v=20261016-32';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261016-32';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261016-32';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-32';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261016-32';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261016-32';
+import {pedir} from './local.js?v=20261016-33';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261016-33';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261016-33';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261016-33';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261016-33';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261016-33';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {

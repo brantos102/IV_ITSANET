@@ -15,7 +15,8 @@ from app.services.normalize import normalizar_sku
 DEFECTO = {'evidencias': {'exterioresMin': 3, 'exterioresObjetivo': 6,
     'packingMin': 1, 'abiertosMin': 2, 'panoramicasMin': 6, 'bloquear': False},
     'catalogo': {'activo': True, 'horas': [8, 10, 15], 'zona': 'America/Guayaquil'},
-    'repositorios': [], 'impresoras': [], 'maxCopias': 500}
+    'repositorios': [], 'impresoras': [], 'maxCopias': 500,
+    'correo': {'responsable': '', 'permitirPersonal': True}}
 TIPOS = {'EXTERIOR_BULTO', 'PACKING_INICIAL', 'ABIERTO_CON_PACKING',
     'CAJA_CERRADA', 'ETIQUETA_CAJA', 'CAJA_ABIERTA', 'ITEM_NOVEDAD', 'PANORAMICA', 'ADICIONAL', 'DANO_EMBALAJE', 'ESTADO_FINAL'}
 CATEGORIAS = {'RECEPCION', 'FALTANTE', 'SOBRANTE', 'PNC', 'GENERAL'}
@@ -26,7 +27,7 @@ def configuracion(db, publica=False):
     d = deepcopy(DEFECTO)
     if f:
         d.update(deepcopy(f.datos))
-        for k in ('evidencias', 'catalogo'):
+        for k in ('evidencias', 'catalogo', 'correo'):
             d[k] = {**DEFECTO[k], **d[k]}
     for p in d['impresoras']:
         p['tokenConfigurado'] = bool(p.pop('tokenHash', None))
@@ -42,6 +43,13 @@ def guardar_config(db, datos, usuario):
     hashes = {p['id']: p.get('tokenHash') for p in (f.datos.get('impresoras', []) if f else [])}
     d = {**actual, **{k: datos[k] for k in DEFECTO if k in datos}}
     try:
+        d['correo'] = {**DEFECTO['correo'], **d['correo']}
+        responsable = str(d['correo']['responsable'] or '').strip().lower()
+        if responsable and not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', responsable):
+            raise ValueError('Correo responsable inválido')
+        if type(d['correo']['permitirPersonal']) is not bool:
+            raise ValueError('Permiso para correo personal inválido')
+        d['correo'] = {'responsable': responsable, 'permitirPersonal': d['correo']['permitirPersonal']}
         d['evidencias'] = {**DEFECTO['evidencias'], **d['evidencias']}
         for k in ('exterioresMin', 'exterioresObjetivo', 'packingMin', 'abiertosMin', 'panoramicasMin'):
             v = d['evidencias'][k]

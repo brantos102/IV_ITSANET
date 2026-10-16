@@ -11,6 +11,12 @@ class LoginIn(BaseModel):
     pin: str
 
 
+class CambioClaveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    actual: str = Field(min_length=1, max_length=128)
+    nueva: str = Field(min_length=6, max_length=128)
+
+
 class LookupIn(BaseModel):
     codigo: str = Field(min_length=1, max_length=120)
 

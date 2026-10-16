@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-32"></script>
+<script src="./js/arranque.js?v=20261016-33"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>ITSANET — Acceso</title>
@@ -150,7 +150,7 @@
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
                         text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261016-32">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-33">
 </head>
 <body>
 <div class="caja">
@@ -244,6 +244,7 @@
         <div class="n" id="pNombre"></div>
         <div class="e" id="pEmail"></div>
         <span class="chip" id="pRol"></span>
+        <a class="mini oculto" id="accesoClave" href="./cuenta.html" style="display:block;margin-top:8px">Cambiar mi contraseña</a>
       </div>
     </div>
     <div id="avisos-sesion"></div>
@@ -289,17 +290,17 @@
 </div>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-32';
-import { fechaDe, recientes } from './js/fechas.js?v=20261016-32';
-import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261016-32';
-import { modoLocal, estadoServidor } from './js/local.js?v=20261016-32';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-33';
+import { fechaDe, recientes } from './js/fechas.js?v=20261016-33';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261016-33';
+import { modoLocal, estadoServidor } from './js/local.js?v=20261016-33';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
-         normalizarAlias, db, auth } from './js/auth.js?v=20261016-32';
-import { pedirDatos } from './js/modal.js?v=20261016-32';
+         normalizarAlias, db, auth } from './js/auth.js?v=20261016-33';
+import { pedirDatos } from './js/modal.js?v=20261016-33';
 import { doc, getDoc, collection, getDocs, limit, query }
-  from './vendor/firebase-sdk.js?v=20261016-32';
-import { listarRecepciones } from './js/datos.js?v=20261016-32';
+  from './vendor/firebase-sdk.js?v=20261016-33';
+import { listarRecepciones } from './js/datos.js?v=20261016-33';
 
 const $ = (id) => document.getElementById(id);
 $('dominioTxt').textContent = '@' + DOMINIO;
@@ -529,7 +530,7 @@ observarSesion(async ({ usuario, perfil, error }) => {
   limpiar('avisos-sesion');
   $('tDiag').innerHTML = '';
   $('bloqueDiag').classList.add('oculto');
-  for(const id of ['accesoUsuarios','accesoAdmin','accesoKpis'])$(id).classList.add('oculto');
+  for(const id of ['accesoUsuarios','accesoAdmin','accesoKpis','accesoClave'])$(id).classList.add('oculto');
 
   if (error) aviso('avisos-login', error, 'err', 'Atención');
 
@@ -547,6 +548,7 @@ observarSesion(async ({ usuario, perfil, error }) => {
 
   $('vista-login').classList.add('oculto');
   $('vista-sesion').classList.remove('oculto');
+  $('accesoClave').classList.toggle('oculto', tipoDeAcceso(usuario) !== 'CLAVE');
 
   $('pNombre').textContent = usuario.displayName || usuario.email;
   $('pEmail').textContent = usuario.email;

@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-32';
-import {comprimir} from './imagen.js?v=20261016-32';
-import {confirmar} from './modal.js?v=20261016-32';
+import {pedir} from './local.js?v=20261016-33';
+import {comprimir} from './imagen.js?v=20261016-33';
+import {confirmar} from './modal.js?v=20261016-33';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});

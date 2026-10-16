@@ -43,6 +43,7 @@ def documento(e, tecnico=False):
     return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'intentos': e.intentos, 'mensaje': e.error if tecnico else mensajes.get(e.estado, 'Comprobando entrega.'),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
+            'remitente': e.datos.get('remitente') or e.usuario,
             'resultado': (e.resultado or {}) if tecnico else {
                 k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'carpetaFotos', 'sheet', 'enviadoA', 'remitente')},
             'informe': e.datos.get('informe'),
@@ -91,6 +92,8 @@ def preparar(db, codigo, datos, usuario):
     r = m.obtener(db, codigo, bloquear=True)
     if r.estado == 'CERRADA':
         raise HTTPException(409, 'Otro supervisor ya cerro esta recepcion; actualiza la pantalla')
+    from app.services.remitentes import elegir
+    remitente, modo_remitente = elegir(db, r.codigo, datos, usuario)
     informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
     if datos.get('informeId'):
         from app.services.informes import huella
@@ -122,6 +125,7 @@ def preparar(db, codigo, datos, usuario):
         clave=hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest(),
         estado='PENDIENTE', datos={
             'destinatarios': ','.join(correos), 'informes': informes, 'fotos': fotos,
+            'remitente': remitente, 'modoRemitente': modo_remitente,
             'carpetaMes': str(datos.get('carpetaMes') or '')[:100],
             'carpetaRecepcion': str(datos.get('carpetaRecepcion') or r.codigo)[:200],
             'duracion': str(datos.get('duracion') or '')[:100],
@@ -143,6 +147,28 @@ def preparar(db, codigo, datos, usuario):
 
 class RevisionEntrega(Exception):
     pass
+
+
+def _error_google(respuesta):
+    """Traducir solo categorías conocidas; nunca reenviar textos con secretos."""
+    mensaje = str(respuesta.get('mensaje') or respuesta.get('error') or '').lower()
+    if 'firma' in mensaje or 'hmac' in mensaje:
+        return 'La clave compartida no coincide con SERVIDOR_HMAC de este Apps Script.'
+    if 'userinfo.email' in mensaje or 'session.geteffectiveuser' in mensaje:
+        return 'Google no autorizó leer la cuenta remitente. Ejecuta verificarGoogleServidor en Apps Script con la cuenta responsable, acepta los permisos y actualiza el despliegue /exec.'
+    if 'cuota' in mensaje or 'quota' in mensaje:
+        return 'Google informa que no hay cuota de correo disponible. Revisa la cuota de la cuenta responsable antes de reintentar.'
+    if any(c in mensaje for c in ('script.send_mail', 'mailapp', 'permiso de correo', 'sendemail')):
+        return 'Falta autorización para enviar correo. Ejecuta verificarGoogleServidor con la cuenta responsable, acepta el permiso de correo y publica una versión nueva del despliegue /exec.'
+    if 'carpeta_evidencias' in mensaje or 'repositorio invalido' in mensaje or 'repositorio inválido' in mensaje:
+        return 'La carpeta raíz de Drive no está configurada correctamente. Revisa CARPETA_EVIDENCIAS en Apps Script y el ID del repositorio en Administración.'
+    if any(c in mensaje for c in ('driveapp', 'getfolderbyid', 'getfilebyid', 'carpeta drive', 'file not found', 'no item with the given id')):
+        return 'La cuenta responsable no puede abrir la carpeta o archivo de Drive, o le falta autorización. Comparte la carpeta con esa cuenta, revisa su ID y ejecuta verificarGoogleServidor para autorizar Drive.'
+    if 'supervisor' in mensaje or 'ejecut' in mensaje:
+        return 'El despliegue debe ejecutarse con la misma cuenta Google que el remitente seleccionado. Revisa «Ejecutar como: Yo» y la cuenta que publicó el puente.'
+    if 'unknown' in mensaje or 'desconocida' in mensaje or 'no permitida' in mensaje:
+        return 'El puente publicado no reconoce esta operación. Copia los archivos actuales del puente y actualiza su despliegue /exec con una versión nueva.'
+    return 'Google no confirmó la operación. Ejecuta verificarGoogleServidor en Apps Script con la cuenta responsable para identificar el permiso o carpeta que falla; después actualiza el despliegue /exec.'
 
 
 def llamar(operacion, clave, datos):
@@ -170,12 +196,7 @@ def llamar(operacion, clave, datos):
     if not r.get('exito'):
         if r.get('revision'):
             raise RevisionEntrega('Google requiere revisar el correo antes de reintentar')
-        mensaje = str(r.get('mensaje') or r.get('error') or '').lower()
-        if 'firma' in mensaje or 'hmac' in mensaje:
-            raise RuntimeError('La clave compartida no coincide con SERVIDOR_HMAC de este Apps Script.')
-        if 'supervisor' in mensaje or 'ejecut' in mensaje:
-            raise RuntimeError('El despliegue debe ejecutarse con la misma cuenta Google que el supervisor indicado.')
-        raise RuntimeError('Google no confirmó la operación. Revisa autorización de Drive y correo, carpeta raíz y versión publicada del script.')
+        raise RuntimeError(_error_google(r))
     return r
 
 
@@ -200,8 +221,9 @@ def procesar_uno():
         db.commit()
         try:
             d = e.datos
-            estado = llamar('estado', e.id, {'usuario': e.usuario})
-            if str(estado.get('remitente') or '').strip().lower() != e.usuario.strip().lower():
+            remitente = d.get('remitente') or e.usuario
+            estado = llamar('estado', e.id, {**d.get('destino', {}), 'usuario': remitente})
+            if str(estado.get('remitente') or '').strip().lower() != remitente.strip().lower():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
             if d['fotos'] and not d.get('informeEvidencias'):
                 imagenes=[db.get(AppArchivo,aid) for aid in d['fotos']]
@@ -234,7 +256,7 @@ def procesar_uno():
                         raise RuntimeError('Falta un archivo local; revisa el almacenamiento antes de entregar')
                     copia = llamar('archivo', e.id + ':' + aid, {
                         **d.get('destino', {}),
-                        'recepcion': e.recepcion, 'usuario': e.usuario, 'tipoArchivo': a.tipo,
+                        'recepcion': e.recepcion, 'usuario': remitente, 'tipoArchivo': a.tipo,
                         'nombre': a.nombre, 'tipo': a.mime,
                         'base64': base64.b64encode(archivos.ruta(a).read_bytes()).decode(),
                         'carpetaMes': d['carpetaMes'], 'carpetaRecepcion': d['carpetaRecepcion']})
@@ -252,7 +274,7 @@ def procesar_uno():
                         log.warning('Entrega %s: foto copiada, limpieza local pendiente', e.id)
             from app.services.drive import manifiesto
             payload = {**d, **d.get('destino', {}), 'manifiesto': manifiesto(db, e.recepcion),
-                'archivos': guardados, 'codigo': e.recepcion, 'usuario': e.usuario}
+                'archivos': guardados, 'codigo': e.recepcion, 'usuario': remitente, 'solicitadoPor': e.usuario}
             if d.get('exportarSheet'):
                 referencias = {a.id: a.drive_url for a in db.scalars(select(AppArchivo).where(AppArchivo.recepcion == e.recepcion)) if a.drive_url}
                 def enlace_foto(url):
@@ -263,6 +285,9 @@ def procesar_uno():
                 for campo in ('skus', 'lineas', 'eventos'):
                     payload.pop(campo, None)
             resultado = llamar('finalizar', e.id, payload)
+            if (d.get('modoRemitente') in ('RESPONSABLE', 'PERSONAL')
+                    and str(resultado.get('remitente') or '').strip().lower() != remitente.strip().lower()):
+                raise RevisionEntrega('Google no confirmó el remitente del envío final. Revisa Enviados antes de reintentar; el informe no se reenviará automáticamente.')
             resultado = {**resultado, 'confirmadoEn': resultado.get('confirmadoEn') or m._iso(utcnow())}
             e.estado, e.resultado, e.error = 'ENTREGADA', resultado, None
             if d.get('informeId'):
@@ -274,7 +299,7 @@ def procesar_uno():
                     from app.services.ajustes import auditar
                     auditar(db, e.usuario, 'ENTREGA_CONFIRMADA', e.recepcion,
                         {'informeId': informe.id, 'destinatarios': d.get('destinatarios', ''),
-                         'confirmadoEn': resultado['confirmadoEn']})
+                         'confirmadoEn': resultado['confirmadoEn'], 'remitente': remitente})
         except RevisionEntrega as exc:
             e.estado, e.error = 'REVISION', str(exc)
             if d.get('informeId'):

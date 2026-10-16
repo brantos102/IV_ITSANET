@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-32';
-import {operacion,esc} from './evidencias.js?v=20261016-32';
-import {pedirDatos,confirmar} from './modal.js?v=20261016-32';
+import {pedir} from './local.js?v=20261016-33';
+import {operacion,esc} from './evidencias.js?v=20261016-33';
+import {pedirDatos,confirmar} from './modal.js?v=20261016-33';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;
@@ -19,6 +19,10 @@ export async function configurarOperacion(contenedor) {
       <details><summary>Actualización automática del catálogo</summary><label><input type="checkbox" data-activo ${c.catalogo.activo?'checked':''}> Activar sincronización</label>
       <div class="rejilla">${input('Horas del día, separadas por coma','horas',c.catalogo.horas.join(','))}${input('Zona horaria','zona',c.catalogo.zona)}</div>
       <button data-turnos class="b-sec">Ver últimas ejecuciones</button><pre data-ejecuciones class="mini"></pre></details>
+      <details><summary>Remitente de informes</summary>
+      ${input('Correo responsable predeterminado','correoResponsable',c.correo.responsable,'email')}
+      <p class="mini">Vincular este correo a una cuenta activa de supervisor/ADMIN y configurar su puente Google. Vacío: se usa el responsable de la recepción o el único puente configurado. El autor del cierre queda registrado por separado.</p>
+      <label><input type="checkbox" data-correo-personal ${c.correo.permitirPersonal?'checked':''}> Permitir elegir el correo del usuario que cierra, si tiene su propio puente autorizado</label></details>
       <details><summary>Repositorios de Drive por cliente y marca</summary><p class="mini">Carpeta general o una por cliente/marca. El supervisor autoriza su acceso mediante el puente Google existente. <a target="_blank" rel="noopener" href="https://github.com/brantos102/IV_ITSANET/blob/desarrollo-local/docs/INGRESO_EVIDENCIAS_E_IMPRESION.md">Guía de configuración y pruebas</a></p>
       <div data-repos>${c.repositorios.map(r=>`<article class="unidad-logistica"><b>${esc(r.nombre)}</b><span>${esc(r.cliente || 'Todos los clientes')} · ${esc(r.marca || 'Todas las marcas')}</span><span class="mini">${esc(r.carpetaId)} · ${r.activo?'Activo':'Inactivo'}</span><button data-editar-repo="${r.id}" class="b-sec">Editar</button><button data-probar-repo="${r.id}" class="b-sec">Verificar acceso</button><button data-quitar-repo="${r.id}" class="b-peligro">Quitar configuración</button></article>`).join('')}</div><button data-nuevo-repo class="b-sec">＋ Repositorio Drive</button></details>
       <details><summary>Puentes de impresión y Zebra de red</summary><p class="mini">Cada PC consulta su cola. IP o dominio de la impresora y puerto ZPL, normalmente 9100. No necesita un servicio HTTP en la PC ni controlador en el móvil.</p>
@@ -33,6 +37,7 @@ export async function configurarOperacion(contenedor) {
     c.evidencias.bloquear=$('[data-bloquear]').checked;
     c.catalogo={activo:$('[data-activo]').checked,horas:$('[data-pref="horas"]').value.split(',').map(v=>Number(v.trim())),zona:$('[data-pref="zona"]').value};
     c.maxCopias=Number($('[data-pref="maxCopias"]').value);
+    c.correo={responsable:$('[data-pref="correoResponsable"]').value.trim(),permitirPersonal:$('[data-correo-personal]').checked};
   }
   async function guardar(){leer();c=await operacion('/config',{metodo:'PUT',cuerpo:c});pintar();$('[data-estado]').textContent='Configuración guardada.';}
   const registro=(lista,valor)=>{const i=lista.findIndex(r=>r.id===valor.id);if(i<0)lista.push(valor);else lista[i]=valor;};

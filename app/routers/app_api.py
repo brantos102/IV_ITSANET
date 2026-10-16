@@ -87,6 +87,17 @@ def destinatarios_recientes(codigo: str, db: Session = Depends(get_db), _: Opera
     return grupos
 
 
+@router.get('/recepciones/{codigo}/remitentes')
+def remitentes_recepcion(codigo: str, db: Session = Depends(get_db),
+                        op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.remitentes import opciones
+    try:
+        m.obtener(db, codigo)
+        return opciones(db, codigo, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
 @router.post('/entregas/{ident}/reintentar')
 def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     e = db.get(AppEntrega, ident)
