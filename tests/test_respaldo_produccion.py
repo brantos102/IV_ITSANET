@@ -85,7 +85,7 @@ print('-- respaldo ' + 'x'*150)
     assert respaldo.opcion('x"\\\n') == '"x\\"\\\\\\n"'
 
 
-@pytest.mark.parametrize('fallo', ['', 'respaldo', 'salud', 'interfaz'])
+@pytest.mark.parametrize('fallo', ['', 'respaldo', 'salud', 'interfaz', 'arranque-lento'])
 def test_pase_preserva_datos_y_recupera_codigo_si_falla(tmp_path, fallo):
     raiz = Path(__file__).resolve().parents[1]
     repo = tmp_path / 'operacion'; repo.mkdir()
@@ -116,6 +116,11 @@ if nombre=='systemctl':
  sys.exit(0)
 if nombre=='curl':
  nueva=pathlib.Path(repo,'version.txt').read_text()=='nueva'
+ if os.environ.get('QA_FALLO')=='arranque-lento' and nueva:
+  contador=pathlib.Path(repo).parent/'intentos-salud.txt'
+  intentos=int(contador.read_text())+1 if contador.exists() else 1
+  contador.write_text(str(intentos))
+  if intentos<=14:sys.exit(1)
  if os.environ.get('QA_FALLO')=='salud' and nueva:sys.exit(1)
  contenido=pathlib.Path(repo,'firebase/public/index.html').read_text() if any('/app/index.html' in v for v in a) else '{"ok":true}'
  if os.environ.get('QA_FALLO')=='interfaz' and nueva and any('/app/index.html' in v for v in a):contenido=''
@@ -147,11 +152,12 @@ raise SystemExit(2)
     env = {**os.environ, 'PATH': str(binarios) + ':' + os.environ['PATH'],
         'QA_REPO': str(repo), 'QA_LOG': str(llamadas), 'QA_PYTHON': sys.executable, 'QA_FALLO': fallo,
         'VAL_DATABASE_URL': 'mysql+pymysql://u:clave@localhost/operativa?charset=utf8mb4', 'VAL_DATA_DIR': str(datos),
-        'ESPERA_ARRANQUE_ITSANET': '2'}
+        'ESPERA_ARRANQUE_ITSANET': '25' if fallo == 'arranque-lento' else '2'}
     r = subprocess.run(['bash', str(raiz / 'scripts/actualizar_produccion.sh'), str(repo), revision],
-        env=env, capture_output=True, text=True, timeout=30)
-    assert r.returncode == (1 if fallo else 0), r.stdout + r.stderr
-    assert git('rev-parse', 'HEAD') == (anterior if fallo else revision)
+        env=env, capture_output=True, text=True, timeout=45)
+    fracaso = fallo in ('respaldo', 'salud', 'interfaz')
+    assert r.returncode == (1 if fracaso else 0), r.stdout + r.stderr
+    assert git('rev-parse', 'HEAD') == (anterior if fracaso else revision)
     assert sql.read_text() == 'SQL propio de producción\n'
     assert (datos / 'foto.jpg').read_bytes() == b'foto-operativa'
     assert 'systemctl stop iv-itsanet' in llamadas.read_text()
@@ -168,5 +174,10 @@ raise SystemExit(2)
         assert 'Application startup failed' in (copia / 'arranque-nuevo.log').read_text()
         assert 'Application startup failed' not in r.stdout
         assert 'versión anterior volvió a responder' in r.stdout
-    if not fallo:
+    if not fracaso:
         assert (repo / 'scripts/respaldo_produccion.py').stat().st_mode & 0o444 == 0o444
+    if fallo == 'arranque-lento':
+        assert llamadas.read_text().splitlines().count('systemctl stop iv-itsanet') == 1
+        assert int((tmp_path / 'intentos-salud.txt').read_text()) >= 15
+        assert 'Servicio y página de acceso confirmados.' in r.stdout
+        assert not (copia / 'arranque-nuevo.log').exists()

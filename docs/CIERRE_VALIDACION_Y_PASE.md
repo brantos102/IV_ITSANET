@@ -73,6 +73,14 @@ git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITS
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
 ```
 
+El registro real del pase del 16 de octubre de 2026 confirmó una reversión
+prematura: el proceso empezó a las 08:16:25 de Ecuador y completó el arranque a
+las 08:16:41, pero el procedimiento anterior había solicitado detenerlo a las
+08:16:36. En ese intento no consta un error SQL: el plazo de unos doce segundos
+fue insuficiente. La etiqueta corregida ya espera hasta noventa segundos. El
+fallo de collations descrito más abajo corresponde a otra incompatibilidad
+reproducida en pruebas, sin atribuirle esa reversión del servidor real.
+
 El procedimiento prepara las dependencias antes de detener el servicio, comprueba
 la carpeta operativa y los cambios locales, y necesita `sudo`, `systemd-run` y
 `mysqldump` o `mariadb-dump`. Si falta este último, se detiene antes de pausar la
