@@ -26,6 +26,12 @@ log = logging.getLogger('iv_itsanet.entregas')
 ACTIVAS = ('PENDIENTE', 'PROCESANDO', 'REVISION')
 
 
+def conexion_rechazada(mensaje):
+    texto=str(mensaje or '').lower()
+    return any(p in texto for p in ('servidor_hmac','clave compartida no coincide','misma cuenta google',
+        'ejecutarse como el supervisor','archivos de versiones diferentes'))
+
+
 def recientes(db, limite=100, *, recepcion=None, cliente=None):
     """Ordenar claves pequeñas; recuperar las instantáneas sin filesort de JSON.
 
@@ -72,15 +78,18 @@ def documento(e, tecnico=False):
     }
     if e.datos.get('revisionMotivo') == 'ENTREGAS_MULTIPLES':
         mensajes['REVISION'] = 'Hay varias entregas de esta recepción. ADMIN debe revisar fechas e informes y anular los envíos que no correspondan antes de reintentar.'
+    if e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA':
+        mensajes['REVISION'] = 'Envío pausado: autoriza tu conexión en Mi cuenta y correo. Después revisa y confirma los documentos finales; no se reintenta automáticamente.'
     return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
+            'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
                 else mensajes.get(e.estado, 'Comprobando entrega.')),
             **({'errorAnterior': e.error, 'anulacion': e.datos.get('anulacion')} if tecnico else {}),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'remitente': e.datos.get('remitente') or e.usuario,
-            'proximoIntento': m._iso(e.proximo_en),
-            'ayuda': ('La conexión guardada de esta cuenta no fue aceptada. ADMIN debe verificar su puente una vez; no se solicita una clave por correo.'
-                if e.estado == 'PENDIENTE' and 'hmac' in str(e.error or '').lower() else
+            'proximoIntento': m._iso(e.proximo_en) if e.estado=='PENDIENTE' and not conexion_rechazada(e.error) else None,
+            'ayuda': ('La conexión de esta cuenta no fue aceptada. El supervisor puede verificar su propio puente en Mi cuenta y correo; no se solicita la clave por cada envío.'
+                if e.estado in ('PENDIENTE','REVISION') and 'hmac' in str(e.error or '').lower() else
                 'Se espera la copia de las fotos. Revisa las imágenes pendientes.' if e.estado == 'PENDIENTE' and 'copi' in str(e.error or '').lower() else ''),
             'revisionMotivo': e.datos.get('revisionMotivo'),
             'resultado': (e.resultado or {}) if tecnico else {
@@ -222,12 +231,16 @@ def _error_google(respuesta):
 
 
 def llamar(operacion, clave, datos):
-    """El HMAC firma el texto exacto, incluida accion, clave y caducidad."""
-    payload = json.dumps({'operacion': operacion, 'clave': clave,
-        'fecha': int(time.time()), 'datos': datos}, ensure_ascii=False, separators=(',', ':'))
     from app.services.integraciones import google
     with SessionLocal() as db:
         destino = google(db, datos.get('usuario'))
+    return llamar_conexion(operacion, clave, datos, destino)
+
+
+def llamar_conexion(operacion, clave, datos, destino):
+    """Verifica una conexión candidata sin guardarla ni cambiar tareas pendientes."""
+    payload = json.dumps({'operacion': operacion, 'clave': clave,
+        'fecha': int(time.time()), 'datos': datos}, ensure_ascii=False, separators=(',', ':'))
     if not destino['url'] or len(destino['secreto']) < 32:
         raise RuntimeError('Guarda el enlace /exec y la clave compartida del puente de este supervisor en Administración.')
     firma = hmac.new(destino['secreto'].encode(), payload.encode(), hashlib.sha256).hexdigest()
@@ -290,6 +303,8 @@ def procesar_uno():
         db.commit()
         try:
             d = expandir(e.datos)
+            if conexion_rechazada(e.error):
+                raise RuntimeError(e.error)
             remitente = d.get('remitente') or e.usuario
             estado = llamar('estado', e.id, {**d.get('destino', {}), 'usuario': remitente})
             if str(estado.get('remitente') or '').strip().lower() != remitente.strip().lower():
@@ -399,6 +414,9 @@ def procesar_uno():
             e.estado = 'PENDIENTE'
             e.error = str(exc)[:300] if type(exc) is RuntimeError else 'No hubo confirmacion de Google; se reintentara'
             e.proximo_en = utcnow() + timedelta(seconds=min(3600, 30 * 2 ** min(e.intentos, 7)))
+            if type(exc) is RuntimeError and conexion_rechazada(e.error):
+                e.estado='REVISION'
+                e.datos={**e.datos,'revisionMotivo':'CONEXION_RECHAZADA','conexionFallidaEn':m._iso(utcnow())}
             log.warning('Entrega %s pendiente (%s)', e.id, type(exc).__name__)
         db.commit()
     return True

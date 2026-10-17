@@ -1,3 +1,4 @@
+const contenidosFlotantes=new WeakMap();
 /** Aviso persistente en la página y copia visible sin desplazar al operario. */
 export function mostrarAviso(contenedor, texto, tipo = 'info', titulo = '') {
   const focoAnterior = document.activeElement;
@@ -44,5 +45,13 @@ export function mostrarAviso(contenedor, texto, tipo = 'info', titulo = '') {
   cerrar.onclick = retirar;
   // Errores y advertencias esperan a que el usuario los descarte.
   if (tipo === 'ok') temporizador = setTimeout(retirar, 7000);
+  contenidosFlotantes.set(aviso,contenido);
   return aviso;
+}
+
+/** La acción también está en el aviso visible, sin desplazar la pantalla. */
+export function agregarAccionAviso(aviso,texto,accion){
+  if(!aviso?.append)return;
+  const boton=()=>{const b=document.createElement('button');b.type='button';b.className='b-primario';b.textContent=texto;b.onclick=accion;return b;};
+  aviso.append(boton());const flotante=contenidosFlotantes.get(aviso);if(flotante?.isConnected)flotante.append(boton());
 }

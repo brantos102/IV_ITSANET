@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261017-36';
-import {operacion,esc} from './evidencias.js?v=20261017-36';
-import {pedirDatos,confirmar} from './modal.js?v=20261017-36';
+import {pedir} from './local.js?v=20261017-37';
+import {operacion,esc} from './evidencias.js?v=20261017-37';
+import {pedirDatos,confirmar} from './modal.js?v=20261017-37';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;
@@ -20,9 +20,9 @@ export async function configurarOperacion(contenedor) {
       <div class="rejilla">${input('Horas del día, separadas por coma','horas',c.catalogo.horas.join(','))}${input('Zona horaria','zona',c.catalogo.zona)}</div>
       <button data-turnos class="b-sec">Ver últimas ejecuciones</button><pre data-ejecuciones class="mini"></pre></details>
       <details><summary>Remitente de informes</summary>
-      ${input('Correo responsable predeterminado','correoResponsable',c.correo.responsable,'email')}
-      <p class="mini">Vincular este correo a una cuenta activa de supervisor/ADMIN y configurar su puente Google. Vacío: se usa el responsable de la recepción o el único puente configurado. El autor del cierre queda registrado por separado.</p>
-      <label><input type="checkbox" data-correo-personal ${c.correo.permitirPersonal?'checked':''}> Permitir elegir el correo del usuario que cierra, si tiene su propio puente autorizado</label></details>
+      ${input('Responsable de Drive y envíos anteriores','correoResponsable',c.correo.responsable,'email')}
+      <p class="mini">Este respaldo no cambia la identidad de los nuevos envíos. Cada supervisor autoriza su propio correo en Mi cuenta. Editar esta dirección no cambia la cuenta que ejecuta Google.</p>
+      <label><input type="checkbox" data-correo-personal ${c.correo.permitirPersonal?'checked':''}> Habilitar envío desde la cuenta propia autorizada de cada supervisor</label></details>
       <details><summary>Repositorios de Drive por cliente y marca</summary><p class="mini">Carpeta general o una por cliente/marca. El supervisor autoriza su acceso mediante el puente Google existente. <a target="_blank" rel="noopener" href="https://github.com/brantos102/IV_ITSANET/blob/desarrollo-local/docs/INGRESO_EVIDENCIAS_E_IMPRESION.md">Guía de configuración y pruebas</a></p>
       <div data-repos>${c.repositorios.map(r=>`<article class="unidad-logistica"><b>${esc(r.nombre)}</b><span>${esc(r.cliente || 'Todos los clientes')} · ${esc(r.marca || 'Todas las marcas')}</span><span class="mini">${esc(r.carpetaId)} · ${r.activo?'Activo':'Inactivo'}</span><button data-editar-repo="${r.id}" class="b-sec">Editar</button><button data-probar-repo="${r.id}" class="b-sec">Verificar acceso</button><button data-quitar-repo="${r.id}" class="b-peligro">Quitar configuración</button></article>`).join('')}</div><button data-nuevo-repo class="b-sec">＋ Repositorio Drive</button></details>
       <details><summary>Puentes de impresión y Zebra de red</summary><p class="mini">Cada PC consulta su cola. IP o dominio de la impresora y puerto ZPL, normalmente 9100. No necesita un servicio HTTP en la PC ni controlador en el móvil.</p>

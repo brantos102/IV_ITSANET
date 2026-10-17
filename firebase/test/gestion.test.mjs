@@ -68,4 +68,20 @@ await test('una lista sin conteos no hereda observación ni pallet de otra',()=>
  const d=informe.completarRegistrosPorLista(filas,eventos);eq(d[0].observacion,'De A');eq(d[1].observacion,'');eq(d[1].pallets,'');eq(d[1].palletsSimple,'');
  const faltante=informe.completarRegistrosPorLista(filas,[...eventos,{id:'b',sku:'S',tipo:'NO_ENCONTRADO',origen:'B',cantidad:0,observacion:'No llegó la lista B'}]);eq(faltante[1].observacion,'No llegó la lista B');eq(faltante[1].pallets,'');
 });
+await test('vista previa usa las mismas celdas y enlaces que el Excel final, sin mezclar listas',()=>{
+ const columnas={sku:0,cantidad:1,fisica:2,observacion:3,evidencia:4};
+ const lista={origen:'A',formato:{hoja:'REV',encabezados:['SKU','Declarado','Contado','Nota','Drive'],prefijo:[{celdas:['Cabecera A']}],columnas},detalle:[{sku:'S1',cantidad:10,fisica:8,estado:'FALTANTE',diferencia:-2,observacion:'Solo lista A',evidencia:'https://drive.google.com/drive/folders/sku1',cruda:['S1',10,0,'','']}]};
+ const antes=JSON.stringify(lista),vista=informe.previsualizarLista(lista,columnas);
+ const base={recepcion:{codigo:'R'},detalle:lista.detalle,porOrigen:[lista],eventos:[],adicionales:[],auditoria:[]};
+ const x=informe.construirLibros(base,{version:'envio'})[0],w=XLSX.read(x.base64,{type:'base64'}),sh=w.Sheets.REV;
+ eq(vista.filas[0].numero,3);eq(vista.filas[0].celdas.map(c=>c.texto),['S1','10','8','Solo lista A','https://drive.google.com/drive/folders/sku1']);
+ eq(vista.filas[0].celdas.map(c=>c.texto),[0,1,2,3,4].map(c=>String(sh[XLSX.utils.encode_cell({r:2,c})].v)));
+ eq(vista.filas[0].celdas[4].url,sh.E3.l.Target);eq(JSON.stringify(lista),antes);
+ const cambio=informe.previsualizarLista(lista,{sku:0,cantidad:1,fisica:3});eq(cambio.filas[0].celdas[2].texto,'0');eq(cambio.filas[0].celdas[3].texto,'8');
+});
+await test('vista ampliada y paginada conserva las filas reales; ejemplos solo si no hay filas',()=>{
+ const lista={origen:'A',formato:{encabezados:['SKU','Cantidad'],columnas:{sku:0,cantidad:1}},detalle:Array.from({length:14},(_,i)=>({sku:'S'+i,cantidad:2,fisica:1,estado:'FALTANTE',diferencia:-1,cruda:['S'+i,2]}))};
+ const vista=informe.previsualizarLista(lista,lista.formato.columnas,{ampliado:true,offset:12});eq(vista.total,14);eq(vista.filas.length,2);eq(vista.filas[0].celdas[0].texto,'S12');ok(vista.encabezados.includes('Cantidad Física'));ok(!vista.ejemplo);
+ const vacia=informe.previsualizarLista({...lista,detalle:[]},lista.formato.columnas);ok(vacia.ejemplo);eq(vacia.filas[0].celdas[0].texto,'EJEMPLO001');eq(lista.detalle.length,14);
+});
 resumen();

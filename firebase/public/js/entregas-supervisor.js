@@ -1,9 +1,9 @@
-import {pedir} from './local.js?v=20261017-36';
-import {pintarEntregas} from './admin-entregas.js?v=20261017-36';
+import {pedir} from './local.js?v=20261017-37';
+import {pintarEntregas} from './admin-entregas.js?v=20261017-37';
 
 export async function abrirEntregas(aviso,recepcion='') {
   const d=document.createElement('dialog');d.className='modal';
-  d.innerHTML='<h3>Entregas de informes</h3><p>El estado ENTREGADA requiere confirmación de Google. Las claves y conexiones se configuran una sola vez por ADMIN.</p><button data-actualizar class="b-sec">Actualizar</button><button data-cerrar class="b-sec">Cerrar</button><div data-entregas role="status"></div>';
+  d.innerHTML='<h3>Entregas de informes</h3><p>El estado ENTREGADA requiere confirmación de Google. Autoriza tu propia cuenta una sola vez en Mi cuenta y correo. Un envío pausado requiere revisar y confirmar los documentos finales.</p><button data-actualizar class="b-sec">Actualizar</button><button data-cerrar class="b-sec">Cerrar</button><div data-entregas role="status"></div>';
   document.body.append(d);d.showModal();let ocupado=false,anterior='';
   async function cargar(){if(ocupado||!d.open)return;ocupado=true;try{
     const datos=await pedir('/entregas'),filas=recepcion?datos.filter(e=>e.recepcion===recepcion):datos;

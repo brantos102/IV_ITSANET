@@ -1,5 +1,5 @@
-import {pedir, reintentarEntrega} from './local.js?v=20261017-36';
-import {pedirDatos} from './modal.js?v=20261017-36';
+import {pedir, reintentarEntrega} from './local.js?v=20261017-37';
+import {pedirDatos} from './modal.js?v=20261017-37';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -65,7 +65,7 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
       const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
       const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');fila.append(m);
       const urls=document.createElement('div');urls.innerHTML=enlace(e.resultado?.carpeta,'Abrir Drive')+' '+enlace(e.resultado?.sheet,'Abrir Sheets');fila.append(urls);
-      if(e.estado==='PENDIENTE'||e.estado==='REVISION'&&e.revisionMotivo==='ENTREGAS_MULTIPLES'){
+      if(!e.conexionRechazada&&(e.estado==='PENDIENTE'||e.estado==='REVISION'&&e.revisionMotivo==='ENTREGAS_MULTIPLES')){
         boton(fila,'Reintentar',async()=>{await reintentarEntrega(e.id);await actualizar();});
       }
       if(!operativo&&['PENDIENTE','REVISION'].includes(e.estado)){
@@ -83,12 +83,13 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
     };
     activas.forEach(e=>dibujar(e,seccion));
     if(['PENDIENTE','CANCELADA','REVISION'].includes(ultima.estado)){
-      boton(seccion,'Enviar último informe desde mi correo',async()=>{
+      if(ultima.confirmacionDisponible){const listo=document.createElement('p');listo.className='msg ok';listo.textContent='Tu conexión está verificada. Los documentos finales esperan tu revisión y confirmación; todavía no se enviaron.';seccion.append(listo);}
+      boton(seccion,ultima.confirmacionDisponible?'Conexión verificada · revisar y confirmar envío':'Revisar y confirmar envío desde mi correo',async()=>{
         const v=await pedir('/entregas/'+ultima.id+'/solicitar');
-        if(!v.responsable.disponible)throw new Error('Tu cuenta debe tener un puente Google autorizado. Pide a ADMIN que guarde su conexión una vez; después no se solicita una clave por envío.');
-        const datos=await pedirDatos({titulo:`Recuperar ${referencia(ultima)}`,texto:`<p>${esc(codigo)} · ${esc(fecha(ultima))}</p><p>De: <b>${esc(v.responsable.correo)}</b><br>Para: ${esc(ultima.destinatarios || 'Sin correo')}</p><p>Se utilizará el mismo informe archivado: ${v.archivos.map(esc).join(', ')}. ${v.sustituye.length} entrega(s) anterior(es) pendiente(s) serán anuladas.</p><p>Comprueba Enviados en las cuentas anteriores y en la responsable para evitar un envío duplicado. La app verificará el puente antes de recuperar.</p>`,
+        if(!v.responsable.disponible)throw new Error('Autoriza tu propia conexión en Mi cuenta y correo; después no se solicita una clave por envío.');
+        const datos=await pedirDatos({titulo:`Confirmar envío de documentos finales · ${referencia(ultima)}`,texto:`<p>${esc(codigo)} · ${esc(fecha(ultima))}</p><p>De: <b>${esc(v.responsable.correo)}</b><br>Para: ${esc(ultima.destinatarios || 'Sin correo')}</p><p>Se utilizará el mismo informe archivado: ${v.archivos.map(esc).join(', ')}. ${v.sustituye.length} entrega(s) anterior(es) pendiente(s) serán anuladas.</p><p>Comprueba Enviados en las cuentas anteriores y en la responsable para evitar un envío duplicado. Tu cuenta y el puente se acaban de verificar. Al confirmar se programará este envío; espera después la confirmación de Google.</p>`,
           campos:[{clave:'motivo',etiqueta:'Motivo de recuperación (10–300 caracteres)',obligatorio:true},
-            {clave:'confirmarNoEnviado',etiqueta:'Revisé Enviados: este informe todavía no fue enviado',tipo:'interruptor',valor:false}],aceptar:'Verificar y recuperar'});
+            {clave:'confirmarNoEnviado',etiqueta:'Revisé Enviados: este informe todavía no fue enviado',tipo:'interruptor',valor:false}],aceptar:'Confirmar envío de documentos finales'});
         if(!datos)return;await pedir('/entregas/'+ultima.id+'/solicitar',{cuerpo:{...datos,remitenteConfirmado:v.responsable.correo}});
         aviso('Se recuperó el mismo informe con tu cuenta autorizada. Espera la confirmación de entrega.','ok');await actualizar();
       },'b-primario');

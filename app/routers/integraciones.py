@@ -1,4 +1,4 @@
-"""Administracion local de integraciones. Todos los cambios exigen ADMIN."""
+"""Conexiones generales de ADMIN y autorización de la cuenta propia del supervisor."""
 import logging
 import traceback
 from uuid import uuid4
@@ -156,3 +156,15 @@ def correo_prueba(datos: dict = Body(...), db: Session = Depends(get_db), op: Op
 @router.put('/oauth-google')
 def guardar_oauth(datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(admin)):
     return svc.guardar_oauth(db, datos, op.usuario)
+
+
+@router.get('/mi-google')
+def mi_google(db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.mi_correo import estado
+    return estado(db,op)
+
+
+@router.put('/mi-google')
+def guardar_mi_google(datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.mi_correo import guardar
+    return guardar(db,op,datos)

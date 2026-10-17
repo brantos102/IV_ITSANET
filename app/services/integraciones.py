@@ -127,7 +127,7 @@ def google(db, supervisor=None):
     return {'url': config.VAL_GOOGLE_PROXY_URL, 'secreto': config.VAL_GOOGLE_PROXY_SECRET}
 
 
-def guardar_google(db, datos, usuario):
+def guardar_google(db, datos, usuario, *, confirmar=True):
     supervisor = str(datos.get('supervisor') or '').strip().lower()
     if supervisor and not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', supervisor):
         raise HTTPException(422, 'Correo del supervisor invalido')
@@ -143,7 +143,8 @@ def guardar_google(db, datos, usuario):
         raise HTTPException(422, 'Ingresa la clave compartida del puente de este supervisor')
     f.datos = {'url': url, 'supervisor': supervisor, 'credencial': _cifrador(crear=True).encrypt(json.dumps({'secreto': secreto}).encode()).decode()}
     f.usuario, f.modificado_en = usuario, utcnow()
-    db.add(f); db.commit()
+    db.add(f)
+    db.commit() if confirmar else db.flush()
     return {'url': url, 'supervisor': supervisor, 'secretoConfigurado': True}
 
 

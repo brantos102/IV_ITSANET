@@ -50,7 +50,21 @@ def estado_local(db: Session = Depends(get_db), op: Operador = Depends(admin)):
 
 @router.get('/entregas')
 def listar_entregas(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
-    return [entregas.documento(e, tecnico=op.rol == Rol.ADMIN) for e in entregas.recientes(db)]
+    from app.services.integraciones import _clave_google
+    from app.models import AppConfig
+    from app.services.drive import resumen_fotos
+    email=(op.email or '').lower();propia=db.get(AppConfig,_clave_google(email)) if email else None
+    verificada=(propia.datos or {}).get('verificadoEn','') if propia else ''
+    from app.services.operacion import configuracion
+    if not configuracion(db)['correo']['permitirPersonal'] or not ajustes.permisos(db,op).get('cerrarRecepciones'):verificada=''
+    filas=[];fotos={}
+    for e in entregas.recientes(db):
+        f=entregas.documento(e,tecnico=op.rol==Rol.ADMIN)
+        if verificada and f['remitente'].lower()==email and f['conexionRechazada'] and e.estado in ('PENDIENTE','REVISION'):
+            if e.recepcion not in fotos:fotos[e.recepcion]=resumen_fotos(db,e.recepcion)['pendientes']
+            f['confirmacionDisponible']=verificada if not fotos[e.recepcion] and verificada>str(e.datos.get('conexionFallidaEn') or '') else ''
+        filas.append(f)
+    return filas
 
 
 @router.get('/recepciones/{codigo}/entregas')
@@ -123,6 +137,8 @@ def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador =
     grupo = entregas.activas(db, e.recepcion)
     e = db.scalar(select(AppEntrega).where(AppEntrega.id == ident).with_for_update()
                   .execution_options(populate_existing=True))
+    if entregas.conexion_rechazada(e.error) or e.datos.get('revisionMotivo')=='CONEXION_RECHAZADA':
+        raise HTTPException(409,'El envío necesita tu confirmación después de corregir la conexión. Autoriza Mi cuenta y correo y usa Revisar y confirmar envío. No se reintenta automáticamente.')
     if len(grupo) > 1:
         raise HTTPException(409, 'Hay varias entregas sin resolver. ADMIN debe revisar sus fechas e informes y anular las que no correspondan antes de reintentar.')
     if e.estado == 'REVISION' and e.datos.get('revisionMotivo') == 'ENTREGAS_MULTIPLES':
@@ -150,8 +166,8 @@ def recuperar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends
 
 @router.get('/entregas/{ident}/solicitar')
 def vista_solicitar(ident: str, db: Session = Depends(get_db), op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
-    from app.services.recuperar_entrega import vista
-    return vista(db, ident, _quien(op), 'PERSONAL')
+    from app.services.recuperar_entrega import comprobar_solicitud
+    return comprobar_solicitud(db,ident,_quien(op))
 
 
 @router.post('/entregas/{ident}/solicitar')

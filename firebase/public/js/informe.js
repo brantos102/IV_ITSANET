@@ -10,12 +10,12 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261017-36';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261017-36';
-import { db } from './auth.js?v=20261017-36';
-import * as local from './local.js?v=20261017-36';
-import {eventosActivos} from './conteo.js?v=20261017-36';
-import { aNumero, decodificarPallets } from './datos.js?v=20261017-36';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261017-37';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261017-37';
+import { db } from './auth.js?v=20261017-37';
+import * as local from './local.js?v=20261017-37';
+import {eventosActivos} from './conteo.js?v=20261017-37';
+import { aNumero, decodificarPallets } from './datos.js?v=20261017-37';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -512,6 +512,28 @@ function nombreVersionado(nombre,rec,lista=''){
  * La versión auditable no se parte: es para analizar la validación entera, y
  * repartir la bitácora entre dos archivos solo la haría más difícil de leer.
  */
+/** Misma hoja que recibe el generador XLSX; sin reservar ni archivar un informe. */
+export function previsualizarLista(lista,columnas,{ampliado=false,offset=0,limite=12}={}) {
+  const formato={...lista.formato,columnas};
+  if(!formato.encabezados?.length)throw Error('Esta lista no conserva encabezados. Carga el packing list con su formato antes de asignar columnas.');
+  let filas=lista.detalle||[],ejemplo=!filas.length;
+  if(ejemplo){
+    const f={sku:'EJEMPLO001',descripcion:'Producto de ejemplo',cantidad:10,fisica:8,estado:'FALTANTE',diferencia:-2,
+      palletsSimple:'P01',posicionReal:'A-01',codigoBarra:'000123456789',cantidadIncidencia:2,
+      incidencia:'FALTANTE (2)',observacion:'Ejemplo: faltan 2 unidades',evidencia:'',depot:'ok',marca:'MARCA',cliente:'CLIENTE'};
+    f.cruda=Array(formato.encabezados.length).fill('');
+    for(const [rol,i] of Object.entries(formato.columnas||{}))if(['sku','descripcion','cantidad'].includes(rol))f.cruda[i]=f[rol];
+    filas=[f];
+  }
+  const hoja=hojaOriginal(filas,formato,ampliado),filaCabecera=(formato.prefijo||[]).length;
+  const ancho=XLSX.utils.decode_range(hoja['!ref']).e.c+1;
+  const celda=(r,c)=>hoja[XLSX.utils.encode_cell({r,c})]||{};
+  return {ejemplo,total:filas.length,encabezados:Array.from({length:ancho},(_,c)=>String(celda(filaCabecera,c).v??'')),
+    filas:filas.slice(offset,offset+limite).map((_,i)=>({numero:offset+i+filaCabecera+2,
+      celdas:Array.from({length:ancho},(_,c)=>{const v=celda(offset+i+filaCabecera+1,c);return {
+        texto:String(v.w??v.v??(v.f?'='+v.f:'')),formula:v.f||'',url:v.l?.Target||''};})}))};
+}
+
 export function construirLibros(datos, opciones = {}) {
   const listas = datos.porOrigen || [];
   if (!['envio','envio-ampliado'].includes(opciones.version) || listas.length <= 1) {

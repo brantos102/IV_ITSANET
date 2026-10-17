@@ -29,7 +29,7 @@ def _validar(db, e, grupo):
     if e.estado not in ('CANCELADA', 'PENDIENTE', 'REVISION'):
         raise HTTPException(409, 'Esta entrega ya está confirmada o se está procesando. Actualiza el estado.')
     if any(g.estado == 'PROCESANDO' or g.estado == 'REVISION' and
-           g.datos.get('revisionMotivo') != 'ENTREGAS_MULTIPLES' for g in grupo):
+           g.datos.get('revisionMotivo') not in ('ENTREGAS_MULTIPLES','CONEXION_RECHAZADA') for g in grupo):
         raise HTTPException(409, 'Hay un envío en curso o con confirmación interrumpida. Revisa Enviados antes de recuperar; no se repetirá automáticamente.')
     campos = ('sku', 'esperado', 'contado', 'verificado', 'cantidadPnc', 'incidencias', 'pallets', 'descripcion')
     comparar = lambda filas: sorted([{k: s.get(k) for k in campos} for s in filas], key=lambda s: s['sku'])
@@ -132,3 +132,22 @@ def recuperar(db, ident, datos, usuario):
     ajustes.auditar(db, usuario, 'ENVIO_RECUPERADO', codigo, {'entregaId': ident, **recuperacion})
     db.commit()
     return entregas.documento(e, tecnico=True)
+
+
+def comprobar_solicitud(db,ident,usuario):
+    v=vista(db,ident,usuario,'PERSONAL')
+    if not v['responsable']['disponible']:
+        raise HTTPException(409,'Autoriza primero tu propia conexión en Mi cuenta y correo. No se envió ningún documento.')
+    email=v['responsable']['correo'];codigo=v['entrega']['recepcion']
+    from app.services.drive import resumen_fotos
+    if resumen_fotos(db,codigo)['pendientes']:
+        raise HTTPException(409,'Todavía hay fotos pendientes en Drive. Revisa Drive y fotos antes de confirmar el correo final.')
+    destino=operacion.destino_drive(db,codigo);db.rollback()
+    try:
+        r=entregas.llamar('estado',uuid4().hex,{'usuario':email,'carpetaRaiz':destino['carpetaRaiz']})
+        if str(r.get('remitente') or '').lower()!=email or 'correoVerificado' not in r.get('capacidades',[]):
+            raise RuntimeError('Google no confirmó tu cuenta y la versión publicada del puente. Autoriza tu propio /exec en Mi cuenta y correo.')
+    except RuntimeError as exc:
+        raise HTTPException(502,str(exc)+' No se envió ningún documento.') from None
+    db.rollback();v=vista(db,ident,usuario,'PERSONAL')
+    return {**v,'conexionVerificada':True}
