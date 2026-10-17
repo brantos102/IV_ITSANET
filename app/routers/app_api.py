@@ -50,8 +50,7 @@ def estado_local(db: Session = Depends(get_db), op: Operador = Depends(admin)):
 
 @router.get('/entregas')
 def listar_entregas(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
-    return [entregas.documento(e, tecnico=op.rol == Rol.ADMIN) for e in db.scalars(
-        select(AppEntrega).order_by(AppEntrega.creado_en.desc()).limit(100))]
+    return [entregas.documento(e, tecnico=op.rol == Rol.ADMIN) for e in entregas.recientes(db)]
 
 
 @router.get('/recepciones/{codigo}/entregas')
@@ -61,8 +60,7 @@ def entregas_recepcion(codigo: str, db: Session = Depends(get_db), _: Operador =
         r = m.obtener(db, codigo)
     except m.ErrorApp as exc:
         raise _traducir(exc) from exc
-    return [entregas.documento(e) for e in db.scalars(select(AppEntrega)
-        .where(AppEntrega.recepcion == r.codigo).order_by(AppEntrega.creado_en.desc()).limit(10))]
+    return [entregas.documento(e) for e in entregas.recientes(db, 10, recepcion=r.codigo)]
 
 
 @router.get('/recepciones/{codigo}/destinatarios-recientes')
@@ -71,9 +69,7 @@ def destinatarios_recientes(codigo: str, db: Session = Depends(get_db), _: Opera
         r = m.obtener(db, codigo)
     except m.ErrorApp as exc:
         raise _traducir(exc) from exc
-    historial = db.scalars(select(AppEntrega).join(AppRecepcion, AppEntrega.recepcion == AppRecepcion.codigo)
-        .where(AppRecepcion.cliente == r.cliente)
-        .order_by(AppEntrega.creado_en.desc(), AppEntrega.id.desc()).limit(100))
+    historial = entregas.recientes(db, cliente=r.cliente)
     grupos, vistos = [], set()
     for e in historial:
         destinatarios = str(e.datos.get('destinatarios') or '').strip()
@@ -300,8 +296,8 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
         if op.rol == Rol.ADMIN:
             f['rutaServidor'] = str(archivos.ruta(a)) if archivos.ruta(a).exists() else None
         resultado.append(f)
-    entrega = next((e for e in db.scalars(select(AppEntrega).where(AppEntrega.recepcion == r.codigo)
-        .order_by(AppEntrega.creado_en.desc()).limit(30)) if (e.resultado or {}).get('carpeta')), None)
+    entrega = next((e for e in entregas.recientes(db, 30, recepcion=r.codigo)
+        if (e.resultado or {}).get('carpeta')), None)
     return {'total': total, 'archivos': resultado,
             'carpetaDrive': (entrega.resultado.get('carpetaFotos') or entrega.resultado.get('carpeta')) if entrega else ''}
 

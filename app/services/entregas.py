@@ -18,11 +18,32 @@ from sqlalchemy import or_, select, update
 
 from app import config
 from app.db import SessionLocal
-from app.models import AppArchivo, AppEntrega, AppInforme, utcnow
+from app.models import AppArchivo, AppEntrega, AppInforme, AppRecepcion, utcnow
 from app.services import app_modelo as m, archivos
 
 log = logging.getLogger('iv_itsanet.entregas')
 ACTIVAS = ('PENDIENTE', 'PROCESANDO', 'REVISION')
+
+
+def recientes(db, limite=100, *, recepcion=None, cliente=None):
+    """Ordenar claves pequeñas; recuperar las instantáneas sin filesort de JSON.
+
+    MySQL puede agotar sort_buffer_size al ordenar SELECT * con los documentos
+    de conteos, líneas y eventos de una entrega, incluso con pocas filas.
+    Las dos lecturas conservan el orden y la instantánea de la transacción.
+    """
+    consulta = select(AppEntrega.id)
+    if recepcion is not None:
+        consulta = consulta.where(AppEntrega.recepcion == recepcion)
+    if cliente is not None:
+        consulta = consulta.join(AppRecepcion, AppEntrega.recepcion == AppRecepcion.codigo).where(
+            AppRecepcion.cliente == cliente)
+    ids = list(db.scalars(consulta.order_by(AppEntrega.creado_en.desc(), AppEntrega.id.desc()).limit(limite)))
+    if not ids:
+        return []
+    # No añadir ORDER BY aquí: volvería a meter los documentos en la ordenación.
+    filas = {e.id: e for e in db.scalars(select(AppEntrega).where(AppEntrega.id.in_(ids)))}
+    return [filas[ident] for ident in ids if ident in filas]
 
 
 def activas(db, codigo):
@@ -103,8 +124,8 @@ def preparar(db, codigo, datos, usuario):
         raise HTTPException(422, 'Se requiere un informe por packing list')
     r = m.obtener(db, codigo)
     if r.estado == 'CERRADA':
-        anterior = db.scalar(select(AppEntrega).where(AppEntrega.recepcion == r.codigo)
-                             .order_by(AppEntrega.creado_en.desc()))
+        anteriores = recientes(db, 1, recepcion=r.codigo)
+        anterior = anteriores[0] if anteriores else None
         if anterior and anterior.clave == hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest():
             return documento(anterior)
         raise HTTPException(409, 'La recepcion ya estaba cerrada sin esta entrega')

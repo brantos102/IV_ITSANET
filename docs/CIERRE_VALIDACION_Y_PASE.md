@@ -60,19 +60,21 @@ La actualización agrega tablas de clasificación, presencia, generaciones de in
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261016-correo-carpetas`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261017-mysql-entregas`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261016-correo-carpetas &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261016-correo-carpetas^{commit}') &&
+git fetch origin tag itsanet-20261017-mysql-entregas &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261017-mysql-entregas^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
 ```
 
+Esta entrega corrige el HTTP 500 de MySQL al listar informes grandes sin cambiar
+la interfaz; ver [MYSQL_1038_ENTREGAS.md](MYSQL_1038_ENTREGAS.md).
 La versión 35 permite crear y comprobar carpetas, localizar fotos pendientes y
 recuperar el último informe con el remitente responsable; ver
 [CORREO_Y_CARPETAS_RECUPERACION.md](CORREO_Y_CARPETAS_RECUPERACION.md).
