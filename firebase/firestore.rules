@@ -1,0 +1,371 @@
+rules_version = '2';
+
+/**
+ * Reglas de seguridad de Firestore — plan Spark.
+ *
+ * Principio: el cliente NUNCA decide quién es. La identidad sale del token
+ * verificado por Google (request.auth), no de un campo que el dispositivo
+ * pueda rellenar.
+ *
+ * DIFERENCIA CON LA VERSIÓN ANTERIOR
+ * ----------------------------------
+ * Antes el rol viajaba como custom claim del token. Asignar claims exige el
+ * Admin SDK, que necesita Cloud Functions, que necesita el plan Blaze. En
+ * Spark el rol vive en `usuarios/{uid}` y las reglas lo leen con get().
+ *
+ * Eso cuesta una lectura por operación, pero cabe de sobra: un escaneo hace
+ * 2 escrituras y 2 lecturas, y una recepción de 150 líneas con 3 operarios se
+ * queda muy por debajo de las 20.000 escrituras y 50.000 lecturas diarias.
+ *
+ * A cambio hay una ventaja: cambiar un rol surte efecto de inmediato, sin
+ * esperar a que caduque el token del operario.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ //
+    // Identidad
+    // ------------------------------------------------------------------ //
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    function hayPerfil() {
+      return request.auth != null
+          && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+    function activo() {
+      return hayPerfil() && perfil().activo == true;
+    }
+    function rol() {
+      return perfil().rol;
+    }
+    function esSupervisor() {
+      return activo() && (rol() == 'SUPERVISOR' || rol() == 'ADMIN');
+    }
+    function esAdmin() {
+      return activo() && rol() == 'ADMIN';
+    }
+    /**
+     * El dominio corporativo es la frontera: nadie de fuera entra.
+     *
+     * Si cambia el dominio, se cambia AQUI y en `DOMINIO` de
+     * public/js/config.js y en DOMINIO_PERMITIDO del Apps Script.
+     * El punto va escapado: en una expresion regular, `.` casa con cualquier
+     * caracter, asi que sin escapar `itsanet.com` tambien aceptaria
+     * `itsanetXcom`.
+     */
+    function dominioCorporativo() {
+      return request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.matches('(?i).*@itsanet[.]com');
+    }
+
+    // ------------------------------------------------------------------ //
+    // Usuarios
+    // ------------------------------------------------------------------ //
+    match /usuarios/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || esSupervisor());
+      allow list: if esSupervisor();
+
+      // Tres formas de nacer, y en ninguna se elige uno su propio rol:
+      //
+      // 1. Entrando con Google desde el dominio corporativo. Ahí Google ya
+      //    verificó quién es, así que la cuenta nace ACTIVA, como OPERADOR.
+      // 2. Registrándose en la pantalla de acceso, con cualquier correo real.
+      //    Nace DESACTIVADA: cualquiera puede pedir acceso, y un administrador
+      //    decide. Sin esa condición, el registro abierto sería la puerta.
+      // 3. Dada de alta por un administrador, que ya es la persona que decide,
+      //    así que nace activa y con el rol que le ponga.
+      allow create: if (request.auth != null
+                        && request.auth.uid == uid
+                        && dominioCorporativo()
+                        && request.resource.data.rol == 'OPERADOR'
+                        && request.resource.data.activo == true
+                        && request.resource.data.uid == uid
+                        && request.resource.data.email == request.auth.token.email)
+                 || (request.auth != null
+                     && request.auth.uid == uid
+                     && request.resource.data.rol == 'OPERADOR'
+                     && request.resource.data.activo == false
+                     && request.resource.data.uid == uid
+                     && request.resource.data.email == request.auth.token.email
+                     && request.resource.data.usuario is string
+                     && request.resource.data.nombre is string)
+                 || (esAdmin()
+                     && request.resource.data.uid == uid
+                     && request.resource.data.rol in ['OPERADOR', 'SUPERVISOR', 'ADMIN']
+                     && request.resource.data.email is string);
+
+      /**
+       * Editar una ficha: aprobar, desactivar, corregir el nombre o el alias.
+       *
+       * Antes esto era `esAdmin()` a secas, y era un agujero de operación: el
+       * registro abierto nace DESACTIVADO esperando que alguien lo apruebe, la
+       * pantalla de usuarios la ven los supervisores... y el botón de aprobar
+       * les fallaba. El supervisor veía la cola de pendientes y no podía
+       * hacer nada con ella; en la práctica nadie entraba hasta que aparecía
+       * un administrador.
+       *
+       * Así que el supervisor aprueba y corrige datos, y el rol se queda donde
+       * estaba: quien reparte permisos es un administrador. Tres cierres:
+       *
+       * - La identidad no se toca nunca: `uid` y `email` son con lo que entra
+       *   la persona. Cambiarle el correo a una ficha sería entregarle la
+       *   cuenta de alguien a otro.
+       * - Un supervisor no edita a un ADMIN: si no, degradar no haría falta
+       *   para dejar al administrador fuera, bastaría con desactivarlo.
+       * - Nadie se quita a sí mismo el rol ni se desactiva: así no se queda
+       *   el sistema sin ningún ADMIN por un descuido.
+       */
+      allow update: if esSupervisor()
+                 && request.resource.data.uid == resource.data.uid
+                 && request.resource.data.email == resource.data.email
+                 && (esAdmin()
+                     || (resource.data.rol != 'ADMIN'
+                         && request.resource.data.rol == resource.data.rol
+                         && request.resource.data.diff(resource.data)
+                                .affectedKeys().hasOnly(['nombre', 'usuario', 'activo'])))
+                 && request.resource.data.rol in ['OPERADOR', 'SUPERVISOR', 'ADMIN']
+                 && !(request.auth.uid == uid
+                      && (request.resource.data.rol != resource.data.rol
+                          || request.resource.data.activo != true));
+      allow delete: if false;
+    }
+
+    /**
+     * Alias → correo real.
+     *
+     * Se lee SIN sesión: el operario escribe `jperez` y hay que saber a qué
+     * correo corresponde antes de poder autenticarlo.
+     *
+     * Por eso `get` es público y `list` está prohibido: se puede comprobar un
+     * alias concreto, que es lo que necesita el acceso, y no se puede sacar la
+     * lista de nadie. Dentro solo hay el correo y el uid; ningún dato de la
+     * operación cuelga de aquí.
+     *
+     * Reservarlo es cosa de quien se registra; cambiarlo o liberarlo, de un
+     * administrador: reapuntar un alias a otro correo sería entregarle la
+     * entrada de alguien a otra persona.
+     */
+    match /alias/{usuario} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if (request.auth != null
+                        && request.resource.data.uid == request.auth.uid
+                        && request.resource.data.email == request.auth.token.email)
+                 // Un supervisor que corrige el alias de otro tiene que poder
+                 // apuntar el nuevo a su correo: si no, le cambia el nombre de
+                 // usuario en la ficha y la persona se queda sin poder entrar
+                 // con ninguno de los dos.
+                 || (esSupervisor()
+                     && request.resource.data.uid is string
+                     && request.resource.data.email is string);
+      allow update, delete: if esSupervisor();
+    }
+
+    // ------------------------------------------------------------------ //
+    // Catálogo (lo escribe el precalentado desde el cliente supervisor)
+    // ------------------------------------------------------------------ //
+    match /productos/{sku} {
+      allow read: if activo();
+      allow write: if esSupervisor();
+    }
+    /**
+     * Equivalencias código escaneado → SKU.
+     *
+     * El operario puede CREAR una que no existía: es lo que devolvió el WMS al
+     * resolver un código que el catálogo no conocía, y guardarla evita repetir
+     * esa consulta lenta en cada escaneo. No puede SOBRESCRIBIR una existente:
+     * reapuntar un código a otro SKU cambiaría a dónde van los conteos.
+     */
+    match /codigos/{codigo} {
+      allow read: if activo();
+      allow create: if esSupervisor()
+                 || (activo()
+                     && request.resource.data.sku is string
+                     && request.resource.data.sku != ''
+                     && request.resource.data.tipo == 'EAN');
+      allow update, delete: if esSupervisor();
+    }
+
+    // Configuración visible del proxy (URL del Apps Script). Sin secretos:
+    // las credenciales de Depot viven en las propiedades del Apps Script.
+    match /config/{doc} {
+      allow read: if activo();
+      allow write: if esAdmin();
+    }
+
+    // Huella de cada packing list cargado: con qué archivo vino y qué traía.
+    //
+    // Es lo que permite avisar de que una lista ya se validó en otra recepción,
+    // así que tiene que poder consultarla cualquiera que vaya a cargar una, y
+    // antes de saber en qué recepción acabará. No guarda nada confidencial: el
+    // nombre del archivo y tres cifras.
+    match /huellas/{huellaId} {
+      allow read: if activo();
+      allow create, update: if esSupervisor();
+      // Se borran en cascada al borrar la recepción: si la recepción se borró
+      // porque el archivo estaba mal, volver a subirlo no puede saltar como
+      // duplicado de algo que ya no existe.
+      allow delete: if esAdmin();
+    }
+
+    // Estado interno. Ningún cliente lo lee, ni siquiera un ADMIN.
+    match /_internal/{doc} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------ //
+    // Recepciones
+    // ------------------------------------------------------------------ //
+    match /recepciones/{recepcionId} {
+      function recepcionAbierta() {
+        return get(/databases/$(database)/documents/recepciones/$(recepcionId)).data.estado
+               in ['ABIERTA', 'EN_VALIDACION'];
+      }
+
+      allow read: if activo();
+      allow create: if esSupervisor()
+                 && request.resource.data.creadoPorUid == request.auth.uid;
+
+      /**
+       * El supervisor manda sobre la recepción; el operario solo puede
+       * arrancarla.
+       *
+       * El primer conteo marca la recepción como EN_VALIDACION, y ese conteo lo
+       * hace un operario. Sin esta excepción, la transacción entera fallaba con
+       * «Missing or insufficient permissions» y el operario no podía registrar
+       * NADA en una recepción recién abierta.
+       *
+       * Solo ese salto, y solo desde ABIERTA: no puede cerrarla, reabrirla, ni
+       * tocar nada más del documento.
+       */
+      // Cerrar, reabrir y consolidar otra lista son del supervisor. Reabrir no
+      // borra nada: el cierre anterior queda en la auditoría.
+      /**
+       * El supervisor manda sobre la recepción; el operario solo puede
+       * arrancarla y apuntarse en ella.
+       *
+       * El primer conteo la pasa a EN_VALIDACION y añade al operario a la lista
+       * de quienes han trabajado en ella —de ahí sale «qué he validado yo»—.
+       * Nada más: no puede cerrarla, reabrirla, ni tocar el resto del documento.
+       */
+      allow update: if esSupervisor()
+                 || (activo()
+                     && request.resource.data.diff(resource.data)
+                          .affectedKeys().hasOnly(['estado', 'iniciadoEn', 'operarios'])
+                     && (!('estado' in request.resource.data.diff(resource.data)
+                             .affectedKeys())
+                         || (resource.data.estado == 'ABIERTA'
+                             && request.resource.data.estado == 'EN_VALIDACION'))
+                     // Solo puede apuntarse a sí mismo, y sin borrar a nadie.
+                     && (!('operarios' in request.resource.data.diff(resource.data)
+                             .affectedKeys())
+                         || (request.auth.uid in request.resource.data.operarios
+                             && request.resource.data.operarios
+                                  .hasAll(resource.data.get('operarios', [])))));
+
+      /**
+       * Borrar una recepción entera: solo un administrador.
+       *
+       * Subir el archivo equivocado pasa, y una recepción vacía o de prueba en
+       * el listado no es inofensiva: el operario no sabe cuál es la buena. Lo
+       * que se borra es la recepción COMPLETA, con su bitácora; no hay forma de
+       * quitar un conteo suelto por aquí, que es lo que esto nunca debe ser.
+       */
+      allow delete: if esAdmin();
+
+      // ---- Líneas del packing list ---- //
+      // Las escribe el supervisor al importar y nunca se modifican después:
+      // son la versión del sistema contra la que se compara.
+      match /lineas/{lineaId} {
+        allow read: if activo();
+        // Se crean al importar, y una recepción puede consolidar varias listas,
+        // así que el id lleva el origen delante y cada línea nace una sola vez.
+        allow create: if esSupervisor();
+        allow update: if false;
+        // Solo para el borrado en cascada de una recepción entera.
+        allow delete: if esAdmin();
+      }
+
+      // ---- Agregado por SKU ---- //
+      match /skus/{sku} {
+        allow read: if activo();
+        // El supervisor lo crea al importar; cualquier operario activo lo
+        // incrementa al contar, pero NUNCA puede tocar la cantidad esperada.
+        //
+        // Un operario también puede crearlo cuando el producto llegó sin estar
+        // en el packing list: el agregado del adicional tiene que nacer en el
+        // mismo escaneo. Solo con esperado 0 y marcado fuera de la lista, así
+        // que no puede inventarse una cantidad de sistema.
+        allow create: if esSupervisor()
+                   || (activo()
+                       && recepcionAbierta()
+                       && request.resource.data.sku == sku
+                       && request.resource.data.esperado == 0
+                       && request.resource.data.enPackingList == false);
+        allow update: if activo()
+                   && recepcionAbierta()
+                   && request.resource.data.esperado == resource.data.esperado
+                   && request.resource.data.sku == resource.data.sku;
+        // Solo para el borrado en cascada de una recepción entera.
+        allow delete: if esAdmin();
+      }
+
+      // ---- Libro mayor: append-only, firmado por quien está autenticado ---- //
+      match /eventos/{eventoId} {
+        allow read: if activo();
+        allow create: if activo()
+                   && recepcionAbierta()
+                   && request.resource.data.operadorUid == request.auth.uid
+                   && request.resource.data.operadorEmail == request.auth.token.email
+                   && request.resource.data.cantidad is number
+                   // El 0 solo vale declarándolo: «lo busqué y no está» es un
+                   // dato; un 0 por descuido, no.
+                   && (request.resource.data.cantidad != 0
+                       || request.resource.data.tipo == 'CERO')
+                   && request.resource.data.sku is string
+                   && request.resource.data.pallet is string
+                   // La hora la pone el servidor: el dispositivo no la decide.
+                   && request.resource.data.creadoEn == request.time;
+        // Nada se modifica: corregir es registrar una reversa. El borrado
+        // existe solo para llevarse una recepción entera por delante.
+        allow update: if false;
+        allow delete: if esAdmin();
+      }
+
+      /**
+       * Cierres y exportaciones.
+       *
+       * Quién cerró, cuándo, con qué cifras y qué archivo salió. El agregado se
+       * puede volver a calcular; lo que se entregó aquel día, no. Por eso esto
+       * tampoco se modifica ni se borra.
+       */
+      match /auditoria/{registroId} {
+        allow read: if activo();
+        allow create: if activo()
+                   && request.resource.data.usuarioUid == request.auth.uid
+                   && request.resource.data.usuarioEmail == request.auth.token.email
+                   && request.resource.data.creadoEn == request.time;
+        allow update: if false;
+        allow delete: if esAdmin();
+      }
+
+      // ---- Adicionales: SKU fuera del packing list ---- //
+      match /adicionales/{sku} {
+        allow read: if activo();
+        allow create: if activo()
+                   && recepcionAbierta()
+                   && request.resource.data.sku == sku
+                   && request.resource.data.detectadoPorUid == request.auth.uid;
+        // El mismo adicional escaneado otra vez reescribe el documento; lo que
+        // no puede cambiar es a qué SKU se refiere.
+        allow update: if esSupervisor()
+                   || (activo()
+                       && recepcionAbierta()
+                       && request.resource.data.sku == resource.data.sku);
+        allow delete: if esAdmin();
+      }
+    }
+  }
+}

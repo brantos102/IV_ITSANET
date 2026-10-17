@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<script src="./js/arranque.js?v=20261016-35"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Recepciones — ITSANET</title>
+<link rel="stylesheet" href="./css/app.css">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-35">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
+<script src="./vendor/xlsx.full.min.js?v=20261016-35"></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261016-35"></script>
+</head>
+<body>
+<div class="envoltorio">
+
+<header>
+  <div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
+    <div class="sub">Recepciones</div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="./admin.html" id="lnkAdmin" class="oculto"><button class="b-sec">Administración</button></a>
+  <a href="./"><button class="b-sec">Inicio</button></a>
+</header>
+
+<div id="avisos"></div>
+
+<!-- Crear -->
+<div class="panel" id="panelCrear">
+  <details style="margin-bottom:18px">
+    <summary class="mini" style="cursor:pointer;font-weight:800">
+      ▸ Cómo nombrar una recepción</summary>
+    <div class="msg info" style="margin-top:10px">
+      <b>El código es el nombre corto</b>
+      Conviene <b>cliente + fecha</b>: <code>VW-29-06-2026</code>,
+      <code>GAC-01-06-2026</code>. Sin espacios ni acentos, y no se puede
+      repetir: si el cliente manda dos embarques el mismo día, añade algo que
+      los distinga (<code>VW-29-06-2026-B</code>) o cárgalos como dos listas de
+      la misma recepción con <b>+ Lista</b>.<br><br>
+      <b>La descripción</b> es texto libre para quien la lea después: los
+      embarques que incluye, o cualquier cosa que convenga recordar. No se usa
+      para buscar.
+    </div>
+  </details>
+  <h2>Nueva recepción</h2>
+  <p>Crea la recepción y sube el packing list. A partir de ahí los operarios
+     pueden empezar a validar desde sus dispositivos.</p>
+
+  <div class="rejilla">
+    <label class="campo"><span>Código de recepción *</span>
+      <input id="fCodigo" placeholder="VW-29-06-2026" autocapitalize="characters">
+      <span class="mini">Cliente y fecha. Es el nombre con el que la buscarás
+        después, y no se puede repetir ni cambiar.</span>
+      <span class="mini" id="pistaCodigo" style="color:var(--warning)"></span></label>
+    <label class="campo"><span>Cliente</span>
+      <input id="fCliente" placeholder="VENTURA" autocapitalize="characters">
+      <span class="mini">El mismo nombre con el que está dado de alta en
+        Administración.</span></label>
+    <label class="campo"><span>N° de bultos</span>
+      <input id="fBultos" type="number" inputmode="numeric" min="0">
+      <span class="mini">Cajas o pallets que llegaron. Opcional, sirve para
+        cuadrar con el transporte.</span></label>
+    <label class="campo" style="grid-column:1/-1"><span>Descripción</span>
+      <input id="fDescripcion" placeholder="Embarques RB48529 / RB48688"
+             style="font-family:var(--font-ui)"></label>
+  </div>
+  <div class="acciones">
+    <button class="b-primario" id="bCrear">Crear recepción</button>
+  </div>
+</div>
+
+<!-- Packing list -->
+<div class="panel oculto" id="panelArchivo">
+  <h2>Packing list de <span id="lblRecepcion"></span></h2>
+  <p>El archivo se analiza en este navegador y se guarda en la base. Las líneas
+     quedan inmutables: son la versión del sistema contra la que se compara.</p>
+
+  <div class="rejilla">
+    <label class="campo"><span>Nombre de esta lista</span>
+      <input id="fOrigen" placeholder="RB48529" autocapitalize="characters"
+             spellcheck="false">
+      <span class="mini">Una recepción puede consolidar varias. Cada una entrega
+        su propia hoja en el informe, con sus filas.</span></label>
+    <label class="campo" style="grid-column:span 2"><span>Archivo .xlsx</span>
+      <input type="file" id="fArchivo" accept=".xlsx,.xlsm,.xls"></label>
+  </div>
+  <div id="vistaPrevia"></div>
+  <details id="ajustarFormato"><summary>Ajustar hoja y columnas · formatos de otros clientes</summary>
+    <p class="mini">El archivo original y sus encabezados se conservan. Selecciona la fila de encabezado y revisa la vista previa antes de guardar.</p>
+    <div class="rejilla"><label class="campo"><span>Hoja</span><select id="mapHoja"></select></label>
+      <label class="campo"><span>Fila de encabezado en Excel</span><input id="mapFila" type="number" min="1" max="1000" value="1"></label>
+      <label class="campo"><span>Columna del SKU (A, B, C…)</span><input id="mapSku" value="A"></label>
+      <label class="campo"><span>Columna cantidad</span><input id="mapCantidad" value="B"></label>
+      <label class="campo"><span>Columna descripción (opcional)</span><input id="mapDescripcion"></label>
+      <label class="campo"><span>Columna embarque (opcional)</span><input id="mapEmbarque"></label></div>
+    <button id="bAplicarFormato" class="b-sec">Aplicar formato y volver a analizar</button>
+    <button id="bGuardarFormato" class="b-sec oculto">Guardar formato del cliente · ADMIN</button>
+  </details>
+  <div class="acciones">
+    <button class="b-primario" id="bSubir" disabled>Guardar packing list</button>
+    <button class="b-sec" id="bCancelar">Cancelar</button>
+  </div>
+</div>
+
+<!-- Catálogo -->
+<div class="panel" id="panelCatalogo">
+  <h2>Catálogo de Depot</h2>
+  <p>Descarga el stock de los clientes configurados y lo guarda localmente. Con
+     esto cada escaneo pasa a ser la lectura de un documento en vez de una
+     llamada al WMS. Hazlo una vez al día, o cuando entren productos nuevos.</p>
+  <div class="acciones">
+    <button class="b-primario" id="bCatalogo">Descargar catálogo</button>
+  </div>
+  <div id="resCatalogo"></div>
+  <details class="oculto" id="importarCodigos"><summary>Importar códigos de barras · opcional</summary>
+    <p class="mini">Excel con SKU y CODIGO DE BARRAS. Se asocian a productos existentes; no crea productos ni cambia conteos. Usa texto para conservar ceros iniciales.</p>
+    <input id="archivoCodigos" type="file" accept=".xlsx,.xlsm,.xls">
+    <div class="acciones"><button id="bImportarCodigos" class="b-sec">Validar e importar códigos</button></div>
+    <p id="resultadoCodigos" role="status"></p>
+  </details>
+</div>
+
+<!-- Listado -->
+<div class="panel" id="enCurso">
+  <h2 id="tituloLista">Recepciones</h2>
+  <div class="acciones" style="margin:0 0 14px">
+    <input id="fBuscar" placeholder="Buscar por código o cliente"
+           autocapitalize="characters" spellcheck="false"
+           style="flex:2;min-width:190px">
+    <select id="fEstadoLista" style="flex:1;min-width:150px">
+      <option value="">Todos los estados</option>
+      <option value="EN_VALIDACION">En validación</option>
+      <option value="ABIERTA">Sin empezar</option>
+      <option value="CERRADA">Cerradas</option>
+    </select>
+  </div>
+  <div class="tabla-env">
+    <table>
+      <thead><tr>
+        <th>Código</th><th>Estado</th><th class="num">Referencias</th>
+        <th class="num">Declarado</th><th class="num">Contado</th>
+        <th>Avance</th><th></th><th></th><th></th>
+      </tr></thead>
+      <tbody id="tRecepciones"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script type="module">
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-35';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261016-35';
+import {
+  crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
+  listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
+  guardarCatalogo, escucharSkus,
+} from './js/datos.js?v=20261016-35';
+import { Proxy } from './js/proxy.js?v=20261016-35';
+import { resumir } from './js/conteo.js?v=20261016-35';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261016-35';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261016-35';
+import { leerCodigos } from './js/codigos.js?v=20261016-35';
+import { pedir } from './js/local.js?v=20261016-35';
+import { abrirIngreso } from './js/ingreso.js?v=20261016-35';
+import { operacion } from './js/evidencias.js?v=20261016-35';
+
+const $ = (id) => document.getElementById(id);
+let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
+let nombreArchivo = '';   // el nombre del .xlsx, para reconocer un duplicado
+let opcionesLectura={},archivoAnalizado=null,revisionArchivo=0;
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '') {
+  return mostrarAviso($('avisos'), texto, tipo, titulo);
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+
+observarSesion((e) => {
+  globalThis.itsanetArranque?.listo();
+  if (e.error) aviso(e.error, 'err');
+  if (!e.usuario) { location.href = './'; return; }
+  usuario = e.usuario; perfil = e.perfil;
+
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  const puedeCrear = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
+  $('importarCodigos').classList.toggle('oculto', !puedeCrear || !modoLocal());
+  // «Validar» es la misma pantalla con otro recorte: lo del operario.
+  soloMias = new URLSearchParams(location.search).get('mias') === '1';
+  if (soloMias) {
+    $('tituloLista').textContent = 'Lo que has validado';
+    document.title = 'Mis validaciones — ITSANET';
+  }
+  if (perfil?.rol === 'ADMIN') $('lnkAdmin').classList.remove('oculto');
+  $('bGuardarFormato').classList.toggle('oculto',perfil?.rol!=='ADMIN' || !modoLocal());
+  if (!puedeCrear) {
+    $('panelCrear').classList.add('oculto');
+    $('panelCatalogo').classList.add('oculto');
+    $('panelCrear').classList.add('oculto');
+    $('panelCatalogo').classList.add('oculto');
+    aviso('Tu rol es OPERADOR: puedes validar, pero no crear recepciones ni ' +
+          'subir packing lists. Pídeselo a un supervisor.', 'info', 'Solo lectura');
+  }
+  cargarListado();
+});
+
+// --- Crear ---------------------------------------------------------------- //
+$('bCrear').addEventListener('click', async () => {
+  limpiarAvisos();
+  $('bCrear').disabled = true;
+  try {
+    const id = await crearRecepcion({
+      codigo: $('fCodigo').value,
+      cliente: $('fCliente').value,
+      descripcion: $('fDescripcion').value,
+      bultos: $('fBultos').value,
+    }, usuario);
+    recepcionActual = id;
+    $('lblRecepcion').textContent = id;
+    const continuar = () => { $('panelArchivo').classList.remove('oculto'); $('panelArchivo').scrollIntoView({behavior:'smooth'}); };
+    if (modoLocal()) await abrirIngreso(id,{continuar}); else continuar();
+    aviso(`Recepción ${id} creada. Registra bultos y evidencias; después carga los packing lists.`, 'ok');
+    cargarListado();
+  } catch (e) {
+    aviso(e.message, 'err', 'No se creó');
+  } finally {
+    $('bCrear').disabled = false;
+  }
+});
+
+// Dos recepciones a un dígito de distancia —REC0260002 y REC026002— se crean
+// sin querer y después nadie sabe cuál es cuál. El código no se bloquea: puede
+// ser legítimo. Solo se dice lo que ya hay parecido, mientras se escribe.
+$('fCodigo').addEventListener('input', () => {
+  $('pistaCodigo').textContent =
+    avisoDeParecidos($('fCodigo').value, todas, (r) => r.codigo);
+});
+
+// --- Leer el archivo ------------------------------------------------------ //
+// Lo que se encontró parecido al leer el archivo, y si ya se aceptó cargarlo
+// igualmente. Se reinicia con cada archivo: aceptar uno no acepta el siguiente.
+let parecidos = [];
+let duplicadoAceptado = false;
+
+/** El aviso de que esta lista ya está en otra recepción. */
+function avisarParecidos() {
+  if (!parecidos.length) return '';
+  const grave = parecidos.some((h) => h.nivel === 'identico');
+  const donde = parecidos.map((h) => {
+    const cuando = h.cargadoEn?.toDate
+      ? ' el ' + h.cargadoEn.toDate().toLocaleDateString('es-EC') : '';
+    return `<li><b>${esc(h.codigo)}</b>${h.origen && h.origen !== 'PRINCIPAL'
+      ? ` · lista «${esc(h.origen)}»` : ''}${cuando}<br>
+      <span class="mini">Coincide ${esc(h.motivos.join(', '))}.</span></li>`;
+  }).join('');
+
+  return `<div class="msg ${grave ? 'err' : 'warn'}">
+    <b>${grave ? 'Este packing list ya está cargado' : 'Esto se parece mucho a algo ya cargado'}</b>
+    ${grave
+      ? 'El mismo archivo ya se validó —o se está validando— aquí:'
+      : 'No es idéntico, pero conviene mirarlo antes de seguir:'}
+    <ul style="margin:8px 0 0 18px">${donde}</ul>
+    <p class="mini" style="margin:10px 0 0">
+      Si de verdad llegó dos veces la misma mercadería, continúa: esto es un
+      aviso, no un impedimento. Si es el archivo repetido, cambia de archivo —
+      validarlo dos veces duplica el trabajo y deja dos informes que no cuadran.</p>
+  </div>`;
+}
+
+$('fArchivo').addEventListener('change', async (ev) => {
+  const archivo = ev.target.files[0];
+  if (!archivo) return;
+  const revision=++revisionArchivo;
+  limpiarAvisos();
+  parecidos = [];
+  duplicadoAceptado = false;
+  nombreArchivo = archivo.name;
+  $('vistaPrevia').innerHTML = '<div class="msg info">Analizando el archivo…</div>';
+  $('bSubir').disabled = true;
+
+  try {
+    const buffer = await archivo.arrayBuffer();
+    if(revision!==revisionArchivo)return;
+    if(archivo!==archivoAnalizado){opcionesLectura={};archivoAnalizado=archivo;
+      const libro=XLSX.read(buffer,{type:'array'});$('mapHoja').replaceChildren();
+      for(const nombre of libro.SheetNames){const o=document.createElement('option');o.value=nombre;o.textContent=nombre;$('mapHoja').append(o);}
+      if(modoLocal()) {
+        const cliente=todas.find(r=>r.id===recepcionActual)?.cliente || $('fCliente').value || 'VENTURA';
+        const perfilFormato=await operacion('/formatos-packing/'+encodeURIComponent(cliente)).catch(()=>null);
+        if(revision!==revisionArchivo)return;
+        if(perfilFormato?.hoja && libro.Sheets[perfilFormato.hoja]) {
+          const filas=XLSX.utils.sheet_to_json(libro.Sheets[perfilFormato.hoja],{header:1,range:0,blankrows:true,defval:''});
+          const cabecera=filas[perfilFormato.encabezado-1] || [];
+          if(JSON.stringify(cabecera.map(String))===JSON.stringify(perfilFormato.encabezados))opcionesLectura=perfilFormato;
+          else aviso('El archivo cambió sus encabezados. Se analizará de nuevo; revisa la vista previa.','warn');
+        }
+      }
+    }
+    resultadoArchivo = leerPackingList(buffer,opcionesLectura);
+
+    const muestra = resultadoArchivo.lineas.slice(0, 5).map((l) => `
+      <tr><td class="id">${esc(l.sku)}</td><td class="mini">${esc(l.descripcion)}</td>
+      <td class="num">${l.cantidad}</td><td class="mini">${esc(l.embarque)}</td></tr>`).join('');
+
+    $('vistaPrevia').innerHTML = `
+      <div class="msg ok"><b>Archivo leído</b>
+        Hoja "${esc(resultadoArchivo.hoja)}" ·
+        ${resultadoArchivo.lineas.length} líneas ·
+        ${resultadoArchivo.skusUnicos} SKU ·
+        ${resultadoArchivo.unidades} unidades
+        ${resultadoArchivo.embarques.length
+          ? ' · embarques: ' + esc(resultadoArchivo.embarques.join(', ')) : ''}
+      </div>
+      ${resultadoArchivo.descartadas
+        ? `<div class="msg warn">${resultadoArchivo.descartadas} fila(s) sin SKU se omitieron.</div>`
+        : ''}
+      <div class="tabla-env"><table>
+        <thead><tr><th>SKU</th><th>Descripción</th><th class="num">Cant.</th><th>Embarque</th></tr></thead>
+        <tbody>${muestra}</tbody></table></div>
+      <p class="mini" style="margin-top:8px">Primeras 5 líneas de ${resultadoArchivo.lineas.length}.</p>`;
+    $('bSubir').disabled = false;
+
+    // El mismo archivo reenviado por correo, renombrado con la fecha o guardado
+    // dos veces acaba validándose dos veces. Se mira el contenido, no el nombre:
+    // renombrarlo no lo convierte en otro packing list.
+    parecidos = await buscarPackingListParecido(resultadoArchivo, archivo.name,
+                                                { excluirRecepcion: recepcionActual });
+    if(revision!==revisionArchivo)return;
+    if (parecidos.length) {
+      $('vistaPrevia').insertAdjacentHTML('afterbegin', avisarParecidos());
+      $('bSubir').textContent = 'Guardar packing list de todas formas';
+    } else {
+      $('bSubir').textContent = 'Guardar packing list';
+    }
+  } catch (e) {
+    if(revision!==revisionArchivo)return;
+    resultadoArchivo = null;
+    $('vistaPrevia').innerHTML = '';
+    aviso(e.message, 'err', 'No se pudo leer');
+  }
+});
+
+$('bAplicarFormato').onclick=()=>{
+  try{
+    const columnas={};
+    for(const [id,campo] of [['mapSku','sku'],['mapCantidad','cantidad'],['mapDescripcion','descripcion'],['mapEmbarque','embarque']]){
+      const col=$(id).value.trim().toUpperCase();if(!col)continue;
+      if(!/^[A-Z]{1,3}$/.test(col))throw new Error('Usa letras de columna: A, B, AA…');
+      const indice=XLSX.utils.decode_col(col);if(columnas[indice])throw new Error('Dos campos no pueden usar la misma columna.');columnas[indice]=campo;
+    }
+    opcionesLectura={hoja:$('mapHoja').value,encabezado:Number($('mapFila').value),columnas};
+    $('fArchivo').dispatchEvent(new Event('change'));
+  }catch(e){aviso(e.message,'err');}
+};
+$('bGuardarFormato').onclick=async()=>{
+  if(!resultadoArchivo)return aviso('Analiza primero un archivo y confirma su vista previa.','warn');
+  try{const cliente=todas.find(r=>r.id===recepcionActual)?.cliente || $('fCliente').value || 'VENTURA';
+    await operacion('/formatos-packing/'+encodeURIComponent(cliente),{metodo:'PUT',cuerpo:{hoja:resultadoArchivo.hoja,
+      encabezado:resultadoArchivo.filaEncabezado,columnas:resultadoArchivo.mapaEntrada,encabezados:resultadoArchivo.encabezados}});
+    aviso('Formato guardado para '+cliente+'. Se reutiliza solo si coinciden los encabezados.','ok');
+  }catch(e){aviso(e.message,'err');}
+};
+
+$('bSubir').addEventListener('click', async () => {
+  if (!resultadoArchivo || !recepcionActual) return;
+
+  // Un duplicado exacto se confirma dos veces. El primer clic suele ser el de
+  // quien ya tenía la mano puesta en el botón antes de leer el aviso.
+  if (parecidos.some((h) => h.nivel === 'identico') && !duplicadoAceptado) {
+    duplicadoAceptado = true;
+    limpiarAvisos();
+    aviso(`Este archivo ya está cargado en ${parecidos[0].codigo}. Vuelve a `
+        + 'pulsar «Guardar» si aun así quieres validarlo otra vez aquí.',
+          'err', 'Confirma que no es un duplicado');
+    return;
+  }
+
+  limpiarAvisos();
+  $('bSubir').disabled = true;
+  const prog = aviso('Guardando…', 'info', 'Un momento');
+
+  try {
+    const r = await guardarPackingList(recepcionActual, resultadoArchivo,
+      (hechas, total) => {
+        prog.innerHTML = `<b>Guardando</b>${hechas} de ${total} registros`;
+      },
+      { origen: $('fOrigen').value, archivo: nombreArchivo });
+
+    limpiarAvisos();
+    aviso(`Lista «${r.origen}» guardada: ${r.lineas} líneas. ` +
+          'Los operarios ya pueden validar.', 'ok', 'Listo');
+
+    // Un SKU que ya venía de otra lista se cuenta UNA vez contra la suma de
+    // las dos. Repartir después lo contado entre listas es una convención, no
+    // un hecho: el operario no dice de qué embarque salió cada unidad.
+    if (r.compartidos.length) {
+      aviso(`${r.compartidos.length} referencias ya venían de otra lista de esta ` +
+            `recepción (${r.compartidos.slice(0, 5).join(', ')}` +
+            `${r.compartidos.length > 5 ? '…' : ''}). Se contarán una sola vez, ` +
+            'contra la suma de ambas. En el informe, lo que sobre de esas se ' +
+            'imputa a la última lista: si eso no sirve para reclamar, valídalas ' +
+            'por separado.', 'warn', 'Referencias compartidas');
+    }
+    $('fArchivo').value = '';
+    $('fOrigen').value = '';
+    resultadoArchivo = null;
+    nombreArchivo = '';
+    parecidos = [];
+    duplicadoAceptado = false;
+    $('bSubir').textContent = 'Guardar packing list';
+    $('vistaPrevia').innerHTML = '';
+    cargarListado();
+  } catch (e) {
+    limpiarAvisos();
+    aviso(e.message, 'err', 'No se guardó');
+  } finally {
+    $('bSubir').disabled = false;
+  }
+});
+
+// Añadir otra lista a una recepción que ya existe: dos embarques cortos el
+// mismo día se validan de una pasada en vez de recorrer el almacén dos veces.
+/**
+ * Borrar una recepción equivocada.
+ *
+ * Exige escribir el código. Un «¿seguro?» se acepta sin leer; escribir el
+ * código obliga a mirar cuál se está borrando, que es justo el error que esto
+ * viene a arreglar.
+ */
+$('tRecepciones').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-borrar]');
+  if (!b) return;
+  const id = b.dataset.borrar;
+  const lineas = Number(b.dataset.lineas) || 0;
+  const cerrada = b.dataset.estado === 'CERRADA';
+
+  // El código va en su propia línea y justo encima del campo. En el prompt()
+  // del navegador iba dentro de un párrafo, y la gente escribía el nombre que
+  // tenía en la cabeza —la descripción— sin entender por qué se rechazaba.
+  // Ahora el botón está apagado hasta que lo escrito coincide: no hay forma de
+  // equivocarse y tampoco hace falta reprochárselo después.
+  if (!await confirmarEscribiendo({
+    titulo: '¿Borrar esta recepción?',
+    texto: `Se borra <b>todo</b> lo suyo: ${lineas} líneas, los conteos, la `
+         + 'bitácora y la auditoría. No se puede deshacer.'
+         + (cerrada
+             ? '<p style="margin:12px 0 0;color:var(--danger)"><b>Está CERRADA.</b> '
+               + 'Si su informe ya se entregó, borrarla lo deja sin respaldo.</p>'
+             : ''),
+    exacto: id,
+    etiqueta: 'Escribe el código para confirmar',
+    aceptar: 'Borrar definitivamente',
+  })) return;
+
+  limpiarAvisos();
+  const prog = aviso('Borrando…', 'info');
+  try {
+    const r = await borrarRecepcion(id, (hechos, donde) => {
+      prog.innerHTML = `<b>Borrando</b>${hechos} registros · ${donde}`;
+    });
+    prog.remove();
+    aviso(`Recepción ${id} borrada, con sus ${r.borrados ?? Object.values(r.borrado || {}).reduce((a,b)=>a+b,0)} registros.`, 'ok', 'Borrada');
+    if (r.huerfanas?.length) {
+      aviso(`Quedaron registros sueltos en ${r.huerfanas.join(', ')}. La recepción ` +
+            'ya no existe ni aparece en ningún listado; esos registros no estorban, ' +
+            'pero dímelo para limpiarlos.', 'warn', 'Limpieza incompleta');
+    }
+    cargarListado();
+  } catch (e) {
+    prog.remove();
+    // Distinguir «no tienes permiso» de «las reglas no están desplegadas» es
+    // la diferencia entre buscar en el sitio correcto y no encontrar nada.
+    aviso(/permission|insufficient/i.test(e.message || '')
+      ? `Firestore rechazó el borrado. Si eres ADMIN —y lo eres: ${esc(perfil?.rol)}—, ` +
+        'lo que falta es desplegar las reglas:\n' +
+        'cd firebase && firebase deploy --only firestore:rules'
+      : e.message, 'err', 'No se borró');
+  }
+});
+
+$('tRecepciones').addEventListener('click', (ev) => {
+  const id = ev.target.dataset.anadir;
+  if (!id) return;
+  if (!['SUPERVISOR', 'ADMIN'].includes(perfil?.rol)) {
+    return aviso('Consolidar packing lists es cosa del supervisor.', 'warn');
+  }
+  recepcionActual = id;
+  $('lblRecepcion').textContent = id;
+  $('panelArchivo').classList.remove('oculto');
+  $('panelArchivo').scrollIntoView({ behavior: 'smooth' });
+  $('fOrigen').focus();
+});
+
+$('tRecepciones').addEventListener('click', async ev=>{
+  const b=ev.target.closest('[data-ingreso]');if(!b)return;
+  try{await abrirIngreso(b.dataset.ingreso,{continuar:()=>{
+    recepcionActual=b.dataset.ingreso;$('lblRecepcion').textContent=recepcionActual;
+    $('panelArchivo').classList.remove('oculto');$('panelArchivo').scrollIntoView({behavior:'smooth'});
+  }});}catch(e){aviso(e.message,'err');}
+});
+
+$('fBuscar').addEventListener('input', pintarListado);
+$('fEstadoLista').addEventListener('change', pintarListado);
+
+$('bCancelar').addEventListener('click', () => {
+  $('panelArchivo').classList.add('oculto');
+  $('fArchivo').value = '';
+  resultadoArchivo = null;
+});
+
+// --- Catálogo ------------------------------------------------------------- //
+$('bImportarCodigos').onclick = async () => {
+  const archivo = $('archivoCodigos').files[0];
+  if (!archivo) { $('resultadoCodigos').textContent='Selecciona un archivo Excel con los códigos.'; return; }
+  $('bImportarCodigos').disabled=true;
+  try {
+    const filas=leerCodigos(XLSX.read(await archivo.arrayBuffer(),{type:'array'}));
+    if (!await confirmar({titulo:`¿Importar ${filas.length} códigos de barras?`,texto:'Todas las filas deben apuntar a productos existentes. Si una falla, no se guarda ninguna asociación.',aceptar:'Importar códigos'})) return;
+    const r=await pedir('/catalogo/codigos/importar',{cuerpo:{filas}});
+    $('resultadoCodigos').textContent=`${r.procesadas} filas procesadas. ${r.mensaje}`;
+  } catch(e) { $('resultadoCodigos').textContent=e.message; }
+  finally { $('bImportarCodigos').disabled=false; }
+};
+$('bCatalogo').addEventListener('click', async () => {
+  $('bCatalogo').disabled = true;
+  $('resCatalogo').innerHTML =
+    '<div class="msg info"><b>Descargando</b>Consultando el WMS. Puede tardar un minuto.</div>';
+  try {
+    if (modoLocal()) {
+      const res = await fetch('/api/catalogo/depot/sincronizar', { method: 'POST', credentials: 'same-origin' });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.detail || 'No se pudo sincronizar el maestro local');
+      $('resCatalogo').textContent = `${r.productos} productos actualizados en el servidor.` + (r.ambiguos?.length ? ` ${r.ambiguos.length} SKU compartidos conservaron el cliente original; revisa esos códigos antes de operar.` : '') + (r.errores?.length ? ` Clientes sin respuesta: ${r.errores.join(', ')}.` : '');
+      return;
+    }
+    const r = await Proxy.catalogo();
+    const productos = r.productos || [];
+    if (!productos.length) {
+      $('resCatalogo').innerHTML =
+        '<div class="msg warn"><b>Sin productos</b>El WMS respondió vacío. ' +
+        'Revisa las credenciales en Administración.</div>';
+      return;
+    }
+
+    const prog = document.createElement('div');
+    prog.className = 'msg info';
+    $('resCatalogo').innerHTML = '';
+    $('resCatalogo').appendChild(prog);
+
+    await guardarCatalogo(productos, (hechos, total) => {
+      prog.innerHTML = `<b>Guardando</b>${hechos} de ${total} productos`;
+    });
+
+    const detalle = Object.entries(r.porCliente || {})
+      .map(([c, d]) => `${esc(c)}: ${d.productos}`).join(' · ');
+    $('resCatalogo').innerHTML = `
+      <div class="msg ok"><b>Catálogo actualizado</b>
+        ${productos.length} productos guardados. ${detalle}</div>
+      ${r.ambiguos?.length
+        ? `<div class="msg warn"><b>${r.ambiguos.length} SKU en más de un cliente</b>
+           Se asignaron al primero: ${esc(r.ambiguos.slice(0, 5).map((a) => a.sku).join(', '))}</div>`
+        : ''}
+      ${r.errores?.length
+        ? `<div class="msg err"><b>Clientes que no respondieron</b>
+           ${esc(r.errores.map((e) => e.cliente + ': ' + e.mensaje).join(' · '))}</div>`
+        : ''}`;
+  } catch (e) {
+    $('resCatalogo').innerHTML = `<div class="msg err"><b>No se pudo descargar</b>${esc(e.message)}</div>`;
+  } finally {
+    $('bCatalogo').disabled = false;
+  }
+});
+
+// --- Listado -------------------------------------------------------------- //
+async function cargarListado() {
+  try {
+    todas = soloMias
+      ? await listarMisRecepciones(usuario.uid)
+      : await listarRecepciones();
+    pintarListado();
+  } catch (e) {
+    $('tRecepciones').innerHTML =
+      `<tr><td colspan="9" class="mini">${esc(e.message)}</td></tr>`;
+  }
+}
+
+let todas = [];
+let soloMias = false;
+let observadoresAvance=[];
+setInterval(()=>{if(modoLocal()&&usuario&&!document.hidden)cargarListado();},15000);
+
+function pintarListado() {
+  try {
+    observadoresAvance.forEach(f=>f());observadoresAvance=[];
+    const q = $('fBuscar').value.trim().toUpperCase();
+    const estado = $('fEstadoLista').value;
+    const recs = todas.filter((r) =>
+      (!estado || r.estado === estado)
+      && (!q || (r.codigo || '').includes(q) || (r.cliente || '').toUpperCase().includes(q)));
+
+    if (!recs.length) {
+      $('tRecepciones').innerHTML =
+        `<tr><td colspan="9" class="mini">${
+          todas.length ? 'Ninguna coincide con esa búsqueda.'
+          : soloMias ? 'Todavía no has registrado conteos en ninguna recepción.'
+          : 'Todavía no hay recepciones.'}</td></tr>`;
+      return;
+    }
+    const esAdmin = perfil?.rol === 'ADMIN';
+    // Consolidar listas es decidir contra qué se valida: eso es del supervisor.
+    // El operario entra a contar, y verlo le ofrecería algo que no puede hacer.
+    const puedeConsolidar = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
+
+    $('tRecepciones').innerHTML = recs.map((r) => {
+      const t = r.totales || {};
+      const clase = { ABIERTA: 'p-warn', EN_VALIDACION: 'p-ok', CERRADA: 'p-off' }[r.estado] || 'p-off';
+      // Sin packing list no hay nada que validar. En vez de ofrecer un botón
+      // que lleva a una pantalla vacía, se dice lo que falta y se ofrece
+      // justo eso: cargar el archivo.
+      const vacia = !(t.lineas > 0);
+
+      return `<tr${vacia ? ' style="background:rgba(245,158,11,.06)"' : ''}>
+        <td class="id">${esc(r.codigo)}<br><span class="mini">${
+          [r.cliente, (r.origenes || []).length > 1
+            ? `${r.origenes.length} listas: ${r.origenes.join(' · ')}`
+            : (r.origenes || [])[0]].filter(Boolean).join(' — ')}</span></td>
+        <td><span class="pastilla ${vacia ? 'p-warn' : clase}">
+          ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
+        <td class="num">${t.skus ?? 0}</td>
+        <td class="num">${t.unidades ?? 0}</td>
+        <td class="num" id="fis_${esc(r.id)}">${r.seguimiento?.contado ?? "—"}</td>
+        <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}" style="width:${Number(r.seguimiento?.avance)||0}%"></i></div><span class="mini" id="av_${esc(r.id)}">${r.seguimiento?.avance ?? 0}% revisado</span>${puedeConsolidar?`<div class="mini">${(r.equipoActivo||[]).map(o=>esc(o.nombre)).join(" · ")}</div>`:""}</td>
+        <td>${puedeConsolidar
+          ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
+               ${vacia ? 'Cargar packing list' : '+ Lista'}</button>${modoLocal() ? `<button class="b-sec" data-ingreso="${esc(r.id)}">Bultos / evidencias</button>` : ''}`
+          : vacia ? '<span class="mini">sin packing list</span>' : ''}</td>
+        <td>${vacia ? '' : `<a href="./validar.html?r=${encodeURIComponent(r.id)}">
+          <button class="b-primario">Validar →</button></a>`}</td>
+        <td>${esAdmin
+          ? `<button class="b-peligro" data-borrar="${esc(r.id)}"
+                     data-lineas="${t.lineas ?? 0}" data-estado="${esc(r.estado)}"
+                     title="Borrar la recepción entera">Borrar</button>`
+          : ''}</td></tr>`;
+    }).join('');
+
+    // Avance en vivo de las recepciones abiertas.
+    recs.filter(r=>!modoLocal()).forEach((r) => {
+      observadoresAvance.push(escucharSkus(r.id, (skus) => {
+        const res = resumir(skus);
+        const celda = $(`fis_${r.id}`);
+        const barra = $(`bar_${r.id}`);
+        if (celda) celda.textContent = res.unidadesFisicas;
+        if (barra) barra.style.width = res.avance + '%';
+        if($(`av_${r.id}`))$(`av_${r.id}`).textContent=res.avance+'% revisado';
+      }, () => {}));
+    });
+  } catch (e) {
+    $('tRecepciones').innerHTML =
+      `<tr><td colspan="9" class="mini">${esc(e.message)}</td></tr>`;
+  }
+}
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
+}
+</script>
+</body>
+</html>

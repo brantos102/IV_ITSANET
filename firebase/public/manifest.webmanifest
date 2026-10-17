@@ -1,0 +1,20 @@
+{
+  "name": "ITSANET — Validación física",
+  "short_name": "Validación",
+  "description": "Validación física de recepciones contra el packing list y el sistema Depot.",
+  "lang": "es-EC",
+  "start_url": "./recepciones.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f4f7f9",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "./icono.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

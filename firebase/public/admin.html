@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<script src="./js/arranque.js?v=20261016-35"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script src="./vendor/xlsx.full.min.js?v=20261016-35" defer></script>
+<meta name="theme-color" content="#2563eb">
+<title>Administración — ITSANET</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
+<style>
+  :root {
+    --primary:#0f172a; --secondary:#64748b; --accent:#2563eb;
+    --bg:#f4f7f9; --surface:#fff; --border:#e2e8f0;
+    --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+    --font-ui:'Plus Jakarta Sans',system-ui,sans-serif;
+    --font-data:'JetBrains Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --primary:#f8fafc; --secondary:#94a3b8; --accent:#3b82f6;
+      --bg:#0f172a; --surface:#1e293b; --border:#334155;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--font-ui); background:var(--bg); color:var(--primary);
+         padding:20px 16px; -webkit-text-size-adjust:100%; }
+  .envoltorio { max-width:1000px; margin:0 auto; }
+
+  header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:24px; }
+  .marca { font-size:20px; font-weight:900; letter-spacing:-.5px; }
+  .marca span { color:var(--accent); }
+  .sub { font-size:10px; color:var(--secondary); letter-spacing:2px; text-transform:uppercase;
+         font-weight:800; }
+  header .sp { flex:1; }
+  .usuario { font-size:12px; color:var(--secondary); font-weight:700; text-align:right; }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:20px;
+           padding:26px; margin-bottom:20px; }
+  h2 { font-size:12px; color:var(--secondary); text-transform:uppercase; letter-spacing:1px;
+       margin:0 0 4px; font-weight:900; }
+  h2 + p { color:var(--secondary); font-size:13px; font-weight:600; margin:0 0 20px;
+           line-height:1.5; }
+
+  .rejilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+  label.campo { display:flex; flex-direction:column; gap:6px; }
+  label.campo span { font-size:11px; font-weight:800; color:var(--secondary);
+                     text-transform:uppercase; letter-spacing:.5px; }
+  input, select { padding:12px 14px; border:1px solid var(--border); border-radius:10px;
+                  font-family:var(--font-data); font-size:14px; font-weight:700;
+                  background:var(--bg); color:var(--primary); outline:none; width:100%; }
+  input:focus, select:focus { border-color:var(--accent);
+                              box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+  .pista { font-size:11px; color:var(--secondary); font-weight:600; }
+  code { font-family:var(--font-data); font-size:.92em; background:var(--bg);
+         padding:2px 6px; border-radius:5px; word-break:break-all; }
+
+  button { font-family:inherit; font-weight:800; border:none; border-radius:10px;
+           cursor:pointer; transition:.2s; padding:12px 20px; font-size:13px; }
+  .b-primario { background:var(--accent); color:#fff; }
+  .b-primario:hover:not(:disabled) { transform:translateY(-2px);
+                                     box-shadow:0 6px 16px rgba(37,99,235,.3); }
+  .b-sec { background:var(--bg); color:var(--primary); border:1px solid var(--border); }
+  .b-sec:hover { border-color:var(--accent); color:var(--accent); }
+  .b-peligro { background:transparent; color:var(--danger); border:1px solid var(--border); }
+  .b-peligro:hover { background:var(--danger); color:#fff; border-color:var(--danger); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .acciones { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+
+  .msg { padding:13px 16px; border-radius:10px; font-size:13px; font-weight:600;
+         border-left:5px solid var(--secondary); background:var(--bg); margin-bottom:12px;
+         line-height:1.5; }
+  .msg b { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+           margin-bottom:4px; font-weight:900; }
+  .msg.ok { border-color:var(--success); } .msg.err { border-color:var(--danger); }
+  .msg.warn { border-color:var(--warning); } .msg.info { border-color:var(--accent); }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.5px;
+       color:var(--secondary); font-weight:900; padding:0 10px 10px; }
+  td { padding:13px 10px; border-top:1px solid var(--border); vertical-align:middle; }
+  td.id { font-family:var(--font-data); font-weight:800; }
+  .pastilla { display:inline-block; padding:3px 10px; border-radius:50px; font-size:10px;
+              font-weight:900; letter-spacing:.3px; }
+  .p-ok { background:rgba(16,185,129,.15); color:var(--success); }
+  .p-warn { background:rgba(245,158,11,.15); color:var(--warning); }
+  .p-err { background:rgba(239,68,68,.15); color:var(--danger); }
+  .p-off { background:rgba(100,116,139,.15); color:var(--secondary); }
+  .mini { font-size:11px; color:var(--secondary); font-weight:600; }
+  .oculto { display:none !important; }
+  .tabla-env { overflow-x:auto; }
+  pre { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:14px;
+        font-family:var(--font-data); font-size:11px; overflow-x:auto; margin:10px 0 0;
+        line-height:1.6; }
+  a { color:var(--accent); }
+  @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
+</style>
+<link rel="stylesheet" href="./css/marca.css?v=20261016-35">
+</head>
+<body>
+<div class="envoltorio">
+
+<header>
+  <div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
+    <div class="sub">Administración</div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="./"><button class="b-sec">Volver</button></a>
+</header>
+
+<div id="avisos"></div>
+
+<!-- Sin permisos -->
+<div class="panel oculto" id="sinPermiso">
+  <h2>Acceso restringido</h2>
+  <p>Esta pantalla es solo para administradores. Pídele a un administrador que
+     cambie tu rol en Firestore → <code>usuarios</code> → tu documento.</p>
+</div>
+
+<!-- Panel principal -->
+<div id="panelAdmin" class="oculto">
+  <div class="panel oculto" id="panelIntegraciones">
+    <h2>Conexiones del servidor · solo ADMIN</h2>
+    <p>Credenciales cifradas. Los campos secretos vacíos conservan el valor guardado.</p>
+    <details open><summary>Depot / WMS por cliente</summary>
+      <p class="mini">Una cuenta por cliente. Copia el usuario y la clave de su conexión vigente en Apps Script → Clientes; no son credenciales de Google. URL raíz: <code>https://ec.itsanet.com/q_apidepot</code>. «Probar» consulta autenticación y stock; no modifica los conteos.</p>
+      <div id="clientesServidor" class="acciones"></div>
+      <form id="formDepotLocal" class="rejilla" style="margin-top:16px">
+        <label class="campo"><span>ID del cliente</span><input id="iClienteId" required maxlength="32" placeholder="VENTURA"></label>
+        <label class="campo"><span>Nombre</span><input id="iNombre" required placeholder="Ventura"></label>
+        <label class="campo"><span>URL de la API</span><input id="iBaseUrl" required type="url" placeholder="https://ec.itsanet.com/q_apidepot"></label>
+        <label class="campo"><span>Cliente en Depot</span><input id="iCliente" placeholder="VENTURA"></label>
+        <label class="campo"><span>Usuario API</span><input id="iUsuario" autocomplete="off" placeholder="Conservar guardado"></label>
+        <label class="campo"><span>Clave API</span><input id="iClave" type="password" autocomplete="new-password" placeholder="Conservar guardada"></label>
+        <label class="campo"><span>Estado</span><select id="iActivo"><option value="1">Activo</option><option value="0">Desactivado</option></select></label>
+        <button class="b-primario" type="submit">Guardar conexión</button>
+      </form>
+    </details>
+    <details style="margin-top:18px"><summary>Drive y envío de correo</summary>
+      <p class="mini">ADMIN configura el puente de cada cuenta remitente. Esa persona autoriza Google al desplegarlo como «Yo». El cierre propone el correo responsable de Operación → Remitente de informes; también permite el correo propio cuando está autorizado. El remitente real debe coincidir con la cuenta Google ejecutora.</p>
+      <div id="puentesSupervisores" class="acciones"></div>
+      <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
+        <label class="campo"><span>Correo del supervisor responsable</span><input id="iGoogleSupervisor" type="email" placeholder="supervisor@gmail.com"></label>
+        <label class="campo"><span>Apps Script /exec</span><input id="iGoogleUrl" type="url" required placeholder="https://script.google.com/macros/s/…/exec"><span class="mini">URL de la aplicación web en Implementar → Administrar implementaciones. La carpeta Drive se configura en Repositorios.</span></label>
+        <label class="campo"><span>Clave compartida SERVIDOR_HMAC</span><input id="iGoogleSecret" type="password" autocomplete="new-password" placeholder="Conservar guardada"></label>
+        <button type="submit" class="b-primario">Guardar puente</button>
+        <button type="button" id="bProbarPuente" class="b-sec">Verificar remitente y Drive</button>
+      </form>
+      <p class="mini">Clave compartida: se genera, no se obtiene de Gmail. Usa la misma en SERVIDOR_HMAC de Apps Script. Guía: <a href="https://github.com/brantos102/IV_ITSANET/blob/pr_bep/serene-thompson-10qlxd/docs/GOOGLE_Y_FORMATOS.md" target="_blank" rel="noopener">configurar Drive, correo y OAuth</a>.</p>
+    </details>
+    <details style="margin-top:18px"><summary>Entrar con Google · Opcional</summary>
+      <p>Para operar desde móvil puedes usar correo/usuario y contraseña de esta app por la WiFi interna. Estos campos solo habilitan el botón «Entrar con Google»; no son necesarios para el puente de Drive y correo.</p>
+      <p class="mini">Se obtienen en Google Cloud → Google Auth Platform → Clients → Create client → Web application. Copia su Client ID y Client secret. Registra allí la URI exacta indicada abajo. Google exige un dominio HTTPS para ese acceso desde móviles; localhost sirve en el computador.</p>
+      <form id="formOAuthLocal" class="rejilla">
+        <label class="campo"><span>Client ID</span><input id="iOAuthId" required placeholder="…apps.googleusercontent.com"></label>
+        <label class="campo"><span>Client secret</span><input id="iOAuthSecret" type="password" autocomplete="new-password" placeholder="Conservar guardado"></label>
+        <label class="campo"><span>URI de redirección autorizada</span><input id="iOAuthRedirect" type="url" required></label>
+        <label class="campo"><span>Estado</span><select id="iOAuthActivo"><option value="1">Activo</option><option value="0">Desactivado</option></select></label>
+        <button type="submit" class="b-primario">Guardar acceso Google</button>
+      </form>
+      <p class="mini">Google verifica el correo; la aprobación y los roles los controla este servidor.</p>
+    </details>
+  </div>
+  <div class="panel oculto" id="panelLocal">
+    <h2>Servidor de bodega</h2>
+    <h3>Entregas al ejecutivo</h3>
+    <p id="estadoPuente"></p>
+    <button class="b-sec" id="bEntregas">Actualizar entregas</button>
+    <div id="entregasLocales"></div>
+    <p id="estadoLocal">Comprobando la base de datos…</p>
+    <p>El maestro local permite validar aunque Depot no responda. Las conexiones se configuran en este panel por un administrador.</p>
+    <label class="campo"><span>Maestro de productos (.xlsx)</span>
+      <input id="fMaestroLocal" type="file" accept=".xlsx,.xlsm"></label>
+    <button class="b-primario" id="bMaestroLocal">Cargar maestro local</button>
+  </div>
+
+  <!-- Diagnóstico del proxy: sin esto, todo lo demás falla igual -->
+  <div class="panel" id="panelProxy" style="border:2px solid var(--accent)">
+    <h2>Conexión con el proxy</h2>
+    <p>Todo lo de esta página pasa por el Apps Script. Si no responde, ni las
+       credenciales ni la prueba de Depot pueden funcionar.</p>
+
+    <label class="campo" style="margin-bottom:14px">
+      <span>URL del despliegue (config/proxy en Firestore)</span>
+      <input id="fUrlProxy" placeholder="https://script.google.com/macros/s/AKfy.../exec"
+             spellcheck="false">
+      <span class="pista">Termina en <code>/exec</code>. La de <code>/dev</code> es la
+        de pruebas y exige sesión de Google: desde la app nunca va a funcionar.</span>
+    </label>
+
+    <div class="acciones">
+      <button class="b-primario" id="bProbarProxy">Probar conexión</button>
+      <button class="b-sec" id="bGuardarUrl">Guardar esta URL</button>
+    </div>
+    <div id="resProxy"></div>
+  </div>
+
+  <div class="panel" id="panelClientes">
+    <h2>Credenciales por cliente</h2>
+    <p>Cada cliente tiene su propio usuario y contraseña en Depot, y su propio
+       token. Un packing list puede necesitar varios a la vez: la app consulta
+       todos los activos y señala a qué cliente pertenece cada producto.</p>
+
+    <div class="msg info">
+      <b>Dónde quedan guardadas</b>
+      Las credenciales se guardan en las propiedades del Apps Script, del lado
+      servidor. No pasan por Firestore ni se quedan en el dispositivo, y esta
+      pantalla no puede volver a leerlas: solo muestra el usuario enmascarado.
+    </div>
+
+    <div class="tabla-env">
+      <table>
+        <thead><tr>
+          <th>Cliente</th><th>Usuario</th><th>Token</th>
+          <th>Última conexión</th><th>Estado</th><th></th>
+        </tr></thead>
+        <tbody id="tClientes"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="panelClienteForm">
+    <h2 id="tituloForm">Agregar cliente</h2>
+    <p>El identificador es el nombre corto con el que la app se refiere al
+       cliente. Una vez creado no se cambia.</p>
+
+    <div class="rejilla">
+      <label class="campo">
+        <span>Identificador *</span>
+        <input id="fId" placeholder="VENTURA" autocapitalize="characters" maxlength="40">
+      </label>
+      <label class="campo">
+        <span>Nombre visible</span>
+        <input id="fNombre" placeholder="Impoventura S.A." style="font-family:var(--font-ui)">
+      </label>
+      <label class="campo">
+        <span>Usuario de Depot *</span>
+        <input id="fUsuario" autocomplete="off">
+      </label>
+      <label class="campo">
+        <span>Contraseña de Depot *</span>
+        <input id="fClave" type="password" autocomplete="new-password"
+               placeholder="dejar vacío = no cambiar">
+      </label>
+      <label class="campo" style="grid-column:1/-1">
+        <span>URL base (vacío = la global)</span>
+        <input id="fBaseUrl" placeholder="https://ec.itsanet.com/q_apidepot">
+        <span class="pista">La <b>raíz</b> de la API, sin <code>/gettoken</code> ni
+          <code>/getstock</code>: el proxy los añade. Solo si este cliente usa otro
+          servidor. Debe ser https.</span>
+      </label>
+    </div>
+
+    <div class="acciones">
+      <button class="b-primario" id="bGuardar">Guardar cliente</button>
+      <button class="b-sec" id="bLimpiar">Limpiar</button>
+    </div>
+  </div>
+
+  <div class="panel" id="panelPruebaCliente">
+    <h2>Probar la conexión</h2>
+    <p>Prueba <code>gettoken</code> y <code>getstock</code> por separado, para
+       saber cuál de los dos falla. Imprime además los nombres de campo reales
+       que devuelve el WMS.</p>
+    <div class="rejilla">
+      <label class="campo">
+        <span>Cliente</span>
+        <select id="fProbarId"></select>
+      </label>
+      <label class="campo">
+        <span>Código de prueba (opcional)</span>
+        <input id="fProbarCodigo" placeholder="vacío = todo el catálogo">
+      </label>
+    </div>
+    <div class="acciones">
+      <button class="b-primario" id="bProbar">Probar</button>
+    </div>
+    <div id="resultadoPrueba"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Formatos CSV para Depot</h2>
+    <p>El CSV se usa <b>solo</b> para la carga masiva hacia Depot: los informes y
+       los indicadores salen en Excel o PDF. Aquí se definen las columnas de cada
+       archivo, para que lo que descarga el supervisor entre en Depot sin
+       retocarlo.</p>
+    <div class="msg warn"><b>Modelos oficiales adjuntos</b>
+      Cantidades: 18 columnas. Productos: 38 columnas. Solo se emite «Modelo a Utilizar».
+      Las instrucciones piden coma; tus formatos guardados se conservan hasta aplicar el modelo oficial.
+      No se copian clientes, SKU ni ubicaciones de las filas de ejemplo.</div>
+    <div id="formatosCsv"></div>
+    <div class="acciones">
+      <button class="b-primario" id="bGuardarCsv">Guardar los formatos</button>
+      <button class="b-sec" id="bRestaurarCsv">Volver a los de partida</button>
+    </div>
+    <div id="resCsv"></div>
+  </div>
+
+  <div class="panel" id="panelMigracion">
+    <h2>Llevar el histórico al servidor local</h2>
+    <p>Descarga en un archivo todo lo validado hasta ahora —recepciones, líneas,
+       conteos y auditoría— para importarlo en la base MySQL del servidor de la
+       empresa. El catálogo de productos no va: es una copia del maestro de
+       Depot y allí se vuelve a descargar.</p>
+    <div class="msg info"><b>Después, en el servidor</b>
+      <code>python scripts/importar_firestore.py ARCHIVO.json --ensayo</code> para
+      ver qué entraría, y sin <code>--ensayo</code> para hacerlo. Se puede lanzar
+      las veces que haga falta: no duplica nada. Los pasos completos, en
+      <code>docs/MYSQL.md</code>.</div>
+    <div class="acciones">
+      <button class="b-primario" id="bExportarTodo">Exportar para el servidor local</button>
+    </div>
+    <div id="resExportar"></div>
+  </div>
+
+</div>
+</div>
+
+<script type="module">
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-35';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261016-35';
+import { pintarEntregas } from './js/admin-entregas.js?v=20261016-35';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261016-35';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261016-35';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261016-35';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261016-35';
+import { confirmar, pedirDatos } from './js/modal.js?v=20261016-35';
+import {
+  CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
+} from './js/csv.js?v=20261016-35';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261016-35';
+import { doc, getDoc, setDoc }
+  from './vendor/firebase-sdk.js?v=20261016-35';
+
+const $ = (id) => document.getElementById(id);
+let clientes = [];
+let editando = null;
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '') {
+  return mostrarAviso($('avisos'), texto, tipo, titulo);
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+
+function fecha(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('es'); } catch { return iso; }
+}
+
+// --- Sesión --------------------------------------------------------------- //
+let usuarioActual = null;
+
+observarSesion(({ usuario, perfil, error }) => {
+  globalThis.itsanetArranque?.listo();
+  if (error) aviso(error, 'err');
+  if (!usuario) { location.href = './'; return; }
+  usuarioActual = usuario;
+
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  if (perfil?.rol !== 'ADMIN') {
+    $('sinPermiso').classList.remove('oculto');
+    $('panelAdmin').classList.add('oculto');
+    return;
+  }
+  $('sinPermiso').classList.add('oculto');
+  $('panelAdmin').classList.remove('oculto');
+  if (modoLocal()) {
+    for (const id of ['panelProxy', 'panelClientes', 'panelClienteForm', 'panelPruebaCliente', 'panelMigracion']) $(id).classList.add('oculto');
+    $('panelLocal').classList.remove('oculto');
+    $('panelIntegraciones').classList.remove('oculto');
+    cargarIntegraciones();
+    configurarPoliticas($('panelAdmin')).catch(e=>aviso(e.message,'err','Permisos y reglas'));
+    configurarOperacion($('panelAdmin')).catch(e=>aviso(e.message,'err','Configuración operativa'));
+    actualizarEstadoLocal();
+  } else {
+    cargarUrlProxy();
+    cargar();
+  }
+  cargarFormatosCsv();
+});
+
+async function cargarIntegraciones() {
+  try {
+    const datos = await pedir('/integraciones');
+    const lista = $('clientesServidor'); lista.replaceChildren();
+    for (const c of datos.clientes) {
+      const editar = document.createElement('button'); editar.className = 'b-sec';
+      editar.textContent = `${c.id} · ${c.nombre} · ${c.activo ? 'Activo' : 'Desactivado'}`;
+      editar.onclick = () => {
+        for (const [id, campo] of [['iClienteId','id'],['iNombre','nombre'],['iBaseUrl','baseUrl'],['iCliente','cliente']]) $(id).value = c[campo] || '';
+        $('iUsuario').value = ''; $('iClave').value = ''; $('iActivo').value = c.activo ? '1' : '0';
+      };
+      lista.append(editar);
+      const probar = document.createElement('button'); probar.className = 'b-sec'; probar.textContent = `Probar ${c.id}`;
+      probar.onclick = async () => { probar.disabled = true;
+        try { const r = await pedir(`/integraciones/depot/${encodeURIComponent(c.id)}/probar`, {cuerpo:{}}); aviso(r.mensaje, 'ok'); }
+        catch(e) { aviso(e.message, 'err'); } finally { probar.disabled = false; } };
+      lista.append(probar);
+    }
+    if (!$('iGoogleSupervisor').value) $('iGoogleUrl').value = datos.google.url || '';
+    const puentes=$('puentesSupervisores');puentes.replaceChildren();
+    for(const p of datos.puentes || []) {
+      const b=document.createElement('button');b.type='button';b.className='b-sec';b.textContent=p.supervisor;
+      b.onclick=()=>{$('iGoogleSupervisor').value=p.supervisor;$('iGoogleUrl').value=p.url;$('iGoogleSecret').value='';};puentes.append(b);
+    }
+    $('iOAuthId').value = datos.oauth.clientId || '';
+    $('iOAuthRedirect').value = datos.oauth.redirectUri || new URL('/api/auth/google/callback', location.origin).href;
+    $('iOAuthActivo').value = datos.oauth.activo === false ? '0' : '1';
+  } catch(e) { aviso(e.message, 'err'); }
+}
+const guardadoresIntegracion = {};
+for (const [formulario, destino, construir, secretos] of [
+  ['formDepotLocal', () => '/integraciones/depot/' + encodeURIComponent($('iClienteId').value.trim().toUpperCase()),
+    () => ({nombre:$('iNombre').value,baseUrl:$('iBaseUrl').value,cliente:$('iCliente').value,usuario:$('iUsuario').value,clave:$('iClave').value,activo:$('iActivo').value === '1'}), ['iUsuario','iClave']],
+  ['formGoogleLocal', () => '/integraciones/google', () => ({url:$('iGoogleUrl').value,secreto:$('iGoogleSecret').value,supervisor:$('iGoogleSupervisor').value}), ['iGoogleSecret']],
+  ['formOAuthLocal', () => '/integraciones/oauth-google', () => ({clientId:$('iOAuthId').value,clientSecret:$('iOAuthSecret').value,redirectUri:$('iOAuthRedirect').value,activo:$('iOAuthActivo').value === '1'}), ['iOAuthSecret']],
+]) {
+  guardadoresIntegracion[formulario] = async ev => {
+    ev.preventDefault(); const boton = ev.submitter; boton.disabled = true;
+    try { await pedir(destino(), {metodo:'PUT',cuerpo:construir()}); secretos.forEach(id => $(id).value = '');
+      aviso('Configuración guardada en el servidor.', 'ok'); await cargarIntegraciones(); await actualizarEstadoLocal(); }
+    catch(e) { aviso(e.message, 'err'); } finally { boton.disabled = false; }
+  };
+}
+$('formDepotLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formDepotLocal(ev); });
+$('formGoogleLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formGoogleLocal(ev); });
+$('formOAuthLocal').addEventListener('submit', ev => { ev.preventDefault(); guardadoresIntegracion.formOAuthLocal(ev); });
+const pruebaCorreo=document.createElement('details');
+pruebaCorreo.innerHTML='<summary>Enviar correo de prueba</summary><p class="mini">Usa el correo de un supervisor activo con su puente autorizado. La prueba confirma Drive y envía un mensaje identificable.</p><label class="campo"><span>Destinatario de prueba</span><input type="email" id="correoDestinoPrueba" value="brantos102@gmail.com"></label><button type="button" class="b-sec" id="enviarCorreoPrueba">Enviar prueba desde el supervisor indicado</button>';
+$('bProbarPuente').after(pruebaCorreo);
+let clavePruebaCorreo=nuevoIdentificador();
+$('enviarCorreoPrueba').onclick=async()=>{const b=$('enviarCorreoPrueba');
+ if(!await confirmar({titulo:'Enviar correo de prueba',texto:`De ${$('iGoogleSupervisor').value} a ${$('correoDestinoPrueba').value}. Google debe confirmar al remitente.`,aceptar:'Enviar prueba'}))return;
+ if($('iGoogleSecret').value){aviso('Guarda primero el puente para aplicar la clave modificada.','warn');return;}
+ b.disabled=true;try{const r=await pedir('/integraciones/google/correo-prueba',{cuerpo:{supervisor:$('iGoogleSupervisor').value,url:$('iGoogleUrl').value,destinatario:$('correoDestinoPrueba').value,clave:clavePruebaCorreo}});aviso(`${r.mensaje} De ${r.remitente} a ${r.destinatario}`,'ok');clavePruebaCorreo=nuevoIdentificador();}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}
+};
+$('bProbarPuente').onclick=async()=>{
+  if($('iGoogleSecret').value){aviso('Guarda primero el puente para aplicar la clave modificada.','warn');return;}
+  $('bProbarPuente').disabled=true;
+  try{const r=await pedir('/integraciones/google/probar',{cuerpo:{supervisor:$('iGoogleSupervisor').value,url:$('iGoogleUrl').value}});
+    const mensaje=aviso(`${r.mensaje} Remitente: ${r.remitente}`,'ok');
+    if(/^https:\/\/drive\.google\.com\//.test(r.carpeta || '')) {
+      const a=document.createElement('a');a.href=r.carpeta;a.target='_blank';a.rel='noopener';a.textContent=`Abrir carpeta verificada: ${r.nombreCarpeta || 'Drive'}`;mensaje.append(a);
+    }}
+  catch(e){aviso(e.message,'err');}finally{$('bProbarPuente').disabled=false;}
+};
+
+async function actualizarEstadoLocal() {
+  try {
+    const e = await estadoServidor();
+    $('estadoPuente').textContent = e.correo_configurado ? 'Puente con Google configurado. Cada entrega confirma su resultado por separado.' : 'Falta configurar el puente con Google. Las entregas permanecen guardadas y pendientes.';
+    await pintarEntregasLocales();
+    $('estadoLocal').textContent = `${e.motor.toUpperCase()} · ${e.productos} productos · ${e.recepciones} recepciones · ${e.archivos} archivos guardados`;
+  } catch (e) { aviso(e.message, 'err'); }
+}
+async function pintarEntregasLocales() {
+  pintarEntregas($('entregasLocales'), await entregasServidor(), {aviso, actualizar:pintarEntregasLocales});
+}
+$('bEntregas').addEventListener('click', () => actualizarEstadoLocal());
+$('bMaestroLocal').addEventListener('click', async () => {
+  const archivo = $('fMaestroLocal').files[0];
+  if (!archivo) return aviso('Selecciona el archivo del maestro.', 'warn');
+  $('bMaestroLocal').disabled = true;
+  try {
+    const datos = new FormData(); datos.append('archivo', archivo);
+    const res = await fetch('/api/catalogo/maestro', { method: 'POST', body: datos, credentials: 'same-origin' });
+    const r = await res.json();
+    if (!res.ok) throw new Error(typeof r.detail === 'string' ? r.detail : 'No se pudo cargar el maestro');
+    aviso(`Maestro actualizado: ${r.total_en_cache} productos.`, 'ok');
+    await actualizarEstadoLocal();
+  } catch (e) { aviso(e.message, 'err'); }
+  finally { $('bMaestroLocal').disabled = false; }
+});
+
+// --- Formatos CSV --------------------------------------------------------- //
+// Las columnas de la carga masiva a Depot. Van aquí y no en el código porque el
+// día que Depot cambie una columna, el supervisor no puede quedarse esperando
+// un despliegue para poder subir una recepción.
+let formatosCsv = [];
+
+async function cargarFormatosCsv() {
+  formatosCsv = await leerFormatos();
+  pintarFormatosCsv();
+}
+
+function pintarFormatosCsv() {
+  const opciones = (elegido) => Object.entries(CAMPOS)
+    .map(([k, t]) => `<option value="${esc(k)}"${k === elegido ? ' selected' : ''}>${esc(t)}</option>`)
+    .join('');
+
+  $('formatosCsv').innerHTML = formatosCsv.map((f, fi) => `
+    <details class="panel" style="margin:16px 0 0;background:var(--bg)">
+      <summary><b>${esc(f.nombre)}</b> · ${f.columnas.length} columnas · Editar formato</summary>
+      <p class="mini" style="margin:0 0 14px">${esc(f.descripcion)}</p>
+      <div class="rejilla">
+        <label class="campo"><span>Nombre del archivo</span>
+          <input data-f="${fi}" data-prop="archivo" value="${esc(f.archivo)}">
+          <span class="mini">Se le añade el código de la recepción y «.csv».</span></label>
+        <label class="campo"><span>Separador</span>
+          <select data-f="${fi}" data-prop="separador">
+            <option value=";"${f.separador === ';' ? ' selected' : ''}>Punto y coma (;)</option>
+            <option value=","${f.separador === ',' ? ' selected' : ''}>Coma (,)</option>
+            <option value="\t"${f.separador === '\t' ? ' selected' : ''}>Tabulador</option>
+          </select>
+          <span class="mini">Excel en español parte por punto y coma. Con coma
+            mete toda la fila en una sola columna. Los modelos oficiales de Depot piden coma.</span></label>
+      </div>
+      <div class="tabla-env"><table>
+        <thead><tr><th>#</th><th>Encabezado, tal cual lo espera Depot</th>
+          <th>Lo rellena</th><th>Valor si falta</th><th>Obligatorio</th><th></th></tr></thead>
+        <tbody>${f.columnas.map((c, ci) => `
+          <tr>
+            <td class="mini" title="${esc(c.ayuda || '')}">${ci + 1}</td>
+            <td><input data-f="${fi}" data-c="${ci}" data-prop="encabezado"
+                       value="${esc(c.encabezado)}" style="width:100%"></td>
+            <td><select data-f="${fi}" data-c="${ci}" data-prop="campo"
+                        style="width:100%">${opciones(c.campo || '')}</select></td>
+            <td><input data-f="${fi}" data-c="${ci}" data-prop="valor" value="${esc(c.valor ?? '')}" placeholder="Sin inventar datos">
+              ${['estado','categoria'].includes(c.campo) ? `<input data-f="${fi}" data-c="${ci}" data-prop="valorPnc" value="${esc(c.valorPnc ?? '')}" placeholder="Valor para PNC">` : ''}</td>
+            <td><input type="checkbox" data-f="${fi}" data-c="${ci}" data-prop="obligatorio" ${c.obligatorio ? 'checked' : ''} aria-label="Campo obligatorio"></td>
+            <td><button type="button" class="chip" data-quitar="${fi}:${ci}">Quitar</button></td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="acciones" style="margin-top:12px">
+        <button type="button" class="b-sec" data-anadir="${fi}">+ Columna</button>
+        <button type="button" class="b-sec" data-plantilla="${fi}">Plantilla CSV</button>
+        <button type="button" class="b-sec" data-excel="${fi}">Plantilla Excel</button>
+        ${f.id === 'BARRAS'
+          ? `<button type="button" class="b-sec" data-restablecer="${fi}">Restablecer columnas de revisión</button>`
+          : `<button type="button" class="b-sec" data-oficial="${fi}">Aplicar modelo oficial (${FORMATOS_BASE[fi].columnas.length} columnas)</button>`}
+      </div>
+    </details>`).join('');
+}
+
+$('formatosCsv').addEventListener('input', (ev) => {
+  const t = ev.target;
+  if (t.dataset.f === undefined) return;
+  const f = formatosCsv[Number(t.dataset.f)];
+  if (t.dataset.c === undefined) f[t.dataset.prop] = t.value;
+  else f.columnas[Number(t.dataset.c)][t.dataset.prop] = t.type === 'checkbox' ? t.checked : t.value;
+});
+$('formatosCsv').addEventListener('change', (ev) => {
+  if (ev.target.tagName === 'SELECT' || ev.target.type === 'checkbox') ev.target.dispatchEvent(new Event('input',{bubbles:true}));
+});
+
+$('formatosCsv').addEventListener('click', async (ev) => {
+  const t = ev.target;
+  if (t.dataset.anadir !== undefined) {
+    formatosCsv[Number(t.dataset.anadir)].columnas.push({ encabezado: 'NUEVA', campo: '' });
+    return pintarFormatosCsv();
+  }
+  if (t.dataset.quitar !== undefined) {
+    const [fi, ci] = t.dataset.quitar.split(':').map(Number);
+    formatosCsv[fi].columnas.splice(ci, 1);
+    return pintarFormatosCsv();
+  }
+  if (t.dataset.excel !== undefined) {
+    const f=formatosCsv[Number(t.dataset.excel)];descargarModelo(resultadoModelo(f,[],'plantilla'));return;
+  }
+  if (t.dataset.oficial !== undefined || t.dataset.restablecer !== undefined) {
+    const fi=Number(t.dataset.oficial ?? t.dataset.restablecer);
+    if (!await confirmar({titulo:'Aplicar modelo oficial',texto:'Se reemplazan las columnas de este formato en pantalla. El otro formato se conserva. Revisa los valores y pulsa Guardar los formatos para confirmar.',aceptar:'Aplicar'})) return;
+    formatosCsv[fi]=structuredClone(FORMATOS_BASE[fi]);pintarFormatosCsv();return;
+  }
+  if (t.dataset.plantilla !== undefined) {
+    const f = formatosCsv[Number(t.dataset.plantilla)];
+    descargarCsv(plantilla(f), `${f.archivo}-plantilla.csv`);
+  }
+});
+
+$('bGuardarCsv').addEventListener('click', async () => {
+  limpiarAvisos();
+  const vacias = formatosCsv.some((f) => !f.columnas.length);
+  if (vacias) {
+    return aviso('Un formato sin columnas no sirve para nada: añade al menos una.',
+                 'err', 'No se guardó');
+  }
+  $('bGuardarCsv').disabled = true;
+  try {
+    await guardarFormatos(formatosCsv, usuarioActual);
+    aviso('Formatos guardados. Los supervisores ya descargan con estas columnas.',
+          'ok', 'Listo');
+  } catch (e) {
+    aviso(traducirError(e), 'err', 'No se guardó');
+  } finally {
+    $('bGuardarCsv').disabled = false;
+  }
+});
+
+$('bRestaurarCsv').addEventListener('click', async () => {
+  if (!await confirmar({
+    titulo: 'Volver a los formatos de partida',
+    texto: 'Se pierden los cambios que hayas hecho en las columnas. Habrá que '
+         + 'guardar para que el cambio llegue a los supervisores.',
+    aceptar: 'Restaurar',
+  })) return;
+  formatosCsv = FORMATOS_BASE.map((b) => ({ ...b, columnas: b.columnas.map((c) => ({ ...c })) }));
+  pintarFormatosCsv();
+});
+
+// --- Listado -------------------------------------------------------------- //
+async function cargar() {
+  $('tClientes').innerHTML =
+    '<tr><td colspan="6" class="mini">Consultando el proxy…</td></tr>';
+  try {
+    const r = await Proxy.listarClientes();
+    clientes = r.clientes || [];
+    pintar();
+    if (r.baseUrlGlobal) $('fBaseUrl').placeholder = r.baseUrlGlobal;
+  } catch (e) {
+    $('tClientes').innerHTML =
+      '<tr><td colspan="6" class="mini">No se pudo consultar.</td></tr>';
+    aviso(e.message, 'err', 'Proxy no disponible');
+  }
+}
+
+function pintar() {
+  if (!clientes.length) {
+    $('tClientes').innerHTML =
+      '<tr><td colspan="6" class="mini">Todavía no hay clientes. Agrega el primero abajo.</td></tr>';
+  } else {
+    $('tClientes').innerHTML = clientes.map((c) => {
+      const token = c.tokenVigente
+        ? `<span class="pastilla p-ok">${c.minutosRestantes} min</span>`
+        : '<span class="pastilla p-off">sin token</span>';
+      const estado = !c.activo
+        ? '<span class="pastilla p-off">desactivado</span>'
+        : c.ultimoError
+          ? '<span class="pastilla p-err">con error</span>'
+          : c.ultimaConexion
+            ? '<span class="pastilla p-ok">conectado</span>'
+            : '<span class="pastilla p-warn">sin probar</span>';
+      return `<tr>
+        <td class="id">${esc(c.id)}<br><span class="mini">${esc(c.nombre)}</span></td>
+        <td class="mini" style="font-family:var(--font-data)">${esc(c.usuario || '—')}</td>
+        <td>${token}</td>
+        <td class="mini">${fecha(c.ultimaConexion)}</td>
+        <td>${estado}${c.ultimoError
+            ? `<br><span class="mini">${esc(c.ultimoError.slice(0, 70))}</span>` : ''}</td>
+        <td style="white-space:nowrap">
+          <button class="b-sec" data-editar="${esc(c.id)}">Editar</button>
+          <button class="b-peligro" data-borrar="${esc(c.id)}">Borrar</button>
+        </td></tr>`;
+    }).join('');
+  }
+
+  $('fProbarId').innerHTML = clientes.length
+    ? clientes.map((c) => `<option value="${esc(c.id)}">${esc(c.id)} — ${esc(c.nombre)}</option>`).join('')
+    : '<option value="">— sin clientes —</option>';
+}
+
+$('tClientes').addEventListener('click', (ev) => {
+  const ed = ev.target.dataset.editar;
+  const bo = ev.target.dataset.borrar;
+  if (ed) editar(ed);
+  if (bo) borrar(bo);
+});
+
+function editar(id) {
+  const c = clientes.find((x) => x.id === id);
+  if (!c) return;
+  editando = id;
+  $('tituloForm').textContent = 'Editar ' + id;
+  $('fId').value = c.id;
+  $('fId').disabled = true;
+  $('fNombre').value = c.nombre || '';
+  $('fUsuario').value = '';
+  $('fUsuario').placeholder = c.usuario || '';
+  $('fClave').value = '';
+  $('fBaseUrl').value = c.baseUrl || '';
+  $('fUsuario').focus();
+  aviso('Deja la contraseña vacía si no quieres cambiarla.', 'info', 'Editando ' + id);
+}
+
+function limpiarForm() {
+  editando = null;
+  $('tituloForm').textContent = 'Agregar cliente';
+  ['fId', 'fNombre', 'fUsuario', 'fClave', 'fBaseUrl'].forEach((i) => { $(i).value = ''; });
+  $('fId').disabled = false;
+  $('fUsuario').placeholder = '';
+  limpiarAvisos();
+}
+$('bLimpiar').addEventListener('click', limpiarForm);
+
+async function borrar(id) {
+  if (!await confirmar({
+    titulo: `¿Borrar el cliente ${id}?`,
+    texto: 'Se eliminan sus credenciales del proxy. Las recepciones y los conteos '
+         + 'que ya tenga no se tocan, pero dejará de poderse consultar su stock '
+         + 'y de descargarse su catálogo hasta que se vuelva a dar de alta.',
+    aceptar: 'Borrar el cliente',
+    peligro: true,
+  })) return;
+  limpiarAvisos();
+  try {
+    await Proxy.borrarCliente(id);
+    aviso(`Cliente ${id} eliminado.`, 'ok');
+    cargar();
+  } catch (e) { aviso(e.message, 'err'); }
+}
+
+// --- Guardar -------------------------------------------------------------- //
+$('bGuardar').addEventListener('click', async () => {
+  limpiarAvisos();
+  const id = $('fId').value.trim().toUpperCase();
+  const usuario = $('fUsuario').value.trim() || $('fUsuario').placeholder;
+
+  if (!id) return aviso('El identificador es obligatorio.', 'err');
+  if (!usuario || usuario.includes('*')) {
+    return aviso('Escribe el usuario de Depot completo.', 'err');
+  }
+  if (!editando && !$('fClave').value) {
+    return aviso('La contraseña es obligatoria al crear el cliente.', 'err');
+  }
+
+  $('bGuardar').disabled = true;
+  try {
+    await Proxy.guardarCliente({
+      id,
+      nombre: $('fNombre').value.trim() || id,
+      usuario,
+      clave: $('fClave').value,          // vacío = conserva la anterior
+      baseUrl: $('fBaseUrl').value.trim(),
+    });
+    aviso(`Cliente ${id} guardado. Pruébalo abajo antes de usarlo.`, 'ok');
+    limpiarForm();
+    await cargar();
+    $('fProbarId').value = id;
+  } catch (e) {
+    aviso(e.message, 'err', 'No se guardó');
+  } finally {
+    $('bGuardar').disabled = false;
+  }
+});
+
+// --- Probar --------------------------------------------------------------- //
+$('bProbar').addEventListener('click', async () => {
+  const id = $('fProbarId').value;
+  if (!id) return aviso('No hay clientes que probar.', 'warn');
+
+  $('bProbar').disabled = true;
+  $('resultadoPrueba').innerHTML = '<div class="msg info">Probando…</div>';
+  try {
+    const r = await Proxy.probarCliente(id, $('fProbarCodigo').value.trim());
+    pintarPrueba(r);
+    cargar();
+  } catch (e) {
+    $('resultadoPrueba').innerHTML = '';
+    aviso(e.message, 'err', 'No se pudo probar');
+  } finally {
+    $('bProbar').disabled = false;
+  }
+});
+
+function pintarPrueba(r) {
+  const pasos = (r.pasos || []).map((p) => {
+    const cab = p.ok
+      ? `<b>${esc(p.paso)} · correcto · ${p.ms} ms</b>`
+      : `<b>${esc(p.paso)} · falló</b>${esc(p.mensaje || '')}`;
+    let cuerpo = '';
+    if (p.ok && p.paso === 'getstock') {
+      cuerpo = `${p.filas} fila(s).`;
+      if (p.camposCrudos?.length) {
+        cuerpo += `<pre>Campos que devuelve el WMS:\n${esc(p.camposCrudos.join(', '))}` +
+                  `\n\nPrimera fila ya mapeada:\n${esc(JSON.stringify(p.muestra, null, 2))}</pre>`;
+      }
+    }
+    return `<div class="msg ${p.ok ? 'ok' : 'err'}">${cab}${cuerpo}</div>`;
+  }).join('');
+
+  const nota = r.exito
+    ? '<div class="msg info"><b>Siguiente paso</b>Copia la línea "Campos que ' +
+      'devuelve el WMS" y mándasela a quien mantiene la app: con eso se ajusta ' +
+      'el mapeo exacto en lugar de aceptar variantes.</div>'
+    : '';
+  $('resultadoPrueba').innerHTML = pasos + nota;
+}
+
+// =========================================================================== //
+// Diagnóstico del proxy
+// =========================================================================== //
+/**
+ * Dice CUÁL de las tres causas es, en vez de listarlas.
+ *
+ * Un Apps Script mal publicado no devuelve un error: redirige a la pantalla de
+ * acceso de Google, y el navegador bloquea esa redirección por CORS. Desde el
+ * `fetch` eso se ve igual que «no hay red», así que hay que mirar la forma de
+ * la URL y lo que responde un GET simple para distinguirlo.
+ */
+const FORMA_OK = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
+
+function resultado(html) { $('resProxy').innerHTML = html; }
+
+function bloque(tipo, titulo, cuerpo) {
+  return `<div class="msg ${tipo}" style="margin-top:16px"><b>${esc(titulo)}</b>${cuerpo}</div>`;
+}
+
+async function cargarUrlProxy() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'proxy'));
+    $('fUrlProxy').value = (snap.exists() && snap.get('url')) || '';
+  } catch (e) {
+    resultado(bloque('err', 'No se pudo leer config/proxy', esc(traducirError(e))));
+  }
+}
+
+$('bGuardarUrl').addEventListener('click', async () => {
+  const url = $('fUrlProxy').value.trim();
+  if (!url) return resultado(bloque('warn', 'Falta la URL', 'Pega la del despliegue.'));
+  try {
+    await setDoc(doc(db, 'config', 'proxy'), { url }, { merge: true });
+    resultado(bloque('ok', 'Guardada', 'Ahora pulsa <b>Probar conexión</b>.'));
+    await obtenerUrlProxy(true);   // olvidar la que estaba en memoria
+  } catch (e) {
+    resultado(bloque('err', 'No se pudo guardar', esc(traducirError(e))));
+  }
+});
+
+$('bProbarProxy').addEventListener('click', async () => {
+  const url = $('fUrlProxy').value.trim();
+  $('bProbarProxy').disabled = true;
+  try {
+    await diagnosticar(url);
+  } finally {
+    $('bProbarProxy').disabled = false;
+  }
+});
+
+async function diagnosticar(url) {
+  if (!url) {
+    return resultado(bloque('err', 'No hay URL guardada',
+      'Abre el Apps Script → <b>Implementar</b> → <b>Gestionar implementaciones</b>, ' +
+      'copia la <b>URL de la aplicación web</b>, pégala arriba y pulsa Guardar.'));
+  }
+
+  if (/\/dev$/.test(url)) {
+    return resultado(bloque('err', 'Es la URL de pruebas',
+      'Termina en <code>/dev</code>. Esa exige sesión de Google y el navegador la ' +
+      'bloquea. En <b>Gestionar implementaciones</b> copia la que termina en ' +
+      '<code>/exec</code>.'));
+  }
+
+  if (!FORMA_OK.test(url)) {
+    return resultado(bloque('warn', 'La URL no tiene la forma esperada',
+      'Debería ser <code>https://script.google.com/macros/s/…/exec</code>, sin nada ' +
+      'después. La que hay es:<br><code>' + esc(url) + '</code><br>Igual la pruebo.') +
+      await probarRed(url));
+  }
+
+  resultado(bloque('info', 'Probando…', 'Un momento.'));
+  resultado(await probarRed(url));
+}
+
+/** GET simple a la URL. `doGet` del proxy responde un JSON de comprobación. */
+async function probarRed(url) {
+  let res;
+  try {
+    res = await fetch(url, { method: 'GET', redirect: 'follow' });
+  } catch (e) {
+    // Un fetch que lanza es casi siempre la redirección al login bloqueada.
+    return bloque('err', 'El navegador no pudo llegar al proxy',
+      'Es casi seguro el permiso del despliegue. En el Apps Script: ' +
+      '<b>Implementar → Gestionar implementaciones → ✏️</b> y deja ' +
+      '<b>Quién tiene acceso: Cualquier usuario</b> ' +
+      '(no «Cualquier usuario con cuenta de Google»). Guarda como ' +
+      '<b>versión nueva</b>.<br><br>' +
+      'Si ya está así, abre la URL en otra pestaña: si te pide iniciar sesión, ' +
+      'es eso. Si ves <code>{"ok":true…}</code>, avísame.<br>' +
+      '<span class="pista">Detalle técnico: ' + esc(String(e.message || e)) + '</span>');
+  }
+
+  const texto = await res.text();
+
+  if (res.status === 404) {
+    return bloque('err', 'La URL no existe (404)',
+      'El despliegue fue borrado o la URL está mal copiada. Crea uno nuevo en ' +
+      '<b>Implementar → Nueva implementación → Aplicación web</b> y pega aquí la URL.');
+  }
+
+  if (/^\s*<!DOCTYPE html|^\s*<html/i.test(texto)) {
+    return bloque('err', 'Respondió una página, no datos',
+      'Es la pantalla de acceso de Google: el despliegue no está publicado para ' +
+      '<b>Cualquier usuario</b>. Cámbialo y publica una <b>versión nueva</b>.');
+  }
+
+  let cuerpo;
+  try { cuerpo = JSON.parse(texto); } catch {
+    return bloque('err', 'Respondió algo que no es JSON',
+      'Los primeros caracteres fueron:<br><code>' + esc(texto.slice(0, 160)) + '</code>');
+  }
+
+  if (cuerpo.servicio === 'proxy-depot') {
+    return bloque('ok', 'El proxy responde',
+      'La URL es correcta y está publicada para cualquier usuario. ' +
+      'Versión del proxy: <b>' + esc(cuerpo.version || '?') + '</b>.<br>' +
+      'Si guardar credenciales sigue fallando, el problema ya no es de red: ' +
+      'revisa las propiedades del script (paso 5 de la guía).');
+  }
+
+  return bloque('warn', 'Responde, pero no es este proxy',
+    'Devolvió:<br><code>' + esc(texto.slice(0, 200)) + '</code><br>' +
+    'La URL apunta a otro Apps Script.');
+}
+
+// --- Llevarse el histórico ------------------------------------------------ //
+$('bExportarTodo').addEventListener('click', async () => {
+  limpiarAvisos();
+  $('bExportarTodo').disabled = true;
+  const caja = $('resExportar');
+  caja.innerHTML = '<div class="msg info">Leyendo…</div>';
+
+  try {
+    const datos = await reunirTodo(usuarioActual, (hechas, total, codigo) => {
+      caja.innerHTML = `<div class="msg info"><b>Leyendo</b>`
+        + `${hechas} de ${total} recepciones · ${esc(codigo)}</div>`;
+    });
+
+    const n = contar(datos);
+    const nombre = `iv-itsanet-${new Date().toISOString().slice(0, 10)}.json`;
+    descargarJson(datos, nombre);
+
+    // Las cifras se enseñan para poder cuadrarlas con lo que diga el importador
+    // en el servidor. Si allí entran menos conteos de los que salieron de aquí,
+    // hay que saberlo antes de apagar nada.
+    caja.innerHTML = `<div class="msg ok"><b>${esc(nombre)}</b>
+      <ul style="margin:8px 0 0 18px">
+        <li>${n.recepciones} recepciones</li>
+        <li>${n.lineas} líneas de packing list</li>
+        <li>${n.conteos} conteos</li>
+        <li>${n.adicionales} adicionales · ${n.auditoria} registros de auditoría</li>
+        <li>${n.usuarios} usuarios</li>
+      </ul>
+      <p style="margin:10px 0 0">Apunta estas cifras: el importador dice cuántas
+      entran, y tienen que coincidir.</p></div>`;
+  } catch (e) {
+    caja.innerHTML = `<div class="msg err"><b>No se pudo exportar</b>${esc(traducirError(e))}</div>`;
+  } finally {
+    $('bExportarTodo').disabled = false;
+  }
+});
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<script src="./js/arranque.js?v=20261016-35"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>ITSANET — Acceso</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
+<style>
+  :root {
+    --primary:#0f172a; --secondary:#64748b; --accent:#2563eb;
+    --bg:#f4f7f9; --surface:#fff; --border:#e2e8f0;
+    --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+    --font-ui:'Plus Jakarta Sans',system-ui,sans-serif;
+    --font-data:'JetBrains Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --primary:#f8fafc; --secondary:#94a3b8; --accent:#3b82f6;
+      --bg:#0f172a; --surface:#1e293b; --border:#334155;
+    }
+  }
+  :root[data-theme="dark"] {
+    --primary:#f8fafc; --secondary:#94a3b8; --accent:#3b82f6;
+    --bg:#0f172a; --surface:#1e293b; --border:#334155;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--font-ui); background:var(--bg); color:var(--primary);
+         min-height:100vh; display:flex; align-items:center; justify-content:center;
+         padding:16px; -webkit-text-size-adjust:100%; }
+  .caja { background:var(--surface); border:1px solid var(--border); border-radius:24px;
+          box-shadow:0 20px 50px rgba(0,0,0,.08); width:100%; max-width:480px; padding:40px 32px; }
+  .marca { font-size:24px; font-weight:900; letter-spacing:-.5px; }
+  .marca span { color:var(--accent); }
+  .sub { font-size:11px; color:var(--secondary); letter-spacing:2px; text-transform:uppercase;
+         font-weight:800; margin-top:2px; }
+  h1 { font-size:19px; margin:28px 0 6px; }
+  p.lead { color:var(--secondary); font-size:14px; font-weight:600; margin:0 0 24px; line-height:1.55; }
+
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:12px;
+           font-weight:800; transition:.2s; }
+  .btn-google { width:100%; padding:16px; background:var(--surface); color:var(--primary);
+                border:1px solid var(--border); font-size:15px; display:flex; align-items:center;
+                justify-content:center; gap:12px; }
+  .btn-google:hover:not(:disabled) { border-color:var(--accent); transform:translateY(-2px);
+                                     box-shadow:0 8px 20px rgba(37,99,235,.15); }
+  .btn-google:disabled { opacity:.6; cursor:not-allowed; }
+  .btn-sec { width:100%; padding:13px; background:transparent; color:var(--secondary);
+             border:1px solid var(--border); font-size:13px; margin-top:10px; }
+  .btn-sec:hover { color:var(--primary); }
+
+  .msg { padding:14px 16px; border-radius:12px; font-size:13px; font-weight:600;
+         border-left:5px solid var(--secondary); background:var(--bg); margin-bottom:14px;
+         line-height:1.5; }
+  .msg b { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+           margin-bottom:5px; font-weight:900; }
+  .msg.ok { border-color:var(--success); } .msg.err { border-color:var(--danger); }
+  .msg.warn { border-color:var(--warning); } .msg.info { border-color:var(--accent); }
+
+  .perfil { display:flex; align-items:center; gap:14px; padding:16px; background:var(--bg);
+            border-radius:16px; border:1px solid var(--border); margin-bottom:20px; }
+  .perfil img { width:48px; height:48px; border-radius:50%; border:2px solid var(--border); }
+  .perfil .n { font-weight:900; font-size:15px; }
+  .perfil .e { font-size:12px; color:var(--secondary); font-weight:600; word-break:break-all; }
+  .chip { display:inline-block; padding:3px 11px; border-radius:50px; font-size:10px;
+          font-weight:900; letter-spacing:.5px; margin-top:5px; }
+  .c-admin { background:rgba(37,99,235,.15); color:var(--accent); }
+  .c-sup { background:rgba(16,185,129,.15); color:var(--success); }
+  .c-op { background:rgba(100,116,139,.15); color:var(--secondary); }
+
+  table.diag { width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+  table.diag td { padding:9px 4px; border-bottom:1px solid var(--border); }
+  table.diag td:first-child { color:var(--secondary); font-weight:700; }
+  table.diag td:last-child { text-align:right; font-family:var(--font-data); font-weight:800; }
+  .ok-txt { color:var(--success); } .err-txt { color:var(--danger); }
+  .mini { font-size:11px; color:var(--secondary); font-weight:600; }
+  .oculto { display:none !important; }
+  h2.sec { font-size:11px; color:var(--secondary); text-transform:uppercase; letter-spacing:1px;
+           margin:26px 0 8px; font-weight:900; }
+  code { font-family:var(--font-data); font-size:12px; background:var(--bg);
+         padding:2px 6px; border-radius:5px; word-break:break-all; }
+
+  .menu { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+          gap:11px; margin:22px 0 8px; }
+  .acceso { display:block; padding:16px; border:1px solid var(--border);
+            border-radius:14px; background:var(--bg); text-decoration:none;
+            color:var(--primary); transition:.2s; }
+  .acceso:hover { border-color:var(--accent); transform:translateY(-2px); }
+  .acceso b { display:block; font-size:15px; font-weight:900; margin-bottom:4px; }
+  .acceso span { font-size:11px; color:var(--secondary); font-weight:600; line-height:1.4;
+                 display:block; }
+
+  form { display:flex; flex-direction:column; gap:12px; margin-bottom:6px; }
+  label.campo2 { display:flex; flex-direction:column; gap:5px; text-align:left; }
+  label.campo2 span { font-size:11px; font-weight:800; color:var(--secondary);
+                      text-transform:uppercase; letter-spacing:.5px; }
+  label.campo2 input { padding:14px 15px; border:1px solid var(--border); border-radius:12px;
+                       font-family:var(--font-data); font-size:16px; font-weight:700;
+                       background:var(--bg); color:var(--primary); outline:none; width:100%; }
+  label.campo2 input:focus { border-color:var(--accent);
+                             box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+  .btn-clave { width:100%; padding:15px; border:none; border-radius:12px; cursor:pointer;
+               background:var(--accent); color:#fff; font-family:inherit; font-size:15px;
+               font-weight:800; transition:.2s; }
+  .btn-clave:hover:not(:disabled) { transform:translateY(-2px);
+                                    box-shadow:0 6px 16px rgba(37,99,235,.3); }
+  .btn-clave:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+  .separador { display:flex; align-items:center; gap:12px; margin:20px 0 14px;
+               color:var(--secondary); font-size:10px; font-weight:800;
+               text-transform:uppercase; letter-spacing:.5px; }
+  .separador::before, .separador::after { content:''; flex:1; height:1px;
+                                          background:var(--border); }
+  .pestanas { display:flex; gap:6px; background:var(--bg); border:1px solid var(--border);
+              border-radius:12px; padding:4px; margin-bottom:18px; }
+  .pestana { flex:1; padding:10px; border:none; border-radius:9px; cursor:pointer;
+             background:transparent; color:var(--secondary); font-family:inherit;
+             font-size:13px; font-weight:800; transition:.15s; }
+  .pestana.activa { background:var(--surface); color:var(--primary);
+                    box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .dos { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .cargando { display:flex; gap:7px; justify-content:center; padding:26px 0 4px; }
+  .cargando span { width:9px; height:9px; border-radius:50%; background:var(--accent);
+                   animation:latir 1.3s ease-in-out infinite; }
+  .cargando span:nth-child(2) { animation-delay:.18s; }
+  .cargando span:nth-child(3) { animation-delay:.36s; }
+  #fBuscarRec { width:100%; padding:11px 13px; border:1px solid var(--border);
+                border-radius:10px; font-family:var(--font-data); font-size:13px;
+                font-weight:700; background:var(--bg); color:var(--primary);
+                outline:none; margin-bottom:12px; }
+  #fBuscarRec:focus { border-color:var(--accent); }
+  .rec { display:flex; align-items:center; gap:11px; padding:12px 13px;
+         border:1px solid var(--border); border-radius:12px; margin-bottom:9px;
+         text-decoration:none; color:var(--primary); background:var(--bg);
+         transition:.15s; }
+  .rec:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .rec .cod { font-family:var(--font-data); font-weight:800; font-size:14px; }
+  .rec .det { flex:1; min-width:0; }
+  .rec .sub2 { font-size:11px; color:var(--secondary); font-weight:600; }
+  .rec .est { font-size:9.5px; font-weight:900; padding:3px 9px; border-radius:50px;
+              white-space:nowrap; letter-spacing:.3px; }
+  details summary::-webkit-details-marker { display:none; }
+  details summary { list-style:none; }
+  details summary::before { content:'▸ '; }
+  details[open] summary::before { content:'▾ '; }
+  @keyframes latir { 0%,80%,100% { opacity:.25; transform:scale(.8); }
+                     40% { opacity:1; transform:scale(1); } }
+  label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
+                        text-transform:none; letter-spacing:0; line-height:1.35; }
+</style>
+<link rel="stylesheet" href="./css/marca.css?v=20261016-35">
+</head>
+<body>
+<div class="caja">
+  <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
+  <div class="sub">Validación física</div>
+
+  <!-- Sin sesión -->
+  <!-- Lo primero que se ve mientras Firebase recupera la sesión guardada.
+       Antes se mostraba el formulario de acceso y, un par de segundos después,
+       saltaba a la pantalla del usuario: parecía que te echaba y te volvía a
+       dejar entrar. -->
+  <div id="vista-cargando">
+    <div class="cargando"><span></span><span></span><span></span></div>
+    <p class="lead" style="text-align:center">Entrando…</p>
+  </div>
+
+  <div id="vista-login" class="oculto">
+    <h1>Acceso</h1>
+    <p class="lead">Cada conteo queda firmado con tu usuario, así que no hace
+       falta escribir tu nombre en ningún sitio.</p>
+    <div id="avisos-login"></div>
+
+    <!-- Usuario y contraseña va primero: es el camino del operario en un
+         handheld compartido, y no pasa por el selector de cuentas. -->
+    <div class="pestanas">
+      <button type="button" class="pestana activa" id="tabEntrar">Entrar</button>
+      <button type="button" class="pestana" id="tabRegistro">Registrarse</button>
+    </div>
+
+    <form id="formClave" autocomplete="on">
+      <label class="campo2"><span>Usuario o correo</span>
+        <input id="inUsuario" autocomplete="username" autocapitalize="none"
+               spellcheck="false" placeholder="jperez" required></label>
+      <label class="campo2"><span>Contraseña</span>
+        <input id="inClave" type="password" autocomplete="current-password"
+               placeholder="••••••" required></label>
+      <button class="btn-clave" id="btnClave" type="submit">Entrar</button>
+    </form>
+
+    <form id="formRegistro" class="oculto" autocomplete="on">
+      <div class="dos">
+        <label class="campo2"><span>Nombre</span>
+          <input id="rNombre" autocomplete="given-name" placeholder="Juan" required></label>
+        <label class="campo2"><span>Apellido</span>
+          <input id="rApellido" autocomplete="family-name" placeholder="Pérez" required></label>
+      </div>
+      <label class="campo2"><span>Usuario</span>
+        <input id="rUsuario" autocomplete="username" autocapitalize="none"
+               spellcheck="false" placeholder="jperez" required>
+        <span class="pista">Con esto entras cada día. Letras, números, punto o guion.</span></label>
+      <label class="campo2"><span>Correo electrónico</span>
+        <input id="rCorreo" type="email" autocomplete="email" autocapitalize="none"
+               spellcheck="false" placeholder="juan.perez@itsanet.com" required>
+        <span class="pista">Un buzón que exista: corporativo o personal.</span></label>
+      <div class="dos">
+        <label class="campo2"><span>Contraseña</span>
+          <input id="rClave" type="password" autocomplete="new-password"
+                 placeholder="mínimo 6" required></label>
+        <label class="campo2"><span>Repetir</span>
+          <input id="rClave2" type="password" autocomplete="new-password" required></label>
+      </div>
+      <button class="btn-clave" id="btnRegistro" type="submit">Crear mi cuenta</button>
+      <p class="mini" style="text-align:center;margin:4px 0 0">
+        Un supervisor tiene que aprobarla antes de que puedas entrar.
+      </p>
+    </form>
+
+    <div class="separador" id="sepGoogle"><span>o si tienes cuenta de Google</span></div>
+
+    <button class="btn-google" id="btnEntrar">
+      <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+        <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2 5-4.4 6.600v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z"/>
+        <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.7-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z"/>
+        <path fill="#FBBC05" d="M11.6 28.1c-.4-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z"/>
+        <path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.2 30 2 24 2 15.4 2 7.9 6.9 4.3 14.2l7.3 5.7c1.7-5.2 6.6-9.1 12.4-9.1z"/>
+      </svg>
+      <span id="txtEntrar">Entrar con Google</span>
+    </button>
+    <p class="mini" id="notaAcceso" style="text-align:center;margin-top:16px;">
+      Solo cuentas <code id="dominioTxt">@itsanet.com</code>.
+      ¿No tienes usuario? Pídeselo a tu supervisor.
+    </p>
+  </div>
+
+  <!-- Con sesión -->
+  <div id="vista-sesion" class="oculto">
+    <h1>Sesión iniciada</h1>
+    <div class="perfil">
+      <img id="pFoto" alt="" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>">
+      <div>
+        <div class="n" id="pNombre"></div>
+        <div class="e" id="pEmail"></div>
+        <span class="chip" id="pRol"></span>
+        <a class="mini oculto" id="accesoClave" href="./cuenta.html" style="display:block;margin-top:8px">Cambiar mi contraseña</a>
+      </div>
+    </div>
+    <div id="avisos-sesion"></div>
+
+    <div class="menu">
+      <a class="acceso" href="./recepciones.html">
+        <b>Recepciones</b>
+        <span>Buscar y abrir una recepción</span>
+      </a>
+      <a class="acceso" href="./validar.html">
+        <b>Validar</b>
+        <span>Escanear y continuar una recepción</span>
+      </a>
+      <a class="acceso oculto" id="accesoKpis" href="./kpis.html">
+        <b>KPIs</b>
+        <span>Indicadores y trazabilidad de las validaciones</span>
+      </a>
+      <a class="acceso oculto" id="accesoUsuarios" href="./usuarios.html">
+        <b>Usuarios</b>
+        <span>Dar de alta operarios y asignar roles</span>
+      </a>
+      <a class="acceso oculto" id="accesoAdmin" href="./admin.html">
+        <b>Administración</b>
+        <span>Credenciales de Depot por cliente</span>
+      </a>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px"><h2 class="sec" style="flex:1">Recepciones de los últimos 15 días</h2><button type="button" class="btn-sec" id="bActualizarRecepciones" style="width:auto;padding:8px 12px" aria-label="Actualizar recepciones">↻</button></div>
+    <div id="buscadorRec">
+      <input id="fBuscarRec" placeholder="Buscar por código o cliente"
+             autocapitalize="characters" spellcheck="false">
+    </div>
+    <div id="listaRec"><p class="mini">Cargando…</p></div>
+
+
+    <div id="bloqueDiag" class="oculto">
+      <h2 class="sec">Comprobación de la instalación</h2>
+      <table class="diag"><tbody id="tDiag"></tbody></table>
+    </div>
+
+    <button class="btn-sec" id="btnSalir">Cerrar sesión</button>
+  </div>
+</div>
+
+<script type="module">
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-35';
+import { fechaDe, recientes } from './js/fechas.js?v=20261016-35';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261016-35';
+import { modoLocal, estadoServidor } from './js/local.js?v=20261016-35';
+import { entrar, entrarConClave, registrarse, salir, observarSesion,
+         recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
+         normalizarAlias, db, auth } from './js/auth.js?v=20261016-35';
+import { pedirDatos } from './js/modal.js?v=20261016-35';
+import { doc, getDoc, collection, getDocs, limit, query }
+  from './vendor/firebase-sdk.js?v=20261016-35';
+import { listarRecepciones } from './js/datos.js?v=20261016-35';
+
+const $ = (id) => document.getElementById(id);
+$('dominioTxt').textContent = '@' + DOMINIO;
+
+function aviso(donde, texto, tipo = 'info', titulo = '') {
+  return mostrarAviso($(donde), texto, tipo, titulo);
+}
+const limpiar = (id) => { $(id).innerHTML = ''; };
+
+function fila(etiqueta, valor, bien) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + etiqueta + '</td><td class="' +
+    (bien === true ? 'ok-txt' : bien === false ? 'err-txt' : '') + '">' + valor + '</td>';
+  $('tDiag').appendChild(tr);
+}
+
+/**
+ * Recepciones recientes, en la primera pantalla.
+ *
+ * Es lo que el operario viene a hacer. Antes aquí había once filas de
+ * configuración que no puede ni debe tocar, y para llegar a su trabajo tenía
+ * que navegar a otra pantalla.
+ *
+ * Quince días: lo de hace tres semanas ya está cerrado y entregado, y una lista
+ * larga en un handheld no se lee.
+ */
+const DIAS_RECIENTES = 15;
+let recepcionesRecientes = [];
+
+async function cargarRecepciones() {
+  try {
+    const todas = await listarRecepciones(500);
+    recepcionesRecientes = recientes(todas, DIAS_RECIENTES);
+    pintarRecepciones();
+  } catch (e) {
+    $('listaRec').innerHTML =
+      '<p class="mini">No se pudieron leer las recepciones. ' + traducirError(e) + '</p>';
+  }
+}
+
+function pintarRecepciones() {
+  const q = $('fBuscarRec').value.trim().toUpperCase();
+  const filas = recepcionesRecientes.filter((r) =>
+    !q || (r.codigo || '').includes(q) || (r.cliente || '').toUpperCase().includes(q));
+
+  if (!filas.length) {
+    $('listaRec').innerHTML = recepcionesRecientes.length
+      ? '<p class="mini">Ninguna coincide con esa búsqueda.</p>'
+      : `<p class="mini">No hay recepciones de los últimos ${DIAS_RECIENTES} días.</p>`;
+    return;
+  }
+
+  const color = {
+    ABIERTA: 'background:rgba(100,116,139,.15);color:var(--secondary)',
+    EN_VALIDACION: 'background:rgba(14,165,233,.15);color:#0ea5e9',
+    CERRADA: 'background:rgba(16,185,129,.15);color:#10b981',
+  };
+
+  $('listaRec').innerHTML = filas.map((r) => {
+    const t = r.totales || {};
+    const f = fechaDe(r.creadoEn)?.toLocaleDateString('es-EC') || '';
+    const cerrada = r.estado === 'CERRADA';
+    return `<a class="rec" href="./validar.html?r=${encodeURIComponent(r.id)}">
+      <div class="det">
+        <div class="cod">${esc2(r.codigo || r.id)}</div>
+        <div class="sub2">${esc2(r.cliente || '')}${r.cliente ? ' · ' : ''}${f}
+          ${t.skus ? ` · ${t.skus} SKU · ${t.unidades || 0} u.` : ''}</div>
+      </div>
+      <span class="est" style="${color[r.estado] || color.ABIERTA}">
+        ${esc2((r.estado || '').replace('_', ' '))}</span>
+      ${cerrada ? '' : '<span class="mini">→</span>'}
+    </a>`;
+  }).join('');
+}
+
+const esc2 = (v) => String(v ?? '').replace(/[&<>"']/g,
+  (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+$('fBuscarRec').addEventListener('input', pintarRecepciones);
+$('bActualizarRecepciones').addEventListener('click', cargarRecepciones);
+
+// --- Entrar / Registrarse ------------------------------------------------ //
+function mostrar(cual) {
+  const registro = cual === 'registro';
+  $('formClave').classList.toggle('oculto', registro);
+  $('formRegistro').classList.toggle('oculto', !registro);
+  // Google solo tiene sentido para entrar: no crea cuentas aquí. Y en el
+  // servidor de la bodega no tiene sentido en absoluto: entrar con Google
+  // necesita Internet, que es justo de lo que el servidor nos libera. Enseñar
+  // un botón que no puede funcionar es peor que no enseñarlo.
+  $('sepGoogle').classList.toggle('oculto', registro);
+  $('btnEntrar').classList.toggle('oculto', registro);
+  $('tabEntrar').classList.toggle('activa', !registro);
+  $('tabRegistro').classList.toggle('activa', registro);
+  limpiar('avisos-login');
+}
+mostrar('entrar');
+if (modoLocal()) $('notaAcceso').textContent = 'Correo corporativo o Gmail: usa la contraseña de esta app. Las cuentas nuevas requieren aprobación.';
+
+$('tabEntrar').addEventListener('click', () => mostrar('entrar'));
+$('tabRegistro').addEventListener('click', () => mostrar('registro'));
+
+// La solicitud se guarda en el mismo destino que el acceso y la aprueba un
+// supervisor desde Usuarios. Se identifica el servidor durante la transicion.
+if (modoLocal()) {
+  const marca = document.createElement('p');
+  marca.className = 'mini';
+  marca.style.cssText = 'text-align:center;margin-top:12px';
+  marca.textContent = `Servidor de la bodega · ${location.host}`;
+  $('vista-login').appendChild(marca);
+}
+
+$('rUsuario').addEventListener('blur', () => {
+  $('rUsuario').value = normalizarAlias($('rUsuario').value);
+});
+
+$('formRegistro').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  limpiar('avisos-login');
+  if ($('rClave').value !== $('rClave2').value) {
+    return aviso('avisos-login', 'Las dos contraseñas no coinciden.', 'err');
+  }
+  $('btnRegistro').disabled = true;
+  $('btnRegistro').textContent = 'Creando...';
+  try {
+    const r = await registrarse({
+      nombre: $('rNombre').value,
+      apellido: $('rApellido').value,
+      usuario: $('rUsuario').value,
+      correo: $('rCorreo').value,
+      clave: $('rClave').value,
+    });
+    mostrar('entrar');
+    $('inUsuario').value = r.usuario;
+    aviso('avisos-login',
+      `Cuenta creada para ${r.nombre}, usuario «${r.usuario}». Un supervisor ` +
+      'tiene que aprobarla; en cuanto lo haga entras con esa misma contraseña.',
+      'ok', 'Registro enviado');
+  } catch (e) {
+    aviso('avisos-login', traducirError(e), 'err', 'No se pudo registrar');
+  } finally {
+    $('btnRegistro').disabled = false;
+    $('btnRegistro').textContent = 'Crear mi cuenta';
+  }
+});
+
+$('formClave').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  limpiar('avisos-login');
+  $('btnClave').disabled = true;
+  $('btnClave').textContent = 'Entrando...';
+  try {
+    await entrarConClave($('inUsuario').value, $('inClave').value);
+    $('inClave').value = '';
+  } catch (e) {
+    aviso('avisos-login', traducirError(e), 'err', 'No se pudo entrar');
+  } finally {
+    $('btnClave').disabled = false;
+    $('btnClave').textContent = 'Entrar';
+  }
+});
+
+$('btnEntrar').addEventListener('click', async () => {
+  limpiar('avisos-login');
+  $('btnEntrar').disabled = true;
+  $('txtEntrar').textContent = 'Abriendo Google...';
+  try {
+    if (modoLocal()) { location.assign('/api/auth/google/iniciar'); return; }
+    await entrar();
+  } catch (e) {
+    aviso('avisos-login', traducirError(e), 'err', 'No se pudo entrar');
+  } finally {
+    $('btnEntrar').disabled = false;
+    $('txtEntrar').textContent = 'Entrar con Google';
+  }
+});
+
+$('btnSalir').addEventListener('click', () => salir());
+if (modoLocal()) {
+  $('btnEntrar').disabled = true;
+  fetch('/api/auth/metodos', {credentials:'same-origin'}).then(r => r.json()).then(m => {
+    $('btnEntrar').disabled = !m.googleDisponible;
+    $('btnEntrar').hidden = !m.googleDisponible;
+    $('sepGoogle').hidden = !m.googleDisponible;
+    if (m.googleDisponible) $('txtEntrar').textContent = 'Entrar con Google';
+  }).catch(() => { $('btnEntrar').hidden = true; $('sepGoogle').hidden = true; });
+
+}
+
+
+// En móvil el login vuelve por redirect, no por popup.
+recogerRedirect().catch((e) => aviso('avisos-login', traducirError(e), 'err', 'Error al volver'));
+
+/**
+ * Lo que se le pregunta a quien entra por primera vez con el botón de Google.
+ *
+ * Google da el correo y, a veces, el nombre; no da con qué va a entrar la
+ * persona en el handheld. Antes se derivaba del correo en silencio y el
+ * operario no llegaba a saber cuál era el suyo: si el botón de Google le
+ * fallaba en el móvil —o simplemente cerraba sesión— no tenía nada que teclear.
+ *
+ * Se pregunta una sola vez, al nacer la ficha, y con la sugerencia ya puesta:
+ * aceptar sin tocar nada es un toque. Cancelar también vale; entonces se queda
+ * la sugerencia, porque quedarse sin usuario es peor que quedarse con uno que
+ * no eligió.
+ */
+async function pedirUsuarioDeGoogle({ email, nombre, sugerido }) {
+  return pedirDatos({
+    titulo: 'Bienvenido: elige tu usuario',
+    texto: `Entraste con ${email}. Este es el usuario con el que podrás entrar `
+         + 'también desde el handheld, escribiéndolo en «Usuario».',
+    campos: [
+      { clave: 'usuario', etiqueta: 'Usuario', valor: sugerido, obligatorio: true,
+        pista: 'Letras, números, punto o guion. Al menos 3 caracteres.' },
+      { clave: 'nombre', etiqueta: 'Nombre y apellido', valor: nombre || '',
+        marcador: 'Juan Pérez',
+        pista: 'Es lo que ve el supervisor en los informes y en la lista de usuarios.' },
+    ],
+    aceptar: 'Continuar',
+    cancelar: 'Usar el sugerido',
+  });
+}
+
+observarSesion(async ({ usuario, perfil, error }) => {
+  globalThis.itsanetArranque?.listo();
+  limpiar('avisos-login');
+  limpiar('avisos-sesion');
+  $('tDiag').innerHTML = '';
+  $('bloqueDiag').classList.add('oculto');
+  for(const id of ['accesoUsuarios','accesoAdmin','accesoKpis','accesoClave'])$(id).classList.add('oculto');
+
+  if (error) aviso('avisos-login', error, 'err', 'Atención');
+
+  $('vista-cargando').classList.add('oculto');
+
+  if (!usuario) {
+    $('vista-login').classList.remove('oculto');
+    $('vista-sesion').classList.add('oculto');
+  const resultado = new URLSearchParams(location.search).get('google');
+  if (resultado) aviso('avisos-login', resultado === 'pendiente'
+    ? 'Cuenta Google registrada. Un supervisor debe aprobarla antes de entrar.'
+    : 'No se pudo completar Google. Reintenta o entra con tu correo y contraseña.', 'warn');
+    return;
+  }
+
+  $('vista-login').classList.add('oculto');
+  $('vista-sesion').classList.remove('oculto');
+  $('accesoClave').classList.toggle('oculto', tipoDeAcceso(usuario) !== 'CLAVE');
+
+  $('pNombre').textContent = usuario.displayName || usuario.email;
+  $('pEmail').textContent = usuario.email;
+  if (usuario.photoURL) $('pFoto').src = usuario.photoURL;
+
+  const rol = (perfil && perfil.rol) || '—';
+  const chip = $('pRol');
+  chip.textContent = rol;
+  chip.className = 'chip ' + (rol === 'ADMIN' ? 'c-admin' : rol === 'SUPERVISOR' ? 'c-sup' : 'c-op');
+
+  if (perfil && perfil.nuevo) {
+    aviso('avisos-sesion',
+      'Se creó tu perfil como OPERADOR. Si eres el primero, cambia el campo ' +
+      '"rol" a ADMIN en Firestore → usuarios → tu documento, y recarga.',
+      'warn', 'Primera vez');
+  }
+
+  cargarRecepciones();
+
+  // --- Qué puede abrir cada quien ---
+  if (perfil && ['SUPERVISOR', 'ADMIN'].includes(perfil.rol)) {
+    if(!modoLocal()||perfil.permisos?.gestionarUsuarios)$('accesoUsuarios').classList.remove('oculto');
+    $('accesoKpis').classList.remove('oculto');
+  }
+  if (perfil && perfil.rol === 'ADMIN') {
+    $('accesoAdmin').classList.remove('oculto');
+  }
+
+  // --- Comprobación de la instalación ---
+  // Solo para el administrador: a un operario no le dice nada y le mete en la
+  // pantalla once filas de configuración que no puede ni debe tocar.
+  if (perfil?.rol !== 'ADMIN') return;
+  $('bloqueDiag').classList.remove('oculto');
+
+  if (modoLocal()) {
+    try {
+      const estado = await estadoServidor();
+      fila('Servidor de bodega', location.host, true);
+      fila('Base de datos', estado.motor, true);
+      fila('Productos en el maestro', estado.productos, true);
+      fila('Recepciones locales', estado.recepciones, true);
+      fila('Archivos guardados', estado.archivos, true);
+    } catch (e) { fila('Servidor', e.message, false); }
+    return;
+  }
+  fila('SDK de Firebase', SDK, true);
+  fila('Proyecto', auth.app.options.projectId, true);
+  fila('Base de datos', DATABASE_ID, true);
+  fila('Acceso con Google', 'activo', true);
+  fila('Dominio corporativo', '@' + DOMINIO, true);
+
+  // Tipo de cuenta: el token solo trae `hd` si está gestionada por Workspace.
+  // Solo informativo: la app funciona igual en los dos casos, así que esto es
+  // una fila del diagnóstico y no un aviso en la cara del operario.
+  const tipo = await esCuentaWorkspace(usuario);
+  fila('Tipo de cuenta',
+       tipo.workspace === true ? 'Google Workspace'
+       : tipo.workspace === false ? 'Google con correo corporativo'
+       : 'no se pudo leer',
+       null);
+
+  fila('Método de acceso',
+       tipoDeAcceso(usuario) === 'CLAVE' ? 'usuario y contraseña' : 'cuenta de Google',
+       null);
+
+  // Configuración del proxy: paso 5, puede faltar todavía.
+  try {
+    const p = await getDoc(doc(db, 'config', 'proxy'));
+    if (p.exists() && p.get('url')) {
+      fila('Proxy de Depot', 'configurado', true);
+    } else {
+      fila('Proxy de Depot', 'pendiente (paso 5)', null);
+    }
+  } catch {
+    fila('Proxy de Depot', 'pendiente (paso 5)', null);
+  }
+
+  // Recepciones: confirma que la colección es accesible.
+  try {
+    const r = await getDocs(query(collection(db, 'recepciones'), limit(1)));
+    fila('Recepciones', r.size ? r.size + ' encontrada(s)' : 'ninguna todavía', null);
+  } catch (e) {
+    fila('Recepciones', 'bloqueado', false);
+  }
+
+}, { pedirUsuario: pedirUsuarioDeGoogle });
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
+}
+</script>
+</body>
+</html>

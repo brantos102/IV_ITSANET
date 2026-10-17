@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<script src="./js/arranque.js?v=20261016-35"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Mi contraseña — ITSANET</title>
+<link rel="stylesheet" href="./css/app.css">
+<link rel="stylesheet" href="./css/marca.css?v=20261016-35">
+<link rel="icon" href="./icono.png">
+</head>
+<body>
+<main class="envoltorio" style="max-width:560px">
+  <header>
+    <div><a class="marca marca-inicio" href="./">ITSANET</a><div class="sub">Mi cuenta</div></div>
+    <div class="sp"></div><a class="b-sec" href="./">Inicio</a>
+  </header>
+  <div id="avisos" aria-live="polite"></div>
+  <section class="panel oculto" id="panelClave">
+    <h2>Cambiar mi contraseña</h2>
+    <p id="cuenta"></p>
+    <p class="mini">Usa al menos 6 caracteres. Al guardar se cerrarán tus otras sesiones; puedes seguir trabajando en este equipo.</p>
+    <form id="formClave">
+      <label class="campo"><span>Contraseña actual</span>
+        <input id="actual" type="password" autocomplete="current-password" required maxlength="128"></label>
+      <label class="campo"><span>Nueva contraseña</span>
+        <input id="nueva" type="password" autocomplete="new-password" required minlength="6" maxlength="128"></label>
+      <label class="campo"><span>Repetir nueva contraseña</span>
+        <input id="repetir" type="password" autocomplete="new-password" required minlength="6" maxlength="128"></label>
+      <div class="acciones"><button class="b-primario" id="guardar" type="submit">Guardar contraseña</button></div>
+    </form>
+  </section>
+</main>
+<script type="module">
+import { observarSesion, cambiarClave, tipoDeAcceso, traducirError } from './js/auth.js?v=20261016-35';
+import { mostrarAviso } from './js/notificaciones.js?v=20261016-35';
+const $ = id => document.getElementById(id);
+const aviso = (texto, tipo) => mostrarAviso($('avisos'), texto, tipo);
+observarSesion(({usuario, perfil, error}) => {
+  globalThis.itsanetArranque?.listo();
+  if (!usuario) { location.replace('./'); return; }
+  if (error) { aviso(error, 'err'); return; }
+  if (tipoDeAcceso(usuario) !== 'CLAVE') {
+    aviso('Esta cuenta entra con Google. Cambia su contraseña desde tu cuenta de Google.', 'info');
+    return;
+  }
+  $('cuenta').textContent = perfil?.nombre || usuario.email;
+  $('panelClave').classList.remove('oculto');
+});
+for (const id of ['nueva', 'repetir']) $(id).addEventListener('input', () => $('repetir').setCustomValidity(''));
+$('formClave').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  if ($('guardar').disabled) return;
+  if ($('nueva').value !== $('repetir').value) {
+    $('repetir').setCustomValidity('Las contraseñas nuevas no coinciden.');
+    $('repetir').reportValidity(); return;
+  }
+  $('avisos').replaceChildren();
+  $('guardar').disabled = true;
+  try {
+    await cambiarClave($('actual').value, $('nueva').value);
+    $('formClave').reset();
+    aviso('Contraseña actualizada. Tu sesión en este equipo continúa abierta.', 'ok');
+  } catch (e) { aviso(traducirError(e), 'err'); }
+  finally { $('guardar').disabled = false; }
+});
+</script>
+</body>
+</html>
