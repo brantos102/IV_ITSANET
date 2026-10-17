@@ -118,7 +118,7 @@ export function abrirEtiqueta(datos) {
     ventana.document.close(); ventana.addEventListener('load',()=>{ventana.focus();ventana.print();},{once:true}); };
   dialogo.showModal(); actualizar();
   let pedirPuente=null,claveTrabajo=null;
-  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261016-35').then(async({pedir})=>{
+  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261017-36').then(async({pedir})=>{
     pedirPuente=pedir;
     const p=await pedir('/preferencias',{base:'/api/operacion'});
     const lista=dialogo.querySelector('[data-estacion]');lista.replaceChildren();

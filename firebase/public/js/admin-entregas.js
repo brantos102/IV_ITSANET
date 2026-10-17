@@ -1,5 +1,5 @@
-import {pedir, reintentarEntrega} from './local.js?v=20261016-35';
-import {pedirDatos} from './modal.js?v=20261016-35';
+import {pedir, reintentarEntrega} from './local.js?v=20261017-36';
+import {pedirDatos} from './modal.js?v=20261017-36';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -8,17 +8,17 @@ const enlace = (url, titulo) => /^https:\/\/(drive|docs)\.google\.com\//.test(ur
   ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(titulo)}</a>` : '';
 const operacion = (ruta, opciones={}) => pedir(ruta, {...opciones, base:'/api/operacion'});
 
-export async function revisarDrive(codigo, aviso) {
+export async function revisarDrive(codigo, aviso, operativo=false) {
   const d = document.createElement('dialog'); d.className='modal';
   d.innerHTML=`<h3>Fotos y carpetas · ${esc(codigo)}</h3><div data-estado role="status">Consultando fotos…</div>
     <p data-resultado role="status"></p><div class="modal-acciones"><button class="b-sec" data-actualizar>Actualizar</button>
-    <button class="b-primario" data-preparar>Verificar y crear carpetas</button><button class="b-sec" data-cerrar>Cerrar</button></div>`;
+    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-cerrar>Cerrar</button></div>`;
   document.body.append(d); d.showModal();
   const ruta='/recepciones/'+encodeURIComponent(codigo)+'/drive'; let ocupado=false;
   const actualizar = async () => {
     if(ocupado || !d.open)return; ocupado=true;
     try {
-      const r=await operacion(ruta), s=r.sincronizacion, destino=r.destino || {};
+      const r=await operacion(ruta), s=r.sincronizacion, destino=r.destino || r.destinoOperativo || {};
       d.querySelector('[data-estado]').innerHTML=`<p><b>${s.copiadas} de ${s.guardadas} fotos confirmadas en Drive</b> · ${s.pendientes} pendientes · ${s.procesando} en proceso.</p>
         <p>Cuenta responsable: <b>${esc(destino.supervisor || 'Sin configurar')}</b><br>Ruta: ${esc([destino.cliente,destino.marca,codigo].filter(Boolean).join(' / '))}</p>
         <p>${destino.carpetaRaiz ? enlace('https://drive.google.com/drive/folders/'+destino.carpetaRaiz,'Abrir carpeta raíz configurada') : 'Carpeta raíz: se usa CARPETA_EVIDENCIAS del puente Google.'}</p>
@@ -30,7 +30,7 @@ export async function revisarDrive(codigo, aviso) {
   };
   d.querySelector('[data-preparar]').onclick=async ev=>{
     const b=ev.currentTarget; b.disabled=true;
-    try{const r=await operacion(ruta+'/preparar',{cuerpo:{}});
+    try{const r=await operacion(ruta+(operativo?'/reintentar':'/preparar'),{cuerpo:{}});
       d.querySelector('[data-resultado]').innerHTML=`${enlace(r.carpeta,'Abrir carpeta confirmada')}<p>${esc(r.mensaje)} ${r.programadas} foto(s) programadas.</p>`;
       await actualizar();
     }catch(e){d.querySelector('[data-resultado]').textContent=e.message;aviso(e.message,'err');}finally{b.disabled=false;}
@@ -42,7 +42,7 @@ export async function revisarDrive(codigo, aviso) {
   await actualizar();
 }
 
-export function pintarEntregas(contenedor, entregas, {aviso, actualizar}) {
+export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operativo=false}) {
   contenedor.replaceChildren();
   if(!entregas.length){contenedor.textContent='Todavía no hay entregas registradas.';return;}
   const grupos=new Map();
@@ -59,16 +59,16 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar}) {
     const ultima=grupo[0], activas=grupo.filter(e=>['PENDIENTE','PROCESANDO','REVISION'].includes(e.estado));
     const resumen=document.createElement('p');resumen.textContent=activas.length?`${activas.length} entrega(s) por resolver`:
       ultima.estado==='ENTREGADA'?'Entrega confirmada.':'Sin envío activo. Los envíos anulados no se enviarán.';seccion.append(resumen);
-    boton(seccion,'Revisar Drive y fotos',()=>revisarDrive(codigo,aviso));
+    boton(seccion,'Revisar Drive y fotos',()=>revisarDrive(codigo,aviso,operativo));
     const dibujar=(e,padre)=>{
       const fila=document.createElement('article');fila.style.marginBlock='16px';
       const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
-      const m=document.createElement('p');m.className='mini';m.textContent=e.mensaje || '';fila.append(m);
+      const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');fila.append(m);
       const urls=document.createElement('div');urls.innerHTML=enlace(e.resultado?.carpeta,'Abrir Drive')+' '+enlace(e.resultado?.sheet,'Abrir Sheets');fila.append(urls);
       if(e.estado==='PENDIENTE'||e.estado==='REVISION'&&e.revisionMotivo==='ENTREGAS_MULTIPLES'){
         boton(fila,'Reintentar',async()=>{await reintentarEntrega(e.id);await actualizar();});
       }
-      if(['PENDIENTE','REVISION'].includes(e.estado)){
+      if(!operativo&&['PENDIENTE','REVISION'].includes(e.estado)){
         boton(fila,'Anular este envío',async()=>{
           const datos=await pedirDatos({titulo:`Anular envío ${referencia(e)}`,texto:`${esc(codigo)} · ${esc(fecha(e))}. Se conservan archivos, conteos y auditoría.`,
             campos:[{clave:'motivo',etiqueta:'Motivo de anulación (mínimo 10 caracteres)',obligatorio:true}],aceptar:'Anular este envío'});
@@ -83,14 +83,14 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar}) {
     };
     activas.forEach(e=>dibujar(e,seccion));
     if(['PENDIENTE','CANCELADA','REVISION'].includes(ultima.estado)){
-      boton(seccion,'Recuperar último informe con responsable',async()=>{
-        const v=await pedir('/entregas/'+ultima.id+'/recuperar');
-        if(!v.responsable.disponible)throw new Error('Configura el correo responsable y su puente en Administración → Operación → Correo responsable de informes.');
+      boton(seccion,'Enviar último informe desde mi correo',async()=>{
+        const v=await pedir('/entregas/'+ultima.id+'/solicitar');
+        if(!v.responsable.disponible)throw new Error('Tu cuenta debe tener un puente Google autorizado. Pide a ADMIN que guarde su conexión una vez; después no se solicita una clave por envío.');
         const datos=await pedirDatos({titulo:`Recuperar ${referencia(ultima)}`,texto:`<p>${esc(codigo)} · ${esc(fecha(ultima))}</p><p>De: <b>${esc(v.responsable.correo)}</b><br>Para: ${esc(ultima.destinatarios || 'Sin correo')}</p><p>Se utilizará el mismo informe archivado: ${v.archivos.map(esc).join(', ')}. ${v.sustituye.length} entrega(s) anterior(es) pendiente(s) serán anuladas.</p><p>Comprueba Enviados en las cuentas anteriores y en la responsable para evitar un envío duplicado. La app verificará el puente antes de recuperar.</p>`,
           campos:[{clave:'motivo',etiqueta:'Motivo de recuperación (10–300 caracteres)',obligatorio:true},
             {clave:'confirmarNoEnviado',etiqueta:'Revisé Enviados: este informe todavía no fue enviado',tipo:'interruptor',valor:false}],aceptar:'Verificar y recuperar'});
-        if(!datos)return;await pedir('/entregas/'+ultima.id+'/recuperar',{cuerpo:{...datos,remitenteConfirmado:v.responsable.correo}});
-        aviso('Se recuperó el mismo informe con la cuenta responsable. Espera la confirmación de entrega.','ok');await actualizar();
+        if(!datos)return;await pedir('/entregas/'+ultima.id+'/solicitar',{cuerpo:{...datos,remitenteConfirmado:v.responsable.correo}});
+        aviso('Se recuperó el mismo informe con tu cuenta autorizada. Espera la confirmación de entrega.','ok');await actualizar();
       },'b-primario');
     }
     const historicas=grupo.filter(e=>!activas.includes(e));

@@ -28,7 +28,7 @@ def confirmacion():
 def google(accion, clave, datos):
     assert datos['usuario'] == 'responsable@example.test'
     return {'exito': True, 'versionPuente': 2, 'remitente': datos['usuario'],
-        'fileId': 'archivo-confirmado', 'carpeta': 'https://drive.google.com/drive/folders/confirmada'}
+        'fileId': 'archivo-confirmado', 'enviadoA':datos.get('destinatarios',''), 'carpeta': 'https://drive.google.com/drive/folders/confirmada'}
 
 
 def test_recupera_mismo_informe_con_responsable_y_conserva_autor(admin, cliente, db, pendiente, monkeypatch):
@@ -189,3 +189,19 @@ def test_rechaza_informe_obsoleto_tras_reabrir_y_corregir(admin, cliente, db, pe
     monkeypatch.setattr(entregas,'llamar',lambda *a:pytest.fail('No enviar un informe anterior al conteo actual'))
     r=admin.post(f'/api/app/entregas/{ident}/recuperar',json=confirmacion())
     assert r.status_code==409 and 'conteo cambió' in r.text
+
+
+def test_supervisor_solicita_ultimo_informe_siempre_desde_su_cuenta(cliente,db,pendiente,monkeypatch):
+    codigo,ident=pendiente
+    def verificar(accion,clave,datos):
+        assert datos['usuario']=='personal@example.test'
+        return {'exito':True,'versionPuente':2,'remitente':datos['usuario'],'capacidades':['correoVerificado'],
+            'enviadoA':datos.get('destinatarios',''),'fileId':'archivo-confirmado'}
+    monkeypatch.setattr(entregas,'llamar',verificar)
+    ruta=f'/api/app/entregas/{ident}/solicitar'
+    assert cliente.get(ruta).json()['responsable']['correo']=='personal@example.test'
+    r=cliente.post(ruta,json={**confirmacion(),'remitenteConfirmado':'personal@example.test','modoRemitente':'RESPONSABLE'})
+    assert r.status_code==200,r.text
+    assert r.json()['remitente']=='personal@example.test'
+    assert entregas.procesar_uno() and not entregas.procesar_uno()
+    db.rollback();db.expire_all();assert db.get(AppEntrega,ident).estado=='ENTREGADA'

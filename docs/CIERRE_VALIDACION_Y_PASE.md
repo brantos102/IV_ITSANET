@@ -36,11 +36,11 @@ Remitente de prueba indicado: **bespinoza@itsanet.com**. Destinatario de prueba:
 3. Actualizar el despliegue como aplicación web, ejecutada por esa cuenta, y copiar su URL terminada en `/exec`. El servidor necesita poder invocar ese despliegue; el puente valida HMAC y caducidad antes de escribir o enviar.
 4. ADMIN → Drive y envío de correo: indicar supervisor, URL `/exec` y clave compartida. Guardar puente. Pulsar **Verificar remitente y Drive**. Esa comprobación no envía correo.
 5. La carpeta suministrada es `https://drive.google.com/drive/folders/1EOCoI3eNpe9lM1iQvgMgDo7e8_oGCBtY`. El supervisor debe tener permiso de editor; compartir con los destinatarios autorizados según corresponda. Para pruebas de subida en desarrollo, crear y configurar una subcarpeta exclusiva de pruebas; mantener la carpeta operativa para producción.
-6. ADMIN → Repositorios de Drive: registrar el ID o enlace, cliente/marca opcionales y supervisor de referencia; guardar configuración y probar el repositorio. Las carpetas por cliente/marca/recepción/bulto/SKU/tipo se crean al copiar evidencia. Las imágenes pendientes permanecen temporalmente en el almacenamiento local hasta confirmar Drive; MySQL guarda referencias y trazabilidad.
+6. ADMIN → Repositorios de Drive: registrar el ID o enlace, cliente/marca opcionales y supervisor de referencia; guardar configuración y probar el repositorio. Las carpetas por cliente/marca/recepción/categoría/SKU/tipo se crean al copiar evidencia. Las imágenes pendientes permanecen temporalmente en el almacenamiento local hasta confirmar Drive; MySQL guarda referencias y trazabilidad.
 7. Desplegar **Enviar correo de prueba**, confirmar remitente y destinatario, y pulsar enviar. El botón verifica al ejecutor y al repositorio antes de enviar un mensaje identificable. Si se interrumpe la confirmación del correo, revisar Enviados y la bandeja del destinatario antes de iniciar otra prueba; el mismo identificador no se reenvía automáticamente.
 8. Revisar una recepción de prueba → Imágenes de la recepción → carpeta Drive; registrar evidencias por tipo y comprobar la copia. Depurar imágenes antes de finalizar. La columna de evidencia utiliza carpetas confirmadas por Drive, sin inventar enlaces de imágenes pendientes. Si esa columna está asignada y todavía hay fotos de SKU pendientes, el cierre final espera su confirmación; se puede continuar contando y descargar avances. La entrega incluye el enlace a la carpeta de la recepción.
 
-El cierre propone el correo responsable configurado en Operación → Remitente de informes. La cuenta que finaliza queda como autora del cierre; puede elegir su correo propio solo si ADMIN lo permite y tiene un puente autorizado. Escribir otro correo en una petición no concede autorización para enviarlo como esa persona. El botón Google de login usa otro mecanismo: OAuth web. No exige la contraseña de Gmail y no reemplaza el permiso del puente para Drive/correo.
+El cierre propone el correo autorizado del supervisor que solicita el envío. ADMIN debe autorizar y verificar una sola vez el puente de esa cuenta; no se pide HMAC por cada correo. Escribir otro correo en una petición no concede autorización para enviarlo como esa persona. El botón Google de login usa otro mecanismo: OAuth web. No exige la contraseña de Gmail y no reemplaza el permiso del puente para Drive/correo.
 
 ## Red de producción y cámaras móviles
 
@@ -56,25 +56,30 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261016-35`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261017-36`; recargar las pantallas antes de retomar operación.
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261017-mysql-entregas`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261017-supervision-informes`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261017-mysql-entregas &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261017-mysql-entregas^{commit}') &&
+git fetch origin tag itsanet-20261017-supervision-informes &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261017-supervision-informes^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
 ```
 
-Esta entrega corrige el HTTP 500 de MySQL al listar informes grandes sin cambiar
-la interfaz; ver [MYSQL_1038_ENTREGAS.md](MYSQL_1038_ENTREGAS.md).
+Esta entrega agrega el envío desde el supervisor, edición atómica de conteos,
+galerías por clasificación, clientes operativos e informes separados por packing
+list; ver [SUPERVISION_CORREO_Y_FORMATOS.md](SUPERVISION_CORREO_Y_FORMATOS.md).
+Actualizar juntos Proxy.gs y Servidor.gs y publicar una nueva versión del mismo
+despliegue /exec; se conserva la clave guardada.
+
+Conserva la corrección del HTTP 500 de MySQL al listar informes grandes; ver [MYSQL_1038_ENTREGAS.md](MYSQL_1038_ENTREGAS.md).
 La versión 35 permite crear y comprobar carpetas, localizar fotos pendientes y
 recuperar el último informe con el remitente responsable; ver
 [CORREO_Y_CARPETAS_RECUPERACION.md](CORREO_Y_CARPETAS_RECUPERACION.md).

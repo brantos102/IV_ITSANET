@@ -94,6 +94,26 @@ def remitentes_recepcion(codigo: str, db: Session = Depends(get_db),
         raise _traducir(exc) from exc
 
 
+@router.post('/recepciones/{codigo}/comprobar-envio')
+def comprobar_envio(codigo: str, datos: dict=Body(...), db: Session=Depends(get_db),
+                    op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from uuid import uuid4
+    from app.services import remitentes, operacion
+    correo,_=remitentes.elegir(db,codigo,{'modoRemitente':'PERSONAL',
+        'remitenteConfirmado':datos.get('remitenteConfirmado')},_quien(op))
+    destino=operacion.destino_drive(db,codigo);db.rollback()
+    try:
+        r=entregas.llamar('estado',uuid4().hex,{'usuario':correo,'carpetaRaiz':destino['carpetaRaiz']})
+        if str(r.get('remitente') or '').lower()!=correo:
+            raise RuntimeError('Google no confirmó la cuenta que solicita el envío.')
+        if 'correoVerificado' not in r.get('capacidades',[]):
+            raise RuntimeError('Actualiza Proxy.gs y Servidor.gs juntos y publica una versión nueva del despliegue /exec; falta el contrato de envío confirmado.')
+        return {'remitente':correo,'carpeta':r.get('carpeta'),'mensaje':'Conexión del supervisor verificada. No se envió correo.'}
+    except Exception as exc:
+        mensaje=str(exc) if type(exc) is RuntimeError else 'No se pudo comprobar la conexión guardada de este supervisor.'
+        raise HTTPException(502,mensaje+' ADMIN debe revisar esa conexión una vez. No se cerró ni envió la recepción.') from None
+
+
 @router.post('/entregas/{ident}/reintentar')
 def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     e = db.get(AppEntrega, ident)
@@ -126,6 +146,19 @@ def vista_recuperar(ident: str, db: Session = Depends(get_db), op: Operador = De
 def recuperar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(admin)):
     from app.services.recuperar_entrega import recuperar
     return recuperar(db, ident, datos, _quien(op))
+
+
+@router.get('/entregas/{ident}/solicitar')
+def vista_solicitar(ident: str, db: Session = Depends(get_db), op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.recuperar_entrega import vista
+    return vista(db, ident, _quien(op), 'PERSONAL')
+
+
+@router.post('/entregas/{ident}/solicitar')
+def solicitar_envio(ident: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                   op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.recuperar_entrega import recuperar
+    return recuperar(db, ident, {**datos, 'modoRemitente': 'PERSONAL'}, _quien(op))
 
 
 @router.post('/entregas/{ident}/cancelar')
@@ -224,7 +257,7 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
 
 
 @router.get('/recepciones/{codigo}/imagenes')
-def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str = '', tipoEvidencia: str = '', offset: int = Query(0, ge=0),
+def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str = '', tipoEvidencia: str = '', categoriaEvidencia: str = '', offset: int = Query(0, ge=0),
              limite: int = Query(40, ge=1, le=100), db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     from app.services.normalize import normalizar_sku
@@ -274,6 +307,12 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
                 (e.tipo == 'PACKING_INICIAL' or e.unidad_id in unidades or
                  (e.origen and e.origen in origenes)))
         consulta = consulta.where(AppArchivo.id.in_(ids))
+    if categoriaEvidencia:
+        from app.models import AppEvidencia
+        from app.services.operacion import CATEGORIAS
+        if categoriaEvidencia not in CATEGORIAS:raise HTTPException(422,'Clasificación de evidencia inválida')
+        consulta=consulta.where(AppArchivo.id.in_(select(AppEvidencia.archivo_id).where(AppEvidencia.recepcion==r.codigo,
+            AppEvidencia.eliminado_en.is_(None),AppEvidencia.categoria==categoriaEvidencia)))
     total = db.scalar(select(func.count()).select_from(consulta.subquery()))
     filas = list(db.scalars(consulta.order_by(AppArchivo.creado_en.desc(), AppArchivo.id).offset(offset).limit(limite)))
     etiquetas = {}
@@ -281,13 +320,17 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
         for aid, cod in db.execute(select(AppArchivoSku.archivo_id, AppArchivoSku.sku).where(AppArchivoSku.archivo_id.in_([a.id for a in filas]))):
             etiquetas.setdefault(aid, []).append(cod)
     resultado = []
-    from app.models import AppEvidencia
+    from app.models import AppEvidencia, AppCopiaDrive
+    from app.services.drive import carpeta_sku
     metadatos = {}
     if filas:
+        copias = {j.archivo_id: j for j in db.scalars(select(AppCopiaDrive).where(
+            AppCopiaDrive.archivo_id.in_([a.id for a in filas])))}
         for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_([a.id for a in filas]),
                 AppEvidencia.eliminado_en.is_(None))):
             metadatos.setdefault(e.archivo_id, []).append({'sku': e.sku, 'categoria': e.categoria,
-                'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen})
+                'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen,
+                'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e) or ''})
     for a in filas:
         f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',
              'skus': etiquetas.get(a.id, []), 'bytes': a.bytes, 'creadoEn': m._iso(a.creado_en),

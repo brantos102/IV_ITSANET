@@ -32,7 +32,40 @@ await test('un PNC antiguo sin desglose no inventa unidades conformes',()=>{
 });
 const conteo=await cargar('conteo.js');
 await test('el historial de MySQL interpreta fechas ISO y muestra primero la última',()=>{
- const rs=conteo.registrosDe([{id:'a',sku:'S',cantidad:1,creadoEn:'2026-10-16T13:00:00Z'},{id:'b',sku:'S',cantidad:1,creadoEn:'2026-10-16T15:00:00Z'}],'S');
+ const rs=conteo.registrosDe([{id:'a',sku:'S',tipo:'CONTEO',cantidad:1,creadoEn:'2026-10-16T13:00:00Z'},{id:'b',sku:'S',tipo:'CONTEO',cantidad:1,creadoEn:'2026-10-16T15:00:00Z'}],'S');
  eq(rs.map(r=>r.id),['b','a']);eq(rs[0].cuando.toISOString(),'2026-10-16T15:00:00.000Z');
+});
+await test('el historial operativo oculta originales anulados de MySQL y su reversa',()=>{
+ const es=[{id:'a',sku:'S',tipo:'CONTEO',cantidad:25},{id:'anu',tipo:'ANULACION',anulaA:'a',sku:'S',cantidad:-25},{id:'b',tipo:'CONTEO',sku:'S',cantidad:20}];
+ eq(conteo.registrosDe(es,'S').map(e=>[e.id,e.cantidad]),[['b',20]]);
+});
+await test('el reparto de un conteo sin origen se consume una sola vez',()=>{
+ const ls=[{sku:'S',linea:1,origen:'A',cantidad:3},{sku:'S',linea:1,origen:'B',cantidad:3}];
+ eq(informe.repartirPorListas(ls,{S:4}).map(l=>l.fisica),[3,1]);
+ eq(informe.repartirPorListas(ls,{S:5},{A:{S:2},B:{S:3}}).map(l=>l.fisica),[2,3]);
+});
+await test('las cantidades por lista suman los pallets del origen',()=>eq(conteo.porOrigenDe({porOrigen:{A:{P01:2,P02:3},B:{P01:1}}}),{A:5,B:1}));
+await test('la columna ok de Depot no confunde un conteo completo con un código existente',()=>{
+ const d=informe.completarIncidencias([{sku:'S',fisica:6,diferencia:0}],[],{depot:{S:false}})[0];
+ eq(d.depot,'N/D');eq(d.incidencia,'OK');
+});
+await test('cliente ampliado genera un archivo por lista y enlaces del SKU sin hoja MAESTRO',()=>{
+ const ls=['A','B'].map((origen,i)=>({origen,formato:{encabezados:['SKU','Cantidad','ok'],columnas:{depot:2}},detalle:[{sku:'S'+i,cantidad:3,fisica:3,diferencia:0,estado:'OK',depot:'ok',observacion:'Solo '+origen,evidencia:'https://drive.google.com/drive/folders/sku'+i,cruda:['S'+i,3,'anterior']}]}));
+ const datos={recepcion:{codigo:'PRUEBA'},detalle:ls.flatMap(l=>l.detalle),porOrigen:ls,eventos:[],adicionales:[],auditoria:[]};
+ const libros=informe.construirLibros(datos,{version:'envio-ampliado'});eq(libros.length,2);
+ for(let i=0;i<libros.length;i++){const w=XLSX.read(libros[i].base64,{type:'base64'});eq(w.SheetNames.length,1);const sh=w.Sheets[w.SheetNames[0]],rs=XLSX.utils.sheet_to_json(sh,{header:1});eq(rs.length,2);eq(rs[1][0],'S'+i);eq(rs[1][2],'ok');ok(rs[1].includes('Solo '+ls[i].origen));ok(!rs[1].includes('Solo '+ls[1-i].origen));const j=rs[0].indexOf('Carpeta Drive del SKU');eq(sh[XLSX.utils.encode_cell({r:1,c:j})].l.Target,'https://drive.google.com/drive/folders/sku'+i);}
+ const original=informe.construirLibros(datos,{version:'envio'});const w=XLSX.read(original[0].base64,{type:'base64'});eq(XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1})[0],['SKU','Cantidad','ok']);
+});
+await test('dos listas de contenido idéntico conservan identificadores distintos en sus archivos',()=>{
+ const detalle=[{sku:'S',cantidad:3,fisica:3,estado:'OK',cruda:['S',3]}];
+ const datos={recepcion:{codigo:'R'},detalle,porOrigen:['A','B'].map(origen=>({origen,formato:{encabezados:['SKU','Cantidad'],columnas:{}},detalle})),eventos:[],adicionales:[],auditoria:[]};
+ const libros=informe.construirLibros(datos,{version:'envio'});eq(libros.length,2);ok(libros[0].base64!==libros[1].base64);ok(libros[0].nombre!==libros[1].nombre);
+ eq(XLSX.read(libros[0].base64,{type:'base64'}).Props.Subject,'Validación de recepción · Listas: A');
+});
+await test('una lista sin conteos no hereda observación ni pallet de otra',()=>{
+ const filas=[{sku:'S',origen:'A',pallets:'P01',palletsSimple:'P01',observacion:'De A'},{sku:'S',origen:'B',pallets:'P01',palletsSimple:'P01',observacion:'De A'}];
+ const eventos=[{id:'a',sku:'S',tipo:'CONTEO',origen:'A',cantidad:1,pallet:'P01',observacion:'De A'}];
+ const d=informe.completarRegistrosPorLista(filas,eventos);eq(d[0].observacion,'De A');eq(d[1].observacion,'');eq(d[1].pallets,'');eq(d[1].palletsSimple,'');
+ const faltante=informe.completarRegistrosPorLista(filas,[...eventos,{id:'b',sku:'S',tipo:'NO_ENCONTRADO',origen:'B',cantidad:0,observacion:'No llegó la lista B'}]);eq(faltante[1].observacion,'No llegó la lista B');eq(faltante[1].pallets,'');
 });
 resumen();

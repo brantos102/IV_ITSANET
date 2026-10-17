@@ -8,11 +8,12 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import select
 from app.models import (AppInforme,AppEvento,AppIngreso,AppCopiaDrive,AppEvidencia,
-    ProductoCodigo,AppSku)
+    ProductoCodigo,Producto,AppSku)
 from app.services import app_modelo as m, ajustes, archivos
 
 
 def metadatos(db,codigo):
+    from app.services.drive import carpeta_sku
     r=m.obtener(db,codigo)
     ingreso=db.scalar(select(AppIngreso).where(AppIngreso.recepcion==r.codigo).with_for_update().execution_options(populate_existing=True))
     skus=select(AppSku.sku).where(AppSku.recepcion==r.codigo)
@@ -20,17 +21,23 @@ def metadatos(db,codigo):
     for b in db.scalars(select(ProductoCodigo).where(ProductoCodigo.sku.in_(skus),ProductoCodigo.exportar.is_(True))
             .order_by(ProductoCodigo.creado_en,ProductoCodigo.codigo).with_for_update()):
         barras[b.sku]=b.valor
-    carpetas={};pendientes=set()
+    carpetas={};categorias={};pendientes=set()
     for j,e in db.execute(select(AppCopiaDrive,AppEvidencia).select_from(AppEvidencia).outerjoin(AppCopiaDrive,AppCopiaDrive.archivo_id==AppEvidencia.archivo_id)
             .where(AppEvidencia.recepcion==r.codigo,AppEvidencia.eliminado_en.is_(None)).with_for_update().execution_options(populate_existing=True)):
         if not e.sku:continue
-        url=(j.datos.get('carpetaSkuUrl') or j.datos.get('carpeta')) if j and j.estado=='COPIADA' else None
-        if url:carpetas.setdefault(e.sku,set()).add(url)
+        url=carpeta_sku(j,e)
+        if url:
+            carpetas.setdefault(e.sku,set()).add(url)
+            categorias.setdefault(e.sku,{}).setdefault(e.categoria,set()).add(url)
         else:pendientes.add(e.archivo_id)
+    depot={s:False for s in db.scalars(skus)}
+    for p in db.scalars(select(Producto).where(Producto.sku.in_(skus))):
+        depot[p.sku]=bool(p.existe_depot and not p.inactivo and p.cliente.strip().upper()==r.cliente.strip().upper())
     return {'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
         'columnas':ajustes.cliente(db,r.cliente)['columnas'],'barras':barras,'formatos':r.formatos or {},
         'evidenciasPendientes':len(pendientes),
         'versionFormatos':hashlib.sha256(json.dumps(r.formatos or {},sort_keys=True).encode()).hexdigest(),
+        'depot':depot,'carpetasCategoria':{s:{c:sorted(us) for c,us in cs.items()} for s,cs in categorias.items()},
         'carpetas':{s:sorted(urls) for s,urls in carpetas.items()}}
 
 
@@ -44,7 +51,7 @@ def documento(f):
     return {'id':f.id,'numero':f.numero,'tipo':f.tipo,'estado':f.estado,'usuario':f.usuario,
         'creadoEn':m._iso(f.creado_en),'sufijo':f.datos.get('sufijo'),'archivos':f.datos.get('archivos',[]),
         'confirmadoEn':f.datos.get('confirmadoEn'),'destinatarios':f.datos.get('destinatarios'),
-        'entregaId':f.datos.get('entregaId'),'descargas':f.datos.get('descargas',[])}
+        'entregaId':f.datos.get('entregaId'),'descargas':f.datos.get('descargas',[]),'formato':f.datos.get('formato')}
 
 
 def historial(db,codigo):
@@ -71,15 +78,24 @@ def reservar(db,codigo,datos,usuario):
         raise HTTPException(409,'Otro supervisor generó un informe. Revisa el historial antes de continuar.')
     tipo=datos.get('tipo')
     if tipo not in ('DESCARGA','CORREO'):raise HTTPException(422,'Tipo de generación inválido')
+    formato=datos.get('formato')
+    if formato not in (None,'envio','envio-ampliado','auditable'):raise HTTPException(422,'Formato de informe inválido')
     meta=metadatos(db,r.codigo)
-    if tipo=='CORREO' and requiere_enlaces(meta) and meta['evidenciasPendientes']:
+    if tipo=='CORREO':
+        compartidos={s['sku'] for s in m.leer_coleccion(db,r.codigo,'skus',actual=True) if len(s.get('origenes',[]))>1}
+        eventos=m.leer_coleccion(db,r.codigo,'eventos',actual=True)
+        anulados={e.get('anulaA') for e in eventos if e['tipo']=='ANULACION'}
+        pendientes={e['sku'] for e in eventos if e['sku'] in compartidos and e['id'] not in anulados
+            and e['tipo']=='CONTEO' and e['cantidad']>0 and not e.get('origen')}
+        if pendientes:raise HTTPException(409,'Asigna el packing list de los conteos anteriores antes de enviar. Usa Editar conteo para: '+', '.join(sorted(pendientes)[:10]))
+    if tipo=='CORREO' and (formato=='envio-ampliado' or requiere_enlaces(meta)) and meta['evidenciasPendientes']:
         n = meta['evidenciasPendientes']
         raise HTTPException(409, {'codigo': 'EVIDENCIAS_PENDIENTES', 'pendientes': n,
             'mensaje': f'{n} foto(s) ya guardadas esperan confirmación de Drive. No necesitas tomarlas otra vez. Revisa las fotos pendientes o descarga un avance mientras se completa la copia.'})
     ahora=datetime.now(ZoneInfo('America/Guayaquil'))
     numero=ultimo.numero+1 if ultimo else 1
     f=AppInforme(id=uuid4().hex,clave=clave,recepcion=r.codigo,numero=numero,tipo=tipo,estado='RESERVADO',
-        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}'})
+        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}','formato':formato})
     db.add(f);ajustes.auditar(db,usuario,'INFORME_RESERVADO',r.codigo,{'informeId':f.id,'numero':numero,'tipo':tipo});db.commit()
     return documento(f)
 
@@ -93,6 +109,10 @@ def archivar(db,codigo,ident,datos,usuario):
     if f.huella!=huella(db,r):raise HTTPException(409,'La recepción cambió mientras se preparaba el informe; genera una versión actualizada.')
     libros=datos.get('adjuntos')
     if not isinstance(libros,list) or not 1<=len(libros)<=30:raise HTTPException(422,'Se requiere un informe por packing list')
+    if f.datos.get('formato') in ('envio','envio-ampliado'):
+        origenes=[l.get('origen') for l in libros]
+        if len(origenes)!=len(set(origenes)) or set(origenes)!=set(r.origenes or []):
+            raise HTTPException(422,'Se requiere exactamente un archivo por packing list, identificado con su origen.')
     guardados=[]
     for libro in libros:
         nombre=str(libro.get('nombre') or '')
@@ -100,7 +120,7 @@ def archivar(db,codigo,ident,datos,usuario):
         a=archivos.guardar(db,r.codigo,'informe',libro,usuario,confirmar=False)
         if a.nombre != nombre:
             raise HTTPException(409,'El contenido corresponde a una generación anterior. Vuelve a generar el libro con la secuencia actual.')
-        guardados.append({'id':a.id,'nombre':a.nombre,'sha256':a.sha256,'url':f'/api/operacion/informes/{f.id}/archivos/{a.id}'})
+        guardados.append({'id':a.id,'nombre':a.nombre,'sha256':a.sha256,'origen':libro.get('origen'),'url':f'/api/operacion/informes/{f.id}/archivos/{a.id}'})
     f.estado='GENERADO';f.datos={**f.datos,'archivos':guardados}
     ajustes.auditar(db,usuario,'INFORME_GENERADO',r.codigo,{'informeId':f.id,'numero':f.numero,'archivos':guardados})
     db.commit();return documento(f)

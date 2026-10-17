@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-35"></script>
+<script src="./js/arranque.js?v=20261017-36"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Mi contraseña — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-35">
+<link rel="stylesheet" href="./css/marca.css?v=20261017-36">
 <link rel="icon" href="./icono.png">
 </head>
 <body>
@@ -33,8 +33,8 @@
   </section>
 </main>
 <script type="module">
-import { observarSesion, cambiarClave, tipoDeAcceso, traducirError } from './js/auth.js?v=20261016-35';
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-35';
+import { observarSesion, cambiarClave, tipoDeAcceso, traducirError } from './js/auth.js?v=20261017-36';
+import { mostrarAviso } from './js/notificaciones.js?v=20261017-36';
 const $ = id => document.getElementById(id);
 const aviso = (texto, tipo) => mostrarAviso($('avisos'), texto, tipo);
 observarSesion(({usuario, perfil, error}) => {

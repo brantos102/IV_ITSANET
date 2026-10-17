@@ -30,6 +30,7 @@ function entorno() {
     SpreadsheetApp: { create() { sheets++; const hoja = {clearContents(){},getMaxRows:()=>1000,getMaxColumns:()=>26,getRange:()=>({setValues(){}}),setFrozenRows(){}}; return {getId:()=> 'sheet-nuevo',getUrl:()=> 'https://docs.google.com/spreadsheets/d/nuevo',getSheetByName:()=>hoja,insertSheet:()=>hoja}; } },
     accionEnviarInforme_(_p, _u, antes) { if(antes)antes(); correos++; if (falloCorreo) throw new Error('Confirmacion interrumpida'); return {exito:true}; }
   };
+  g.accionEnviarInforme_.versionServidor=2;
   g.PropertiesService={getScriptProperties:()=>g.PROPS};
   vm.createContext(g); vm.runInContext(fs.readFileSync(path.join(__dirname,'../proxy/Servidor.gs'),'utf8'),g);
   function peticion(operacion,clave,datos,fecha=Math.floor(Date.now()/1000)) {
@@ -45,6 +46,7 @@ test('rechaza solicitudes caducadas',()=>{ const e=entorno(); let fallo=false;tr
 test('firma no da acceso a otras acciones del WMS',()=>{ const e=entorno();let fallo=false;try{e.g.entregaServidor_(e.peticion('guardarCliente',id,{}));}catch{fallo=true;}ok(fallo); });
 test('archivo repetido no crea dos copias',()=>{const e=entorno();const p=e.peticion('archivo',clave,{tipoArchivo:'foto',base64:'aG9sYQ==',nombre:'SKU.png',tipo:'image/png'});const a=e.g.entregaServidor_(p),b=e.g.entregaServidor_(p);ok(a.fileId===b.fileId);ok(e.creados()===1);});
 test('correo confirmado no se repite y no usa Sheets',()=>{const e=entorno();const p=e.peticion('finalizar',id,{codigo:'PRUEBA',destinatarios:'ejecutivo@example.test',archivos:[]});ok(e.g.entregaServidor_(p).exito);ok(e.g.entregaServidor_(p).exito);ok(e.correos()===1);ok(e.sheets()===0);});
+test('Proxy anterior bloquea correo y no anuncia capacidad verificada',()=>{const e=entorno();delete e.g.accionEnviarInforme_.versionServidor;const estado=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(!estado.capacidades.includes('correoVerificado'));let fallo='';try{e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',destinatarios:'destino@example.test',archivos:[]}));}catch(err){fallo=err.message;}ok(fallo.includes('Proxy.gs y Servidor.gs'));ok(e.correos()===0);});
 test('confirmacion interrumpida requiere revision, no reenvio ciego',()=>{const e=entorno();e.romperCorreo();const p=e.peticion('finalizar',id,{codigo:'PRUEBA',destinatarios:'ejecutivo@example.test',archivos:[]});try{e.g.entregaServidor_(p);}catch{} const r=e.g.entregaServidor_(p);ok(r.revision);ok(e.correos()===1);});
 test('sin destinatarios archiva sin correo ni Sheets',()=>{const e=entorno();ok(e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',archivos:[]})).exito);ok(e.correos()===0);ok(e.sheets()===0);});
 test('exportar texto no ejecuta formulas de hoja',()=>{const e=entorno();ok(e.g.celdaServidor_('=IMPORTXML("x")').startsWith("'="));ok(e.g.celdaServidor_(3)===3);});
@@ -56,6 +58,12 @@ test('crear carpeta es una operación firmada independiente del correo',()=>{
   const r=e.g.entregaServidor_(p);ok(r.exito && r.carpeta.includes('drive.google.com'));ok(r.remitente==='supervisor@gmail.com');
   ok(e.g.entregaServidor_(p).carpeta===r.carpeta);ok(e.correos()===0);
   const estado=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(estado.capacidades.includes('prepararCarpeta'));
+});
+test('preparar recepción crea solo cliente, marca y recepción, sin categorías vacías',()=>{
+ const e=entorno(),nombres=[];const anterior=e.g.carpetaDe_;
+ e.g.carpetaDe_=(padre,n)=>{nombres.push(n);return anterior(padre,n);};
+ const r=e.g.entregaServidor_(e.peticion('prepararCarpeta',id,{cliente:'VENTURA',marca:'VW',carpetaRecepcion:'REC'}));
+ ok(r.exito);ok(JSON.stringify(nombres)===JSON.stringify(['VENTURA','VW','REC']));ok(e.correos()===0);
 });
 test('miniaturas priorizan panorámicas y estado final y acotan el peso',()=>{
   const e=entorno();e.g.DriveApp.getFileById=()=>({getThumbnail:()=>({getBytes:()=>Buffer.alloc(1024),getContentType:()=> 'image/jpeg'})});

@@ -10,11 +10,12 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261016-35';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261016-35';
-import { db } from './auth.js?v=20261016-35';
-import * as local from './local.js?v=20261016-35';
-import { aNumero, decodificarPallets } from './datos.js?v=20261016-35';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261017-36';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261017-36';
+import { db } from './auth.js?v=20261017-36';
+import * as local from './local.js?v=20261017-36';
+import {eventosActivos} from './conteo.js?v=20261017-36';
+import { aNumero, decodificarPallets } from './datos.js?v=20261017-36';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -48,6 +49,44 @@ export function repartirPorLinea(lineas, totalPorSku) {
       : Math.max(Math.min(disponible, declarada), 0);
     restante[l.sku] = disponible - fisica;
     return { ...l, fisica, diferencia: fisica - declarada };
+  });
+}
+
+export function repartirPorListas(lineas,totales,explicitos={}) {
+  const filas=lineas.map(l=>({...l,fisica:0}));
+  for(const [origen,conteos] of Object.entries(explicitos)) {
+    const indices=filas.map((l,i)=>(l.origen||'PRINCIPAL')===origen?i:-1).filter(i=>i>=0);
+    const partes=repartirPorLinea(indices.map(i=>filas[i]),conteos);
+    partes.forEach((l,i)=>{filas[indices[i]].fisica=l.fisica;});
+  }
+  for(const [sku,total] of Object.entries(totales)) {
+    const indices=filas.map((l,i)=>l.sku===sku?i:-1).filter(i=>i>=0);
+    let restante=Number(total)-indices.reduce((n,i)=>n+filas[i].fisica,0);
+    for(const i of indices) {const n=Math.min(Math.max(Number(filas[i].cantidad)-filas[i].fisica,0),Math.max(restante,0));filas[i].fisica+=n;restante-=n;}
+    if(restante>0 && indices.length)filas[indices.at(-1)].fisica+=restante;
+  }
+  return filas.map(l=>({...l,diferencia:l.fisica-Number(l.cantidad||0)}));
+}
+
+// Las ubicaciones y observaciones de una lista nunca completan otra lista vacía.
+export function completarRegistrosPorLista(filas,eventos) {
+  const origenes=new Map(),registros=new Map();
+  for(const f of filas){if(!origenes.has(f.sku))origenes.set(f.sku,new Set());origenes.get(f.sku).add(f.origen||'PRINCIPAL');}
+  const clave=(sku,origen)=>JSON.stringify([sku,origen]);
+  for(const e of eventosActivos(eventos)){
+    if(e.tipo&&!['CONTEO','NO_ENCONTRADO'].includes(e.tipo))continue;
+    const k=clave(e.sku,e.origen||'');if(!registros.has(k))registros.set(k,[]);registros.get(k).push(e);
+  }
+  return filas.map(f=>{
+    const multiple=origenes.get(f.sku).size>1;
+    const activos=[...(registros.get(clave(f.sku,f.origen||'PRINCIPAL'))||[]),...(!multiple?(registros.get(clave(f.sku,''))||[]):[])];
+    if(!activos.length&&!multiple)return f;
+    const fisicos=activos.filter(e=>Number(e.cantidad)>0),pallets={};
+    for(const e of fisicos)pallets[e.pallet||'']=(pallets[e.pallet||'']||0)+Number(e.cantidad);
+    return {...f,observacion:[...new Set(activos.map(e=>e.observacion).filter(Boolean))].join(' | '),
+      palletsSimple:[...new Set(fisicos.map(e=>e.pallet).filter(Boolean))].join('-'),
+      pallets:Object.entries(pallets).map(([p,n])=>p+'('+n+')').join('-'),
+      posicionReal:[...new Set(fisicos.map(e=>e.posicionReal).filter(Boolean))].join(' / ')};
   });
 }
 
@@ -113,7 +152,7 @@ export async function reunirInforme(recepcionId, recepcion) {
    * que entraron, vengan 22 o 300.
    */
   const destinoPorSku = {};
-  for (const e of eventos) {
+  for (const e of eventosActivos(eventos)) {
     if (e.tipo === 'ANULACION') continue;
     if (e.observacion) {
       const set = (obsPorSku[e.sku] = obsPorSku[e.sku] || new Set());
@@ -148,30 +187,14 @@ export async function reunirInforme(recepcionId, recepcion) {
    * es lo que había.
    */
   const contadoPorOrigen = {};
-  for (const e of eventos) {
+  for (const e of eventosActivos(eventos)) {
     if (e.tipo === 'ANULACION' || !e.origen) continue;
     const m = (contadoPorOrigen[e.origen] = contadoPorOrigen[e.origen] || {});
     m[e.sku] = (m[e.sku] || 0) + aNumero(e.cantidad, 0);
   }
 
   const listasDeLineas = [...new Set(lineas.map((l) => l.origen || 'PRINCIPAL'))];
-  const repartido = listasDeLineas.length > 1
-    ? listasDeLineas.flatMap((origen) => {
-        const suyas = lineas.filter((l) => (l.origen || 'PRINCIPAL') === origen);
-        const imputado = contadoPorOrigen[origen];
-        if (imputado) return repartirPorLinea(suyas, imputado);
-        // Sin imputación explícita: lo no asignado se reparte entre sus líneas.
-        const sinAsignar = {};
-        for (const l of suyas) {
-          if (sinAsignar[l.sku] !== undefined) continue;
-          const total = aNumero(porSku[l.sku], 0);
-          const yaImputado = Object.values(contadoPorOrigen)
-            .reduce((a, m) => a + aNumero(m[l.sku], 0), 0);
-          sinAsignar[l.sku] = Math.max(total - yaImputado, 0);
-        }
-        return repartirPorLinea(suyas, sinAsignar);
-      })
-    : repartirPorLinea(lineas, porSku);
+  const repartido = repartirPorListas(lineas,porSku,contadoPorOrigen);
 
   const detalleBase = repartido.map((l) => ({
     ...l,
@@ -185,7 +208,7 @@ export async function reunirInforme(recepcionId, recepcion) {
     observacion: [...(obsPorSku[l.sku] || [])].join(' | ').slice(0, 300),
   }));
 
-  const detalle=completarIncidencias(detalleBase,eventos,meta);
+  const detalle=completarIncidencias(completarRegistrosPorLista(detalleBase,eventos),eventos,meta);
 
   const adicionalesDetalle = adicionales.map((a) => {
     const s = skus.find((x) => x.sku === a.sku);
@@ -260,14 +283,17 @@ export function soloPallets(mapa) {
  * y `OBSERVACION` en blanco; el informe las rellena **en su sitio**. Devolver
  * otro formato obliga a rehacer el archivo a mano antes de subirlo.
  */
-function hojaOriginal(filas, formato) {
+function hojaOriginal(filas, formato, ampliado=false) {
+  if(ampliado){formato={...formato,encabezados:[...(formato.encabezados||[])],columnas:{...formato.columnas}};
+    for(const [rol,titulo] of Object.entries({fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot'}))if(formato.columnas[rol]===undefined){formato.columnas[rol]=formato.encabezados.length;formato.encabezados.push(titulo);}}
   const enc = (formato?.encabezados || []).slice();
   const col = formato?.columnas || {};
   const ancho = enc.length;
-  const salida=new Set(['marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia']);
+  const salida=new Set(['marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot']);
   for(const [rol,i] of Object.entries(col))if(salida.has(rol)&&(!Number.isInteger(i)||i<0||i>=ancho))throw Error('La columna de '+rol+' no existe en este packing list. Revisa Columnas del informe.');
 
-  const matriz = [enc];
+  const prefijo=(formato?.prefijo||[]).map(f=>f.celdas||f);
+  const matriz = [...prefijo,enc];
   for (const l of filas) {
     const fila = (l.cruda || []).slice(0, ancho);
     while (fila.length < ancho) fila.push('');
@@ -278,6 +304,7 @@ function hojaOriginal(filas, formato) {
     poner('fisica', l.fisica);
     poner('validacion', VALIDACION[l.estado] ?? l.estado ?? '');
     poner('desface', l.diferencia);
+    if(l.depot!==undefined)poner('depot',l.depot);
     poner('pallet', l.palletsSimple || '');
     poner('observacion', l.observacion || '');
     for(const rol of ['marca','cliente','posicion','codigoBarra','cantidadIncidencia','incidencia','evidencia']){
@@ -289,10 +316,17 @@ function hojaOriginal(filas, formato) {
   }
 
   const hoja = XLSX.utils.aoa_to_sheet(matriz);
+  filas.forEach((l,i)=>{const r=i+1+prefijo.length,j=col.evidencia,url=String(l.evidencia||'').split(' | ')[0];if(Number.isInteger(j)&&/^https:\/\/drive\.google\.com\//.test(url)){const cell=hoja[XLSX.utils.encode_cell({r,c:j})];if(cell)cell.l={Target:url,Tooltip:'Carpeta del SKU '+l.sku};}
+    for(const [c,formula] of Object.entries(l.formulas||{}))if(!Object.entries(col).some(([rol,j])=>salida.has(rol)&&j===Number(c))&&!/[!\[\]]/.test(formula)){
+      const celda=hoja[XLSX.utils.encode_cell({r,c:Number(c)})];
+      const delta=r+1-Number(l.filaOriginal||r+1);
+      if(celda)celda.f=String(formula).replace(/("(?:[^"]|"")*")|(?<![A-Za-z0-9_])(\$?[A-Z]{1,3})(\$?)([1-9][0-9]*)/g,(m,txt,columna,fija,fila)=>txt||columna+fija+(fija?fila:Math.max(1,Number(fila)+delta)));
+    }
+  });
   hoja['!cols'] = enc.map((c) => ({ wch: Math.min(Math.max(String(c).length + 3, 10), 40) }));
   if (ancho) {
-    hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 },
-      e: { r: filas.length, c: ancho - 1 } }) };
+    hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: prefijo.length, c: 0 },
+      e: { r: filas.length+prefijo.length, c: ancho - 1 } }) };
   }
   return hoja;
 }
@@ -360,9 +394,9 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Recarga la página.');
   }
-  const soloEnvio = opciones.version === 'envio';
+  const soloEnvio = ['envio','envio-ampliado'].includes(opciones.version);
   const libro = XLSX.utils.book_new();
-  libro.Props={Company:'ITSANET',Author:recepcion.informe?.usuario||'ITSANET',Title:recepcion.codigo,Subject:recepcion.informe?'Informe '+recepcion.informe.numero+' · '+recepcion.informe.id:'Validación de recepción'};
+  libro.Props={Company:'ITSANET',Author:recepcion.informe?.usuario||'ITSANET',Title:recepcion.codigo,Subject:(recepcion.informe?'Informe '+recepcion.informe.numero+' · '+recepcion.informe.id:'Validación de recepción')+' · Listas: '+(porOrigen||[]).map(l=>l.origen).join(', ')};
 
   // --- Una hoja por packing list, con SU formato y SUS filas --- //
   const listas = (porOrigen && porOrigen.length)
@@ -370,7 +404,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     : [{ origen: 'VALIDADA', detalle, formato: null }];
 
   for (const lista of listas) {
-    const base = listas.length === 1 ? 'VALIDADA' : nombreDeHoja(lista.origen);
+    const base = soloEnvio&&lista.formato?.hoja?nombreDeHoja(lista.formato.hoja):listas.length === 1 ? 'VALIDADA' : nombreDeHoja(lista.origen);
 
     // Primero el archivo tal como llegó, con sus columnas rellenas. Si no se
     // guardó el formato original —recepciones anteriores a esto— se cae a las
@@ -378,7 +412,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     XLSX.utils.book_append_sheet(
       libro,
       lista.formato?.encabezados?.length
-        ? hojaOriginal(lista.detalle, lista.formato)
+        ? hojaOriginal(lista.detalle, lista.formato,opciones.version==='envio-ampliado')
         : hojaValidada(lista.detalle),
       base);
 
@@ -391,7 +425,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
 
   if (soloEnvio) {
     return {
-      base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64' }),
+      base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64', compression:true }),
       nombre: nombreArchivo(recepcion, 'validacion'),
       filas: detalle.length,
       version: 'envio',
@@ -452,7 +486,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   XLSX.utils.book_append_sheet(libro, h4, 'AUDITORIA');
 
   return {
-    base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64' }),
+    base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64', compression:true }),
     nombre: nombreArchivo(recepcion, 'auditable'),
     filas: detalle.length,
     version: 'auditable',
@@ -480,8 +514,8 @@ function nombreVersionado(nombre,rec,lista=''){
  */
 export function construirLibros(datos, opciones = {}) {
   const listas = datos.porOrigen || [];
-  if (opciones.version !== 'envio' || listas.length <= 1) {
-    return [construirLibro(datos, opciones)];
+  if (!['envio','envio-ampliado'].includes(opciones.version) || listas.length <= 1) {
+    return [{...construirLibro(datos, opciones),origen:listas.length===1?listas[0].origen:undefined}];
   }
 
   return listas.map((lista,indice) => {
@@ -516,7 +550,7 @@ export function descargarLibro(libro) {
 /** Fotos de PNC para incrustar en el correo. */
 export function fotosDe(eventos, max = 12) {
   const out = [];
-  for (const e of eventos) {
+  for (const e of eventosActivos(eventos)) {
     for (const url of e.fotos || []) {
       if (out.length >= max) return out;
       out.push({ url, enlace: url, sku: e.sku });
@@ -543,6 +577,6 @@ export function completarIncidencias(filas,eventos,meta={}){
   const sinDesglose=l.calidadPorRevisar&&pnc===0;if(sinDesglose)tipos.push('PNC · cantidad por revisar');
   return {...l,pnc:pnc?'PNC ('+pnc+')':sinDesglose?'PNC · cantidad por revisar':'',cantidadPnc:sinDesglose?null:pnc,cantidadConforme:sinDesglose?null:Number(l.fisica)-pnc,
    cantidadIncidencia:sinDesglose?null:novedad||Math.abs(l.diferencia||0),incidencia:tipos.join(' / ')||'OK',
-   marca:meta.marca||undefined,cliente:meta.cliente||undefined,codigoBarra:meta.barras?.[l.sku],evidencia:meta.carpetas?.[l.sku]?.join(' | ')};
+   depot:meta.depot?.[l.sku]===undefined?undefined:meta.depot[l.sku]?'ok':'N/D',marca:meta.marca||undefined,cliente:meta.cliente||undefined,codigoBarra:meta.barras?.[l.sku],evidencia:(meta.carpetasCategoria?.[l.sku]?.[pnc?'PNC':l.diferencia<0?'FALTANTE':l.diferencia>0?'SOBRANTE':'VALIDACION']||meta.carpetas?.[l.sku])?.join(' | ')};
  });
 }

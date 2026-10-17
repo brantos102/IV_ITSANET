@@ -210,8 +210,11 @@ export const registrarAuditoria = (recepcionId, usuario, tipo, detalle = {}) =>
 export const leerAuditoria = (recepcionId, max = 40) =>
   leerColeccion(recepcionId, 'auditoria', max);
 
-export const leerBitacora = (recepcionId, max = 60) =>
-  leerColeccion(recepcionId, 'eventos', max);
+export const leerBitacora = async (recepcionId, max = 60) => {
+  const eventos=await leerColeccion(recepcionId,'eventos',0);
+  const anulados=new Set(eventos.map(e=>e.anulaA||e.refEvento).filter(Boolean));
+  return eventos.map(e=>({...e,anulado:anulados.has(e.id)})).slice(0,max||undefined);
+};
 
 // ========================================================================== //
 // Catálogo

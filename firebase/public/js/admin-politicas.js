@@ -1,7 +1,7 @@
-import {pedir} from './local.js?v=20261016-35';
+import {pedir} from './local.js?v=20261017-36';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const CAMPOS_SALIDA={marca:'Marca',cliente:'Cliente',fisica:'Cantidad física',validacion:'Validación',desface:'Diferencia',pallet:'Pallet',posicion:'Posición',codigoBarra:'Código de barras',cantidadIncidencia:'Cantidad con incidencia / diferencia',incidencia:'Tipo de incidencia',observacion:'Observación',evidencia:'Carpeta Drive del SKU'};
+export const CAMPOS_SALIDA={depot:'Código presente en Depot (OK / N/D)',marca:'Marca',cliente:'Cliente',fisica:'Cantidad física',validacion:'Validación',desface:'Diferencia',pallet:'Pallet',posicion:'Posición',codigoBarra:'Código de barras',cantidadIncidencia:'Cantidad con incidencia / diferencia',incidencia:'Tipo de incidencia',observacion:'Observación',evidencia:'Carpeta Drive del SKU'};
 export const letra=n=>{let s='';for(n++;n>0;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s;};
 const indice=s=>{if(!/^[A-Z]{1,3}$/.test(s))throw Error('Indica letras de columna, por ejemplo A, P o AA.');return [...s].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;};
 export async function configurarPoliticas(contenedor){

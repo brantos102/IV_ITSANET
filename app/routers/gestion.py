@@ -13,6 +13,61 @@ from app.services import ajustes, calidad, app_modelo as m
 
 router=APIRouter(prefix='/api/operacion',tags=['gestion'])
 
+@router.get('/almacenamiento')
+def almacenamiento(db:Session=Depends(get_db),_=Depends(admin)):
+    from sqlalchemy import func, cast, Text
+    from app.models import AppEntrega, AppArchivo
+    return {'bytesInstantaneas':db.scalar(select(func.coalesce(func.sum(func.length(cast(AppEntrega.datos,Text))),0))),
+        'entregas':db.scalar(select(func.count()).select_from(AppEntrega)),
+        'fotosPendientes':db.scalar(select(func.count()).select_from(AppArchivo).where(AppArchivo.tipo=='foto',AppArchivo.drive_id.is_(None))),
+        'bytesFotosPendientes':db.scalar(select(func.coalesce(func.sum(AppArchivo.bytes),0)).where(AppArchivo.tipo=='foto',AppArchivo.drive_id.is_(None)))}
+
+@router.post('/almacenamiento/compactar')
+def compactar_entregas(db:Session=Depends(get_db),op=Depends(admin)):
+    import json
+    from app.models import AppEntrega
+    from app.services.instantaneas import compactar,expandir
+    filas=list(db.scalars(select(AppEntrega).where(AppEntrega.estado!='PROCESANDO',
+        AppEntrega.datos['instantaneaGzip'].as_string().is_(None),AppEntrega.datos['skus'].as_string().is_not(None))
+        .order_by(AppEntrega.id).limit(20).with_for_update(skip_locked=True)))
+    antes=despues=cantidad=0
+    for e in filas:
+        original=dict(e.datos);nuevo=compactar(original)
+        if expandir(nuevo)!=original:raise HTTPException(409,'No coincide la verificación de la instantánea; no se modificó el lote.')
+        antes+=len(json.dumps(original).encode());despues+=len(json.dumps(nuevo).encode());e.datos=nuevo;cantidad+=1
+    ajustes.auditar(db,op.email or op.usuario,'INSTANTANEAS_COMPACTADAS','almacenamiento',{'entregas':cantidad,'antes':antes,'despues':despues});db.commit()
+    return {'compactadas':cantidad,'bytesAntes':antes,'bytesDespues':despues,'mensaje':'Instantáneas verificadas y comprimidas. Se conservan conteos, informes, fotos y auditoría.'}
+
+@router.get('/clientes-operacion')
+def clientes_operacion(db:Session=Depends(get_db),_=Depends(usuario_actual)):
+    from app.models import AppRecepcion, Producto
+    nombres=set(ajustes.configuracion(db)['clientes'])
+    nombres.update(n for n in db.scalars(select(AppRecepcion.cliente).distinct()) if n)
+    nombres.update(n for n in db.scalars(select(Producto.cliente).distinct()) if n)
+    return [{'id':n,'reglas':ajustes.cliente(db,n)} for n in sorted(nombres)]
+
+@router.put('/clientes-operacion/{nombre:path}')
+def guardar_cliente_operativo(nombre:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
+    from app.models import AppConfig
+    if set(datos)-{'palletRequerido','posicionRequerida','columnas'}:
+        raise HTTPException(422,'Solo puedes editar reglas operativas del cliente.')
+    db.scalar(select(AppConfig).where(AppConfig.clave=='politicas').with_for_update().execution_options(populate_existing=True))
+    actuales=ajustes.configuracion(db)['clientes']
+    nombre=nombre.strip().upper()
+    actuales[nombre]={**ajustes.cliente(db,nombre),**datos}
+    ajustes.guardar(db,{'clientes':actuales},op.email or op.usuario)
+    return {'id':nombre,'reglas':ajustes.cliente(db,nombre)}
+
+@router.post('/recepciones/{codigo}/eventos/{ident}/corregir')
+def corregir_conteo(codigo:str,ident:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correcciones import corregir
+    return corregir(db,codigo,ident,datos,op.email or op.usuario)
+
+@router.post('/recepciones/{codigo}/conteos-repartidos')
+def repartir_conteo(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(usuario_actual)):
+    from app.services.correcciones import repartir
+    return repartir(db,codigo,datos,op.email or op.usuario)
+
 @router.get('/politicas')
 def politicas(db:Session=Depends(get_db),_=Depends(admin)):
     return {'acciones':ajustes.ACCIONES,**ajustes.configuracion(db)}
@@ -120,7 +175,7 @@ def columnas_informe(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),
     origen=datos.get('origen');formatos=dict(r.formatos or {})
     if origen not in formatos:raise HTTPException(422,'Packing list no encontrado')
     f=dict(formatos[origen]);columnas=datos.get('columnas')
-    permitidas={'marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia'}
+    permitidas={'marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot'}
     if not isinstance(columnas,dict) or set(columnas)-permitidas or any(type(v)is not int or not 0<=v<len(f.get('encabezados',[])) for v in columnas.values()) or len(set(columnas.values()))!=len(columnas):raise HTTPException(422,'Selecciona columnas distintas dentro del packing list')
     f['salida']=columnas;formatos[origen]=f;r.formatos=formatos
     ajustes.auditar(db,op.email or op.usuario,'COLUMNAS_INFORME',r.codigo,{'origen':origen,'columnas':columnas})

@@ -39,7 +39,7 @@ def opciones(db, codigo, usuario):
     perfiles = db.scalars(select(Operador).where(or_(func.lower(Operador.email) == usuario.lower(),
         func.lower(Operador.usuario) == usuario.lower())).limit(2)).all()
     personal = (perfiles[0].email or '').lower() if len(perfiles) == 1 else ''
-    return {'predeterminado': 'RESPONSABLE', 'opciones': [
+    return {'predeterminado': 'PERSONAL' if personal else 'RESPONSABLE', 'opciones': [
         {'modo': 'RESPONSABLE', 'correo': correo_responsable, 'disponible': _disponible(db, correo_responsable)},
         {'modo': 'PERSONAL', 'correo': personal,
          'disponible': politica['permitirPersonal'] and _disponible(db, personal)}]}
@@ -51,13 +51,18 @@ def elegir(db, codigo, datos, usuario):
     if modo is None:
         # Las peticiones anteriores siguen siendo compatibles; cuando existe
         # un responsable configurado ya se utiliza también desde esas pantallas.
+        personal = disponibles['opciones'][1]
         responsable = disponibles['opciones'][0]
-        if responsable['correo']:
+        if personal['correo']:
+            modo = 'PERSONAL'
+        elif responsable['correo']:
             modo = 'RESPONSABLE'
         else:
             return usuario, 'SESION_ANTERIOR'
     if modo not in ('RESPONSABLE', 'PERSONAL'):
         raise HTTPException(422, 'Selecciona correo responsable o mi correo autorizado')
+    if str(datos.get('destinatarios') or '').strip() and disponibles['opciones'][1]['correo'] and modo != 'PERSONAL':
+        raise HTTPException(422,'El correo debe enviarse desde la cuenta autorizada del supervisor que solicita el envío. Selecciona Mi correo.')
     opcion = next(o for o in disponibles['opciones'] if o['modo'] == modo)
     if not opcion['disponible']:
         raise HTTPException(409, 'El correo ' + ('responsable' if modo == 'RESPONSABLE' else 'personal')

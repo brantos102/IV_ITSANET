@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261016-35';
-import { db } from './auth.js?v=20261016-35';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261016-35';
-import * as local from './local.js?v=20261016-35';
+} from '../vendor/firebase-sdk.js?v=20261017-36';
+import { db } from './auth.js?v=20261017-36';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261017-36';
+import * as local from './local.js?v=20261017-36';
 
 /**
  * Dónde se guardan los datos.
@@ -176,6 +176,7 @@ const ALIAS = {
  * para saber dónde escribir cada cosa al exportar.
  */
 export const ROL_COLUMNA = {
+  'OK':'depot','EXISTE EN DEPOT':'depot','ESTADO DEPOT':'depot',
   'CANTIDAD FISICA': 'fisica', 'CANTIDADFISICA': 'fisica',
   'CANT FISICA': 'fisica', 'CANTIDAD VALIDADA': 'fisica',
   'VALIDACION': 'validacion', 'ESTADO': 'validacion',
@@ -302,6 +303,11 @@ export function leerPackingList(arrayBuffer, opciones = {}) {
             if(k===indiceSku && typeof v==='number' && typeof d.sku==='string')return d.sku;
             return v === null || v === undefined ? '' : String(v);
           }),
+          formulas: Object.fromEntries([...Array(anchoReal)].flatMap((_,k)=>{
+            const f=hoja[XLSX.utils.encode_cell({r:j,c:k})]?.f;
+            return f ? [[k,f]] : [];
+          })),
+          filaOriginal:j+1,
           descripcion: limpiar(d.descripcion).slice(0, 300),
           referencia: limpiar(d.referencia).slice(0, 80),
           factura: limpiar(d.factura).slice(0, 80),
@@ -322,6 +328,7 @@ export function leerPackingList(arrayBuffer, opciones = {}) {
         filaEncabezado: i+1,
         mapaEntrada: {...mapa},
         encabezados,
+        prefijo:filas.slice(0,i).map(f=>({celdas:[...Array(anchoReal)].map((_,k)=>f?.[k]??'')})),
         columnas,
         lineas,
         descartadas,
@@ -569,6 +576,7 @@ export async function guardarPackingList(recepcionId, resultado, alAvanzar, opci
       ...(previo.formatos || {}),
       [claveMapa(origen)]: {
         encabezados: resultado.encabezados || [],
+        prefijo:resultado.prefijo||[],
         columnas: resultado.columnas || {},
         hoja: resultado.hoja || '',
         // Con qué archivo se cargó y qué traía: es lo que permite reconocerlo

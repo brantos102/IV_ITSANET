@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261016-35';
-import {operacion,esc} from './evidencias.js?v=20261016-35';
-import {pedirDatos,confirmar} from './modal.js?v=20261016-35';
+import {pedir} from './local.js?v=20261017-36';
+import {operacion,esc} from './evidencias.js?v=20261017-36';
+import {pedirDatos,confirmar} from './modal.js?v=20261017-36';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;
@@ -28,7 +28,7 @@ export async function configurarOperacion(contenedor) {
       <details><summary>Puentes de impresión y Zebra de red</summary><p class="mini">Cada PC consulta su cola. IP o dominio de la impresora y puerto ZPL, normalmente 9100. No necesita un servicio HTTP en la PC ni controlador en el móvil.</p>
       <div data-estaciones>${c.impresoras.map(p=>`<article class="unidad-logistica"><b>${esc(p.nombre)}</b><span>${esc(p.equipo || 'Equipo por configurar')} → ${esc(p.host)}:${p.puerto}</span><span>${p.tokenConfigurado?'Agente autorizado':'Falta token'} · ${p.activo?'Activo':'Inactivo'}</span><button data-editar-estacion="${p.id}" class="b-sec">Editar</button><button data-token="${p.id}" class="b-sec">Generar configuración del agente</button></article>`).join('')}</div>
       <button data-nueva-estacion class="b-sec">＋ Estación de impresión</button><div class="rejilla">${input('Máximo de copias por solicitud','maxCopias',c.maxCopias,'number')}</div></details>
-      <div class="acciones"><button data-guardar class="b-primario">Guardar configuración operativa</button></div>`;
+      <details><summary>Uso de almacenamiento</summary><p>Las fotos permanecen temporalmente en disco hasta confirmarse en Drive. Las instantáneas se comprimen sin eliminar el historial.</p><button class="b-sec" data-ver-almacenamiento>Consultar uso</button><button class="b-sec" data-compactar>Optimizar instantáneas anteriores · lote de 20</button><p data-almacenamiento role="status"></p></details><div class="acciones"><button data-guardar class="b-primario">Guardar configuración operativa</button></div>`;
   }
   pintar();
   const $=s=>panel.querySelector(s);
@@ -43,6 +43,7 @@ export async function configurarOperacion(contenedor) {
   const registro=(lista,valor)=>{const i=lista.findIndex(r=>r.id===valor.id);if(i<0)lista.push(valor);else lista[i]=valor;};
   panel.addEventListener('click',async ev=>{
     const b=ev.target.closest('button');if(!b)return;
+    if(b.matches('[data-ver-almacenamiento],[data-compactar]')){b.disabled=true;try{const r=b.hasAttribute('data-compactar')?await operacion('/almacenamiento/compactar',{cuerpo:{}}):await operacion('/almacenamiento');$('[data-almacenamiento]').textContent=r.mensaje?`${r.mensaje} ${r.compactadas} entregas · ${r.bytesAntes} → ${r.bytesDespues} bytes`:`Instantáneas: ${r.bytesInstantaneas} bytes · ${r.fotosPendientes} fotos pendientes (${r.bytesFotosPendientes} bytes temporales).`;}catch(e){$('[data-almacenamiento]').textContent=e.message;}finally{b.disabled=false;}return;}
     try{
       if(b.hasAttribute('data-guardar')){await guardar();return;}
       if(b.hasAttribute('data-turnos')){const r=await operacion('/catalogo/ejecuciones');$('[data-ejecuciones]').textContent=r.map(t=>`${t.turno} · ${t.estado} · ${t.productos || 0} productos · ${t.clientesConError || 0} clientes pendientes`).join('\n') || 'No hay ejecuciones registradas.';return;}

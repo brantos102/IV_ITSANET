@@ -19,7 +19,7 @@ DEFECTO = {'evidencias': {'exterioresMin': 3, 'exterioresObjetivo': 6,
     'correo': {'responsable': '', 'permitirPersonal': True}}
 TIPOS = {'EXTERIOR_BULTO', 'PACKING_INICIAL', 'ABIERTO_CON_PACKING',
     'CAJA_CERRADA', 'ETIQUETA_CAJA', 'CAJA_ABIERTA', 'ITEM_NOVEDAD', 'PANORAMICA', 'ADICIONAL', 'DANO_EMBALAJE', 'ESTADO_FINAL'}
-CATEGORIAS = {'RECEPCION', 'FALTANTE', 'SOBRANTE', 'PNC', 'GENERAL'}
+CATEGORIAS = {'RECEPCION', 'VALIDACION', 'FALTANTE', 'SOBRANTE', 'PNC', 'GENERAL'}
 
 
 def configuracion(db, publica=False):

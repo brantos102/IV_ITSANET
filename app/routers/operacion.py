@@ -6,6 +6,7 @@ from app.db import get_db
 from app.models import Operador, Rol
 from app.security import requiere_supervisor, usuario_actual
 from app.services import operacion as svc
+from app.services import ajustes
 from app.services import app_modelo as m
 
 router = APIRouter(prefix='/api/operacion', tags=['operacion'])
@@ -90,6 +91,10 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
         .order_by(AppEvento.creado_en.desc(), AppEvento.id.desc()).limit(1))
     if confirmada and (confirmada.datos or {}).get('carpeta'):
         salida['carpetas'] = sorted(set(salida['carpetas']) | {confirmada.datos['carpeta']})
+    from app.services.remitentes import responsable
+    operativo=destino_drive(db,codigo)
+    salida['destinoOperativo']={k:operativo[k] for k in ('cliente','marca')}
+    salida['destinoOperativo']['supervisor']=responsable(db,codigo) or operativo['supervisor']
     if op.rol == Rol.ADMIN:
         from app.services.remitentes import responsable
         salida['destino'] = destino_drive(db, codigo)
@@ -177,15 +182,15 @@ def exportar_evidencias(codigo: str, db: Session = Depends(get_db), _: Operador 
         headers={'Content-Disposition':f'attachment; filename="Evidencias_{nombre}.xlsx"','Cache-Control':'private, no-store'})
 
 
-@router.get('/formatos-packing/{cliente}')
+@router.get('/formatos-packing/{cliente:path}')
 def formato_packing(cliente: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
     from app.models import AppConfig
     c=db.get(AppConfig,'formatos_packing')
     return (c.datos if c else {}).get(cliente.strip().upper(),{})
 
 
-@router.put('/formatos-packing/{cliente}')
-def guardar_formato_packing(cliente: str, datos: dict=Body(...), db: Session=Depends(get_db), op: Operador=Depends(admin)):
+@router.put('/formatos-packing/{cliente:path}')
+def guardar_formato_packing(cliente: str, datos: dict=Body(...), db: Session=Depends(get_db), op: Operador=Depends(ajustes.requiere('gestionarClientes'))):
     from app.models import AppConfig, utcnow
     if len(cliente)>60 or not cliente.strip():raise HTTPException(422,'Cliente inválido')
     columnas=datos.get('columnas')

@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261016-35';
-import { db } from './auth.js?v=20261016-35';
-import * as local from './local.js?v=20261016-35';
+} from '../vendor/firebase-sdk.js?v=20261017-36';
+import { db } from './auth.js?v=20261017-36';
+import * as local from './local.js?v=20261017-36';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261016-35';
+} from './datos.js?v=20261017-36';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -395,9 +395,8 @@ export async function leerBitacora(recepcionId, max = 60) {
  * contado, dónde quedó y cuándo. Sin eso, el segundo registro se hace a ciegas.
  */
 export function registrosDe(eventos, sku) {
-  const anulados = new Set(eventos.filter((e) => e.refEvento).map((e) => e.refEvento));
-  return eventos
-    .filter((e) => e.sku === sku && e.tipo !== 'ANULACION' && !anulados.has(e.id))
+  return eventosActivos(eventos)
+    .filter((e) => e.sku === sku && (!e.tipo || ['CONTEO','NO_ENCONTRADO'].includes(e.tipo)))
     .map((e) => ({
       id: e.id,
       cantidad: aNumero(e.cantidad, 0),
@@ -411,8 +410,14 @@ export function registrosDe(eventos, sku) {
     .sort((a, b) => (b.cuando?.getTime() || 0) - (a.cuando?.getTime() || 0));
 }
 
+export function eventosActivos(eventos) {
+  const anulados = new Set(eventos.flatMap(e=>[e.refEvento,e.anulaA]).filter(Boolean));
+  return eventos.filter(e=>e.tipo!=='ANULACION' && !e.anulado && !anulados.has(e.id));
+}
+
 /** Lo contado por cada packing list, con la clave ya decodificada. */
-export const porOrigenDe = (skuDoc) => decodificarPallets(skuDoc?.porOrigen);
+export const porOrigenDe = (skuDoc) => Object.fromEntries(Object.entries(skuDoc?.porOrigen||{}).map(([o,v])=>
+  [o.replace(/~/g,'.'),v&&typeof v==='object'?Object.values(v).reduce((n,c)=>n+aNumero(c,0),0):aNumero(v,0)]));
 
 /** Pallets donde ya está este SKU, de mayor a menor cantidad. */
 export function ubicacionesDe(skuDoc) {

@@ -20,6 +20,7 @@ from app import config
 from app.db import SessionLocal
 from app.models import AppArchivo, AppEntrega, AppInforme, AppRecepcion, utcnow
 from app.services import app_modelo as m, archivos
+from app.services.instantaneas import compactar, expandir
 
 log = logging.getLogger('iv_itsanet.entregas')
 ACTIVAS = ('PENDIENTE', 'PROCESANDO', 'REVISION')
@@ -77,6 +78,10 @@ def documento(e, tecnico=False):
             **({'errorAnterior': e.error, 'anulacion': e.datos.get('anulacion')} if tecnico else {}),
             'destinatarios': e.datos.get('destinatarios', ''), 'supervisor': e.usuario,
             'remitente': e.datos.get('remitente') or e.usuario,
+            'proximoIntento': m._iso(e.proximo_en),
+            'ayuda': ('La conexión guardada de esta cuenta no fue aceptada. ADMIN debe verificar su puente una vez; no se solicita una clave por correo.'
+                if e.estado == 'PENDIENTE' and 'hmac' in str(e.error or '').lower() else
+                'Se espera la copia de las fotos. Revisa las imágenes pendientes.' if e.estado == 'PENDIENTE' and 'copi' in str(e.error or '').lower() else ''),
             'revisionMotivo': e.datos.get('revisionMotivo'),
             'resultado': (e.resultado or {}) if tecnico else {
                 k: v for k, v in (e.resultado or {}).items() if k in ('carpeta', 'carpetaFotos', 'sheet', 'enviadoA', 'remitente')},
@@ -183,6 +188,7 @@ def preparar(db, codigo, datos, usuario):
         e.datos = {**e.datos, 'informeId': informe.id, 'informe': {
             'id': informe.id, 'numero': informe.numero, 'usuario': informe.usuario,
             'creadoEn': m._iso(informe.creado_en)}}
+    e.datos = compactar(e.datos)
     db.commit()
     return documento(e)
 
@@ -194,6 +200,8 @@ class RevisionEntrega(Exception):
 def _error_google(respuesta):
     """Traducir solo categorías conocidas; nunca reenviar textos con secretos."""
     mensaje = str(respuesta.get('mensaje') or respuesta.get('error') or '').lower()
+    if 'proxy.gs' in mensaje or 'servidor.gs' in mensaje:
+        return 'El puente tiene archivos de versiones diferentes. ADMIN debe actualizar Proxy.gs y Servidor.gs juntos y publicar una nueva versión del mismo despliegue /exec. Se conserva la clave guardada.'
     if 'firma' in mensaje or 'hmac' in mensaje:
         return 'La clave compartida no coincide con SERVIDOR_HMAC de este Apps Script.'
     if 'userinfo.email' in mensaje or 'session.geteffectiveuser' in mensaje:
@@ -281,7 +289,7 @@ def procesar_uno():
         e.intentos += 1
         db.commit()
         try:
-            d = e.datos
+            d = expandir(e.datos)
             remitente = d.get('remitente') or e.usuario
             estado = llamar('estado', e.id, {**d.get('destino', {}), 'usuario': remitente})
             if str(estado.get('remitente') or '').strip().lower() != remitente.strip().lower():
@@ -297,7 +305,7 @@ def procesar_uno():
                     d = {**d, 'informes': [a for a in d['informes'] if a != anterior],
                         'informeEvidencias': None,
                         'evidenciasAnteriores': [*d.get('evidenciasAnteriores', []), anterior]}
-                e.datos = d
+                e.datos = compactar(d)
                 db.commit()
             if d['fotos'] and not d.get('informeEvidencias'):
                 imagenes=[db.get(AppArchivo,aid) for aid in d['fotos']]
@@ -309,7 +317,7 @@ def procesar_uno():
                         'nombre':'Evidencias_'+e.recepcion+sufijo+'_'+hashlib.sha256('|'.join(d['fotos']).encode()).hexdigest()[:8]+'.xlsx',
                         'base64':base64.b64encode(generar(db,e.recepcion,generacion)).decode()},e.usuario,confirmar=False)
                     d={**d,'informes':d['informes']+[informe.id],'informeEvidencias':informe.id}
-                    e.datos=d;db.commit()
+                    e.datos=compactar(d);db.commit()
             guardados = []
             for aid in d['informes'] + d['fotos']:
                 a = db.get(AppArchivo, aid)
@@ -361,6 +369,10 @@ def procesar_uno():
                 for campo in ('skus', 'lineas', 'eventos'):
                     payload.pop(campo, None)
             resultado = llamar('finalizar', e.id, payload)
+            if d.get('modoRemitente') in ('PERSONAL','RESPONSABLE') and d.get('destinatarios'):
+                normalizar=lambda v:{c.strip().lower() for c in str(v or '').split(',') if c.strip()}
+                if normalizar(resultado.get('enviadoA')) != normalizar(d['destinatarios']):
+                    raise RevisionEntrega('Google confirmó una operación, pero no confirmó los destinatarios del correo. Revisa Enviados; el informe no se reenviará automáticamente.')
             if (d.get('modoRemitente') in ('RESPONSABLE', 'PERSONAL')
                     and str(resultado.get('remitente') or '').strip().lower() != remitente.strip().lower()):
                 raise RevisionEntrega('Google no confirmó el remitente del envío final. Revisa Enviados antes de reintentar; el informe no se reenviará automáticamente.')

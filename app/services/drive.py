@@ -18,6 +18,15 @@ from app.services import app_modelo as m
 _verificados = {}
 
 
+def carpeta_sku(j,e):
+    if not j or j.estado!='COPIADA' or not e.sku:return None
+    vinculo=j.datos.get('vinculosDrive',{}).get(e.categoria+'|'+e.sku,{})
+    if vinculo.get('carpetaSkuUrl'):return vinculo['carpetaSkuUrl']
+    if j.datos.get('sku')==e.sku and (j.datos.get('ruta') or [None])[0]==e.categoria:
+        return j.datos.get('carpetaSkuUrl')
+    return None
+
+
 def resumen_fotos(db, codigo):
     """Estado de todas las fotos guardadas, también panorámicas y finales."""
     filas = db.execute(select(AppArchivo, AppCopiaDrive).outerjoin(AppCopiaDrive,
@@ -51,7 +60,7 @@ def pendientes_cierre(db, codigo, offset=0, limite=30):
         .order_by(AppArchivo.creado_en, AppArchivo.id, AppEvidencia.id))
     pendientes = {}
     for a, e, j, u in filas:
-        if j and j.estado == 'COPIADA' and (j.datos.get('carpetaSkuUrl') or j.datos.get('carpeta')):
+        if carpeta_sku(j,e):
             continue
         f = pendientes.setdefault(a.id, {'archivoId': a.id, 'nombre': a.nombre,
             'estado': j.estado if j else 'SIN_COLA', 'intentos': j.intentos if j else 0,
@@ -89,6 +98,11 @@ def reintentar_pendientes(db, codigo, usuario):
             db.flush()
         # Nunca adelantar una reserva activa ni una eliminación de evidencia.
         if j.datos.get('accion') == 'papelera': continue
+        if j.estado == 'COPIADA' and a.drive_id:
+            nueva = descripcion(db, a)
+            if nueva['ruta'] != j.datos.get('ruta') or nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
+                j.datos = {**nueva, 'accion': 'ubicar'}
+                j.usuario, j.estado = nueva['usuario'], 'PENDIENTE'
         if j.estado == 'PENDIENTE':
             j.proximo_en = ahora
             cantidad += 1
@@ -123,27 +137,36 @@ def descripcion(db, archivo, evidencia=None):
     from app.services.remitentes import responsable
     d['usuario'] = responsable(db, archivo.recepcion, d['usuario']) or d['usuario']
     d['ruta'] = [e.categoria if e else 'GENERAL']
-    if e and e.unidad_id:
-        u = db.get(AppUnidadLogistica, e.unidad_id)
-        unidades = [u] if u else []
-        if u and u.padre_id: unidades.insert(0, db.get(AppUnidadLogistica, u.padre_id))
-        d['ruta'] += [f'{u.tipo}_{u.numero:03d}_{u.codigo}' for u in unidades if u]
-    if e and e.origen: d['ruta'].append('LISTA_' + e.origen)
     if e and e.sku: d['ruta'].append(e.sku)
     d['sku'] = e.sku if e else ''
+    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo):
+        {'categoria':v.categoria,'sku':v.sku or '', 'ruta':[v.categoria]+([v.sku] if v.sku else [])+[v.tipo]}
+        for v in es}.values())
     if e: d['ruta'].append(e.tipo)
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
         recepcion=archivo.recepcion, evidencia=e.id if e else None)
+    if e and e.sku:
+        ids = [f[0] for f in db.execute(select(AppArchivo.id,AppArchivo.creado_en).join(AppEvidencia,
+            AppEvidencia.archivo_id == AppArchivo.id).where(AppEvidencia.recepcion == archivo.recepcion,
+            AppEvidencia.sku == e.sku, AppEvidencia.categoria == e.categoria)
+            .order_by(AppArchivo.creado_en, AppArchivo.id).distinct())]
+        extension = '.png' if archivo.mime == 'image/png' else '.webp' if archivo.mime == 'image/webp' else '.jpg'
+        d['nombre'] = f'{e.sku}_{ids.index(archivo.id)+1:04d}' + extension
     return d
 
 
 def encolar(db, archivo):
-    j = db.get(AppCopiaDrive, archivo.id)
+    j = db.scalar(select(AppCopiaDrive).where(AppCopiaDrive.archivo_id == archivo.id).with_for_update().execution_options(populate_existing=True))
     if not j:
         d = descripcion(db, archivo)
         j = AppCopiaDrive(archivo_id=archivo.id, recepcion=archivo.recepcion,
             usuario=d['usuario'], estado='PENDIENTE', datos=d)
         db.add(j)
+    elif j.estado == 'COPIADA' and archivo.drive_id:
+        nueva = descripcion(db, archivo)
+        if nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
+            j.datos = {**nueva, 'accion': 'ubicar'}
+            j.usuario, j.estado, j.proximo_en = nueva['usuario'], 'PENDIENTE', utcnow()
     return j
 
 
@@ -176,18 +199,26 @@ def procesar_uno():
                     entregas.llamar('papelera', aid + ':' + aid, {**d, 'usuario': j.usuario, 'fileId': a.drive_id})
                 j.estado = 'ELIMINADA'
             else:
-                if not a.drive_id:
-                    d['base64'] = base64.b64encode(archivos.ruta(a).read_bytes()).decode()
+                if not a.drive_id or d.get('accion') == 'ubicar':
+                    if a.drive_id: d['fileId'] = a.drive_id
+                    else: d['base64'] = base64.b64encode(archivos.ruta(a).read_bytes()).decode()
                     r = entregas.llamar('archivo', aid + ':' + aid, d)
                     ident = str(r.get('fileId') or '')
                     if not re.fullmatch(r'[A-Za-z0-9_-]{5,128}', ident):
                         raise RuntimeError('Drive no confirmó el archivo')
+                    if a.drive_id and ident != a.drive_id:
+                        raise RuntimeError('Drive devolvió otro archivo al actualizar su carpeta; revisa antes de continuar.')
                     a.drive_id, a.drive_url = ident, 'https://drive.google.com/file/d/' + ident + '/view'
-                    j.datos = {**j.datos, 'carpeta': r.get('carpeta', ''), 'carpetaRecepcionUrl': r.get('carpetaRecepcionUrl', ''),
-                        'carpetaSkuUrl': r.get('carpetaSkuUrl', '')}
+                    if r.get('nombre'):a.nombre=str(r['nombre'])[:190]
+                    j.datos = {**{k:v for k,v in j.datos.items() if k != 'accion'}, 'carpeta': r.get('carpeta', ''), 'carpetaRecepcionUrl': r.get('carpetaRecepcionUrl', ''),
+                        'carpetaSkuUrl': r.get('carpetaSkuUrl', ''),'vinculosDrive':r.get('vinculosDrive',{})}
                 j.estado = 'COPIADA'
             j.error = None
             db.commit()
+            if j.estado == 'COPIADA':
+                nueva = descripcion(db,a)
+                if nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
+                    j.datos = {**nueva,'accion':'ubicar'};j.estado='PENDIENTE';j.proximo_en=utcnow();db.commit()
             try: archivos.ruta(a).unlink(missing_ok=True)
             except OSError: logging.getLogger(__name__).warning('Copia Drive confirmada; limpieza local pendiente')
         except Exception as exc:

@@ -7,6 +7,7 @@ from app.models import AppConfig, AppAuditoriaGeneral, Rol
 from app.security import usuario_actual
 
 ACCIONES={'gestionarUsuarios':'Gestionar y aprobar cuentas','asignarSupervisor':'Asignar rol de supervisor',
+ 'gestionarClientes':'Gestionar clientes y reglas operativas',
  'exportarInformes':'Generar y descargar informes','cerrarRecepciones':'Finalizar y enviar informes',
  'verEquipo':'Consultar operarios activos'}
 INCIDENCIAS=[{'codigo':'OK','nombre':'OK','descripcion':'Conforme','pnc':False,'activo':True},
@@ -60,7 +61,7 @@ def guardar(db,datos,usuario):
         if not isinstance(p,dict) or set(p)-set(ACCIONES) or any(type(v)is not bool for v in p.values()):raise HTTPException(422,'Permisos inválidos')
         d['permisos'][rol]={**DEFECTO['permisos'][rol],**p}
     if not isinstance(d['clientes'],dict) or len(d['clientes'])>100:raise HTTPException(422,'Clientes inválidos')
-    campos={'marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia'}
+    campos={'marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot'}
     for n,c in d['clientes'].items():
         if not n or len(n)>60 or n!=n.upper() or not isinstance(c,dict):raise HTTPException(422,'Usa el identificador del cliente en mayúsculas')
         for k in ('palletRequerido','posicionRequerida'):

@@ -12,6 +12,7 @@ from app import config
 from app.main import app
 from app.models import AppEntrega, AppRecepcion, utcnow
 from app.services import app_modelo as m, archivos, entregas
+from app.services.instantaneas import expandir
 
 
 def preparar(cliente, db):
@@ -43,9 +44,9 @@ def test_cierre_archiva_y_encola_sin_google_y_se_puede_repetir(cliente, db, monk
     assert 'configurar' in guardada.error  # Diagnostico conservado para ADMIN.
     assert guardada.datos['exportarSheet'] is False
     assert 'sheetId' not in guardada.datos
-    assert guardada.datos['skus'][0]['contado'] == 3
-    assert guardada.datos['lineas'][0]['cantidad'] == 3
-    assert len(guardada.datos['eventos']) == 1
+    assert expandir(guardada.datos)['skus'][0]['contado'] == 3
+    assert expandir(guardada.datos)['lineas'][0]['cantidad'] == 3
+    assert len(expandir(guardada.datos)['eventos']) == 1
     assert list(tmp_path.glob('app_archivos/*'))
     assert cliente.post(f'/api/app/recepciones/{codigo}/entrega', json=datos).json()['id'] == e['id']
     assert db.scalar(select(func.count()).select_from(AppEntrega)) == 1
@@ -195,6 +196,8 @@ def test_remitente_de_sesion_y_cifras_sql_no_aceptan_suplantacion(cliente, db, m
     monkeypatch.setattr(archivos, 'DATA_DIR', tmp_path)
     sup = db.scalar(select(Operador).where(Operador.usuario == 'sup'))
     sup.email = 'supervisor@gmail.com'; db.commit()
+    from app.services import integraciones
+    integraciones.guardar_google(db,{'supervisor':'supervisor@gmail.com','url':'https://script.google.com/macros/s/prueba/exec','secreto':'prueba-secreta-'*3},'admin')
     codigo, datos = preparar(cliente, db)
     datos.update(remitente='otro@gmail.com', usuario='falso', resumen={'ok': 999, 'unidadesFisicas': 500})
     r = cliente.post(f'/api/app/recepciones/{codigo}/entrega', json=datos)
@@ -203,8 +206,8 @@ def test_remitente_de_sesion_y_cifras_sql_no_aceptan_suplantacion(cliente, db, m
     db.rollback(); db.expire_all()
     e = db.get(AppEntrega, r.json()['id'])
     assert e.usuario == 'supervisor@gmail.com'
-    assert e.datos['resumen']['ok'] == 1 and e.datos['resumen']['unidadesFisicas'] == 3
-    assert e.datos['resumen']['discrepancias'] == []
+    assert expandir(e.datos)['resumen']['ok'] == 1 and expandir(e.datos)['resumen']['unidadesFisicas'] == 3
+    assert expandir(e.datos)['resumen']['discrepancias'] == []
 
 
 def test_destinatarios_recientes_del_mismo_cliente_sin_duplicados(cliente, db):

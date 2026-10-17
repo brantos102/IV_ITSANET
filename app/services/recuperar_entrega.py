@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.models import AppArchivo, AppEntrega, AppInforme, utcnow
 from app.services import app_modelo as m, ajustes, archivos, entregas, integraciones, operacion, remitentes
+from app.services.instantaneas import compactar, expandir
 
 
 def _grupo(db, codigo, bloquear=False):
@@ -18,6 +19,7 @@ def _grupo(db, codigo, bloquear=False):
 
 
 def _validar(db, e, grupo):
+    d = expandir(e.datos)
     r = m.obtener(db, e.recepcion)
     if r.estado != 'CERRADA':
         raise HTTPException(409, 'La recepción cambió o fue reabierta. Revisa el conteo y genera su informe al finalizar.')
@@ -31,16 +33,16 @@ def _validar(db, e, grupo):
         raise HTTPException(409, 'Hay un envío en curso o con confirmación interrumpida. Revisa Enviados antes de recuperar; no se repetirá automáticamente.')
     campos = ('sku', 'esperado', 'contado', 'verificado', 'cantidadPnc', 'incidencias', 'pallets', 'descripcion')
     comparar = lambda filas: sorted([{k: s.get(k) for k in campos} for s in filas], key=lambda s: s['sku'])
-    if comparar(e.datos.get('skus', [])) != comparar(m.leer_coleccion(db, r.codigo, 'skus', actual=True)):
+    if comparar(d.get('skus', [])) != comparar(m.leer_coleccion(db, r.codigo, 'skus', actual=True)):
         raise HTTPException(409, 'El conteo cambió desde este informe. Revisa y finaliza con un informe actualizado.')
     actuales = m.leer_coleccion(db, r.codigo, 'eventos', actual=True)
     # El cierre agrega su propio evento después de congelar el informe.
     # Exportar o auditar tampoco altera el conteo; reaperturas y ajustes sí.
     relevantes = lambda filas: sorted([ev for ev in filas if ev.get('tipo') not in
         ('CIERRE', 'EXPORT', 'AUDITORIA')], key=lambda ev: ev['id'])
-    if relevantes(actuales) != relevantes(e.datos.get('eventos', [])):
+    if relevantes(actuales) != relevantes(d.get('eventos', [])):
         raise HTTPException(409, 'La bitácora cambió desde este informe; genera un informe actualizado.')
-    if e.datos.get('recepcion', {}).get('formatos', {}) != (r.formatos or {}):
+    if d.get('recepcion', {}).get('formatos', {}) != (r.formatos or {}):
         raise HTTPException(409, 'Cambió el formato de exportación; genera un informe actualizado.')
     for aid in e.datos.get('informes', []):
         a = db.get(AppArchivo, aid)
@@ -50,13 +52,13 @@ def _validar(db, e, grupo):
         raise HTTPException(409, 'Esta entrega no tiene informes archivados.')
 
 
-def vista(db, ident, usuario):
+def vista(db, ident, usuario, modo='RESPONSABLE'):
     e = db.get(AppEntrega, ident)
     if not e:
         raise HTTPException(404, 'Entrega no encontrada')
     grupo = _grupo(db, e.recepcion)
     _validar(db, e, grupo)
-    opcion = remitentes.opciones(db, e.recepcion, usuario)['opciones'][0]
+    opcion = next(o for o in remitentes.opciones(db, e.recepcion, usuario)['opciones'] if o['modo'] == modo)
     return {'entrega': entregas.documento(e, tecnico=True), 'responsable': opcion,
         'sustituye': [entregas.documento(g, tecnico=True) for g in grupo
             if g.id != e.id and g.estado in entregas.ACTIVAS],
@@ -70,13 +72,14 @@ def _firma_config(db, correo, codigo):
 
 
 def recuperar(db, ident, datos, usuario):
+    modo_solicitado = datos.get('modoRemitente', 'RESPONSABLE')
     motivo = str(datos.get('motivo') or '').strip()
     if not 10 <= len(motivo) <= 300 or datos.get('confirmarNoEnviado') is not True:
         raise HTTPException(422, 'Indica el motivo (10–300 caracteres) y confirma que revisaste Enviados y que este informe no fue enviado.')
-    vista(db, ident, usuario)
+    vista(db, ident, usuario, modo_solicitado)
     e = db.get(AppEntrega, ident)
     codigo = e.recepcion
-    correo, modo = remitentes.elegir(db, codigo, {'modoRemitente': 'RESPONSABLE',
+    correo, modo = remitentes.elegir(db, codigo, {'modoRemitente': modo_solicitado,
         'remitenteConfirmado': datos.get('remitenteConfirmado', '')}, usuario)
     firma = _firma_config(db, correo, codigo)
     instantanea = json.dumps(e.datos, sort_keys=True)
@@ -87,6 +90,8 @@ def recuperar(db, ident, datos, usuario):
         estado = entregas.llamar('estado', uuid4().hex, {'usuario': correo, 'carpetaRaiz': destino['carpetaRaiz']})
         if str(estado.get('remitente') or '').lower() != correo or estado.get('versionPuente', 0) < 2:
             raise RuntimeError('Google no confirmó la cuenta responsable o la versión del puente.')
+        if modo_solicitado == 'PERSONAL' and 'correoVerificado' not in estado.get('capacidades', []):
+            raise RuntimeError('Actualiza Proxy.gs y Servidor.gs juntos y publica una versión nueva del despliegue /exec antes de solicitar el envío.')
         if destino['carpetaRaiz'] and estado.get('carpetaId') != destino['carpetaRaiz']:
             raise RuntimeError('Google no confirmó la carpeta raíz configurada.')
     except Exception as exc:
@@ -99,7 +104,7 @@ def recuperar(db, ident, datos, usuario):
     _validar(db, e, grupo)
     if json.dumps(e.datos, sort_keys=True) != instantanea or _firma_config(db, correo, codigo) != firma:
         raise HTTPException(409, 'Cambió el envío o la configuración mientras se verificaba. Actualiza antes de recuperar.')
-    remitentes.elegir(db, codigo, {'modoRemitente': 'RESPONSABLE', 'remitenteConfirmado': correo}, usuario)
+    remitentes.elegir(db, codigo, {'modoRemitente': modo_solicitado, 'remitenteConfirmado': correo}, usuario)
     ahora = utcnow()
     for g in grupo:
         if g.id != ident and g.estado in entregas.ACTIVAS:
@@ -114,10 +119,11 @@ def recuperar(db, ident, datos, usuario):
     recuperacion = {'usuario': usuario, 'fecha': m._iso(ahora), 'motivo': motivo,
         'remitenteAnterior': e.datos.get('remitente') or e.usuario, 'remitente': correo,
         'estadoAnterior': e.estado, 'confirmarNoEnviado': True}
-    e.datos = {**e.datos, 'remitente': correo, 'modoRemitente': modo,
+    completo = expandir(e.datos)
+    e.datos = compactar({**completo, 'remitente': correo, 'modoRemitente': modo,
         'destino': {k: v for k, v in destino.items() if k != 'supervisor'},
-        'resumen': entregas.resumen_final(e.datos['skus'], e.datos['eventos']),
-        'revisionMotivo': None, 'recuperaciones': [*e.datos.get('recuperaciones', []), recuperacion]}
+        'resumen': entregas.resumen_final(completo['skus'], completo['eventos']),
+        'revisionMotivo': None, 'recuperaciones': [*e.datos.get('recuperaciones', []), recuperacion]})
     e.estado, e.error, e.proximo_en = 'PENDIENTE', None, ahora
     if e.datos.get('informeId'):
         informe = db.get(AppInforme, e.datos['informeId'])

@@ -32,7 +32,7 @@ def correo(cliente, db, monkeypatch, tmp_path):
 def test_opciones_correo_sin_secreto_y_responsable_predeterminado(cliente, correo):
     codigo, _ = correo
     r = cliente.get(f'/api/app/recepciones/{codigo}/remitentes')
-    assert r.status_code == 200 and r.json()['predeterminado'] == 'RESPONSABLE'
+    assert r.status_code == 200 and r.json()['predeterminado'] == 'PERSONAL'
     assert r.json()['opciones'] == [
         {'modo':'RESPONSABLE','correo':'responsable@example.test','disponible':True},
         {'modo':'PERSONAL','correo':'personal@example.test','disponible':True}]
@@ -54,7 +54,7 @@ def test_configuracion_de_correo_exclusiva_de_admin(cliente):
     assert cliente.put('/api/operacion/config',json={'correo':{'responsable':'falso@example.test'}}).status_code==403
 
 
-@pytest.mark.parametrize('modo, remitente', [(None,'responsable@example.test'),('RESPONSABLE','responsable@example.test'),('PERSONAL','personal@example.test')])
+@pytest.mark.parametrize('modo, remitente', [(None,'personal@example.test'),('PERSONAL','personal@example.test')])
 def test_encola_remitente_correcto_conservando_autor_y_sin_suplantacion(cliente, db, correo, modo, remitente, monkeypatch):
     codigo, datos = correo
     if modo: datos['modoRemitente']=modo
@@ -66,7 +66,7 @@ def test_encola_remitente_correcto_conservando_autor_y_sin_suplantacion(cliente,
     def google(accion, clave, payload):
         llamadas.append((accion,payload))
         assert payload['usuario']==remitente
-        return {'exito':True,'remitente':remitente,'fileId':'archivo-prueba-confirmado'}
+        return {'exito':True,'remitente':remitente,'fileId':'archivo-prueba-confirmado','enviadoA':payload.get('destinatarios','')}
     monkeypatch.setattr(entregas,'llamar',google)
     assert entregas.procesar_uno()
     assert [a for a,_ in llamadas]==['estado','archivo','finalizar']
@@ -96,10 +96,10 @@ def test_cuenta_no_autorizada_no_cierra_ni_envia(cliente, db, correo, cambio, mo
 
 
 def test_no_confirma_ni_reenvia_si_falta_acuse_del_remitente(cliente, db, correo, monkeypatch):
-    codigo,datos=correo;datos['modoRemitente']='RESPONSABLE'
+    codigo,datos=correo;datos['modoRemitente']='PERSONAL'
     r=cliente.post(f'/api/app/recepciones/{codigo}/entrega',json=datos);assert r.status_code==201
     def google(accion,*args):
-        return {'exito':True,'remitente':'responsable@example.test','fileId':'archivo-prueba-confirmado'} if accion!='finalizar' else {'exito':True,'remitente':'otra@example.test'}
+        return {'exito':True,'remitente':'personal@example.test','fileId':'archivo-prueba-confirmado'} if accion!='finalizar' else {'exito':True,'remitente':'otra@example.test'}
     monkeypatch.setattr(entregas,'llamar',google)
     assert entregas.procesar_uno()
     db.rollback();db.expire_all();assert db.get(AppEntrega,r.json()['id']).estado=='REVISION'

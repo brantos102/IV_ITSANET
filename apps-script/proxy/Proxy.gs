@@ -545,6 +545,8 @@ function accionEnviarInforme_(p, usuario, antesDeEnviar) {
   return {exito:true,enviadoA:p.destinatarios,adjuntos:nombres,cuotaRestante:MailApp.getRemainingDailyQuota()};
 }
 
+accionEnviarInforme_.versionServidor = 2;
+
 // ========================================================================== //
 // Mapeo
 // ========================================================================== //

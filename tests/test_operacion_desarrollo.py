@@ -282,7 +282,9 @@ def test_bloqueo_fotos_solo_si_admin_lo_habilita_y_operador_no_modifica_formato(
     version=cliente.get('/api/operacion/recepciones/INGRESO/ingreso').json()['version']
     r=cliente.put('/api/operacion/recepciones/INGRESO/ingreso',json={'paso':'PACKING','version':version})
     assert r.status_code==409 and 'recomendaciones' in r.text
-    assert cliente.put('/api/operacion/formatos-packing/VENTURA',json={}).status_code==403
+    assert cliente.put('/api/operacion/formatos-packing/VENTURA',json={}).status_code==422
+    operador=TestClient(app);operador.post('/api/auth/login',json={'usuario':'op1','pin':'2222'})
+    assert operador.put('/api/operacion/formatos-packing/VENTURA',json={}).status_code==403
 
 
 def test_ingreso_sin_fotos_permita_packing_y_conteo_con_decision_auditada(admin,cliente):

@@ -2,17 +2,17 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261016-35"></script>
+<script src="./js/arranque.js?v=20261017-36"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261016-35">
+<link rel="stylesheet" href="./css/marca.css?v=20261017-36">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261016-35"></script>
-<script src="./vendor/JsBarcode.all.min.js?v=20261016-35"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261017-36"></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261017-36"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -28,7 +28,7 @@
   <a href="./"><button class="b-sec">Inicio</button></a>
 </header>
 
-<div id="avisos"></div>
+<div id="avisos"></div><button type="button" id="bEntregasSupervisor" class="b-sec">Entregas e imágenes pendientes</button>
 
 <!-- Crear -->
 <div class="panel" id="panelCrear">
@@ -58,7 +58,7 @@
         después, y no se puede repetir ni cambiar.</span>
       <span class="mini" id="pistaCodigo" style="color:var(--warning)"></span></label>
     <label class="campo"><span>Cliente</span>
-      <input id="fCliente" placeholder="VENTURA" autocapitalize="characters">
+      <select id="fCliente"><option value="">Selecciona el cliente</option></select><button type="button" class="b-sec" id="bClientesOperacion" hidden>Gestionar clientes</button>
       <span class="mini">El mismo nombre con el que está dado de alta en
         Administración.</span></label>
     <label class="campo"><span>N° de bultos</span>
@@ -99,7 +99,7 @@
       <label class="campo"><span>Columna descripción (opcional)</span><input id="mapDescripcion"></label>
       <label class="campo"><span>Columna embarque (opcional)</span><input id="mapEmbarque"></label></div>
     <button id="bAplicarFormato" class="b-sec">Aplicar formato y volver a analizar</button>
-    <button id="bGuardarFormato" class="b-sec oculto">Guardar formato del cliente · ADMIN</button>
+    <button id="bGuardarFormato" class="b-sec oculto">Guardar formato del cliente</button>
   </details>
   <div class="acciones">
     <button class="b-primario" id="bSubir" disabled>Guardar packing list</button>
@@ -154,21 +154,23 @@
 </div>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261016-35';
-import { observarSesion, modoLocal } from './js/auth.js?v=20261016-35';
+import {configurarClientes} from './js/clientes-operacion.js?v=20261017-36';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261017-36';
+import { mostrarAviso } from './js/notificaciones.js?v=20261017-36';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261017-36';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261016-35';
-import { Proxy } from './js/proxy.js?v=20261016-35';
-import { resumir } from './js/conteo.js?v=20261016-35';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261016-35';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261016-35';
-import { leerCodigos } from './js/codigos.js?v=20261016-35';
-import { pedir } from './js/local.js?v=20261016-35';
-import { abrirIngreso } from './js/ingreso.js?v=20261016-35';
-import { operacion } from './js/evidencias.js?v=20261016-35';
+} from './js/datos.js?v=20261017-36';
+import { Proxy } from './js/proxy.js?v=20261017-36';
+import { resumir } from './js/conteo.js?v=20261017-36';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261017-36';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261017-36';
+import { leerCodigos } from './js/codigos.js?v=20261017-36';
+import { pedir } from './js/local.js?v=20261017-36';
+import { abrirIngreso } from './js/ingreso.js?v=20261017-36';
+import { operacion } from './js/evidencias.js?v=20261017-36';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -184,11 +186,12 @@ function aviso(texto, tipo = 'info', titulo = '') {
 }
 const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
 
-observarSesion((e) => {
+observarSesion(async (e) => {
   globalThis.itsanetArranque?.listo();
   if (e.error) aviso(e.error, 'err');
   if (!e.usuario) { location.href = './'; return; }
   usuario = e.usuario; perfil = e.perfil;
+  $('bEntregasSupervisor').hidden=!perfil?.permisos?.cerrarRecepciones;
 
   $('uUsuario').innerHTML =
     `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
@@ -202,7 +205,7 @@ observarSesion((e) => {
     document.title = 'Mis validaciones — ITSANET';
   }
   if (perfil?.rol === 'ADMIN') $('lnkAdmin').classList.remove('oculto');
-  $('bGuardarFormato').classList.toggle('oculto',perfil?.rol!=='ADMIN' || !modoLocal());
+  $('bGuardarFormato').classList.toggle('oculto',!perfil?.permisos?.gestionarClientes || !modoLocal());
   if (!puedeCrear) {
     $('panelCrear').classList.add('oculto');
     $('panelCatalogo').classList.add('oculto');
@@ -211,8 +214,11 @@ observarSesion((e) => {
     aviso('Tu rol es OPERADOR: puedes validar, pero no crear recepciones ni ' +
           'subir packing lists. Pídeselo a un supervisor.', 'info', 'Solo lectura');
   }
+  if(modoLocal()){try{await configurarClientes($('fCliente'),$('bClientesOperacion'),!!perfil?.permisos?.gestionarClientes,e=>aviso(e.message,'err'));}catch(e){aviso(e.message,'err');}}
   cargarListado();
 });
+
+$('bEntregasSupervisor').onclick=()=>abrirEntregas(aviso).catch(e=>aviso(e.message,'err'));
 
 // --- Crear ---------------------------------------------------------------- //
 $('bCrear').addEventListener('click', async () => {

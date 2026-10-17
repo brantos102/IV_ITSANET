@@ -54,16 +54,14 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta'] };
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku'].concat(
+        typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'] : []) };
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
     if (p.operacion === 'prepararCarpeta') {
       var recepcion = carpetaRecepcionServidor_(p.datos);
-      carpetaDe_(recepcion, 'INFORMES');
-      carpetaEvidenciaServidor_(recepcion, {ruta:['RECEPCION','PANORAMICA']});
-      carpetaEvidenciaServidor_(recepcion, {ruta:['RECEPCION','ESTADO_FINAL']});
       return {exito:true,remitente:remitente,carpeta:recepcion.getUrl()};
     }
     if (p.operacion === 'pruebaCorreo') {
@@ -103,7 +101,6 @@ function carpetaRecepcionServidor_(p) {
   var cliente = carpetaDe_(raiz, limpiarNombre_(p.cliente));
   var marca = p.marca ? carpetaDe_(cliente, limpiarNombre_(p.marca)) : cliente;
   var r = carpetaDe_(marca, limpiarNombre_(p.carpetaRecepcion || p.recepcion || p.codigo));
-  ['FALTANTE','SOBRANTE','PNC'].forEach(function(n) { carpetaDe_(r,n); });
   return r;
 }
 
@@ -126,7 +123,8 @@ function cuentaServidor_(supervisor) {
 
 function archivoServidor_(clave, p) {
   if (p.tipoArchivo !== 'foto' && p.tipoArchivo !== 'informe') throw new Error('Tipo no permitido.');
-  if (!p.base64 || p.base64.length > 16777220) throw new Error('Archivo demasiado grande o vacio.');
+  if (p.fileId && (!/^[A-Za-z0-9_-]{5,128}$/.test(p.fileId) || p.tipoArchivo !== 'foto')) throw new Error('Archivo de evidencia invalido.');
+  if (!p.fileId && (!p.base64 || p.base64.length > 16777220)) throw new Error('Archivo demasiado grande o vacio.');
   var recepcion = carpetaRecepcionServidor_(p);
   var carpeta = p.tipoArchivo === 'foto' ? carpetaEvidenciaServidor_(recepcion,p)
     : p.cliente ? carpetaDe_(recepcion, 'INFORMES') : recepcion;
@@ -135,12 +133,23 @@ function archivoServidor_(clave, p) {
   var nombre = (punto < 0 ? original : original.slice(0, punto)) + '__' + clave.split(':')[1]
     + (punto < 0 ? '' : original.slice(punto));
   var existentes = carpeta.getFilesByName(nombre);
-  var archivo = existentes.hasNext() ? existentes.next() : carpeta.createFile(
+  var archivo = p.fileId ? DriveApp.getFileById(p.fileId) : existentes.hasNext() ? existentes.next() : carpeta.createFile(
     Utilities.newBlob(Utilities.base64Decode(p.base64), p.tipo, nombre));
+  if (p.fileId) {archivo.moveTo(carpeta);archivo.setName(nombre);}
   archivo.setDescription('ITSANET ' + clave + ' | Recepcion ' + p.recepcion + ' | ' + p.usuario);
+  var vinculos = {};
+  (p.rutasVinculadas || []).forEach(function(v) {
+    var destino=carpetaEvidenciaServidor_(recepcion,v);
+    if(destino.getUrl()!==carpeta.getUrl()) {
+      var existentes=destino.getFilesByName(nombre),encontrado=false;
+      while(existentes.hasNext()){var f=existentes.next();if(f.getId()===archivo.getId() || f.getTargetId&&f.getTargetId()===archivo.getId())encontrado=true;}
+      if(!encontrado){var enlace=DriveApp.createShortcut(archivo.getId());enlace.moveTo(destino);enlace.setName(nombre);}
+    }
+    vinculos[v.categoria+'|'+v.sku]={carpeta:destino.getUrl(),carpetaSkuUrl:v.sku?carpetaEvidenciaServidor_(recepcion,{ruta:v.ruta.slice(0,-1)}).getUrl():''};
+  });
   return { exito: true, fileId: archivo.getId(), nombre: original, tipoArchivo: p.tipoArchivo,
     enlace: archivo.getUrl(), url: 'https://drive.google.com/uc?id=' + archivo.getId(),
-    carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl(),
+    carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl(),vinculosDrive:vinculos,
     carpetaSkuUrl: p.sku && p.ruta && p.ruta.length > 1
       ? carpetaEvidenciaServidor_(recepcion, {ruta:p.ruta.slice(0,-1)}).getUrl() : '' };
 }
@@ -190,8 +199,8 @@ function finalizarServidor_(id, p) {
     if (!colocados[f.fileId]) {
       archivoFoto.moveTo(destino); archivoFoto.setName(nombreFoto); colocados[f.fileId] = true;
     } else {
-      var enlaces = destino.getFilesByName(nombreFoto), existe = false;
-      while(enlaces.hasNext()) { var enlace = enlaces.next(); if(enlace.getId() === f.fileId || (enlace.getTargetId && enlace.getTargetId() === f.fileId)) existe = true; }
+      var enlaces = destino.getFiles(), existe = false;
+      while(enlaces.hasNext()) { var enlace = enlaces.next(); if(enlace.getId() === f.fileId || (enlace.getTargetId && enlace.getTargetId() === f.fileId)) {existe = true;enlace.setName(nombreFoto);} }
       if(!existe) {var acceso = DriveApp.createShortcut(f.fileId);acceso.moveTo(destino);acceso.setName(nombreFoto);}
     }
   });
@@ -212,6 +221,7 @@ function finalizarServidor_(id, p) {
     sheet = libro.getUrl();
   }
   if (p.destinatarios) {
+    if(typeof accionEnviarInforme_!=='function' || !(accionEnviarInforme_.versionServidor>=2))throw new Error('Actualiza Proxy.gs y Servidor.gs juntos y publica una nueva version del despliegue /exec.');
     var destinatarios = p.destinatarios.split(',');
     if (destinatarios.length > 20 || destinatarios.some(function(c) { return !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(c); })) throw new Error('Destinatarios no validos.');
     if (MailApp.getRemainingDailyQuota() < destinatarios.length) throw new Error('Cuota de correo insuficiente.');

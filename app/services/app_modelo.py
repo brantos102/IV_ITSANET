@@ -396,6 +396,7 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
     #    reconocerlo si vuelve a subirse en otra recepción.
     formato = {
         "encabezados": resultado.get("encabezados") or [],
+        "prefijo": resultado.get("prefijo") or [],
         "columnas": resultado.get("columnas") or {},
         "hoja": resultado.get("hoja") or "",
     }
@@ -516,7 +517,7 @@ def _aplicar_al_sku(s: AppSku, d: dict, usuario: str | None) -> None:
     s.actualizado_en = utcnow().replace(tzinfo=None)
 
 
-def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> dict:
+def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, confirmar=True) -> dict:
     """Registra un conteo físico. El orden de las comprobaciones es el de la app.
 
     Devuelve lo mismo que devolvía la transacción de Firestore, porque la
@@ -573,6 +574,20 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
     previo = a_numero(s.contado, 0) if s else 0
     total = previo + cantidad
     en_packing = bool(s.en_packing_list) if s else False
+    origen = limpiar(p.get('origen')).upper()
+    if s and s.origenes:
+        if not origen and len(s.origenes) == 1:
+            origen = s.origenes[0]
+        if origen and origen not in s.origenes:
+            raise ErrorApp('El producto no pertenece a ese packing list.', 'ORIGEN_INVALIDO')
+        if len(s.origenes) > 1 and not origen:
+            raise ErrorApp('Selecciona el packing list del producto.', 'ORIGEN_REQUERIDO')
+        dec = a_numero((s.esperado_por_origen or {}).get(clave_mapa(origen)), 0)
+        por_pallet = (s.por_origen or {}).get(clave_mapa(origen), {})
+        ya = sum(a_numero(n,0) for n in por_pallet.values()) if isinstance(por_pallet,dict) else a_numero(por_pallet,0)
+        if origen and cantidad > 0 and ya + cantidad > dec and not p.get('confirmarSobrante'):
+            raise ErrorApp(f'La lista {origen} declara {dec} y lleva {ya}. Revisa las otras listas o confirma el sobrante de esta lista.', 'CONFIRMAR_SOBRANTE')
+    p = {**p, 'origen': origen}
 
     # 2. Un ajuste no puede dejar el conteo en negativo.
     if total < 0:
@@ -592,12 +607,15 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
 
     ahora = utcnow().replace(tzinfo=None)
     incidencias = calidad.validar(db, p, cantidad)
+    fotos = p.get('fotos') or []
+    if not isinstance(fotos,list) or any(not isinstance(f,str) or len(f)>2048 or not f.startswith(('/api/app/archivos/','https://')) for f in fotos):
+        raise ErrorApp('Las fotos del conteo deben ser enlaces de archivos guardados, no imágenes incrustadas.', 'FOTOS_INVALIDAS')
     datos = {
         'incidencias': incidencias,
         "codigoEscaneado": limpiar(p.get("codigoEscaneado")) or None,
         "estadoFisico": limpiar(p.get("estadoFisico")) or None,
         "observacion": limpiar(p.get("observacion")) or None,
-        "fotos": p.get("fotos") or [],
+        "fotos": fotos,
         "operadorNombre": limpiar(p.get("operadorNombre")) or None,
         "interpretacionLectura": limpiar(p.get("interpretacionLectura"))[:500] or None,
     }
@@ -636,11 +654,11 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
         r.estado = "EN_VALIDACION"
 
     calidad.actualizar(db, s)
-    db.commit()
+    db.commit() if confirmar else db.flush()
     return {
         "duplicado": False, "eventoId": idem, "sku": sku,
         "cantidadRegistrada": cantidad, "pallet": pallet,
-        'pallets': s.pallets or {},
+        'pallets': s.pallets or {}, 'porOrigen': s.por_origen or {},
         "actualizadoEn": _iso(s.actualizado_en),
         "esperado": esperado, "contado": a_numero(s.contado, 0),
         "pendiente": max(esperado - a_numero(s.contado, 0), 0),
@@ -651,7 +669,7 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict) -> 
 
 
 def anular_conteo(db: Session, codigo: str, usuario: str | None,
-                  evento_id: str, motivo: str) -> dict:
+                  evento_id: str, motivo: str, *, confirmar=True) -> dict:
     """Reversa un conteo con un evento compensatorio. El original nunca se borra."""
     motivo = limpiar(motivo)
     if not motivo:
@@ -694,7 +712,7 @@ def anular_conteo(db: Session, codigo: str, usuario: str | None,
         }, usuario)
         calidad.actualizar(db, s)
 
-    db.commit()
+    db.commit() if confirmar else db.flush()
     return {
         "eventoId": compensacion.id, "anulado": original.id, "sku": original.sku,
         "cantidad": -a_numero(original.cantidad, 0),
