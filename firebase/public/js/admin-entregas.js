@@ -1,5 +1,7 @@
-import {pedir} from './local.js?v=20261017-39';
-import {pedirDatos,confirmar} from './modal.js?v=20261017-39';
+import {verImagen} from './visor-imagen.js?v=20261018-40';
+import {abrirCorreo} from './correo-redactado.js?v=20261018-40';
+import {pedir} from './local.js?v=20261018-40';
+import {pedirDatos,confirmar} from './modal.js?v=20261018-40';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -11,7 +13,7 @@ const operacion = (ruta, opciones={}) => pedir(ruta, {...opciones, base:'/api/op
 export async function revisarDrive(codigo, aviso, operativo=false) {
   const d = document.createElement('dialog'); d.className='modal';
   d.innerHTML=`<h3>Fotos y carpetas · ${esc(codigo)}</h3><div data-estado role="status">Consultando fotos…</div>
-    <p data-resultado role="status"></p><div class="modal-acciones"><button class="b-sec" data-actualizar>Actualizar</button>
+    <details open><summary>Archivos y carpetas en tiempo real</summary><input data-filtro-archivos placeholder="Filtrar por SKU, nombre o carpeta" aria-label="Filtrar archivos"><div data-tabla-archivos class="tabla-env"></div></details><p data-resultado role="status"></p><div class="modal-acciones"><button class="b-sec" data-actualizar>Actualizar</button>
     <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-mi-cuenta>Copiar pendientes desde mi cuenta</button><button class="b-sec" data-cerrar>Cerrar</button></div>`;
   document.body.append(d); d.showModal();
   const ruta='/recepciones/'+encodeURIComponent(codigo)+'/drive'; let ocupado=false;
@@ -25,6 +27,7 @@ export async function revisarDrive(codigo, aviso, operativo=false) {
         ${(r.carpetas || []).map(u=>`<p>${enlace(u,'Abrir carpeta de la recepción')}</p>`).join('')}
         ${r.avisos?.length ? `<div class="mini">${r.avisos.map(a=>`<p>${esc(a)}</p>`).join('')}<p>Si falla la clave, guarda la misma SERVIDOR_HMAC en el puente de esta cuenta y vuelve a verificar. No hace falta generar otra clave.</p></div>` : ''}
         <details><summary>Ubicación de cada foto (${r.archivos?.length || 0})</summary>${(r.archivos || []).map(a=>`<p><b>${esc(a.nombre)}</b> · ${esc(a.estado)}<br>${esc((a.ruta || []).join(' / '))}<br>${enlace(a.enlace,'Abrir foto')} ${enlace(a.carpeta,'Abrir carpeta')}${a.error?`<br>${esc(a.error)}`:''}</p>`).join('')}</details>`;
+      const pintarArchivos=()=>{const filtro=d.querySelector('[data-filtro-archivos]').value.trim().toUpperCase();const filas=(r.archivos||[]).filter(a=>(a.nombre+' '+(a.ruta||[]).join(' / ')).toUpperCase().includes(filtro));d.querySelector('[data-tabla-archivos]').innerHTML='<table><thead><tr><th>Foto</th><th>SKU / tipo</th><th>Estado</th><th>Ruta de carpeta</th><th>Acciones</th></tr></thead><tbody>'+filas.map(a=>`<tr><td>${esc(a.nombre)}</td><td>${esc(a.sku||'Recepción')}<br>${esc(a.tipo||'')}</td><td>${esc(a.estado)}</td><td>${esc([destino.cliente,destino.marca,codigo,...(a.ruta||[])].filter(Boolean).join(' / '))}${a.error?'<p>'+esc(a.error)+'</p>':''}</td><td><button class="b-sec" data-ver-foto="${esc(a.id)}">Vista previa</button>${enlace(a.carpeta,'Carpeta confirmada')} ${enlace(a.enlace,'Original')}</td></tr>`).join('')+'</tbody></table>';d.querySelectorAll('[data-ver-foto]').forEach(b=>b.onclick=()=>{const a=filas.find(a=>a.id===b.dataset.verFoto);verImagen({url:'/api/app/archivos/'+a.id,nombre:a.nombre,driveUrl:a.enlace});});};d.querySelector('[data-filtro-archivos]').oninput=pintarArchivos;pintarArchivos();
     } catch(e){d.querySelector('[data-resultado]').textContent=e.message;}
     finally{ocupado=false;}
   };
@@ -65,12 +68,13 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
     grupo.sort((a,b)=>b.creadoEn.localeCompare(a.creadoEn)||b.id.localeCompare(a.id));
     const ultima=grupo[0], activas=grupo.filter(e=>['PENDIENTE','PROCESANDO','REVISION'].includes(e.estado));
     const resumen=document.createElement('p');resumen.textContent=activas.length?`${activas.length} entrega(s) por resolver`:
-      ultima.estado==='ENTREGADA'?'Entrega confirmada.':'Sin envío activo. Los envíos anulados no se enviarán.';seccion.append(resumen);
+      ultima.correoManual?(ultima.correoManual.estado==='DECLARADO_ENVIADO'?'Envío manual declarado por el supervisor.':'Correo preparado para envío manual.'):ultima.estado==='ENTREGADA'?'Entrega confirmada.':'Sin envío activo. Los envíos anulados no se enviarán.';seccion.append(resumen);
     boton(seccion,'Revisar Drive y fotos',()=>revisarDrive(codigo,aviso,operativo));
+    boton(seccion,'Ver correo final · copiar o enviar',()=>abrirCorreo(codigo,{entregaId:ultima.id}));
     const dibujar=(e,padre)=>{
       const fila=document.createElement('article');fila.style.marginBlock='16px';
-      const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
-      const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');fila.append(m);
+      const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.correoManual?(e.correoManual.estado==='DECLARADO_ENVIADO'?'MANUAL · ENVÍO DECLARADO':'MANUAL · POR ENVIAR'):e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
+      const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');if(e.correoManual)m.textContent=(e.correoManual.estado==='DECLARADO_ENVIADO'?'Envío manual declarado por '+e.correoManual.usuario+'; sin acuse de Google.':'Preparado para envío manual. El envío automático está detenido.');fila.append(m);
       const urls=document.createElement('div');urls.innerHTML=enlace(e.resultado?.carpeta,'Abrir Drive')+' '+enlace(e.resultado?.sheet,'Abrir Sheets');fila.append(urls);
       if(['PENDIENTE','REVISION'].includes(e.estado)){
         boton(fila,'Anular este envío',async()=>{
@@ -86,7 +90,7 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
       padre.append(fila);
     };
     activas.forEach(e=>dibujar(e,seccion));
-    if(['PENDIENTE','CANCELADA','REVISION'].includes(ultima.estado)){
+    if(['PENDIENTE','CANCELADA','REVISION'].includes(ultima.estado)&&ultima.correoManual?.estado!=='DECLARADO_ENVIADO'){
       if(ultima.confirmacionDisponible){const listo=document.createElement('p');listo.className='msg ok';listo.textContent='Tu conexión está verificada. Los documentos finales esperan tu revisión y confirmación; todavía no se enviaron.';seccion.append(listo);}
       boton(seccion,ultima.confirmacionDisponible?'Conexión verificada · revisar y confirmar envío':'Revisar y confirmar envío desde mi correo',async()=>{
         const v=await pedir('/entregas/'+ultima.id+'/solicitar');

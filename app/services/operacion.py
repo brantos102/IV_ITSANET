@@ -210,10 +210,14 @@ def guardar_unidad(db, codigo, datos, usuario):
         raise HTTPException(422, 'Listas vinculadas inválidas')
     if 'concluido' in datos and type(datos['concluido']) is not bool:
         raise HTTPException(422, 'Estado del bulto inválido')
+    from app.services.normalize import normalizar_pallet, pallet_valido
+    pallet=normalizar_pallet(datos.get('pallet',anterior.get('pallet','')))
+    if pallet and not pallet_valido(pallet):
+        raise HTTPException(422,'Pallet inválido: solo letras y números, punto para subpallet y guion entre pallets. Corrige el campo Pallet; no se admiten comillas.')
     u.codigo, u.padre_id = cod, padre.id if padre else None
     u.datos = {**anterior, 'origenes': list(dict.fromkeys(origenes)),
         'observacion': str(datos.get('observacion', anterior.get('observacion', '')) or '')[:300],
-        'pallet': str(datos.get('pallet', anterior.get('pallet', '')) or '').strip().upper()[:80],
+        'pallet': pallet,
         'lecturaOriginal': str(datos.get('lecturaOriginal', anterior.get('lecturaOriginal', '')) or '')[:2048],
         'concluido': datos.get('concluido', anterior.get('concluido', False)),
         'version': revision + 1, 'actualizadoPor': usuario, 'actualizadoEn': m._iso(utcnow())}

@@ -1,9 +1,10 @@
-import {pedir} from './local.js?v=20261017-39';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261017-39';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261017-39';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261017-39';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261017-39';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261017-39';
+import {verImagen} from './visor-imagen.js?v=20261018-40';
+import {pedir} from './local.js?v=20261018-40';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-40';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-40';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261018-40';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-40';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-40';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -122,7 +123,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     const r=await pedir(`${ruta}/imagenes?unidadId=${encodeURIComponent(u.id)}&limite=100`);
     $('[data-galeria]').replaceChildren();
     for(const f of r.archivos){const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
-      const img=document.createElement('img');img.src=f.url;img.alt='Evidencia del bulto '+u.numero;img.loading='lazy';a.append(img);$('[data-galeria]').append(a);}
+      const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.alt='Evidencia del bulto '+u.numero;img.loading='lazy';a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};$('[data-galeria]').append(a);}
     $('[data-galeria-nota]').textContent=r.total>100 ? `Se muestran las últimas 100 de ${r.total}. Todas se conservan en la galería de recepción.` : `${r.total} imágenes de este bulto y sus cajas.`;
   }
   async function mostrarBulto(){

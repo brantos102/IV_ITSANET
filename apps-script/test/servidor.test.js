@@ -114,4 +114,6 @@ test('miniatura no devuelve originales grandes ni consulta archivo con otra cuen
  let fallo=false;try{e.g.entregaServidor_(e.peticion('miniatura',id,{fileId:'foto-privada'}));}catch(err){fallo=err.message.includes('Vista previa');}ok(fallo);
  e.cambiarCuenta('otra@example.test');try{e.g.entregaServidor_(e.peticion('miniatura',id,{fileId:'foto-privada'}));}catch{}ok(lecturas===1);ok(e.correos()===0);
 });
+test('correo editable se anuncia solo con Proxy compatible',()=>{const e=entorno();ok(!e.g.entregaServidor_(e.peticion('estado',id,{})).capacidades.includes('correoEditable'));e.g.accionEnviarInforme_.versionServidor=3;ok(e.g.entregaServidor_(e.peticion('estado',id,{})).capacidades.includes('correoEditable'));});
+test('fotografías del correo respetan la selección y el orden revisado',()=>{const e=entorno();const archivos=['primera','segunda','tercera'].map(fileId=>({fileId,nombre:fileId,tipoArchivo:'foto',enlace:'https://drive.google.com/file/d/'+fileId+'/view'}));const fotos=e.g.fotosCorreoServidor_(archivos,[],['segunda','primera']);ok(JSON.stringify(fotos.map(f=>f.fileId))===JSON.stringify(['segunda','primera']));ok(e.correos()===0);});
 console.log(`${pasadas} pasadas, ${falladas} falladas`); process.exitCode=falladas?1:0;

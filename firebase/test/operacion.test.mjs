@@ -58,4 +58,5 @@ await test('filtros del dashboard recortan unidades, referencias y eventos al mi
   const t=kpi.consolidar(f.map(kpi.indicadoresDe));eq(t.fisicas,3);eq(t.esperadas,4);eq(t.skus,1);
   eq(kpi.filtrarDetalles(todos,{producto:'999'}).length,0);eq(kpi.referenciasDe(f)[0].diferencia,-1);
 });
+await test('serie estándar admite los espacios de las etiquetas de distintos clientes',()=>{const d=validarEtiqueta({...etiqueta,serie:'(3S)GE8730-52 10208014800122C'});eq(d.serie,'(3S)GE8730-52 10208014800122C');ok(generarZpl(d).includes('^BCN'));});
 resumen();

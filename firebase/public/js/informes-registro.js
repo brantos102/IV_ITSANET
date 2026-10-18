@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261017-39';
-import {confirmar} from './modal.js?v=20261017-39';
+import {pedir,nuevoIdentificador} from './local.js?v=20261018-40';
+import {confirmar} from './modal.js?v=20261018-40';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base=c=>'/recepciones/'+encodeURIComponent(c)+'/informes';

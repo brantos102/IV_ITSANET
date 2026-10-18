@@ -533,6 +533,16 @@ function accionEnviarInforme_(p, usuario, antesDeEnviar) {
   var opciones={to:p.destinatarios,subject:'Informe de Recepción: '+(p.recepcion || '')+(informe ? ' · '+informe : '')+
     (adjuntos.length>1 ? ' ('+adjuntos.length+' packing lists)' : ''),
     body:'Informe de recepción '+(p.recepcion || '')+' '+informe+'. Carpeta Drive: '+(p.carpetaUrl || '')+'. Remitente: '+usuario.email+'. Consulte los informes adjuntos.',htmlBody:html};
+  if(p.correoFinal){
+    var final=p.correoFinal;
+    if(typeof final.asunto!=='string'||!final.asunto.trim()||final.asunto.length>250||/[\r\n]/.test(final.asunto)||typeof final.html!=='string'||final.html.length>500000||typeof final.texto!=='string')throw new Error('Correo final no válido. Revisa el borrador.');
+    if(String(final.remitente||'').toLowerCase()!==String(usuario.email||'').toLowerCase())throw new Error('El correo revisado pertenece a otro remitente.');
+    opciones.subject=final.asunto;opciones.body=final.texto;
+    opciones.htmlBody=final.html;
+    (p.fotos||[]).slice(0,12).forEach(function(f,i){
+      if(f.fileId&&inlineImages['evidencia'+i])opciones.htmlBody=opciones.htmlBody.split('https://drive.google.com/thumbnail?id='+f.fileId+'&amp;sz=w320').join('cid:evidencia'+i);
+    });
+  }
   if (Object.keys(inlineImages).length) opciones.inlineImages=inlineImages;
   if (adjuntos.length) opciones.attachments=adjuntos.map(function(a,i){
     var contenido=Utilities.base64Decode(a.base64);bytes+=contenido.length;
@@ -545,7 +555,7 @@ function accionEnviarInforme_(p, usuario, antesDeEnviar) {
   return {exito:true,enviadoA:p.destinatarios,adjuntos:nombres,cuotaRestante:MailApp.getRemainingDailyQuota()};
 }
 
-accionEnviarInforme_.versionServidor = 2;
+accionEnviarInforme_.versionServidor = 3;
 
 // ========================================================================== //
 // Mapeo

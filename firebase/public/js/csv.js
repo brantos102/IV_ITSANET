@@ -18,10 +18,10 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261017-39';
-import { db } from './auth.js?v=20261017-39';
-import * as local from './local.js?v=20261017-39';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261017-39';
+} from '../vendor/firebase-sdk.js?v=20261018-40';
+import { db } from './auth.js?v=20261018-40';
+import * as local from './local.js?v=20261018-40';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261018-40';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -213,6 +213,7 @@ export function csvDeCantidades(formato, datos) {
     unidad: '', lote: '', serie: '', partida: '',
   };
   const filas = agruparConteos(datos?.eventos, { skus: datos?.skus }).map(d => {
+    if(d.pallet&&!/^[A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)*$/.test(d.pallet))throw new Error(`Corrige el pallet «${d.pallet}» del SKU ${d.sku} en Bitácora → Editar conteo. Solo se permiten letras, números, punto y guion; no se generó el archivo para Depot.`);
     const p = datos?.catalogo?.[d.sku] || {};
     return {...d,unidad:d.unidad || p.unidad || '',estado:d.estado === 'PNC' ? 'PNC' : '',categoria:(d.estado==='PNC'?datos.categoriaLogicaPnc:datos.categoriaLogica)||''};
   });

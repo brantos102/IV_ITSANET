@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261017-39"></script>
+<script src="./js/arranque.js?v=20261018-40"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261017-39">
+<link rel="stylesheet" href="./css/marca.css?v=20261018-40">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261017-39" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261017-39" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261018-40" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261018-40" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -246,7 +246,10 @@
 </div>
 
 <!-- Tabla -->
+<div class="acciones oculto" id="accesoBitacora"><button class="b-sec" id="bSoloBitacora">Bitácora</button></div>
 <div class="panel oculto" id="panelInventario">
+  <div class="acciones"><h2 style="flex:1">Recepción actual</h2><button class="b-sec" id="bPlegarInventario" aria-expanded="true" aria-controls="contenidoInventario">Ocultar lista</button><button class="b-sec" id="bBitacoraDirecta">Bitácora</button></div>
+  <div id="contenidoInventario">
   <div class="acciones" style="margin:0 0 14px">
     <input id="fFiltro" placeholder="Filtrar por SKU o descripción"
            style="flex:2;min-width:180px;font-family:var(--font-ui)">
@@ -264,6 +267,7 @@
     <button class="b-sec" id="bEntregasOperativas">Entregas</button>
     <details class="menu-recepcion" id="menuInformes"><summary>Informes</summary><div class="menu-recepcion-opciones">
       <button class="b-sec oculto" id="bExportar">Descargar informe</button>
+      <button class="b-sec" id="bCorreoRedactado">Correo final editable</button>
       <button class="b-sec oculto" id="bColumnasInforme">Vista previa y columnas</button>
       <button class="b-sec oculto" id="bHistorialInformes">Historial de informes</button>
       <button class="b-sec oculto" id="bCsvDepot">CSV para Depot</button>
@@ -290,9 +294,11 @@
   </div>
 </div>
 
+</div>
+
 <!-- Bitácora -->
 <div class="panel oculto" id="panelBitacora">
-  <h2>Bitácora de conteos activos</h2>
+  <div class="acciones"><h2 style="flex:1">Bitácora de conteos activos</h2><button class="b-sec" id="bVolverLista">Volver a la lista</button></div>
   <label class="campo"><span>Estado actual del SKU</span><select id="bitacoraFiltro"><option value="">Todos</option><option value="PENDIENTE">Sin buscar</option><option value="FALTANTE">Faltan unidades</option><option value="SOBRANTE">Sobran unidades</option><option value="OK">Completos</option><option value="NO_ENCONTRADO">No aparecieron</option></select></label>
   <label><input id="bitacoraAnulados" type="checkbox"> Mostrar anulados para auditoría</label>
   <p>Cada conteo con su autor y su hora. Nada se borra: anular genera un
@@ -317,43 +323,44 @@
 </dialog>
 
 <script type="module">
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261017-39';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261017-39';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261017-39';
-import { mostrarAviso } from './js/notificaciones.js?v=20261017-39';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261017-39';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261017-39';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261017-39';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261017-39';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261017-39';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261018-40';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-40';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261018-40';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261018-40';
+import { mostrarAviso } from './js/notificaciones.js?v=20261018-40';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261018-40';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261018-40';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261018-40';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261018-40';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261018-40';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261017-39';
+import { pedir as pedirLocal } from './js/local.js?v=20261018-40';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261017-39';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261017-39';
-import { observarSesion } from './js/auth.js?v=20261017-39';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261018-40';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261018-40';
+import { observarSesion } from './js/auth.js?v=20261018-40';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261017-39';
+} from './js/datos.js?v=20261018-40';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261017-39';
+} from './js/conteo.js?v=20261018-40';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261017-39';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261017-39';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261017-39';
-import { conectarGlosario } from './js/glosario.js?v=20261017-39';
-import { parecidos } from './js/sugerir.js?v=20261017-39';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261017-39';
+} from './js/informe.js?v=20261018-40';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261018-40';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261018-40';
+import { conectarGlosario } from './js/glosario.js?v=20261018-40';
+import { parecidos } from './js/sugerir.js?v=20261018-40';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261018-40';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261017-39';
-import { Proxy } from './js/proxy.js?v=20261017-39';
-import { modoLocal } from './js/local.js?v=20261017-39';
+} from './js/csv.js?v=20261018-40';
+import { Proxy } from './js/proxy.js?v=20261018-40';
+import { modoLocal } from './js/local.js?v=20261018-40';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -453,7 +460,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261017-39');
+      const l=await import('./js/local.js?v=20261018-40');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -678,6 +685,7 @@ function aplicarEstado() {
   $('bRegistrar').disabled = cerrada;
   $('bBuscar').disabled = cerrada;
   $('bCamara').disabled = cerrada;
+  $('bCorreoRedactado').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.cerrarRecepciones);
   $('bExportar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.exportarInformes:manda));
   $('bColumnasInforme').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes||cerrada);
   $('bHistorialInformes').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes);
@@ -1681,6 +1689,11 @@ async function corregirSku(sku,eventoId) {
 $('bCorregirFicha').onclick=()=>corregirSku($('bCorregirFicha').dataset.sku).catch(e=>aviso(e.message,'err'));
 $('tSkus').addEventListener('click',ev=>{const b=ev.target.closest('[data-corregir-sku]');if(b)corregirSku(b.dataset.corregirSku).catch(e=>aviso(e.message,'err'));});
 
+$('bCorreoRedactado').onclick=()=>abrirCorreo(RECEPCION).catch(e=>aviso(e.message,'err'));
+$('bPlegarInventario').onclick=()=>{const contenido=$('contenidoInventario');contenido.hidden=!contenido.hidden;$('bPlegarInventario').textContent=contenido.hidden?'Mostrar lista':'Ocultar lista';$('bPlegarInventario').setAttribute('aria-expanded',String(!contenido.hidden));};
+async function soloBitacora(){if($('panelBitacora').classList.contains('oculto'))await $('bBitacora').click();$('contenidoInventario').hidden=true;$('bPlegarInventario').textContent='Mostrar lista';$('bPlegarInventario').setAttribute('aria-expanded','false');$('panelBitacora').scrollIntoView({behavior:'smooth',block:'start'});}
+$('bBitacoraDirecta').onclick=soloBitacora;$('bSoloBitacora').onclick=soloBitacora;
+$('bVolverLista').onclick=()=>{$('panelBitacora').classList.add('oculto');$('contenidoInventario').hidden=false;$('bPlegarInventario').textContent='Ocultar lista';$('bPlegarInventario').setAttribute('aria-expanded','true');$('panelInventario').scrollIntoView({behavior:'smooth',block:'start'});};
 // --- Bitácora ------------------------------------------------------------- //
 $('bBitacora').addEventListener('click', async () => {
   const p = $('panelBitacora');
@@ -1855,8 +1868,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261017-39').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261017-39').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261018-40').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261018-40').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;
@@ -1989,12 +2002,13 @@ $('bCerrar').addEventListener('click', async () => {
 
   let recientes = [];
   let cuentasRemitentes = null;
+  let modoEntrega='AUTOMATICO';
   if (modoLocal()) {
     try {
       cuentasRemitentes = await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/remitentes`);
       if (!cuentasRemitentes.opciones.some(o=>o.modo===cuentasRemitentes.predeterminado&&o.disponible)) {
-        aviso('Tu correo de supervisor no está autorizado para enviar. ADMIN debe guardar y verificar su puente Google una sola vez en Administración → Drive y envío de correo. La recepción continúa abierta.', 'warn');
-        return;
+        if(!await confirmar({titulo:'Preparar envío manual',texto:'Tu cuenta todavía no tiene una conexión Google disponible. Puedes cerrar, guardar los documentos finales y copiar el correo para enviarlo desde Gmail u Outlook. No se programará un envío automático.',aceptar:'Continuar con envío manual',cancelar:'Volver'}))return;
+        modoEntrega='MANUAL';
       }
     } catch(e) { aviso(e.message,'err','No se pudo comprobar el remitente'); return; }
     try { recientes = (await destinatariosRecientes(RECEPCION)).map(r => r.destinatarios); }
@@ -2008,17 +2022,20 @@ $('bCerrar').addEventListener('click', async () => {
     etiqueta: 'Correos, separados por coma',
     valor: modoLocal() ? (recientes[0] || '') : usuario.email,
     sugerencias: recientes,
-    seleccion: cuentasRemitentes ? {etiqueta:'Enviar desde',valor:cuentasRemitentes.predeterminado,
+    seleccion: cuentasRemitentes&&modoEntrega!=='MANUAL' ? {etiqueta:'Enviar desde',valor:cuentasRemitentes.predeterminado,
       opciones:cuentasRemitentes.opciones.filter(o=>o.modo===cuentasRemitentes.predeterminado).map(o=>({valor:o.modo,
         titulo:`${o.modo==='RESPONSABLE'?'Responsable':'Mi correo'}: ${o.correo || 'por configurar'}${o.disponible?'':' · falta configurar'}`,disabled:!o.disponible}))} : null,
-    aceptar: 'Cerrar y enviar',
+    aceptar: modoEntrega==='MANUAL'?'Preparar documentos y correo':'Revisar documentos y correo',
   });
   if (envio === null) return;
-  const destinatarios = modoLocal() ? envio.texto : envio;
-  const modoRemitente = modoLocal() ? envio.seleccion : null;
+  const destinatarios = typeof envio==='string'?envio:envio.texto;
+  const modoRemitente = modoLocal() ? (envio.seleccion||'PERSONAL') : null;
+  if(modoLocal()){try{const ruta=`/recepciones/${encodeURIComponent(RECEPCION)}/correo`,v=await pedirOperacion(ruta);await pedirOperacion(ruta,{metodo:'PUT',cuerpo:{version:v.version,campos:{...v.campos,destinatarios:destinatarios.trim()}}});}catch(e){aviso(e.message,'err');return;}}
 
-  if(modoLocal()&&destinatarios.trim()){try{await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/comprobar-envio`,{cuerpo:{remitenteConfirmado:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo}});}catch(e){aviso(e.message,'err','No se pudo verificar el envío');return;}}
-  const exportarSheet = modoLocal() && await confirmar({ titulo: '¿Crear también una copia en Google Sheets?', texto: 'Es opcional para presentar esta recepción. Los datos oficiales permanecen en MySQL.', aceptar: 'Crear copia en Sheets', cancelar: 'Continuar sin Sheets' });
+  if(modoLocal()&&modoEntrega!=='MANUAL'&&destinatarios.trim()){try{await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/comprobar-envio`,{cuerpo:{correoEditable:true,remitenteConfirmado:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo}});}catch(e){if(!await confirmar({titulo:'Google no confirmó la conexión',texto:esc(e.message)+'<p>Puedes preparar el correo manual con sus documentos finales. No se programará el envío automático.</p>',aceptar:'Continuar con envío manual',cancelar:'Volver'}))return;modoEntrega='MANUAL';}}
+
+  let correoRevisado=null;
+  const exportarSheet = modoLocal() && modoEntrega!=='MANUAL' && await confirmar({ titulo: '¿Crear también una copia en Google Sheets?', texto: 'Es opcional para presentar esta recepción. Los datos oficiales permanecen en MySQL.', aceptar: 'Crear copia en Sheets', cancelar: 'Continuar sin Sheets' });
 
   limpiarAvisos();
   $('bCerrar').disabled = true;
@@ -2026,7 +2043,7 @@ $('bCerrar').addEventListener('click', async () => {
   try {
     // El archivo se arma ANTES de cerrar: si algo falla, la recepción sigue
     // abierta y se puede reintentar sin haber perdido nada.
-    const informe=modoLocal()?await iniciarInforme(RECEPCION,'CORREO',version):null;
+    const informe=modoLocal()?await iniciarInforme(RECEPCION,modoEntrega==='MANUAL'?'DESCARGA':'CORREO',version):null;
     if(modoLocal()&&!informe)return;
     const datos = await reunirInforme(RECEPCION, recepcion);
     if(informe)datos.recepcion={...datos.recepcion,informe};
@@ -2041,10 +2058,12 @@ $('bCerrar').addEventListener('click', async () => {
     if (modoLocal()) {
       d = aviso('Guardando informes y preparando la entrega al ejecutivo…', 'info');
       const archivado=await archivarInforme(RECEPCION,informe,libros);
+      correoRevisado=await abrirCorreo(RECEPCION,{confirmarEnvio:true});
+      if(!correoRevisado){d.remove();return;}
       const entrega = await finalizarConEntrega(RECEPCION, {
         informeId:informe.id,
-        destinatarios: destinatarios.trim(), modoRemitente,
-        remitenteConfirmado: cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo, ...destino,
+        destinatarios: correoRevisado.destinatarios.trim(), correoVersion:correoRevisado.correoVersion, modoRemitente, modoEntrega,
+        remitenteConfirmado: modoEntrega==='MANUAL'?usuario.email:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo, ...destino,
         eventos: datos.eventos.map((e) => e.id), exportarSheet,
         duracion: duracionDe(recepcion),
         adjuntos: libros.map((l) => ({ base64: l.base64, nombre: l.nombre })),
@@ -2058,6 +2077,7 @@ $('bCerrar').addEventListener('click', async () => {
       aplicarEstado();
       try{await descargarInforme(archivado);}catch(e){aviso('La recepción ya se finalizó. '+e.message+'; puedes descargar desde el historial.','warn');}
       d.remove();
+      if(modoEntrega==='MANUAL'){aviso('Recepción cerrada y documentos finales guardados. No se programó correo automático. Copia el correo, adjunta los documentos y registra después el envío manual.','info','Preparado para envío manual');await abrirCorreo(RECEPCION,{entregaId:entrega.id});return;}
       aviso('Recepción cerrada. Informes y fotos guardados en el servidor. ' +
         'La copia a Drive' + (destinatarios.trim() ? ' y el correo' : '') +
         ' quedan pendientes de confirmación. Consulta «Entrega del informe» en esta recepción.', 'warn', 'Entrega pendiente');

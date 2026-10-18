@@ -475,5 +475,13 @@ test('validar adjuntos falla antes de registrar el intento de envío', () => {
   ok(error.includes('20 MB'));ok(!reservado && estado.correos.length===0);
 });
 
+test('correo revisado conserva asunto, tablas y texto y exige la misma cuenta',()=>{
+ const {ctx,estado}=entorno();const final={asunto:'Recepción revisada SKU40',html:'<p>Nota revisada</p><table><tr><td>SKU40</td><td>2</td></tr></table>',texto:'Nota revisada · SKU40: 2',remitente:'sup@example.test'};
+ ctx.accionEnviarInforme_({destinatarios:'cliente@example.test',correoFinal:final},{email:'sup@example.test'});
+ const c=estado.correos[0];eq(c.subject,final.asunto);eq(c.htmlBody,final.html);eq(c.body,final.texto);
+ let reservado=false,error='';try{ctx.accionEnviarInforme_({destinatarios:'cliente@example.test',correoFinal:final},{email:'otra@example.test'},()=>reservado=true);}catch(e){error=e.message;}
+ ok(error.includes('otro remitente'));ok(!reservado);eq(estado.correos.length,1);
+});
+
 console.log(`\n${pasadas} pasadas, ${falladas} falladas`);
 process.exit(falladas ? 1 : 0);

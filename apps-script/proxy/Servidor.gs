@@ -55,7 +55,7 @@ function entregaServidor_(peticion) {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
       carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples'].concat(
-        typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'] : []) };
+        typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'].concat(accionEnviarInforme_.versionServidor>=3?['correoEditable']:[]) : []) };
   }
   if(p.operacion==='miniatura'){
     if(!/^[A-Za-z0-9_-]{5,128}$/.test(p.datos.fileId||''))throw new Error('Imagen no válida.');
@@ -249,12 +249,12 @@ function finalizarServidor_(id, p) {
     var adjuntos = (p.archivos || []).filter(function(a) { return a.tipoArchivo === 'informe'; }).map(function(a) {
       return { nombre: a.nombre.replace(/\.xlsx$/i, ''), base64: Utilities.base64Encode(DriveApp.getFileById(a.fileId).getBlob().getBytes()) };
     });
-    var fotos = fotosCorreoServidor_(p.archivos || [], p.manifiesto || []);
+    var fotos = fotosCorreoServidor_(p.archivos || [], p.manifiesto || [], p.correoFinal&&p.correoFinal.imagenesDrive);
     accionEnviarInforme_({ recepcion: p.codigo, destinatarios: p.destinatarios,
       duracion: p.duracion, resumen: p.resumen, adjuntos: adjuntos, informe: p.informe,
       cliente:p.cliente, marca:p.marca, cerradoPor:p.solicitadoPor, entregaId:id,
       carpetaUrl: carpeta.getUrl(), sheetUrl: sheet,
-      fotos: fotos
+      fotos: fotos, correoFinal:p.correoFinal
     }, { email: p.usuario }, function() {
       // Persistir justo ANTES de MailApp, después de preparar y validar el correo.
       archivo.setContent(JSON.stringify({ estado: 'CORREO_EN_CURSO', id: id }));
@@ -267,7 +267,7 @@ function finalizarServidor_(id, p) {
   return acuse;
 }
 
-function fotosCorreoServidor_(archivos, manifiesto) {
+function fotosCorreoServidor_(archivos, manifiesto, seleccion) {
   var tipos = {};
   manifiesto.forEach(function(f) {
     var ruta = f.ruta || [];
@@ -277,9 +277,13 @@ function fotosCorreoServidor_(archivos, manifiesto) {
   var fotos = archivos.filter(function(a){return a.tipoArchivo === 'foto';});
   var prioridad = function(a){var t=tipos[a.fileId];return t==='PANORAMICA'?0:t==='ESTADO_FINAL'?1:2;};
   fotos.sort(function(a,b){return prioridad(a)-prioridad(b);});
+  if(Array.isArray(seleccion)){
+    fotos=fotos.filter(function(a){return seleccion.indexOf(a.fileId)!==-1;});
+    fotos.sort(function(a,b){return seleccion.indexOf(a.fileId)-seleccion.indexOf(b.fileId);});
+  }
   var bytes = 0;
   return fotos.slice(0,12).map(function(a) {
-    var foto = {enlace:a.enlace, nombre:a.nombre, etiqueta:(tipos[a.fileId] || 'Evidencia').replace(/_/g,' ')};
+    var foto = {fileId:a.fileId,enlace:a.enlace, nombre:a.nombre, etiqueta:(tipos[a.fileId] || 'Evidencia').replace(/_/g,' ')};
     try {
       var archivo = DriveApp.getFileById(a.fileId);
       var blob = archivo.getThumbnail();

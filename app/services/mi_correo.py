@@ -35,7 +35,7 @@ def estado(db,op):
         'verificadoEn':d.get('verificadoEn'),'envioHabilitado':operacion.configuracion(db)['correo']['permitirPersonal']}
 
 
-def guardar(db,op,datos):
+def guardar(db,op,datos,autor=None):
     email=cuenta(db,op);ident=op.id
     if set(datos)-{'url','secreto'}:
         raise HTTPException(422,'Solo puedes autorizar tu propia conexión. Tu correo se toma de la sesión.')
@@ -69,8 +69,9 @@ def guardar(db,op,datos):
         raise HTTPException(409,'Tu ficha cambió durante la verificación. Actualiza antes de guardar.')
     f=db.scalar(select(AppConfig).where(AppConfig.clave==svc._clave_google(email)).with_for_update().execution_options(populate_existing=True))
     if _firma(f)!=firma:raise HTTPException(409,'La conexión cambió mientras se comprobaba. Actualiza antes de guardar.')
-    svc.guardar_google(db,{'supervisor':email,'url':url,'secreto':secreto},email,confirmar=False)
+    actor=autor or email
+    svc.guardar_google(db,{'supervisor':email,'url':url,'secreto':secreto},actor,confirmar=False)
     f=_propia(db,email);f.datos={**f.datos,'verificadoEn':utcnow().isoformat()}
-    ajustes.auditar(db,email,'CORREO_PROPIO_AUTORIZADO',email,{'remitente':email});db.commit()
+    ajustes.auditar(db,actor,'CORREO_PROPIO_AUTORIZADO',email,{'remitente':email,'configuradoPorAdmin':bool(autor)});db.commit()
     return {**estado(db,actual),'carpeta':r.get('carpeta',''),
         'mensaje':f'Conexión verificada y guardada para {email}. No se envió correo. La clave queda guardada para los siguientes envíos.'}

@@ -168,3 +168,19 @@ def mi_google(db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
 def guardar_mi_google(datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
     from app.services.mi_correo import guardar
     return guardar(db,op,datos)
+
+
+@router.get('/usuarios/{ident}/google')
+def google_usuario(ident:int,db:Session=Depends(get_db),_=Depends(admin)):
+    from app.services.mi_correo import estado
+    objetivo=db.get(Operador,ident)
+    if not objetivo:raise HTTPException(404,'Usuario no encontrado')
+    return estado(db,objetivo)
+
+
+@router.put('/usuarios/{ident}/google')
+def guardar_google_usuario(ident:int,datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(admin)):
+    from app.services.mi_correo import guardar
+    objetivo=db.get(Operador,ident)
+    if not objetivo:raise HTTPException(404,'Usuario no encontrado')
+    return guardar(db,objetivo,datos,autor=op.email or op.usuario)

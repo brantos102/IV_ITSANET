@@ -11,7 +11,7 @@ import re
 import unicodedata
 
 _INVISIBLES = dict.fromkeys(map(ord, "\xa0​‌‍﻿\t\r\n"), " ")
-_RE_PALLET = re.compile(r"^[A-Z0-9]+(\.[A-Z0-9]+)*$")
+_RE_PALLET = re.compile(r"^[A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)*$")
 # Permitido en celdas exportadas al sistema Depot.
 _RE_PERMITIDO = re.compile(r"[^A-Z0-9 ./\-,:+#%()]")
 
@@ -40,7 +40,7 @@ def normalizar_ean(valor) -> str:
 
 def normalizar_pallet(valor) -> str:
     """Pallet alfanumerico, subpallet con punto: A1, A1.1, B04.3."""
-    return re.sub(r"[\s_-]", "", limpiar(valor).upper())
+    return re.sub(r"\s", "", limpiar(valor).upper())
 
 
 def pallet_valido(codigo: str) -> bool:

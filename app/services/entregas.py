@@ -81,7 +81,9 @@ def documento(e, tecnico=False):
     if e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA':
         mensajes['REVISION'] = 'Envío pausado: autoriza tu conexión en Mi cuenta y correo. Después revisa y confirma los documentos finales; no se reintenta automáticamente.'
     if e.datos.get('revisionMotivo')=='FOTOS_RECUPERADAS':mensajes['REVISION']='Fotos en recuperación; al confirmarse, revisa y confirma los documentos finales desde tu correo.'
-    return {'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
+    if e.datos.get('correoManual'):
+        mensajes['CANCELADA']='Envío manual declarado por el supervisor; sin confirmación de Google.' if e.datos['correoManual'].get('estado')=='DECLARADO_ENVIADO' else 'Preparado para envío manual. El envío automático está detenido.'
+    return {'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
                 else mensajes.get(e.estado, 'Comprobando entrega.')),
@@ -157,11 +159,19 @@ def preparar(db, codigo, datos, usuario):
     if activas(db, r.codigo):
         raise HTTPException(409, 'Esta recepción ya tiene una entrega sin resolver. Revisa Entrega del informe antes de generar otro envío.')
     from app.services.remitentes import elegir
-    remitente, modo_remitente = elegir(db, r.codigo, datos, usuario)
+    manual = datos.get('modoEntrega') == 'MANUAL'
+    if manual:
+        if not datos.get('correoVersion') or not destinatarios:
+            raise HTTPException(422,'Revisa el correo y completa los destinatarios antes de preparar el envío manual.')
+        remitente, modo_remitente = usuario, 'PERSONAL'
+    else:
+        remitente, modo_remitente = elegir(db, r.codigo, datos, usuario)
+    from app.services.correo_redactado import congelar, clave_config
+    correo_final = congelar(db, r.codigo, datos, usuario)
     informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
     if datos.get('informeId'):
         from app.services.informes import huella
-        if not informe or informe.recepcion != r.codigo or informe.usuario != usuario or informe.tipo != 'CORREO':
+        if not informe or informe.recepcion != r.codigo or informe.usuario != usuario or informe.tipo not in (('CORREO','DESCARGA') if manual else ('CORREO',)):
             raise HTTPException(409, 'La generación del informe no corresponde a este cierre')
         if informe.estado != 'GENERADO' or informe.huella != huella(db, r):
             raise HTTPException(409, 'El informe cambió o ya se utilizó; actualiza antes de finalizar')
@@ -187,8 +197,9 @@ def preparar(db, codigo, datos, usuario):
     destino.pop('supervisor', None)
     e = AppEntrega(id=uuid4().hex, recepcion=r.codigo, usuario=usuario,
         clave=hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest(),
-        estado='PENDIENTE', datos={
+        estado='CANCELADA' if manual else 'PENDIENTE', datos={
             'destinatarios': ','.join(correos), 'informes': informes, 'fotos': fotos,
+            **({'correoFinal':correo_final} if correo_final else {}),
             'remitente': remitente, 'modoRemitente': modo_remitente,
             'carpetaMes': str(datos.get('carpetaMes') or '')[:100],
             'carpetaRecepcion': str(datos.get('carpetaRecepcion') or r.codigo)[:200],
@@ -197,14 +208,23 @@ def preparar(db, codigo, datos, usuario):
             'recepcion': cierre, 'skus': skus, 'destino': destino,
             'lineas': m.leer_coleccion(db, r.codigo, 'lineas', actual=True),
             'eventos': eventos},
-        error=None if configurado(db) else 'Pendiente de configurar el puente con Google')
+        error=None if manual or configurado(db) else 'Pendiente de configurar el puente con Google')
     db.add(e)
     if informe:
-        informe.estado = 'EN_COLA'
+        informe.estado = 'MANUAL_PREPARADO' if manual else 'EN_COLA'
         informe.datos = {**informe.datos, 'entregaId': e.id}
         e.datos = {**e.datos, 'informeId': informe.id, 'informe': {
             'id': informe.id, 'numero': informe.numero, 'usuario': informe.usuario,
             'creadoEn': m._iso(informe.creado_en)}}
+    if manual:
+        registro={'estado':'PREPARADO','usuario':usuario,'fecha':utcnow().isoformat(),'entregaId':e.id,
+                  'version':datos['correoVersion'],'destinatarios':destinatarios,'asunto':correo_final['asunto']}
+        e.datos={**e.datos,'correoManual':registro}
+        from app.models import AppConfig
+        f=db.get(AppConfig,clave_config(r.codigo,manual=True)) or AppConfig(clave=clave_config(r.codigo,manual=True))
+        f.datos=registro;f.usuario=usuario;db.add(f)
+        from app.services.ajustes import auditar
+        auditar(db,usuario,'CIERRE_ENVIO_MANUAL',r.codigo,registro)
     e.datos = compactar(e.datos)
     db.commit()
     return documento(e)
@@ -317,6 +337,8 @@ def procesar_uno():
             estado = llamar('estado', e.id, {**d.get('destino', {}), 'usuario': remitente})
             if str(estado.get('remitente') or '').strip().lower() != remitente.strip().lower():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
+            if d.get('correoFinal') and 'correoEditable' not in estado.get('capacidades',[]):
+                raise RuntimeError('El puente tiene archivos de versiones diferentes. Actualiza Proxy.gs y Servidor.gs y publica una nueva versión del mismo /exec para enviar el correo revisado.')
             from app.services.drive import manifiesto
             # Las fotos finales pueden agregarse después del cierre. Incluirlas
             # antes de preparar el correo, sin alterar los informes de conteo.

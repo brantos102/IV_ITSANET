@@ -113,6 +113,10 @@ def comprobar_envio(codigo: str, datos: dict=Body(...), db: Session=Depends(get_
                     op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
     from uuid import uuid4
     from app.services import remitentes, operacion
+    if datos.get('correoEditable'):
+        from app.services.drive import resumen_fotos
+        pendientes=resumen_fotos(db,codigo)['pendientes']
+        if pendientes:raise HTTPException(409,f'{pendientes} foto(s) pendientes de confirmar en Drive. Espera la copia para enviar desde la app o prepara el envío manual; las fotos guardadas no se pierden.')
     correo,_=remitentes.elegir(db,codigo,{'modoRemitente':'PERSONAL',
         'remitenteConfirmado':datos.get('remitenteConfirmado')},_quien(op))
     destino=operacion.destino_drive(db,codigo);db.rollback()
@@ -122,6 +126,8 @@ def comprobar_envio(codigo: str, datos: dict=Body(...), db: Session=Depends(get_
             raise RuntimeError('Google no confirmó la cuenta que solicita el envío.')
         if 'correoVerificado' not in r.get('capacidades',[]):
             raise RuntimeError('Actualiza Proxy.gs y Servidor.gs juntos y publica una versión nueva del despliegue /exec; falta el contrato de envío confirmado.')
+        if datos.get('correoEditable') and 'correoEditable' not in r.get('capacidades',[]):
+            raise RuntimeError('Publica Proxy.gs y Servidor.gs actuales con una nueva versión del mismo /exec para enviar el correo editable revisado.')
         return {'remitente':correo,'carpeta':r.get('carpeta'),'mensaje':'Conexión del supervisor verificada. No se envió correo.'}
     except Exception as exc:
         mensaje=str(exc) if type(exc) is RuntimeError else 'No se pudo comprobar la conexión guardada de este supervisor.'

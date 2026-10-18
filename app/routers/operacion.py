@@ -102,6 +102,7 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
         salida['avisos'] = sorted({c.error for c in copias if c.error})
         from app.models import AppArchivo
         salida['archivos'] = [{'id': a.id, 'nombre': a.nombre, 'estado': c.estado if c else 'SIN_COLA',
+            'sku':c.datos.get('sku','') if c else '', 'tipo':c.datos.get('tipoEvidencia','') if c else '',
             'error': c.error if c and c.estado in ('PENDIENTE','REVISION') else None,
             'enlace': a.drive_url if a.drive_id else None,
             'carpeta': (c.datos.get('carpeta') or '') if c and c.estado == 'COPIADA' else '',

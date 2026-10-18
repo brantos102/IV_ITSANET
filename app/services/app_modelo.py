@@ -306,6 +306,9 @@ def borrar_recepcion(db: Session, codigo: str) -> dict:
         cuentas[nombre] = db.scalar(
             select(func.count()).select_from(modelo).where(modelo.recepcion == codigo)) or 0
         db.execute(delete(modelo).where(modelo.recepcion == codigo))
+    from app.models import AppConfig
+    from app.services.correo_redactado import clave_config
+    db.execute(delete(AppConfig).where(AppConfig.clave.in_([clave_config(codigo),clave_config(codigo,manual=True)])))
     db.delete(r)
     db.commit()
     return {"codigo": codigo, "borrado": cuentas}

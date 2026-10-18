@@ -13,6 +13,21 @@ from app.services import ajustes, calidad, app_modelo as m
 
 router=APIRouter(prefix='/api/operacion',tags=['gestion'])
 
+@router.get('/recepciones/{codigo}/correo')
+def correo_vista(codigo:str,entregaId:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correo_redactado import vista
+    return vista(db,codigo,op.email or op.usuario,entregaId)
+
+@router.put('/recepciones/{codigo}/correo')
+def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correo_redactado import guardar
+    return guardar(db,codigo,datos,op.email or op.usuario)
+
+@router.post('/recepciones/{codigo}/correo/manual')
+def correo_manual(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correo_redactado import manual
+    return manual(db,codigo,datos,op.email or op.usuario)
+
 @router.get('/almacenamiento')
 def almacenamiento(db:Session=Depends(get_db),_=Depends(admin)):
     from sqlalchemy import func, cast, Text
@@ -40,11 +55,38 @@ def compactar_entregas(db:Session=Depends(get_db),op=Depends(admin)):
 
 @router.get('/clientes-operacion')
 def clientes_operacion(db:Session=Depends(get_db),_=Depends(usuario_actual)):
-    from app.models import AppRecepcion, Producto
+    from app.models import AppRecepcion, Producto, AppConfig
     nombres=set(ajustes.configuracion(db)['clientes'])
     nombres.update(n for n in db.scalars(select(AppRecepcion.cliente).distinct()) if n)
     nombres.update(n for n in db.scalars(select(Producto.cliente).distinct()) if n)
-    return [{'id':n,'reglas':ajustes.cliente(db,n)} for n in sorted(nombres)]
+    f=db.get(AppConfig,'clientes_fichas');fichas=f.datos if f else {}
+    return [{'id':n,'reglas':ajustes.cliente(db,n),'nombre':fichas.get(n,{}).get('nombre',n),
+             'unificarCon':fichas.get(n,{}).get('unificarCon',''),
+             'oculto':fichas.get(n,{}).get('oculto',False),'version':fichas.get(n,{}).get('version',0)} for n in sorted(nombres)]
+
+@router.put('/clientes-fichas')
+def editar_cliente_ficha(datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
+    from app.models import AppConfig
+    ident=str(datos.get('id') or '').strip().upper()
+    nombre=str(datos.get('nombre') or '').strip()
+    destino=str(datos.get('unificarCon') or '').strip().upper()
+    nombres={c['id'] for c in clientes_operacion(db,op)}
+    if ident not in nombres or not 1<=len(nombre)<=60 or destino and (destino not in nombres or destino==ident):
+        raise HTTPException(422,'Selecciona un cliente existente y un nombre de 1 a 60 caracteres; el destino debe ser otro cliente.')
+    if type(datos.get('oculto',False)) is not bool:raise HTTPException(422,'Estado del cliente inválido')
+    f=db.scalar(select(AppConfig).where(AppConfig.clave=='clientes_fichas').with_for_update().execution_options(populate_existing=True))
+    fichas=dict(f.datos) if f else {}
+    anterior=fichas.get(ident,{})
+    if datos.get('version')!=anterior.get('version',0):raise HTTPException(409,'Otro supervisor modificó este cliente. Actualiza antes de guardar.')
+    if destino and (fichas.get(destino,{}).get('unificarCon') or fichas.get(destino,{}).get('oculto')):
+        raise HTTPException(422,'Elige un cliente destino activo, sin otra unificación.')
+    if (destino or datos.get('oculto')) and any(c.get('unificarCon')==ident for c in fichas.values()):
+        raise HTTPException(409,'Otros clientes apuntan a este destino. Corrige esas unificaciones primero.')
+    fichas[ident]={'nombre':nombre,'unificarCon':destino,'oculto':datos.get('oculto',False),'version':anterior.get('version',0)+1}
+    f=f or AppConfig(clave='clientes_fichas');f.datos=fichas;f.usuario=op.email or op.usuario;db.add(f)
+    ajustes.auditar(db,f.usuario,'CLIENTE_FICHA_EDITADA',ident,{'anterior':anterior,'actual':fichas[ident],'historicosModificados':False})
+    db.commit()
+    return fichas[ident]
 
 @router.put('/clientes-operacion/{nombre:path}')
 def guardar_cliente_operativo(nombre:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):

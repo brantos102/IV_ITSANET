@@ -123,7 +123,10 @@ def recuperar(db, ident, datos, usuario):
         'estadoAnterior': e.estado, 'confirmarNoEnviado': True,
         'destinatariosAnteriores':e.datos.get('destinatarios',''),'destinatarios':destinatarios}
     completo = expandir(e.datos)
+    from app.services.correo_redactado import congelar
+    correo_final = congelar(db,codigo,datos,usuario,ident)
     e.datos = compactar({**completo, 'remitente': correo, 'modoRemitente': modo,'destinatarios':destinatarios,'confirmarConCuenta':correo,
+        **({'correoFinal':correo_final} if correo_final else {}),
         'destino': {k: v for k, v in destino.items() if k != 'supervisor'},
         'resumen': entregas.resumen_final(completo['skus'], completo['eventos']),
         'revisionMotivo': None, 'recuperaciones': [*e.datos.get('recuperaciones', []), recuperacion]})

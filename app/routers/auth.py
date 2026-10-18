@@ -114,6 +114,27 @@ def _ficha(op: Operador) -> dict:
             "tipoAcceso": "CLAVE"}
 
 
+@router.post('/operadores/{operador_id}/restablecer-clave')
+def restablecer_clave(operador_id: int, datos: dict = Body(...), db: Session = Depends(get_db),
+                     autor: Operador = Depends(usuario_actual)):
+    if autor.rol != Rol.ADMIN:
+        raise HTTPException(403, 'Solo ADMIN restablece la contraseña de otra cuenta.')
+    op = db.scalar(select(Operador).where(Operador.id == operador_id).with_for_update())
+    if not op: raise HTTPException(404, 'Usuario no encontrado')
+    if op.id == autor.id:
+        raise HTTPException(409, 'Cambia tu propia contraseña desde Mi cuenta con tu clave actual.')
+    nueva = datos.get('nueva')
+    if not isinstance(nueva, str) or not 6 <= len(nueva) <= 128:
+        raise HTTPException(422, 'La contraseña nueva requiere de 6 a 128 caracteres.')
+    op.pin_hash = hash_pin(nueva)
+    cerradas = db.query(Sesion).filter(Sesion.operador_id == op.id).delete()
+    db.query(AppPresencia).filter(AppPresencia.operador_id == op.id).delete()
+    ajustes.auditar(db, autor.email or autor.usuario, 'CLAVE_RESTABLECIDA_ADMIN', op.id,
+                   {'sesionesCerradas': cerradas})
+    db.commit()
+    return {'ok': True, 'sesionesCerradas': cerradas, 'mensaje': 'Contraseña reemplazada. Entrega la nueva clave por un canal privado; la anterior no se puede recuperar.'}
+
+
 def _comprobar_duplicado(db: Session, usuario: str, email: str | None, excluir: int | None = None) -> None:
     consulta = select(Operador.id).where(func.lower(Operador.usuario) == usuario)
     if excluir is not None:

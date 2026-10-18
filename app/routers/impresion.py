@@ -2,6 +2,7 @@
 from datetime import timedelta
 import hashlib
 import hmac
+import math
 import re
 import secrets
 from uuid import uuid4
@@ -57,14 +58,17 @@ def autenticar(db, ident, authorization):
 def zpl(datos, copias):
     sku = str(datos.get('sku') or '')
     if not re.fullmatch(r'[!-~]{1,42}', sku): raise HTTPException(422, 'SKU de etiqueta inválido')
-    if datos.get('serie') and not re.fullmatch(r'[!-~]{1,42}', str(datos['serie'])):
+    if datos.get('serie') and not re.fullmatch(r'[ -~]{1,42}', str(datos['serie'])):
         raise HTTPException(422, 'Serie de etiqueta inválida')
+    cantidad=datos.get('cantidad',1)
+    if type(cantidad) not in (int,float) or not math.isfinite(cantidad) or not 0<cantidad<=1000000:
+        raise HTTPException(422,'Unidades por etiqueta: cantidad mayor que cero y máximo 1000000.')
     def texto(x, y, h, ancho, valor, lineas=1):
         codificado = ''.join('\\' + format(b, '02X') for b in str(valor).encode())
         return f'^FO{x},{y}^A0N,{h},{max(12,h-3)}^FB{ancho},{lineas},2,L,0^FH\\^FD{codificado}^FS'
     codigo = ''.join('\\' + format(b, '02X') for b in sku.encode())
     return '\n'.join(['^XA', '^CI28', '^PW800', '^LL400', '^LH0,0',
-        texto(22,22,34,480,str(datos.get('cliente') or 'ITSANET').upper()[:40]),
+        texto(22,22,28,480,str(datos.get('cliente') or 'ITSANET').upper()[:40]),
         texto(22,68,19,480,'CODIGO:'),
         f'^FO36,101^BY{1 if len(sku)>20 else 2},2,70^BCN,70,N,N,N,A^FH\\^FD{codigo}^FS',
         texto(70,180,24,440,sku), texto(22,216,18,480,'DESCRIPCION:'),
@@ -72,12 +76,12 @@ def zpl(datos, copias):
         texto(22,300,19,480,'SERIE:'),
         *([f'^FO36,326^BY{1 if len(str(datos["serie"])) > 20 else 2},2,32^BCN,32,N,N,N,A^FH\\^FD' + ''.join('\\' + format(b, '02X') for b in str(datos['serie'])[:42].encode()) + '^FS',
            texto(22,367,18,480,str(datos['serie'])[:42])] if datos.get('serie') else []),
-        texto(534,27,28,245,'CUARENTENA' if datos.get('estado') == 'PNC' else str(datos.get('categoria') or 'DISPONIBLE')[:18]),
+        texto(534,27,24,245,'CUARENTENA' if datos.get('estado') == 'PNC' else str(datos.get('categoria') or 'DISPONIBLE')[:18]),
         texto(534,62,17,245,str(datos.get('despacho') or '')[:28]),
         texto(532,139,23,112,'QTY'),texto(662,139,23,120,'ESTADO'),
-        texto(538,185,38,100,'1'),texto(605,226,17,40,str(datos.get('unidad') or 'CS')[:5]),
-        texto(667,194,29,110,str(datos.get('estado') or 'NUV')[:15]),
-        texto(533,280,23,245,'RESPONSABLE'),texto(534,318,20,245,str(datos.get('responsable') or '')[:48],2),
+        texto(538,185,30,100,cantidad),texto(605,226,17,40,str(datos.get('unidad') or 'CS')[:5]),
+        texto(667,194,25,110,str(datos.get('estado') or 'NUV')[:15]),
+        texto(533,280,19,245,'RESPONSABLE'),texto(534,318,20,245,str(datos.get('responsable') or '')[:48],2),
         f'^PQ{copias}', '^XZ'])
 
 
@@ -113,7 +117,7 @@ def solicitar(datos: dict = Body(...), db: Session = Depends(get_db), op: Operad
         except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
     j = AppImpresion(id=uuid4().hex, clave=clave, estacion=p['id'], recepcion=codigo,
         usuario=op.email or op.usuario, datos={'zpl': zpl(etiqueta, copias), 'sku': str(etiqueta.get('sku')),
-        'copias': copias, 'cantidadPorEtiqueta': 1})
+        'copias': copias, 'cantidadPorEtiqueta': etiqueta.get('cantidad',1)})
     db.add(j)
     if codigo: operacion.auditoria(db, codigo, j.usuario, 'ETIQUETA_SOLICITADA', {'trabajoId': j.id, 'sku': etiqueta.get('sku'), 'copias': copias})
     try:

@@ -278,7 +278,7 @@ export function pedirDatos({ titulo, texto = '', campos = [],
                 ${c.pista ? `<span class="mini">${esc(c.pista)}</span>` : ''}</label>`;
     }
     return `<label class="campo"><span>${esc(c.etiqueta)}</span>
-              <input id="${id}" data-clave="${esc(c.clave)}" value="${esc(c.valor ?? '')}"
+              <input id="${id}" type="${c.tipo==='password'?'password':c.tipo==='email'?'email':c.tipo==='numero'?'number':'text'}" data-clave="${esc(c.clave)}" value="${esc(c.valor ?? '')}"
                      placeholder="${esc(c.marcador || '')}" autocomplete="off"
                      ${c.obligatorio ? 'data-obligatorio' : ''}
                      autocapitalize="none" spellcheck="false">

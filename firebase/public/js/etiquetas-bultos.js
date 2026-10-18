@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261017-39';
-import {esc} from './evidencias.js?v=20261017-39';
+import {pedir,nuevoIdentificador} from './local.js?v=20261018-40';
+import {esc} from './evidencias.js?v=20261018-40';
 
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/impresion'});
 function barras(serie){
@@ -36,10 +36,11 @@ export async function abrirEtiquetasBultos(codigo){
     <p data-resumen></p><p class="mini">Una etiqueta por bulto. Si corriges el total, reemplaza las etiquetas anteriores para que todas indiquen el mismo total.</p>
     <details><summary>Solicitudes anteriores</summary><div data-historial></div></details>
     <p data-estado role="status" aria-live="polite"></p><div class="acciones"><button class="b-primario" data-generar>Confirmar e imprimir</button><button class="b-sec" data-nuevo>Actualizar / nueva solicitud</button><button class="b-sec" data-ver-estado hidden>Consultar envío</button></div>
-    <details open><summary>Vista previa del último lote</summary><div data-vista class="vista-etiquetas" style="max-height:380px;overflow:auto;background:white;color:black"></div></details>`;
+    <details open><summary>Vista previa de etiquetas · antes de imprimir</summary><div data-vista class="vista-etiquetas" style="max-height:380px;overflow:auto;background:white;color:black"></div></details>`;
   document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
   const controles=()=>[...d.querySelectorAll('input,select')];
-  const resumen=()=>{$('[data-resumen]').textContent=`${$('[data-literal]').value.toUpperCase() || 'B'}01 → ${$('[data-literal]').value.toUpperCase() || 'B'}${String($('[data-total]').value || 0).padStart(2,'0')} · ${$('[data-total]').value || 0} etiquetas`;
+  function pintarVista(lote){const html=htmlEtiquetasBultos(lote),doc=new DOMParser().parseFromString(html,'text/html');$('[data-vista]').replaceChildren(...[...doc.body.children].map(e=>document.importNode(e,true)));for(const e of $('[data-vista]').children)e.style.cssText='width:100mm;max-width:100%;min-height:50mm;padding:12px;text-align:center;border:1px solid #ccd5e3;margin:8px auto;display:grid;gap:6px';$('[data-vista]').querySelectorAll('.rotulo').forEach(e=>e.style.cssText='font:bold 36px Arial');$('[data-vista]').querySelectorAll('.codigo').forEach(e=>e.style.cssText='height:55px');}
+  const resumen=()=>{const literal=$('[data-literal]').value.trim().toUpperCase(),total=Number($('[data-total]').value);if(/^[A-Z]$/.test(literal)&&Number.isInteger(total)&&total>0&&total<=1000){pintarVista({...estado,lote:'vista previa',formato:$('[data-formato]').value,etiquetas:Array.from({length:Math.min(total,3)},(_,i)=>({rotulo:literal+String(i+1).padStart(2,'0')}))});}else{$('[data-vista]').textContent='Escribe un literal y un total válido para ver la etiqueta.';}$('[data-resumen]').textContent=`${$('[data-literal]').value.toUpperCase() || 'B'}01 → ${$('[data-literal]').value.toUpperCase() || 'B'}${String($('[data-total]').value || 0).padStart(2,'0')} · ${$('[data-total]').value || 0} etiquetas`;
     $('[data-elegir-estacion]').hidden=$('[data-destino]').value!=='ESTACION';};
   const pintar=()=>{$('[data-literal]').value=estado.literal;$('[data-total]').value=estado.total || 1;$('[data-formato]').value=estado.formato;
     $('[data-historial]').innerHTML=estado.anteriores.length?estado.anteriores.map(j=>`<p>L${j.lote} · ${esc(j.usuario)} · ${esc(new Date(j.fecha).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}))} · ${j.total} etiquetas · ${esc(j.estado)}</p>`).join(''):'Sin solicitudes anteriores.';
@@ -58,11 +59,7 @@ export async function abrirEtiquetasBultos(codigo){
       formato:$('[data-formato]').value,destino,estacion:destino==='ESTACION'?$('[data-estacion]').value:null};
     try{
       const lote=await api(ruta,{cuerpo:pendiente});ultimo=lote;
-      const html=htmlEtiquetasBultos(lote);const documento=new DOMParser().parseFromString(html,'text/html');
-      $('[data-vista]').replaceChildren(...[...documento.body.children].map(e=>document.importNode(e,true)));
-      for(const e of $('[data-vista]').children)e.style.cssText='width:100mm;max-width:100%;min-height:50mm;padding:12px;text-align:center;border:1px solid #ccd5e3;margin:8px auto;display:grid;gap:6px';
-      $('[data-vista]').querySelectorAll('.rotulo').forEach(e=>e.style.cssText='font:bold 36px Arial');
-      $('[data-vista]').querySelectorAll('.codigo').forEach(e=>e.style.cssText='height:55px');
+      const html=htmlEtiquetasBultos(lote);pintarVista(lote);
       if(destino==='NAVEGADOR'){ventana.document.write(html);ventana.document.close();ventana.focus();ventana.print();}
       if(destino==='ZPL'){const url=URL.createObjectURL(new Blob([lote.zpl],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`bultos-${codigo.replace(/[^A-Za-z0-9_-]/g,'_')}-L${lote.lote}.zpl`;a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);}
       $('[data-estado]').textContent=`Lote ${lote.lote} · ${total} etiquetas correlativas · ${lote.estado==='PENDIENTE'?'Pendiente de envío por el puente':'Generadas; confirma el resultado en la impresora'}.`;

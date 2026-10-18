@@ -1,6 +1,8 @@
 # Recepciones, fotos e informes de producción
 
 Candidato `itsanet-20261017-recepciones-fotos`, interfaz `20261017-39`.
+Las mejoras de la versión 40 se describen en [Supervisión, correo y pruebas](SUPERVISION_CORREO_Y_PRUEBAS_40.md). La versión instalada en producción sigue siendo la 39 hasta un nuevo pase.
+
 Complementa y actualiza las instrucciones anteriores de correo, carpetas y vista previa.
 
 ## Cuenta del supervisor y confirmación del correo

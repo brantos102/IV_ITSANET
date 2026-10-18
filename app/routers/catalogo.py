@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ def estado(db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)
 
 
 @router.get("/buscar")
-def buscar(q: str, limite: int = 20, db: Session = Depends(get_db),
+def buscar(q: str, limite: int = Query(20, ge=1, le=100), db: Session = Depends(get_db),
            _: Operador = Depends(usuario_actual)):
     termino = normalizar_sku(q)
     if len(termino) < 3:
@@ -41,8 +41,9 @@ def buscar(q: str, limite: int = 20, db: Session = Depends(get_db),
         .limit(limite)
     ).scalars().all()
     return [
-        {"sku": p.sku, "descripcion": p.descripcion, "ean": p.ean,
-         "unidad": p.unidad, "inactivo": p.inactivo}
+        {"sku": p.sku, "descripcion": p.descripcion, "ean": p.ean, "cliente":p.cliente,
+         "unidad": p.unidad, "inactivo": p.inactivo, "existeDepot":p.existe_depot,
+         "actualizadoEn":p.actualizado_en.isoformat() if p.actualizado_en else None}
         for p in filas
     ]
 

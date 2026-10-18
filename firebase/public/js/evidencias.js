@@ -1,6 +1,8 @@
-import {pedir} from './local.js?v=20261017-39';
-import {comprimir} from './imagen.js?v=20261017-39';
-import {confirmar,pedirDatos} from './modal.js?v=20261017-39';
+import {verImagen} from './visor-imagen.js?v=20261018-40';
+import {manualFotos} from './manual-fotos.js?v=20261018-40';
+import {pedir} from './local.js?v=20261018-40';
+import {comprimir} from './imagen.js?v=20261018-40';
+import {confirmar,pedirDatos} from './modal.js?v=20261018-40';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -55,7 +57,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     <div data-seleccion></div><p data-estado role="status"></p>
     <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-actualizar>↻ Actualizar</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar pendientes</button></div>
     <div data-carpetas></div><div class="rejilla"><label class="campo"><span>Filtrar fotografías por clasificación</span><select data-filtro-categoria><option value="">Todas</option>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label><label class="campo"><span>SKU de las fotografías</span><input data-filtro-sku value="${esc(sku)}" placeholder="Todos los códigos"></label><button data-filtrar class="b-sec">Aplicar filtro</button></div><p data-resumen-galeria class="mini" role="status"></p><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
-  document.body.append(d); d.showModal();
+  document.body.append(d); d.showModal();d.querySelector('h2').parentElement.after(manualFotos(ingreso));
   const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false;
   const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
   $('[data-camara]').hidden=esWindows;$('[data-camara-windows]').hidden=!esWindows;
@@ -106,7 +108,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       if(final && !(f.evidencias || []).some(e=>e.tipo==='ESTADO_FINAL'))continue;
       const card=document.createElement('article');
       const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
-      const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.loading='lazy';img.alt=f.nombre;a.append(img);card.append(a);
+      const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.loading='lazy';img.alt=f.nombre;a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};card.append(a);
       const p=document.createElement('p');p.className='mini';p.textContent=`${offset+i+1}/${r.total} · ${f.nombre} · ${f.almacen}`;card.append(p);
       const tags=document.createElement('p');tags.className='mini';tags.textContent=(f.evidencias || []).map(e=>`${e.categoria}${e.sku?' · '+e.sku:''} · ${TIPOS_EVIDENCIA[e.tipo] || e.tipo}${e.origen ? ' · '+e.origen : ''}`).join(' / ');card.append(tags);
       const filtroSku=$('[data-filtro-sku]').value.trim().toUpperCase(),filtroCategoria=$('[data-filtro-categoria]').value,vistos=new Set();

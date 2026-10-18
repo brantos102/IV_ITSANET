@@ -176,14 +176,14 @@ def impresora(admin,host='127.0.0.1',puerto=9100):
     return admin.post('/api/impresion/estaciones/MESA/token',json={}).json()['token']
 
 
-def test_cola_etiqueta_unitaria_siete_copias_y_reserva_unica(admin,cliente,db):
+def test_cola_etiqueta_cantidad_editable_siete_copias_y_reserva_unica(admin,cliente,db):
     token=impresora(admin)
     body={'estacion':'MESA','copias':7,'clave':'solicitud-unica-1234','etiqueta':{'sku':'SKU1','cantidad':7,'descripcion':'pieza'}}
     r=cliente.post('/api/impresion/trabajos',json=body);assert r.status_code==201,r.text
     assert cliente.post('/api/impresion/trabajos',json=body).json()['id']==r.json()['id']
     assert db.query(AppImpresion).count()==1
     j=db.get(AppImpresion,r.json()['id'])
-    assert j.datos['cantidadPorEtiqueta']==1 and '^PQ7' in j.datos['zpl']
+    assert j.datos['cantidadPorEtiqueta']==7 and '^PQ7' in j.datos['zpl']
     assert 'tokenHash' not in admin.get('/api/operacion/config').text
     assert TestClient(app).post('/api/impresion/agente/MESA/siguiente',json={'equipo':'PC-PRUEBA'}).status_code==401
     headers={'Authorization':'Bearer '+token};a=TestClient(app)
