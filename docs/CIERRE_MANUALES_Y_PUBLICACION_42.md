@@ -136,4 +136,12 @@ En el servidor quedan en **/app/manuales/operario.html**, **/app/manuales/superv
 
 Las pruebas usan bases desechables y registros sintéticos. Se verifican API, permisos, declaración manual, reintentos, conservación de documentos, concurrencia sobre MySQL y los recorridos principales en Chromium de escritorio y móvil. No se envían mensajes reales ni se imprime en la Zebra de producción desde estas pruebas.
 
+Resultados de esta entrega:
+
+- **1.116 pruebas aprobadas** con `npm test`: 643 del servidor y 473 de JavaScript. Los casos que requieren archivos privados o infraestructura externa conservan sus condiciones de omisión; este total cuenta aprobadas.
+- **61 pruebas aprobadas con MySQL 8.4** sobre una base desechable: cierre, revisión por usuario, historial, documentos grandes y concurrencia. Incluyen 4 operarios/80 conteos en la app actual y 8 operarios/200 conteos en la API anterior. Se corrigió también la inversión de bloqueos de esa API.
+- Chromium: iconos y tema oscuro, avance circular, perfiles persistentes, cinco secciones de administración, búsqueda/impresión/móvil en los manuales, flujo completo de correo manual e historial reversible, escáner, columnas, etiquetas y fotografías.
+- Lectura real de CODE128 desde una imagen con ZXing, con origen inseguro simulado, sin subir la imagen ni registrar unidades. La cámara física y su autorización en el móvil siguen requiriendo la comprobación en el equipo.
+- Instancia pública de pruebas preparada y comprobada **localmente**: otro MySQL, tres cuentas con roles correctos, claves distintas, cookie Secure/HttpOnly y conservación de secretos al repetir la preparación. La construcción en esta nube requirió su proxy y CA; se verificó TLS y se arrancó Compose con esa imagen preparada. El túnel público no se abrió desde esta nube: `api.trycloudflare.com` continúa bloqueado por su política de salida.
+
 El pase productivo y la creación del enlace público deben confirmarse mediante la salida de sus comandos en **apps**. Publicar el código en GitHub no equivale a instalarlo en el servidor. Desde este entorno no hay acceso administrativo a ese equipo ni una sesión Firebase autorizada.
