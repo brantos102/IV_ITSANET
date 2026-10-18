@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261018-40';
-import {esc} from './evidencias.js?v=20261018-40';
+import {pedir,nuevoIdentificador} from './local.js?v=20261018-40.1';
+import {esc} from './evidencias.js?v=20261018-40.1';
 
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/impresion'});
 function barras(serie){

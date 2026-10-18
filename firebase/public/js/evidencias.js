@@ -1,8 +1,8 @@
-import {verImagen} from './visor-imagen.js?v=20261018-40';
-import {manualFotos} from './manual-fotos.js?v=20261018-40';
-import {pedir} from './local.js?v=20261018-40';
-import {comprimir} from './imagen.js?v=20261018-40';
-import {confirmar,pedirDatos} from './modal.js?v=20261018-40';
+import {verImagen} from './visor-imagen.js?v=20261018-40.1';
+import {manualFotos} from './manual-fotos.js?v=20261018-40.1';
+import {pedir} from './local.js?v=20261018-40.1';
+import {comprimir} from './imagen.js?v=20261018-40.1';
+import {confirmar,pedirDatos} from './modal.js?v=20261018-40.1';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});

@@ -1,7 +1,7 @@
-import {verImagen} from './visor-imagen.js?v=20261018-40';
-import {abrirCorreo} from './correo-redactado.js?v=20261018-40';
-import {pedir} from './local.js?v=20261018-40';
-import {pedirDatos,confirmar} from './modal.js?v=20261018-40';
+import {verImagen} from './visor-imagen.js?v=20261018-40.1';
+import {abrirCorreo} from './correo-redactado.js?v=20261018-40.1';
+import {pedir} from './local.js?v=20261018-40.1';
+import {pedirDatos,confirmar} from './modal.js?v=20261018-40.1';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -70,7 +70,7 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
     const resumen=document.createElement('p');resumen.textContent=activas.length?`${activas.length} entrega(s) por resolver`:
       ultima.correoManual?(ultima.correoManual.estado==='DECLARADO_ENVIADO'?'Envío manual declarado por el supervisor.':'Correo preparado para envío manual.'):ultima.estado==='ENTREGADA'?'Entrega confirmada.':'Sin envío activo. Los envíos anulados no se enviarán.';seccion.append(resumen);
     boton(seccion,'Revisar Drive y fotos',()=>revisarDrive(codigo,aviso,operativo));
-    boton(seccion,'Ver correo final · copiar o enviar',()=>abrirCorreo(codigo,{entregaId:ultima.id}));
+    if(['ENTREGADA','PROCESANDO'].includes(ultima.estado)||ultima.correoManual?.estado==='DECLARADO_ENVIADO')boton(seccion,'Ver correo final archivado',()=>abrirCorreo(codigo,{entregaId:ultima.id}));
     const dibujar=(e,padre)=>{
       const fila=document.createElement('article');fila.style.marginBlock='16px';
       const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.correoManual?(e.correoManual.estado==='DECLARADO_ENVIADO'?'MANUAL · ENVÍO DECLARADO':'MANUAL · POR ENVIAR'):e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
@@ -92,15 +92,7 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
     activas.forEach(e=>dibujar(e,seccion));
     if(['PENDIENTE','CANCELADA','REVISION'].includes(ultima.estado)&&ultima.correoManual?.estado!=='DECLARADO_ENVIADO'){
       if(ultima.confirmacionDisponible){const listo=document.createElement('p');listo.className='msg ok';listo.textContent='Tu conexión está verificada. Los documentos finales esperan tu revisión y confirmación; todavía no se enviaron.';seccion.append(listo);}
-      boton(seccion,ultima.confirmacionDisponible?'Conexión verificada · revisar y confirmar envío':'Revisar y confirmar envío desde mi correo',async()=>{
-        const v=await pedir('/entregas/'+ultima.id+'/solicitar');
-        if(!v.responsable.disponible)throw new Error('Autoriza tu propia conexión en Mi cuenta y correo; después no se solicita una clave por envío.');
-        const datos=await pedirDatos({titulo:`Confirmar envío de documentos finales · ${referencia(ultima)}`,texto:`<p>${esc(codigo)} · ${esc(fecha(ultima))}</p><p>De: <b>${esc(v.responsable.correo)}</b><br>Para: ${esc(ultima.destinatarios || 'Sin correo')}</p><p>Se utilizará el mismo informe archivado: ${v.archivos.map(esc).join(', ')}. ${v.sustituye.length} entrega(s) anterior(es) pendiente(s) serán anuladas.</p><p>Comprueba Enviados en las cuentas anteriores y en la responsable para evitar un envío duplicado. Tu cuenta y el puente se acaban de verificar. Al confirmar se programará este envío; espera después la confirmación de Google.</p>`,
-          campos:[{clave:'destinatarios',etiqueta:'Enviar documentos a · correos separados por coma',valor:ultima.destinatarios||'',obligatorio:true},{clave:'motivo',etiqueta:'Motivo de recuperación (10–300 caracteres)',obligatorio:true},
-            {clave:'confirmarNoEnviado',etiqueta:'Revisé Enviados: este informe todavía no fue enviado',tipo:'interruptor',valor:false}],aceptar:'Confirmar envío de documentos finales'});
-        if(!datos)return;await pedir('/entregas/'+ultima.id+'/solicitar',{cuerpo:{...datos,remitenteConfirmado:v.responsable.correo}});
-        aviso('El mismo informe quedó programado con tu cuenta autorizada. Espera la confirmación de Google.','info','Envío pendiente de confirmación');await actualizar();
-      },'b-primario');
+      boton(seccion,ultima.confirmacionDisponible?'Conexión verificada · revisar correo y confirmar':'Revisar correo final · copiar o enviar',()=>abrirCorreo(codigo,{entregaId:ultima.id}),'b-primario');
     }
     const historicas=grupo.filter(e=>!activas.includes(e));
     if(historicas.length){const h=document.createElement('details'),s=document.createElement('summary');s.textContent=`Historial de entregas (${historicas.length})`;h.append(s);historicas.forEach(e=>dibujar(e,h));seccion.append(h);}

@@ -1,6 +1,6 @@
 # Supervisión y correo revisable · versión 40
 
-Candidato `itsanet-20261018-supervision-correo`, interfaz `20261018-40`. Esta versión se valida en el entorno aislado; el pase del servidor real requiere ejecutar el actualizador desde ese servidor. No importar datos, usuarios ni conexiones del entorno de pruebas.
+Candidato final `itsanet-20261018-supervision-correo-final`, interfaz `20261018-40.1`. Esta versión se valida en el entorno aislado; el pase del servidor real requiere ejecutar el actualizador desde ese servidor. No importar datos, usuarios ni conexiones del entorno de pruebas.
 
 ## Cuentas y autorización de Google
 
@@ -18,7 +18,7 @@ Actualizar juntos `apps-script/proxy/Proxy.gs` y `Servidor.gs` en cada proyecto;
 
 Al finalizar, primero se archiva el XLSX de cada embarque. Después aparece la revisión del correo con los archivos descargables. La redacción aprobada se congela en la entrega; los textos de los envíos confirmados permanecen consultables.
 
-Si Google no está configurado o no confirma la conexión, se puede **continuar con envío manual**: se cierra la recepción con documentos archivados y no se programa correo automático. También se puede recuperar un envío pendiente desde **Entregas → Ver correo final · copiar o enviar**.
+Si Google no está configurado o no confirma la conexión, se puede **continuar con envío manual**: se cierra la recepción con documentos archivados y no se programa correo automático. También se puede recuperar un envío pendiente desde **Entregas → Revisar correo final · copiar o enviar**. Esta es la única acción principal de revisión: todos los reenvíos pasan por el correo editable y los documentos; se retiró el acceso anterior que saltaba esa revisión.
 
 **Copiar correo completo** conserva tablas y enlaces mediante el portapapeles enriquecido, con alternativa compatible con HTTP de la red local. **Descargar correo HTML** conserva el documento fuera de la app. **Copiar asunto y destinatarios** facilita completar esos campos. **Abrir Gmail** abre la redacción; hay que pegar el contenido y adjuntar los XLSX descargados. Outlook admite la misma copia. Las fotos conservan sus permisos de Drive: la copia manual no publica imágenes privadas.
 
@@ -54,3 +54,5 @@ La publicación externa requiere el dominio o acceso VPN del servidor elegido. N
 - Chromium adicional: foto guardada realmente en el servidor aislado, vista previa y ampliación en modales, tabla de archivos y cierre manual con XLSX archivado, recepción cerrada y envío automático detenido.
 
 Estos resultados no acreditan una impresión física en Zebra ni un correo real enviado por Google. El puente se verificó con servicios simulados. La autorización de cada propietario, publicación de Apps Script, acceso a la carpeta real y prueba de correo a un destinatario elegido deben comprobarse en el entorno que se publique.
+
+La revisión final de la interfaz `40.1` unifica el acceso desde Entregas: ya no existe un botón de reenvío que omita la vista del correo y sus documentos. El navegador comprobó el cambio de destinatarios y una sola solicitud después de confirmar; Google se simuló y no se envió correo real. Un correo en procesamiento muestra su redacción congelada. Los estados manuales se presentan como «por enviar» o «envío declarado», sin confundirlos con una cancelación operativa.

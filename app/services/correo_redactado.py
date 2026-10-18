@@ -146,9 +146,9 @@ def vista(db, codigo, usuario, entrega_id=''):
     campos.update({k: v for k, v in guardado.get('campos', {}).items() if k in CAMPOS})
     # Un envío confirmado conserva el texto que efectivamente se solicitó.
     congelado = expandir(e.datos).get('correoFinal') if e else None
-    final = congelado if congelado and e.estado == 'ENTREGADA' else renderizar(codigo, fuente, campos, archivos, usuario)
+    final = congelado if congelado and e.estado in ('ENTREGADA','PROCESANDO') else renderizar(codigo, fuente, campos, archivos, usuario)
     declarado=bool(e and (e.datos.get('correoManual') or {}).get('estado')=='DECLARADO_ENVIADO')
-    if congelado and (e.estado=='ENTREGADA' or declarado):
+    if congelado and (e.estado in ('ENTREGADA','PROCESANDO') or declarado):
         campos=congelado.get('campos',campos);final=congelado
     final={'imagenesDrive':[],**final}
     g = integraciones.google(db, usuario)

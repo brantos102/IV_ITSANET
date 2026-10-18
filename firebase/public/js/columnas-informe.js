@@ -1,7 +1,7 @@
-import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261018-40';
-import {pedir} from './local.js?v=20261018-40';
-import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261018-40';
-import {reunirInforme,previsualizarLista} from './informe.js?v=20261018-40';
+import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261018-40.1';
+import {pedir} from './local.js?v=20261018-40.1';
+import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261018-40.1';
+import {reunirInforme,previsualizarLista} from './informe.js?v=20261018-40.1';
 const api=(r,o={})=>pedir(r,{...o,base:'/api/operacion'});
 export async function configurarColumnasInforme(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo),meta=await api(ruta+'/informe-metadatos');

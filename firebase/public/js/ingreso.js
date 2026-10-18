@@ -1,10 +1,10 @@
-import {verImagen} from './visor-imagen.js?v=20261018-40';
-import {pedir} from './local.js?v=20261018-40';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-40';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-40';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261018-40';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-40';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-40';
+import {verImagen} from './visor-imagen.js?v=20261018-40.1';
+import {pedir} from './local.js?v=20261018-40.1';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-40.1';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-40.1';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261018-40.1';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-40.1';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-40.1';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {

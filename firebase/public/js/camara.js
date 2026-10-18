@@ -58,7 +58,7 @@ async function lectorDeVideo() {
       }
     } catch { /* Un lector nativo no compatible usa el respaldo sobre video. */ }
   }
-  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261018-40');
+  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261018-40.1');
   const lector = new MultiFormatReader();
   lector.setHints(new Map([[DecodeHintType.TRY_HARDER,true],
     [DecodeHintType.POSSIBLE_FORMATS,FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()])]]));

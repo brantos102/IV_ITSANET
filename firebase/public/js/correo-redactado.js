@@ -1,6 +1,6 @@
-import {verImagen} from './visor-imagen.js?v=20261018-40';
-import {pedir} from './local.js?v=20261018-40';
-import {confirmar,pedirDatos} from './modal.js?v=20261018-40';
+import {verImagen} from './visor-imagen.js?v=20261018-40.1';
+import {pedir} from './local.js?v=20261018-40.1';
+import {confirmar,pedirDatos} from './modal.js?v=20261018-40.1';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Notas y ubicación de la mercadería',despedida:'Despedida',firma:'Firma'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
