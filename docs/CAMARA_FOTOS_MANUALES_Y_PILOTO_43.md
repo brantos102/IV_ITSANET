@@ -210,6 +210,36 @@ nativa observada en Windows PowerShell 5.1, y preparando la instancia aislada
 con Docker real. La apertura del enlace y la aceptación en Windows se
 completarán al ejecutar el lanzador en la PC.
 
+### Lectura de claves en Windows PowerShell 5.1 (entrega 45)
+
+La ejecución desde Windows detectó otra incompatibilidad: .NET Framework
+seleccionaba una sobrecarga distinta de `String.Split` y trataba `2` como
+`StringSplitOptions`. El lanzador ahora utiliza `IndexOf` y `Substring` para
+separar el nombre del valor por el primer `=`. Ambos métodos tienen las firmas
+necesarias en .NET Framework y .NET actual; se conservan los demás signos `=`
+del valor. La prueba del lanzador también elimina esa llamada ambigua.
+
+El archivo `.local\pruebas-publicas\entorno.env` ya generado se reutiliza.
+No hay que borrarlo ni regenerar claves. Actualiza con la misma línea de
+PowerShell y vuelve a iniciar. El cambio pertenece al lanzador de la PC y no
+requiere repetir el pase del servidor empresarial.
+
+Para comprobar la compatibilidad en Windows PowerShell antes de reanudar,
+ejecuta esta única línea desde el repositorio de la PC. Las pruebas usan
+carpetas temporales y Docker / HTTP simulados; solo si terminan correctamente
+se ejecuta el lanzador real:
+
+```powershell
+git pull --ff-only origin desarrollo-local; if ($LASTEXITCODE -eq 0) { powershell.exe -NoProfile -File .\tests\probar_lanzador_windows.ps1; if ($LASTEXITCODE -eq 0) { .\scripts\publicar_pruebas.ps1 } }
+```
+
+Etiqueta: `itsanet-20261018-piloto-powershell-45`. Pasaron **14 pruebas del
+lanzador** con PowerShell 7.4 / Linux, incluyendo reanudación con archivo
+existente, conservación de claves con `=`, rechazo de archivos incompletos y
+las protecciones anteriores. Se verificó además la preparación con Docker
+real y que se mantienen las claves persistidas. Windows PowerShell 5.1 debe
+confirmarse al reanudar en la PC del usuario; no se ejecuta desde esta nube.
+
 ## Comprobaciones de la entrega
 
 Resultados de la versión final:

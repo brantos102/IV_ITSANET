@@ -12,7 +12,7 @@ function EsperarError([scriptblock]$Accion, [string]$Patron) {
     Afirmar ($mensaje -like $Patron) ('Falta rechazo esperado: '+$Patron)
 }
 function Caso([string]$Nombre,[scriptblock]$Prueba) {
-    $global:ITSANET_QA_PC = @{Volumen=$false;ConsultaVolumen='ok';Imagen=$true;ConsultaImagen='ok';FalloUp=$false;Salud=$true;Publico=$true;Intentos=0;Llamadas=@()}
+    $global:ITSANET_QA_PC = @{Volumen=$false;ConsultaVolumen='ok';Imagen=$true;ConsultaImagen='ok';FalloUp=$false;Salud=$true;Publico=$true;Intentos=0;Llamadas=@();EntornoConfig=@{}}
     $carpeta = Join-Path $CarpetaPruebas ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path (Join-Path $carpeta 'scripts') -Force | Out-Null
     Copy-Item $Lanzador (Join-Path $carpeta 'scripts/publicar_pruebas.ps1')
@@ -27,6 +27,11 @@ function docker {
     $cmd = $args -join ' '
     $q = $global:ITSANET_QA_PC
     $q.Llamadas += ,$cmd
+    if ($cmd -like '* config --quiet') {
+        foreach ($nombre in @('ITSANET_LOCAL_MYSQL_PASSWORD','ITSANET_LOCAL_ROOT_PASSWORD','ITSANET_LOCAL_SESSION_KEY','ITSANET_LOCAL_ADMIN_PASSWORD','ITSANET_PRUEBAS_SUP_PASSWORD','ITSANET_PRUEBAS_OP_PASSWORD')) {
+            $q.EntornoConfig[$nombre]=[Environment]::GetEnvironmentVariable($nombre,'Process')
+        }
+    }
     if ($cmd -eq 'info --format {{.OSType}}') { return 'linux' }
     # Reproduce la detencion de Windows PowerShell 5.1 ante la consulta anterior.
     if ($cmd -like 'volume inspect *') { throw 'NativeCommandError: no such volume' }
@@ -62,7 +67,7 @@ try {
     Caso 'Primera ejecucion: volumen inexistente permite preparar y genera claves privadas' {
         & $s -Accion preparar -Puerto 19109 6>&1 | Out-Null
         Afirmar (Test-Path $archivo) 'No preparo su archivo privado.'
-        $claves = @([IO.File]::ReadAllLines($archivo) | Where-Object { $_ -notlike 'ITSANET_LOCAL_PORT=*' } | ForEach-Object { $_.Split(@('='),2)[1] })
+        $claves = @([IO.File]::ReadAllLines($archivo) | Where-Object { $_ -notlike 'ITSANET_LOCAL_PORT=*' } | ForEach-Object { $_.Substring($_.IndexOf('=')+1) })
         Afirmar ($claves.Count -eq 6 -and @($claves | Select-Object -Unique).Count -eq 6) 'Claves incompletas o repetidas.'
         Afirmar (@($claves | Where-Object { $_.Length -lt 16 }).Count -eq 0) 'Clave inicial demasiado corta.'
         Afirmar (-not (Test-Path $url)) 'Preparar no debe abrir un enlace.'
@@ -97,6 +102,26 @@ try {
             [Environment]::SetEnvironmentVariable('ITSANET_LOCAL_MYSQL_PASSWORD',$anteriorClave,'Process')
             [Environment]::SetEnvironmentVariable('ITSANET_LOCAL_PORT',$anteriorPuerto,'Process')
         }
+    }
+    Caso 'Reanudar con archivo privado existente conserva todos los caracteres de las claves' {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $archivo) -Force | Out-Null
+        $nombres=@('ITSANET_LOCAL_MYSQL_PASSWORD','ITSANET_LOCAL_ROOT_PASSWORD','ITSANET_LOCAL_SESSION_KEY','ITSANET_LOCAL_ADMIN_PASSWORD','ITSANET_PRUEBAS_SUP_PASSWORD','ITSANET_PRUEBAS_OP_PASSWORD')
+        $lineas=@($nombres | ForEach-Object { $_+'=prueba-privada-0123456789==valor' })+@('ITSANET_LOCAL_PORT=19109')
+        [IO.File]::WriteAllLines($archivo,[string[]]$lineas,[Text.UTF8Encoding]::new($false))
+        $hash=(Get-FileHash $archivo -Algorithm SHA256).Hash
+        $global:ITSANET_QA_PC.Volumen=$true
+        & $s -Accion preparar 6>&1 | Out-Null
+        foreach ($nombre in $nombres) { Afirmar ($global:ITSANET_QA_PC.EntornoConfig[$nombre] -ceq 'prueba-privada-0123456789==valor') 'Se modifico el valor leido del archivo privado.' }
+        Afirmar ((Get-FileHash $archivo -Algorithm SHA256).Hash -eq $hash) 'Reescribio las claves al reanudar.'
+        Afirmar (@($global:ITSANET_QA_PC.Llamadas | Where-Object { $_ -like 'volume *' }).Count -eq 0) 'Intento generar un entorno nuevo al reanudar.'
+    }
+    Caso 'Archivo privado incompleto se rechaza sin cambiarlo ni arrancar Docker' {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $archivo) -Force | Out-Null
+        [IO.File]::WriteAllLines($archivo,[string[]]@('ITSANET_LOCAL_MYSQL_PASSWORD=prueba-existente-0123456789'),[Text.UTF8Encoding]::new($false))
+        $hash=(Get-FileHash $archivo -Algorithm SHA256).Hash
+        EsperarError { & $s -Accion preparar -Puerto 19109 } '*Archivo privado incompleto*'
+        Afirmar ((Get-FileHash $archivo -Algorithm SHA256).Hash -eq $hash) 'Regenero un archivo incompleto.'
+        Afirmar (@($global:ITSANET_QA_PC.Llamadas | Where-Object { $_ -like '* up *' }).Count -eq 0) 'Arranco con claves incompletas.'
     }
     Caso 'SinConstruir sin imagen: mensaje claro y ningun arranque' {
         $global:ITSANET_QA_PC.Imagen=$false

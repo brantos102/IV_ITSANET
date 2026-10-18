@@ -73,7 +73,10 @@ if (-not (Test-Path $ArchivoEntorno)) {
 }
 $valores = @{}
 foreach ($linea in [IO.File]::ReadAllLines($ArchivoEntorno)) {
-    if ($linea.Contains('=')) { $par = $linea.Split(@('='),2); $valores[$par[0]] = $par[1] }
+    # IndexOf/Substring tienen las mismas firmas en .NET Framework (PS 5.1)
+    # y .NET actual. Conserva tambien los signos '=' dentro del valor.
+    $separador = $linea.IndexOf('=')
+    if ($separador -ge 0) { $valores[$linea.Substring(0,$separador)] = $linea.Substring($separador+1) }
 }
 foreach ($nombre in $Variables) {
     if (-not $valores[$nombre] -or $valores[$nombre].Length -lt 16) { throw 'Archivo privado incompleto. No borres ni regeneres claves con datos existentes.' }
