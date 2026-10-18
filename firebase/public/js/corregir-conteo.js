@@ -1,6 +1,6 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261018-46';
-import {pedirDatos,elegir,confirmar} from './modal.js?v=20261018-46';
-import {eventosActivos} from './conteo.js?v=20261018-46';
+import {pedir,nuevoIdentificador} from './local.js?v=20261018-47';
+import {pedirDatos,elegir,confirmar} from './modal.js?v=20261018-47';
+import {eventosActivos} from './conteo.js?v=20261018-47';
 
 export async function abrirCorreccion({recepcion,sku,contado,origenes=[],incidencias=[],alGuardar,eventoId}) {
   const eventos=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/eventos`);

@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261018-46';
-import {pedirDatos} from './modal.js?v=20261018-46';
+import {pedir} from './local.js?v=20261018-47';
+import {pedirDatos} from './modal.js?v=20261018-47';
 export async function declararEnviadoManual(e){
  const v=await pedir('/recepciones/'+encodeURIComponent(e.recepcion)+'/correo?entregaId='+encodeURIComponent(e.id),{base:'/api/operacion'});
  const datos=await pedirDatos({titulo:'Registrar correo ya enviado · '+e.recepcion,

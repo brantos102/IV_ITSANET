@@ -1,12 +1,14 @@
 # ITSANET IMS
 
+[Versión 47: demos autónomas, FAQ, instalación por supervisor y acceso al estado de Drive](docs/MANUALES_Y_DEMOS_47.md).
+
 [Versión 46: nombres de fotos, clasificación histórica y carpetas por bulto](docs/FOTOS_AUDITORIA_Y_CARPETAS_46.md).
 
 [Versión 43: cámara optimizada, fotos recuperables, manuales descargables y piloto desde una PC](docs/CAMARA_FOTOS_MANUALES_Y_PILOTO_43.md).
 
-[Descargar manuales en ZIP](docs/descargas/ITSANET-manuales-v43.zip) · [Entrega anterior: versión 42](docs/CIERRE_MANUALES_Y_PUBLICACION_42.md).
+[Descargar demos y guías actualizadas en ZIP](docs/descargas/ITSANET-manuales-v47.zip) · [Guías anteriores 43](docs/descargas/ITSANET-manuales-v43.zip).
 
-Manuales interactivos: [Operario](firebase/public/manuales/operario.html), [Supervisor](firebase/public/manuales/supervisor.html), [Técnico](firebase/public/manuales/tecnico.html).
+Manuales interactivos: [Operario](firebase/public/manuales/operario.html), [Supervisor](firebase/public/manuales/supervisor.html), [Instalación por supervisor](firebase/public/manuales/instalacion-supervisor.html), [Técnico](firebase/public/manuales/tecnico.html).
 
 [Versión 41: lecturas del escáner, etiquetas ampliadas y modales](docs/LECTURAS_ETIQUETAS_Y_NAVEGACION_41.md).
 

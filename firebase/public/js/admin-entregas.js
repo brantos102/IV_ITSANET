@@ -1,8 +1,8 @@
-import {verImagen} from './visor-imagen.js?v=20261018-46';
-import {abrirCorreo} from './correo-redactado.js?v=20261018-46';
-import {pedir} from './local.js?v=20261018-46';
-import {pedirDatos,confirmar} from './modal.js?v=20261018-46';
-import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261018-46';
+import {verImagen} from './visor-imagen.js?v=20261018-47';
+import {abrirCorreo} from './correo-redactado.js?v=20261018-47';
+import {pedir} from './local.js?v=20261018-47';
+import {pedirDatos,confirmar} from './modal.js?v=20261018-47';
+import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261018-47';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -13,9 +13,9 @@ const operacion = (ruta, opciones={}) => pedir(ruta, {...opciones, base:'/api/op
 
 export async function revisarDrive(codigo, aviso, operativo=false) {
   const d = document.createElement('dialog'); d.className='modal';
-  d.innerHTML=`<h3>Fotos y carpetas · ${esc(codigo)}</h3><div data-estado role="status">Consultando fotos…</div>
+  d.innerHTML=`<h3>Fotos y carpetas · ${esc(codigo)}</h3><p class="guia-modal">Puedes consultar las imágenes guardadas antes de cerrar la recepción, aunque su carpeta Drive siga pendiente. Verificar carpetas y copiar fotos no envía el informe por correo.</p><div data-estado role="status">Consultando fotos…</div>
     <details open><summary>Archivos y carpetas en tiempo real</summary><input data-filtro-archivos placeholder="Filtrar por SKU, nombre o carpeta" aria-label="Filtrar archivos"><div data-tabla-archivos class="tabla-env"></div></details><p data-resultado role="status"></p><div class="modal-acciones"><button class="b-sec" data-actualizar>Actualizar</button>
-    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-mi-cuenta>Copiar pendientes desde mi cuenta</button><button class="b-sec" data-cerrar>Cerrar</button></div>`;
+    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-mi-cuenta>Copiar pendientes desde mi cuenta</button><a class="b-sec" href="./cuenta.html">Configurar mi conexión Google</a><button class="b-sec" data-cerrar>Cerrar</button></div>`;
   document.body.append(d); d.showModal();
   const ruta='/recepciones/'+encodeURIComponent(codigo)+'/drive'; let ocupado=false;
   const actualizar = async () => {
@@ -23,13 +23,14 @@ export async function revisarDrive(codigo, aviso, operativo=false) {
     try {
       const r=await operacion(ruta), s=r.sincronizacion, destino=r.destino || r.destinoOperativo || {};
       d.querySelector('[data-estado]').innerHTML=`<p><b>${s.copiadas} de ${s.guardadas} fotos confirmadas en Drive</b> · ${s.pendientes} pendientes · ${s.procesando} en proceso.</p>
+        ${!r.carpetas?.length?`<p class="msg warn">Todavía no hay una carpeta Drive confirmada para esta recepción. ${s.guardadas?'Usa Vista previa en la tabla para consultar las fotos guardadas. Revisa los avisos de la conexión responsable antes de reintentar.':'Aún no hay fotos guardadas. Puedes cargarlas desde Bultos y fotos o verificar y crear las carpetas.'}</p>`:''}
         <p>Cuenta responsable: <b>${esc(destino.supervisor || 'Sin configurar')}</b><br>Ruta: ${esc([destino.cliente,destino.marca,codigo].filter(Boolean).join(' / '))}</p>
         <p>${destino.carpetaRaiz ? enlace('https://drive.google.com/drive/folders/'+destino.carpetaRaiz,'Abrir carpeta raíz configurada') : 'Carpeta raíz: se usa CARPETA_EVIDENCIAS del puente Google.'}</p>
         ${(r.carpetas || []).map(u=>`<p>${enlace(u,'Abrir carpeta de la recepción')}</p>`).join('')}
         ${r.avisos?.length ? `<div class="mini">${r.avisos.map(a=>`<p>${esc(a)}</p>`).join('')}<p>Si falla la clave, guarda la misma SERVIDOR_HMAC en el puente de esta cuenta y vuelve a verificar. No hace falta generar otra clave.</p></div>` : ''}
         <details><summary>Ubicación de cada foto (${r.archivos?.length || 0})</summary>${(r.archivos || []).map(a=>`<p><b>${esc(a.nombre)}</b> · ${esc(a.estado)}<br>${esc((a.ruta || []).join(' / '))}<br>${enlace(a.enlace,'Abrir foto')} ${enlace(a.carpeta,'Abrir carpeta')}${a.error?`<br>${esc(a.error)}`:''}</p>`).join('')}</details>`;
       const pintarArchivos=()=>{const filtro=d.querySelector('[data-filtro-archivos]').value.trim().toUpperCase();const filas=(r.archivos||[]).filter(a=>(a.nombre+' '+(a.ruta||[]).join(' / ')).toUpperCase().includes(filtro));d.querySelector('[data-tabla-archivos]').innerHTML='<table><thead><tr><th>Foto</th><th>SKU / tipo</th><th>Estado</th><th>Ruta de carpeta</th><th>Acciones</th></tr></thead><tbody>'+filas.map(a=>`<tr><td>${esc(a.nombre)}</td><td>${esc(a.sku||'Recepción')}<br>${esc(a.tipo||'')}</td><td>${esc(a.estado)}</td><td>${esc([destino.cliente,destino.marca,codigo,...(a.ruta||[])].filter(Boolean).join(' / '))}${a.error?'<p>'+esc(a.error)+'</p>':''}</td><td><button class="b-sec" data-ver-foto="${esc(a.id)}">Vista previa</button>${enlace(a.carpeta,'Carpeta confirmada')} ${enlace(a.enlace,'Original')}</td></tr>`).join('')+'</tbody></table>';d.querySelectorAll('[data-ver-foto]').forEach(b=>b.onclick=()=>{const a=filas.find(a=>a.id===b.dataset.verFoto);verImagen({url:'/api/app/archivos/'+a.id,nombre:a.nombre,driveUrl:a.enlace});});};d.querySelector('[data-filtro-archivos]').oninput=pintarArchivos;pintarArchivos();
-    } catch(e){d.querySelector('[data-resultado]').textContent=e.message;}
+    } catch(e){d.querySelector('[data-estado]').textContent='No se pudo consultar el estado de las fotos.';d.querySelector('[data-resultado]').textContent=e.message;}
     finally{ocupado=false;}
   };
   d.querySelector('[data-preparar]').onclick=async ev=>{
