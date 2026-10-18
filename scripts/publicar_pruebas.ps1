@@ -38,15 +38,22 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     if (Test-Path $binario) { $env:Path = (Split-Path -Parent $binario) + ';' + $env:Path }
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Abre Docker Desktop con contenedores Linux. Este lanzador se ejecuta en la PC Windows.' }
-& docker compose version | Out-Null
+try { & docker compose version | Out-Null }
+catch { throw 'Se necesita Docker Compose v2. Abre o actualiza Docker Desktop.' }
 if ($LASTEXITCODE -ne 0) { throw 'Se necesita Docker Compose v2.' }
-$tipo = & docker info --format '{{.OSType}}' 2>$null
+try { $tipo = & docker info --format '{{.OSType}}' 2>$null }
+catch { throw 'Espera a que Docker Desktop indique Engine running y Linux containers.' }
 if ($LASTEXITCODE -ne 0 -or $tipo -ne 'linux') { throw 'Espera a que Docker Desktop indique Engine running y Linux containers.' }
 if (-not (Test-Path $ArchivoEntorno)) {
     if ($Accion -notin @('iniciar','preparar')) { throw 'Primero ejecuta -Accion preparar o iniciar.' }
     # Nunca regenerar contraseñas si ya existe un volumen de esta instancia.
-    & docker volume inspect ($Proyecto+'_mysql_pruebas') *> $null
-    if ($LASTEXITCODE -eq 0) { throw 'Existen datos de estas pruebas pero falta su archivo privado. Recuperalo antes de continuar; no se regeneraron claves.' }
+    # Una ausencia esperada no debe escribir en stderr: Windows PowerShell 5.1
+    # convierte ese stderr en NativeCommandError aunque se redirija a $null.
+    $VolumenMysql = $Proyecto+'_mysql_pruebas'
+    try { $Volumenes = @(& docker volume ls --quiet --filter ('name=^'+[regex]::Escape($VolumenMysql)+'$')) }
+    catch { throw 'No se pudieron consultar los volumenes de pruebas. Revisa Docker Desktop; no se generaron claves.' }
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudieron consultar los volumenes de pruebas. Revisa Docker Desktop; no se generaron claves.' }
+    if ($Volumenes -ccontains $VolumenMysql) { throw 'Existen datos de estas pruebas pero falta su archivo privado. Recuperalo antes de continuar; no se regeneraron claves.' }
     New-Item -ItemType Directory -Path $Privado -Force | Out-Null
     if ($env:OS -eq 'Windows_NT') {
         $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -103,8 +110,10 @@ try {
     $lineas = @($Variables | ForEach-Object { $_+'='+$valores[$_] }) + @('ITSANET_LOCAL_PORT='+$Puerto)
     EscribirPrivado $ArchivoEntorno $lineas
     if ($SinConstruir) {
-        & docker image inspect ($Proyecto+'-app') *> $null
-        if ($LASTEXITCODE -ne 0) { throw 'No hay imagen preparada para este proyecto. Ejecuta sin -SinConstruir.' }
+        try { $Imagenes = @(& docker image ls --quiet --filter ('reference='+$Proyecto+'-app:latest')) }
+        catch { throw 'No se pudieron consultar las imagenes de Docker. Revisa Docker Desktop.' }
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudieron consultar las imagenes de Docker. Revisa Docker Desktop.' }
+        if (-not $Imagenes.Count) { throw 'No hay imagen preparada para este proyecto. Ejecuta sin -SinConstruir.' }
         DockerPruebas up --detach --no-build --wait --wait-timeout 300 mysql app
     } else { DockerPruebas up --detach --build --wait --wait-timeout 300 mysql app }
     $salud = Invoke-RestMethod -Uri "http://127.0.0.1:$Puerto/health" -TimeoutSec 5

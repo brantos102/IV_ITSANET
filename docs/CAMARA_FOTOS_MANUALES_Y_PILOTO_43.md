@@ -177,6 +177,39 @@ El enlace público todavía necesita ser generado desde la PC del usuario. La
 nube de desarrollo no puede crearlo: su proxy bloquea `api.trycloudflare.com`.
 No se ha eludido ese bloqueo ni se ha anunciado una URL de prueba como lista.
 
+### Corrección del lanzador para Windows PowerShell (entrega 44)
+
+Si la primera ejecución se detuvo con `NativeCommandError` al consultar
+`iv-itsanet-pruebas-publicas-pc_mysql_pruebas: no such volume`, actualiza el
+repositorio de la PC y vuelve a ejecutar la misma línea de arranque. La ausencia
+del volumen es normal antes de preparar la base. La consulta anterior mediante
+`docker volume inspect` escribía en stderr y Windows PowerShell 5.1 detenía el
+script antes de comprobar el código de salida.
+
+La corrección consulta `docker volume ls` con el nombre exacto y comprueba su
+resultado: un listado vacío permite preparar; un fallo del daemon detiene la
+acción; un volumen existente sin su archivo privado sigue bloqueando cualquier
+regeneración de claves. También se corrige la consulta opcional de imagen y se
+aclaran los errores de Docker Desktop / Compose. No se cambian aplicación,
+recepciones ni configuración del servidor empresarial. No es necesario volver
+a ejecutar el pase de producción por esta corrección del lanzador.
+
+Etiqueta de la corrección: `itsanet-20261018-piloto-windows-44`. La interfaz de
+la aplicación permanece en `20261018-43`.
+
+Las 12 pruebas del lanzador simulan primera ejecución, errores nativos,
+protección de datos existentes, repetición, consulta de imagen, fallo de
+arranque y confirmación del enlace. Se ejecutan sin instalar Pester ni Docker:
+
+```powershell
+powershell.exe -NoProfile -File .\tests\probar_lanzador_windows.ps1
+```
+
+La corrección se verificó con PowerShell 7.4 en Linux, simulando la excepción
+nativa observada en Windows PowerShell 5.1, y preparando la instancia aislada
+con Docker real. La apertura del enlace y la aceptación en Windows se
+completarán al ejecutar el lanzador en la PC.
+
 ## Comprobaciones de la entrega
 
 Resultados de la versión final:
