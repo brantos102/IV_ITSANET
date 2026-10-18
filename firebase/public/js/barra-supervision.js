@@ -1,7 +1,7 @@
-import {pedir} from './local.js?v=20261018-47';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261018-47';
-import {mostrarAviso} from './notificaciones.js?v=20261018-47';
-import {abrirEtiqueta} from './etiquetas.js?v=20261018-47';
+import {pedir} from './local.js?v=20261018-48';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261018-48';
+import {mostrarAviso} from './notificaciones.js?v=20261018-48';
+import {abrirEtiqueta} from './etiquetas.js?v=20261018-48';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let avanceActual=null, liberarBarra=()=>{};
 export function publicarAvance(datos){

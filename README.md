@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 48: diagnóstico de Google y errores 502 del piloto](docs/DIAGNOSTICO_GOOGLE_PILOTO_48.md).
+
 [Versión 47: demos autónomas, FAQ, instalación por supervisor y acceso al estado de Drive](docs/MANUALES_Y_DEMOS_47.md).
 
 [Versión 46: nombres de fotos, clasificación histórica y carpetas por bulto](docs/FOTOS_AUDITORIA_Y_CARPETAS_46.md).

@@ -288,9 +288,19 @@ def llamar_conexion(operacion, clave, datos, destino):
         raise RuntimeError('Guarda el enlace /exec y la clave compartida del puente de este supervisor en Administración.')
     firma = hmac.new(destino['secreto'].encode(), payload.encode(), hashlib.sha256).hexdigest()
     # Solo el servidor contacta Google; nunca se envia esta clave al navegador.
-    with httpx.Client(timeout=120, follow_redirects=True) as cliente:
-        respuesta = cliente.post(destino['url'],
-            json={'accion': 'entregaServidor', 'payload': payload, 'firma': firma})
+    # La consulta de estado no sube archivos ni envía correo. Debe devolver
+    # un diagnóstico antes de agotar el tiempo del proxy público.
+    timeout = httpx.Timeout(25, connect=8) if operacion == 'estado' else 120
+    with httpx.Client(timeout=timeout, follow_redirects=True) as cliente:
+        try:
+            respuesta = cliente.post(destino['url'],
+                json={'accion': 'entregaServidor', 'payload': payload, 'firma': firma})
+        except httpx.TimeoutException:
+            if operacion != 'estado': raise
+            raise RuntimeError('La verificación de Google agotó el tiempo de espera. Comprueba salida HTTPS desde la PC/servidor y ejecuta verificarGoogleServidor en Apps Script. Esta consulta no envía correo ni modifica Drive.') from None
+        except httpx.RequestError:
+            if operacion != 'estado': raise
+            raise RuntimeError('La PC/servidor no pudo conectar con el puente Google. Revisa DNS, salida HTTPS de Docker, proxy de red y confianza del certificado. No cambies la clave compartida por este error de conexión; esta consulta no envía correo.') from None
         if respuesta.status_code == 404:
             raise RuntimeError('Google respondió HTTP 404: la URL del despliegue /exec no está disponible para el servidor. En Apps Script → Implementar → Administrar implementaciones, copia la URL de la aplicación web activa (no el ID del proyecto ni la carpeta Drive), guárdala en Guardar puente y vuelve a verificar. Conserva la clave compartida.')
         if respuesta.status_code >= 400:

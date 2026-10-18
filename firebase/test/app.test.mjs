@@ -1326,4 +1326,19 @@ await test('y no a cualquier cosa que parezca un correo', async () => {
   eq(globalThis.__correos.length, 0);
 });
 
+const local = await cargar('local.js');
+await test('502 sin JSON identifica falta de respuesta y no muestra HTML ni reintenta', async () => {
+  const anterior=globalThis.fetch;let llamadas=0;
+  globalThis.fetch=async()=>{llamadas++;return new Response('<html>detalle externo reservado</html>',{status:502,headers:{'Content-Type':'text/html'}});};
+  try{
+    let error;try{await local.pedir('/integraciones/google/probar',{cuerpo:{}});}catch(e){error=e;}
+    eq(error.codigo,'SIN_RESPUESTA_APP');eq(error.estado,502);ok(error.message.includes('HTTP 502'));ok(!error.message.includes('detalle externo reservado'));eq(llamadas,1);
+  }finally{globalThis.fetch=anterior;}
+});
+await test('502 JSON conserva el diagnóstico específico del puente Google', async () => {
+  const anterior=globalThis.fetch,mensaje='La clave compartida no coincide con SERVIDOR_HMAC de este Apps Script.';
+  globalThis.fetch=async()=>new Response(JSON.stringify({detail:mensaje}),{status:502,headers:{'Content-Type':'application/json'}});
+  try{let error;try{await local.pedir('/integraciones/google/probar',{cuerpo:{}});}catch(e){error=e;}eq(error.message,mensaje);eq(error.estado,502);}
+  finally{globalThis.fetch=anterior;}
+});
 resumen();

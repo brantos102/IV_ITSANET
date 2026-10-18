@@ -106,6 +106,12 @@ export async function pedir(ruta, opciones = {}) {
 
   if (!r.ok) {
     const d = cuerpo?.detail;
+    if (!cuerpo && [502,503,504,520,521,522,523,524].includes(r.status)) {
+      throw new ErrorServidor(
+        `No llegó una respuesta detallada de ITSANET (HTTP ${r.status}). Revisa el servidor y el enlace de acceso. Comprueba el estado de la operación antes de repetirla.`,
+        'SIN_RESPUESTA_APP', r.status,
+      );
+    }
     if (d && typeof d === 'object') {
       throw new ErrorServidor(d.mensaje || 'Error del servidor', d.codigo, r.status);
     }
