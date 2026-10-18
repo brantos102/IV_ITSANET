@@ -4,22 +4,23 @@ import re
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
-from app.models import AppSku
+from app.models import AppSku, Producto
 from app.services.codigos import buscar
 from app.services.normalize import normalizar_sku
 
 CLAVES = {'sku', 'partnumber', 'partno', 'pn', 'numerodepieza', 'numeropieza', 'codigo', 'codigoproducto'}
 
 
-COMILLAS = "'’‘`´\""
+COMILLAS = "'’‘`´\"“”"
 
 
 def _pieza(texto):
     # Algunos lectores entregan apóstrofos en lugar de guiones. Solo se aplica
     # a candidatos de lectura, nunca cambia la identidad guardada del producto.
-    return normalizar_sku(str(texto).translate(str.maketrans('', '', COMILLAS)))
+    texto = re.sub('[‐‑‒–—−]', '-', str(texto))
+    return normalizar_sku(texto.translate(str.maketrans('', '', COMILLAS)))
 
 
 def _extraer(raw):
@@ -53,21 +54,65 @@ def _extraer(raw):
         # Los campos numéricos posteriores son lote/relleno, no otro SKU.
         campos = re.split(r'[\s;|,\x1d]+', texto)
         compuesta = len(campos) > 1
-        permitidos = r'[A-Za-z0-9_.\-/\s\'’‘`´"]{1,100}'
+        permitidos = r'[A-Za-z0-9_.\-/\s\'’‘`´"“”‐‑‒–—−]{1,100}'
         if re.fullmatch(permitidos, texto):
             piezas.append(texto)
         for i, campo in enumerate(campos):
             limpio = _pieza(campo)
-            if (re.fullmatch(r'[A-Za-z0-9_.\-/\'’‘`´"]{4,80}', campo)
+            if (re.fullmatch(r'[A-Za-z0-9_.\-/\'’‘`´"“”‐‑‒–—−]{4,80}', campo)
                     and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', campo)
                     and (i == 0 or (re.search('[A-Za-z]', limpio) and re.search('[0-9]', limpio)))):
                 piezas.append(campo)
+        # El teclado del lector puede separar también las partes del SKU.
+        # Probar el prefijo anterior al relleno conserva todos sus dígitos;
+        # solo se aceptará si el código completo existe realmente.
+        if len(campos) > 2 and re.fullmatch(permitidos, texto):
+            for i in range(2, min(len(campos), 12)):
+                if re.fullmatch(r'\d{5,}', _pieza(''.join(campos[i:]))):
+                    piezas.append(''.join(campos[:i]))
     candidatos = (_pieza(p) for p in piezas)
     return list(dict.fromkeys(p for p in candidatos if 0 < len(p) <= 100))[:50], compuesta
 
 
 def extraer(raw):
     return _extraer(raw)[0]
+
+
+def _similares(db, piezas, recepcion):
+    """Una inserción, omisión o sustitución: consulta acotada al catálogo.
+
+    LIKE usa un comodín de un carácter en cada posición y limita las respuestas.
+    No se descarga el maestro. Ningún candidato se convierte en equivalencia.
+    """
+    patrones, exactos = set(), set()
+    for p in piezas[:4]:
+        if not re.fullmatch(r'[A-Z0-9]{5,40}', p) or not re.search('[A-Z]', p):
+            continue
+        for i in range(len(p)):
+            patrones.add(p[:i] + '_' + p[i+1:])
+            exactos.add(p[:i] + p[i+1:])
+        for i in range(len(p)+1):
+            patrones.add(p[:i] + '_' + p[i:])
+    if not patrones:
+        return set()
+    def condicion(col):
+        return or_(col.in_(sorted(exactos)), *(col.like(p) for p in sorted(patrones)))
+    candidatos = set(db.scalars(select(Producto.sku).where(condicion(Producto.sku))
+        .order_by(Producto.sku).limit(9)))
+    if recepcion:
+        candidatos.update(db.scalars(select(AppSku.sku).where(AppSku.recepcion == recepcion,
+            condicion(AppSku.sku)).order_by(AppSku.sku).limit(9)))
+    return candidatos
+
+
+def _detalles(db, candidatos, recepcion):
+    productos = {p.sku:p for p in db.scalars(select(Producto).where(Producto.sku.in_(candidatos)))}
+    en_lista = set(db.scalars(select(AppSku.sku).where(AppSku.recepcion == recepcion,
+        AppSku.sku.in_(candidatos)))) if recepcion else set()
+    return [{'sku':s, 'descripcion':productos[s].descripcion or '' if s in productos else '',
+        'cliente':productos[s].cliente if s in productos else '',
+        'enCatalogo':s in productos, 'existeDepot':bool(productos[s].existe_depot) if s in productos else False,
+        'enPackingList':s in en_lista} for s in candidatos]
 
 
 def resolver(db, raw, recepcion=None):
@@ -87,6 +132,7 @@ def resolver(db, raw, recepcion=None):
                        if compuesta else 'Número de pieza confirmado; separadores normalizados o equivalencia registrada.')}
     if len(encontrados) > 1:
         return {'resuelto': False, 'confirmar': True, 'candidatos': sorted(encontrados),
+            'detallesCandidatos': _detalles(db, sorted(encontrados), recepcion),
             'motivo': 'La lectura contiene varios códigos existentes; selecciona el producto'}
     candidatos = set()
     for p in piezas:
@@ -95,6 +141,9 @@ def resolver(db, raw, recepcion=None):
         # Sin límite de campo no sabemos si los ceros pertenecen a la pieza:
         # ofrecer solo códigos existentes y exigir confirmación, nunca recortar.
         variantes.update(p[:i] for i in range(4, len(p) - 2) if set(p[i:]) == {'0'})
+        # Lote/cantidad pegados por el lector: proponer el prefijo existente,
+        # exigir confirmación y conservar íntegro el código original.
+        variantes.update(p[:i] for i in range(5, len(p)-4) if p[i:].isdigit())
         for v in variantes:
             if not v: continue
             prod = buscar(db, v)
@@ -102,13 +151,11 @@ def resolver(db, raw, recepcion=None):
             if recepcion and db.scalar(select(AppSku.id).where(AppSku.recepcion == recepcion, AppSku.sku == v)):
                 candidatos.add(v)
     # Dígitos diferentes no se depuran. Se presentan como sugerencia, jamás equivalencia automática.
-    if recepcion and not candidatos and len(piezas) == 1:
-        for sku in db.scalars(select(AppSku.sku).where(AppSku.recepcion == recepcion)):
-            p = piezas[0]
-            if len(sku) == len(p) and sum(a != b for a, b in zip(sku, p)) == 1:
-                candidatos.add(sku)
-                if len(candidatos) >= 8: break
+    if not candidatos:
+        candidatos = _similares(db, piezas, recepcion)
+    candidatos = sorted(candidatos)[:8]
     return {'sku': piezas[0] if len(piezas) == 1 and not compuesta else None, 'resuelto': False,
-        'confirmar': bool(candidatos), 'candidatos': sorted(candidatos),
+        'confirmar': bool(candidatos), 'candidatos': candidatos,
+        'detallesCandidatos': _detalles(db, candidatos, recepcion),
         'motivo': 'Posible prefijo, ceros de relleno o diferencia de caracteres. Requiere confirmación.'
                   if candidatos else 'No se identificó un SKU existente. Escanea solo el número de pieza o escríbelo sin lote, cantidad ni relleno; vuelve a buscar antes de crear un adicional.'}

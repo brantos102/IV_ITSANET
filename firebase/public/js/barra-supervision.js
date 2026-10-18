@@ -1,16 +1,34 @@
-import {pedir} from './local.js?v=20261018-40.1';
-import {abrirEtiqueta} from './etiquetas.js?v=20261018-40.1';
+import {pedir} from './local.js?v=20261018-41';
+import {abrirEtiqueta} from './etiquetas.js?v=20261018-41';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let avanceActual=null, liberarBarra=()=>{};
+export function publicarAvance(datos){
+ avanceActual=datos;
+ document.dispatchEvent(new CustomEvent('itsanet:avance',{detail:datos}));
+}
 export function iniciarBarra({usuario,perfil}){
- const cabecera=document.querySelector('.envoltorio>header,body>header');
- document.querySelector('#barraSupervision')?.remove();
- if(!cabecera||!usuario||!['SUPERVISOR','ADMIN'].includes(perfil?.rol))return;
- const nav=document.createElement('nav');nav.id='barraSupervision';nav.className='acciones barra-supervision';nav.setAttribute('aria-label','Herramientas de supervisión');
- nav.innerHTML='<button class="b-sec" data-catalogo title="Consultar Depot y actualizar el catálogo de productos">↻ Catálogo</button><button class="b-sec" data-etiqueta>▥ Etiqueta por código</button>';
- const inicio=cabecera.querySelector('a[href="./"],a[href="./index.html"]');
- (inicio?.parentElement||cabecera).append(nav);
- nav.querySelector('[data-catalogo]').onclick=()=>abrirCatalogo();
- nav.querySelector('[data-etiqueta]').onclick=()=>etiquetaCatalogo();
+ liberarBarra();document.querySelector('#barraSupervision')?.remove();
+ const cabecera=document.querySelector('.envoltorio>header,body>header,.caja>header,.caja>.sub');
+ if(!cabecera||!usuario||!perfil)return;
+ const supervisor=['SUPERVISOR','ADMIN'].includes(perfil.rol);
+ const nav=document.createElement('nav');nav.id='barraSupervision';nav.className='barra-supervision';nav.setAttribute('aria-label','Navegación y herramientas');
+ const aqui=new URL(location.href),codigo=aqui.pathname.endsWith('/validar.html')?aqui.searchParams.get('r'):null;
+ const enlaces=[['./','Inicio'],...(supervisor?[['./recepciones.html','Recepciones']]:[]),[codigo?'./validar.html?r='+encodeURIComponent(codigo):'./validar.html','Validar recepción'],...(supervisor?[['./kpis.html','KPIs'],['./usuarios.html','Equipo']]:[]),['./cuenta.html','Mi cuenta y correo'],...(perfil.rol==='ADMIN'?[['./admin.html','Administración']]:[])];
+ nav.innerHTML=`<div class="barra-fila"><details class="nav-menu"><summary>☰ Menú</summary><div class="nav-opciones">${enlaces.map(([href,t])=>`<a href="${esc(href)}"${new URL(href,location.href).pathname===aqui.pathname?' aria-current="page"':''}>${t}</a>`).join('')}</div></details><div class="barra-herramientas">${supervisor?'<button class="b-sec" data-catalogo title="Consultar Depot y actualizar el catálogo de productos">↻ Catálogo</button><button class="b-sec" data-etiqueta>▥ Etiqueta por código</button>':''}</div><div class="barra-reloj"><time data-reloj title="Hora de Ecuador · reloj del equipo"></time><button class="b-sec" data-tema></button></div></div><div class="avance-encabezado" data-avance hidden><div><strong data-avance-codigo></strong><span data-avance-cifras></span></div><progress max="100" value="0" aria-label="Referencias verificadas de la recepción"></progress><b data-avance-porcentaje></b></div>`;
+ cabecera.after(nav);
+ nav.querySelector('[data-catalogo]')?.addEventListener('click',()=>abrirCatalogo());
+ nav.querySelector('[data-etiqueta]')?.addEventListener('click',()=>etiquetaCatalogo());
+ const tema=nav.querySelector('[data-tema]');
+ const pintarTema=()=>{const noche=document.documentElement.dataset.theme==='dark';tema.textContent=noche?'☀ Día':'☾ Noche';tema.title=noche?'Cambiar a modo día':'Cambiar a modo noche';tema.setAttribute('aria-label',tema.title);tema.setAttribute('aria-pressed',String(noche));};
+ tema.onclick=()=>{const valor=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=valor;try{localStorage.setItem('itsanet.tema',valor);}catch{}pintarTema();};pintarTema();
+ const reloj=()=>{const ahora=new Date(),t=nav.querySelector('[data-reloj]');t.dateTime=ahora.toISOString();t.textContent=ahora.toLocaleString('es-EC',{timeZone:'America/Guayaquil',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});};reloj();const temporizador=setInterval(reloj,1000);
+ const avance=()=>{const a=avanceActual,visible=!!codigo&&a?.codigo?.toUpperCase()===codigo.toUpperCase();nav.querySelector('[data-avance]').hidden=!visible;if(!visible)return;
+  nav.querySelector('[data-avance-codigo]').textContent=a.codigo+(a.estado==='CERRADA'?' · Cerrada':'');nav.querySelector('[data-avance-cifras]').textContent=`${a.verificadas}/${a.total} referencias verificadas · ${a.unidades} unidades`+(a.conectado===false?' · Sin conexión: último dato confirmado':'');nav.querySelector('progress').value=a.avance;nav.querySelector('[data-avance-porcentaje]').textContent=a.avance+'%';};
+ document.addEventListener('itsanet:avance',avance);avance();
+ const cerrarMenu=ev=>{const menu=nav.querySelector('details');if(!menu.contains(ev.target))menu.open=false;};document.addEventListener('click',cerrarMenu);
+ nav.addEventListener('keydown',ev=>{if(ev.key==='Escape')nav.querySelector('details').open=false;});
+ const medir=()=>document.documentElement.style.setProperty('--alto-barra',nav.offsetHeight+'px');const observador=new ResizeObserver(medir);observador.observe(nav);medir();
+ liberarBarra=()=>{clearInterval(temporizador);observador.disconnect();document.removeEventListener('itsanet:avance',avance);document.removeEventListener('click',cerrarMenu);document.documentElement.style.removeProperty('--alto-barra');};
 }
 function dialogo(titulo){const d=document.createElement('dialog');d.className='modal-operativa';d.innerHTML=`<header class="acciones"><h2>${titulo}</h2><button class="b-sec" data-cerrar>Cerrar</button></header><div data-cuerpo></div><p role="status" data-estado></p>`;document.body.append(d);d.showModal();d.querySelector('[data-cerrar]').onclick=()=>d.close();d.addEventListener('close',()=>d.remove());return d;}
 async function abrirCatalogo(){
@@ -23,7 +41,7 @@ let recursos=null;
 function cargarRecursosEtiqueta(){
  if(recursos)return recursos;
  recursos=Promise.all([
-  globalThis.JsBarcode?Promise.resolve():new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('../vendor/JsBarcode.all.min.js?v=20261018-40',import.meta.url).href;script.onload=resolve;script.onerror=()=>{script.remove();reject(new Error('No se pudo cargar el código de barras. Recarga y vuelve a intentar.'));};document.head.append(script);}),
+  globalThis.JsBarcode?Promise.resolve():new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL('../vendor/JsBarcode.all.min.js?v=20261018-41',import.meta.url).href;script.onload=resolve;script.onerror=()=>{script.remove();reject(new Error('No se pudo cargar el código de barras. Recarga y vuelve a intentar.'));};document.head.append(script);}),
   document.querySelector('link[href*="css/operacion.css"]')?Promise.resolve():new Promise((resolve,reject)=>{const link=document.createElement('link');link.rel='stylesheet';link.href=new URL('../css/operacion.css',import.meta.url).href;link.onload=resolve;link.onerror=()=>{link.remove();reject(new Error('No se pudo cargar el formato de etiquetas.'));};document.head.append(link);})
  ]).catch(e=>{recursos=null;throw e;});return recursos;
 }

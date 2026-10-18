@@ -18,6 +18,30 @@
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/** Enter avanza por los campos; al final ejecuta la acción indicada.
+ * Textareas conservan saltos de línea (Ctrl+Enter confirma). Los botones y
+ * selectores mantienen su teclado nativo; nunca se elige una acción destructiva
+ * por deducirla de su color o posición.
+ */
+export function tecladoDialogo(d, {accion, campos='input:not([type=hidden]):not([type=file]),select,textarea'}={}) {
+  d.addEventListener('keydown', ev=>{
+    if(ev.key!=='Enter'||ev.defaultPrevented||ev.isComposing||ev.repeat||ev.altKey||ev.metaKey||ev.shiftKey)return;
+    const e=ev.target;
+    if(e.closest('button,a,[contenteditable=true]')||e.tagName==='SELECT'&&!ev.ctrlKey)return;
+    if(e.tagName==='TEXTAREA'&&!ev.ctrlKey)return;
+    if(!e.matches(campos))return;
+    ev.preventDefault();ev.stopPropagation();
+    if(!e.reportValidity())return;
+    const entradas=[...d.querySelectorAll(campos)].filter(x=>!x.disabled&&!x.readOnly&&x.getClientRects().length);
+    const siguiente=entradas[entradas.indexOf(e)+1];
+    if(siguiente&&!ev.ctrlKey){siguiente.focus();siguiente.select?.();return;}
+    const invalido=entradas.find(x=>!x.checkValidity());
+    if(invalido){invalido.focus();invalido.reportValidity();return;}
+    const b=typeof accion==='string'?d.querySelector(accion):accion;
+    if(b&&!b.disabled&&!b.hidden)b.click();
+  });
+}
+
 /** El <dialog>, creado una vez y reutilizado. */
 function caja() {
   let d = document.getElementById('modal');
@@ -50,12 +74,13 @@ function abrir(html, armar) {
     // Tocar fuera del recuadro cierra sin elegir, como el fondo de cualquier
     // modal. No vale con escuchar el click del <dialog>: ese también salta
     // desde dentro.
-    d.addEventListener('click', (ev) => { if (ev.target === d) cerrar(undefined); });
-
-    armar(d, cerrar);
+    d.onclick = (ev) => { if (ev.target === d) cerrar(undefined); };
 
     if (typeof d.showModal === 'function') d.showModal();
     else d.setAttribute('open', '');     // navegador antiguo: al menos se ve
+    // El foco se asigna después de mostrar: un elemento de un dialog cerrado
+    // no puede recibirlo y Enter acababa en el botón Cancelar.
+    armar(d, cerrar);
   });
 }
 
@@ -138,7 +163,7 @@ export function pedirTexto({ titulo, texto = '', etiqueta = '', valor = '',
         b.onclick = () => { campoEl.value = sugerencias[Number(b.dataset.sugerencia)]; revisar(); campoEl.focus(); };
       });
       campoEl.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' && lineas === 1) { ev.preventDefault(); si.click(); }
+        if (ev.key === 'Enter' && !ev.isComposing && !ev.repeat && (lineas === 1 || ev.ctrlKey)) { ev.preventDefault(); si.click(); }
       });
       d.querySelector('[data-no]').onclick = () => cerrar(null);
       si.onclick = () => { if (!si.disabled) cerrar(seleccion ? {texto:campoEl.value,seleccion:lista.value} : campoEl.value); };
@@ -280,7 +305,7 @@ export function pedirDatos({ titulo, texto = '', campos = [],
     return `<label class="campo"><span>${esc(c.etiqueta)}</span>
               <input id="${id}" type="${c.tipo==='password'?'password':c.tipo==='email'?'email':c.tipo==='numero'?'number':'text'}" data-clave="${esc(c.clave)}" value="${esc(c.valor ?? '')}"
                      placeholder="${esc(c.marcador || '')}" autocomplete="off"
-                     ${c.obligatorio ? 'data-obligatorio' : ''}
+                     ${c.obligatorio ? 'data-obligatorio required' : ''}
                      autocapitalize="none" spellcheck="false">
               ${c.pista ? `<span class="mini">${esc(c.pista)}</span>` : ''}</label>`;
   };
@@ -301,8 +326,19 @@ export function pedirDatos({ titulo, texto = '', campos = [],
       };
 
       entradas.forEach((e) => e.addEventListener('input', revisar));
+      const teclado = ev=>{
+        if(ev.key!=='Enter'||ev.isComposing||ev.repeat||ev.target.tagName!=='INPUT')return;
+        ev.preventDefault();ev.stopPropagation();
+        const indice=entradas.indexOf(ev.target),siguiente=entradas.slice(indice+1).find(e=>!e.disabled);
+        if(siguiente){siguiente.focus();return;}
+        revisar();if(!si.disabled)si.click();
+        else entradas.find(e=>e.hasAttribute('data-obligatorio')&&!e.value.trim())?.focus();
+      };
+      entradas.forEach(e=>e.addEventListener('keydown',teclado));
       si.onclick = () => {
         if (si.disabled) return;
+        const invalida=entradas.find(e=>!e.checkValidity());
+        if(invalida){invalida.focus();invalida.reportValidity();return;}
         const datos = {};
         entradas.forEach((e) => {
           datos[e.dataset.clave] = e.hasAttribute('data-bool')

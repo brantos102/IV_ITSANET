@@ -1,5 +1,7 @@
 # Validación, Drive y candidato de producción
 
+La instalación de la versión actual, con respaldo y comprobación del servicio, está en [Lecturas, etiquetas y navegación 41](LECTURAS_ETIQUETAS_Y_NAVEGACION_41.md#instalación-en-producción-3002). Los comandos de versiones anteriores de este documento se conservan como referencia histórica.
+
 Para las correcciones actuales de fotos, etiquetas, recepción e informes, ver [PRODUCCION_RECEPCIONES_Y_FOTOS.md](PRODUCCION_RECEPCIONES_Y_FOTOS.md).
 
 Estos cambios se preparan en `desarrollo-local`. No trasladar la base de desarrollo a producción: las recepciones, fotografías, conteos y usuarios que ya registran los operadores deben conservarse.

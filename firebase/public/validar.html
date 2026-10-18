@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261018-40.1"></script>
+<script src="./js/arranque.js?v=20261018-41"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261018-40.1">
+<link rel="stylesheet" href="./css/marca.css?v=20261018-41">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261018-40.1" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261018-40.1" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261018-41" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261018-41" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -323,44 +323,45 @@
 </dialog>
 
 <script type="module">
-import {abrirCorreo} from './js/correo-redactado.js?v=20261018-40.1';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-40.1';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261018-40.1';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261018-40.1';
-import { mostrarAviso } from './js/notificaciones.js?v=20261018-40.1';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261018-40.1';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261018-40.1';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261018-40.1';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261018-40.1';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261018-40.1';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261018-41';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-41';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261018-41';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261018-41';
+import { mostrarAviso } from './js/notificaciones.js?v=20261018-41';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261018-41';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261018-41';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261018-41';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261018-41';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261018-41';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261018-40.1';
+import { pedir as pedirLocal } from './js/local.js?v=20261018-41';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261018-40.1';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261018-40.1';
-import { observarSesion } from './js/auth.js?v=20261018-40.1';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261018-41';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261018-41';
+import { observarSesion } from './js/auth.js?v=20261018-41';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261018-40.1';
+} from './js/datos.js?v=20261018-41';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261018-40.1';
+} from './js/conteo.js?v=20261018-41';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261018-40.1';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261018-40.1';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261018-40.1';
-import { conectarGlosario } from './js/glosario.js?v=20261018-40.1';
-import { parecidos } from './js/sugerir.js?v=20261018-40.1';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261018-40.1';
+} from './js/informe.js?v=20261018-41';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261018-41';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara } from './js/camara.js?v=20261018-41';
+import { conectarGlosario } from './js/glosario.js?v=20261018-41';
+import { parecidos } from './js/sugerir.js?v=20261018-41';
+import { publicarAvance } from './js/barra-supervision.js?v=20261018-41';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261018-41';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261018-40.1';
-import { Proxy } from './js/proxy.js?v=20261018-40.1';
-import { modoLocal } from './js/local.js?v=20261018-40.1';
+} from './js/csv.js?v=20261018-41';
+import { Proxy } from './js/proxy.js?v=20261018-41';
+import { modoLocal } from './js/local.js?v=20261018-41';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -460,7 +461,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261018-40.1');
+      const l=await import('./js/local.js?v=20261018-41');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -632,7 +633,7 @@ observarSesion(async (e) => {
       const s = skus.find((x) => x.sku === actual.sku);
       if (s) refrescarFicha(s);
     }
-  }, (err) => { $('redOperacion').textContent = '● Sin conexión con el servidor'; $('redOperacion').dataset.estado = 'error'; aviso(err.message, 'err', 'Sin conexión'); });
+  }, (err) => { publicarEstadoAvance(false); $('redOperacion').textContent = '● Sin conexión con el servidor'; $('redOperacion').dataset.estado = 'error'; aviso(err.message, 'err', 'Sin conexión'); });
 
   $('inEscaner').focus();
 });
@@ -679,6 +680,7 @@ function pintarListas() {
 function aplicarEstado() {
   const manda = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
   const cerrada = recepcion.estado === 'CERRADA';
+  if(skus.length)publicarEstadoAvance();
 
   $('inEscaner').disabled = cerrada;
   $('bContarFicha').disabled = cerrada;
@@ -747,6 +749,9 @@ async function refrescarEventos() {
  * Las cifras de arriba son botones: tocar «Faltantes» deja en la tabla
  * justo lo que hay que volver a buscar, que es lo que se hace con ellas.
  */
+function publicarEstadoAvance(conectado=$('redOperacion').dataset.estado!=='error'){
+ const r=resumir(skus);publicarAvance({codigo:RECEPCION,estado:recepcion?.estado,avance:r.avance,total:r.skus,verificadas:r.skus-r.sinVerificar,unidades:r.unidadesFisicas,conectado});
+}
 function pintarKpis() {
   const r = resumir(skus);
   const sel = $('fEstadoFiltro').value;
@@ -771,6 +776,7 @@ function pintarKpis() {
 
   $('barraAvance').style.width = r.avance + '%';
   $('progresoOperacion').textContent = `${r.avance}% verificado`;
+  publicarEstadoAvance();
   $('resumenOperacion').innerHTML = `<div><b>${r.ok}</b><span>Completas</span></div><div><b>${r.sinVerificar}</b><span>Por validar</span></div><div><b>${r.unidadesFisicas}</b><span>Unidades</span></div>`;
 }
 
@@ -916,8 +922,9 @@ async function escanear(codigo) {
     const lectura=await operacion('/lecturas/resolver',{cuerpo:{lectura:codigo,recepcion:RECEPCION}});
     interpretacionLectura=lectura.motivo;
     if(lectura.confirmar) {
-      const elegido=await elegir({titulo:'Revisar código escaneado',texto:esc(lectura.motivo),
-        opciones:lectura.candidatos.map(sku=>({valor:sku,titulo:sku,detalle:'Consultar este producto sin crear equivalencia ni registrar conteo'}))});
+      const elegido=await elegir({titulo:'Confirma el código de la etiqueta',texto:`<p>Lectura recibida: <code>${esc(codigo)}</code></p><p>${esc(lectura.motivo)} Revisa cada carácter antes de elegir.</p>`,
+        opciones:lectura.candidatos.map(sku=>{const p=lectura.detallesCandidatos?.find(p=>p.sku===sku);return {valor:sku,titulo:sku,
+          detalle:[p?.enCatalogo?'Catálogo de '+(p.cliente||'cliente sin identificar'):'Solo en packing list',p?.enPackingList?'Incluido en esta recepción':'Fuera de este packing list',p?.descripcion,'Consultar sin registrar conteo ni guardar equivalencia'].filter(Boolean).join(' · ')};})});
       if(!elegido)return;c=elegido;
       aviso(`Lectura revisada: ${codigo} → ${c}. Confirmado por el operario.`,'info');
     } else if(lectura.resuelto) {
@@ -1868,8 +1875,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261018-40.1').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261018-40.1').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261018-41').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261018-41').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;

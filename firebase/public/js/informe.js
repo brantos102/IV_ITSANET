@@ -10,12 +10,12 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261018-40.1';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261018-40.1';
-import { db } from './auth.js?v=20261018-40.1';
-import * as local from './local.js?v=20261018-40.1';
-import {eventosActivos} from './conteo.js?v=20261018-40.1';
-import { aNumero, decodificarPallets, columnasSegurasInforme, destinosInforme, prefijoInforme } from './datos.js?v=20261018-40.1';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261018-41';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261018-41';
+import { db } from './auth.js?v=20261018-41';
+import * as local from './local.js?v=20261018-41';
+import {eventosActivos} from './conteo.js?v=20261018-41';
+import { aNumero, decodificarPallets, columnasSegurasInforme, destinosInforme, prefijoInforme } from './datos.js?v=20261018-41';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -286,7 +286,7 @@ export function soloPallets(mapa) {
 function hojaOriginal(filas, formato, ampliado=false) {
   formato={...formato,columnas:columnasSegurasInforme(formato,formato.columnas),prefijo:prefijoInforme(formato)};
   if(ampliado){formato={...formato,encabezados:[...(formato.encabezados||[])],columnas:{...formato.columnas}};
-    for(const [rol,titulo] of Object.entries({fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot'}))if(formato.columnas[rol]===undefined){const existente=destinosInforme(formato,rol)[0];if(existente!==undefined)formato.columnas[rol]=existente;else{formato.columnas[rol]=formato.encabezados.length;formato.encabezados.push(titulo);}}}
+    for(const [rol,titulo] of Object.entries({fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot',posicion:'Posición',codigoBarra:'Código de barras',marca:'MARCA',cliente:'CLIENTE'}))if(formato.columnas[rol]===undefined){const existente=destinosInforme(formato,rol)[0];if(existente!==undefined)formato.columnas[rol]=existente;else{formato.columnas[rol]=formato.encabezados.length;formato.encabezados.push(titulo);}}}
   const enc = (formato?.encabezados || []).slice();
   const col = formato?.columnas || {};
   const ancho = enc.length;

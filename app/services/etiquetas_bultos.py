@@ -29,14 +29,20 @@ def estado(db, codigo):
 def zpl(etiquetas, formato, recepcion, cliente, marca):
     alto = 1200 if formato == '100x150' else 400
     def texto(y, h, valor, lineas=1):
+        ancho = min(h-3, 700 // max(1, len(str(valor))))
         valor = ''.join('\\' + format(b, '02X') for b in str(valor).encode())
-        return f'^FO24,{y}^A0N,{h},{h-3}^FB752,{lineas},2,C,0^FH\\^FD{valor}^FS'
+        return f'^FO24,{y}^A0N,{h},{ancho}^FB752,{lineas},2,C,0^FH\\^FD{valor}^FS'
     partes = []
     for e in etiquetas:
         grande = alto == 1200
+        # CODE128 B: 11 módulos por carácter/símbolo y 13 de parada.
+        # Dejar zona muda a ambos lados y centrar también códigos de 4–5 signos.
+        modulos = 11 * (len(e['rotulo']) + 2) + 13
+        modulo = min(8, 704 // modulos)
+        izquierda = (800 - modulos * modulo) // 2
         partes += ['^XA','^CI28','^PW800',f'^LL{alto}','^LH0,0',
-            texto(200 if grande else 45,130 if grande else 90,e['rotulo']),
-            f"^FO100,{650 if grande else 200}^BY3,2,{240 if grande else 120}^BCN,{240 if grande else 120},N,N,N,A^FD{e['rotulo']}^FS",'^PQ1','^XZ']
+            texto(190 if grande else 28,250 if grande else 145,e['rotulo']),
+            f"^FO{izquierda},{600 if grande else 210}^BY{modulo},2,{350 if grande else 140}^BCN,{350 if grande else 140},N,N,N,N^FD{e['rotulo']}^FS",'^PQ1','^XZ']
     return '\n'.join(partes)
 
 

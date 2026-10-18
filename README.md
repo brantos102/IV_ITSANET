@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 41: lecturas del escáner, etiquetas ampliadas, modales y comando de instalación en producción](docs/LECTURAS_ETIQUETAS_Y_NAVEGACION_41.md).
+
 **Desarrollo en tu PC Windows con MySQL separado de producción:**
 [arranque con Docker Desktop](docs/DESARROLLO_EN_PC.md).
 

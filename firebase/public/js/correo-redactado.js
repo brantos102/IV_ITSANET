@@ -1,6 +1,6 @@
-import {verImagen} from './visor-imagen.js?v=20261018-40.1';
-import {pedir} from './local.js?v=20261018-40.1';
-import {confirmar,pedirDatos} from './modal.js?v=20261018-40.1';
+import {verImagen} from './visor-imagen.js?v=20261018-41';
+import {pedir} from './local.js?v=20261018-41';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-41';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Notas y ubicación de la mercadería',despedida:'Despedida',firma:'Firma'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -18,6 +18,8 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  <details><summary>Vista previa de fotografías registradas</summary><div class="galeria-imagenes" data-fotos></div></details>
  <div class="acciones"><button class="b-sec" data-manual>Ya lo envié desde mi correo · registrar</button><button class="b-primario" data-enviar>${confirmarEnvio?'Usar este correo y continuar':'Revisar y enviar desde la aplicación'}</button></div>`;
  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
+ d.querySelector('form').onsubmit=ev=>ev.preventDefault();
+ tecladoDialogo(d,{accion:'[data-guardar]',campos:'[data-campo]'});
  function pintar(){
   for(const [k,t] of Object.entries(campos)){const input=$(`[data-campo="${k}"]`);input.value=v.campos[k]||'';input.disabled=v.soloLectura;input.setAttribute('aria-label',t);}
   $('[data-conexion]').textContent=`De: ${v.remitente} · ${v.conexionConfigurada?'Conexión guardada; se comprobará al enviar.':'Sin conexión Google guardada. Puedes copiar el correo y enviarlo manualmente.'}`;

@@ -1,5 +1,6 @@
 /* Aviso independiente de los modulos: un import fallido no deja la pagina vacia. */
 (() => {
+  try {const tema=localStorage.getItem('itsanet.tema');if(['light','dark'].includes(tema))document.documentElement.dataset.theme=tema;} catch {}
   let terminado=false, fallo=false, temporizador;
   function panel() {
     let caja=document.getElementById('estadoArranque');

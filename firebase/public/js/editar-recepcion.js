@@ -1,5 +1,5 @@
-import {operacion,esc} from './evidencias.js?v=20261018-40.1';
-import {pedirDatos,elegir,confirmar} from './modal.js?v=20261018-40.1';
+import {operacion,esc} from './evidencias.js?v=20261018-41';
+import {pedirDatos,elegir,confirmar} from './modal.js?v=20261018-41';
 export async function editarRecepcion(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo),r=await operacion(ruta+'/edicion');
  const accion=await elegir({titulo:codigo,texto:'Edita los datos de recepción o retira un embarque añadido por error. Se conserva la auditoría.',opciones:[

@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261018-40.1';
-import { db } from './auth.js?v=20261018-40.1';
-import * as local from './local.js?v=20261018-40.1';
+} from '../vendor/firebase-sdk.js?v=20261018-41';
+import { db } from './auth.js?v=20261018-41';
+import * as local from './local.js?v=20261018-41';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261018-40.1';
+} from './datos.js?v=20261018-41';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {

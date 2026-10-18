@@ -1,4 +1,5 @@
-/** Zebra ZD421, 203 dpi. La plantilla 10 X 5 de Windows se conserva. */
+import {tecladoDialogo} from './modal.js?v=20261018-41';
+/** Zebra ZD421, 203 dpi. Formato de impresión 10 × 5. */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function validarEtiqueta(d) {
   if (!/^[\x21-\x7e]{1,42}$/.test(String(d.sku || ''))) throw new Error('El código necesita de 1 a 42 caracteres imprimibles.');
@@ -116,9 +117,11 @@ export function abrirEtiqueta(datos) {
     if (!ventana) { dialogo.querySelector('#errorEtiqueta').textContent='Permite abrir la ventana de impresión.'; return; }
     ventana.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiqueta ${esc(actual.sku)}</title><style>${ESTILO_ETIQUETA}\n@media print{.etiqueta{position:relative;break-after:page}.etiqueta:last-child{break-after:auto}}</style></head><body>${Array(actual.copias).fill(htmlEtiqueta(actual,dibujo,dibujoSerie)).join('')}</body></html>`);
     ventana.document.close(); ventana.addEventListener('load',()=>{ventana.focus();ventana.print();},{once:true}); };
+  dialogo.querySelector('form').onsubmit=ev=>ev.preventDefault();
+  tecladoDialogo(dialogo,{accion:'[data-imprimir]',campos:'[name]'});
   dialogo.showModal(); actualizar();
   let pedirPuente=null,claveTrabajo=null,firmaTrabajo=null;
-  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261018-40.1').then(async({pedir})=>{
+  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261018-41').then(async({pedir})=>{
     pedirPuente=pedir;
     const p=await pedir('/preferencias',{base:'/api/operacion'});
     const lista=dialogo.querySelector('[data-estacion]');lista.replaceChildren();

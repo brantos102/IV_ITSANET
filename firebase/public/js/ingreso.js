@@ -1,10 +1,10 @@
-import {verImagen} from './visor-imagen.js?v=20261018-40.1';
-import {pedir} from './local.js?v=20261018-40.1';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-40.1';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-40.1';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261018-40.1';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-40.1';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-40.1';
+import {verImagen} from './visor-imagen.js?v=20261018-41';
+import {pedir} from './local.js?v=20261018-41';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-41';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-41';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261018-41';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-41';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-41';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -15,6 +15,8 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   const d=document.createElement('dialog');d.className='dialogo-operativo ingreso-guiado';
   d.innerHTML=`<header class="ingreso-cabecera"><div><strong>Recepción</strong><p class="mini codigo-recepcion">${esc(codigo)}</p></div><button data-cerrar class="b-sec">Cerrar</button></header><div data-cuerpo></div><p data-estado role="status" aria-live="polite"></p>`;
   document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
+  // Los detalles opcionales no avanzan de bulto por un Enter del lector.
+  tecladoDialogo(d,{accion:null});
   let versiones=new Map(),camaraPendiente=null;
   const estado=t=>{$('[data-estado]').textContent=t;};
   const bultos=()=>ingreso.unidades.filter(x=>x.tipo==='BULTO');

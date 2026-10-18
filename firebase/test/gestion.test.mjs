@@ -56,6 +56,15 @@ await test('cliente ampliado genera un archivo por lista y enlaces del SKU sin h
  for(let i=0;i<libros.length;i++){const w=XLSX.read(libros[i].base64,{type:'base64'});eq(w.SheetNames.length,1);const sh=w.Sheets[w.SheetNames[0]],rs=XLSX.utils.sheet_to_json(sh,{header:1});eq(rs.length,2);eq(rs[1][0],'S'+i);eq(rs[1][2],'ok');ok(rs[1].includes('Solo '+ls[i].origen));ok(!rs[1].includes('Solo '+ls[1-i].origen));const j=rs[0].indexOf('Carpeta Drive del SKU');eq(sh[XLSX.utils.encode_cell({r:1,c:j})].l.Target,'https://drive.google.com/drive/folders/sku'+i);}
  const original=informe.construirLibros(datos,{version:'envio'});const w=XLSX.read(original[0].base64,{type:'base64'});eq(XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1})[0],['SKU','Cantidad','ok']);
 });
+await test('ampliado añade posición, barras y cliente al final sin desplazar origen',()=>{
+ const formato={encabezados:['ITEM','Descripción','Cantidad'],columnas:{sku:0,descripcion:1,cantidad:2}};
+ const detalle=[{sku:'S01',descripcion:'Producto original',cantidad:8,fisica:6,estado:'FALTANTE',diferencia:-2,posicionReal:'A-01-02-1',codigoBarra:'00001234',cliente:'CLIENTE',marca:'MARCA',cruda:['S01','Producto original',8]}];
+ const datos={recepcion:{codigo:'R'},detalle,porOrigen:[{origen:'EMB',formato,detalle}],adicionales:[],eventos:[],auditoria:[]};
+ const leer=version=>{const libro=informe.construirLibro(datos,{version}),w=XLSX.read(libro.base64,{type:'base64'});return XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1,defval:''});};
+ const original=leer('envio'),ampliado=leer('envio-ampliado');
+ eq(original,[formato.encabezados,detalle[0].cruda]);eq(ampliado[0].slice(0,3),formato.encabezados);eq(ampliado[1].slice(0,3),detalle[0].cruda);
+ for(const [campo,valor] of [['Posición','A-01-02-1'],['Código de barras','00001234'],['CLIENTE','CLIENTE'],['MARCA','MARCA']]){const i=ampliado[0].indexOf(campo);ok(i>=3);eq(ampliado[1][i],valor);}
+});
 await test('dos listas de contenido idéntico conservan identificadores distintos en sus archivos',()=>{
  const detalle=[{sku:'S',cantidad:3,fisica:3,estado:'OK',cruda:['S',3]}];
  const datos={recepcion:{codigo:'R'},detalle,porOrigen:['A','B'].map(origen=>({origen,formato:{encabezados:['SKU','Cantidad'],columnas:{}},detalle})),eventos:[],adicionales:[],auditoria:[]};
