@@ -102,7 +102,7 @@ def renderizar(codigo, fuente, campos, archivos, remitente):
         miniatura=''
         if f.get('fileId'):
             miniatura='<img data-archivo="'+escape(f['archivoId'],quote=True)+'" src="https://drive.google.com/thumbnail?id='+escape(f['fileId'],quote=True)+'&amp;sz=w320" alt="'+escape(nombre,quote=True)+'" style="display:block;width:150px;height:120px;object-fit:contain;border:1px solid #ddd">'
-        fotos_html += '<li style="display:inline-block;vertical-align:top;max-width:170px;margin:4px">' + miniatura + str(i) + '. ' + (_link(url, nombre) or escape(nombre + ' · copia a Drive pendiente')) + '</li>'
+        fotos_html += '<li style="display:inline-block;vertical-align:top;width:170px;max-width:100%;margin:4px;overflow-wrap:anywhere;word-break:break-word">' + miniatura + '<div style="max-width:170px;overflow-wrap:anywhere;word-break:break-all;font-size:11px;line-height:1.5">' + str(i) + '. ' + (_link(url, nombre) or escape(nombre + ' · copia a Drive pendiente')) + '</div></li>'
     html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#172033;max-width:1100px">'
     html += _parrafo(campos['saludo']) + _parrafo(campos['introduccion']) + links
     html += '<p><b>Recepción: ' + escape(codigo) + '</b> · Cliente: ' + escape(fuente['cliente']) + '</p>'
@@ -152,7 +152,7 @@ def vista(db, codigo, usuario, entrega_id=''):
         campos=congelado.get('campos',campos);final=congelado
     final={'imagenesDrive':[],**final}
     g = integraciones.google(db, usuario)
-    version = _hash([fuente, guardado.get('revision', 0)])
+    version = _hash([fuente, guardado.get('revision', 0),usuario])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     return {'campos': campos, 'version': version, 'revision': guardado.get('revision', 0), **final,
             'entregaDisponible':ultima[0].id if ultima and not entrega_id else '',
@@ -198,7 +198,7 @@ def congelar(db, codigo, datos, usuario, entrega_id=''):
         raise HTTPException(409, 'Cambió la recepción o el correo. Revisa nuevamente el correo final antes de enviar.')
     if entregas.validar_destinatarios(datos.get('destinatarios')) != v['campos']['destinatarios']:
         raise HTTPException(409, 'Los destinatarios cambiaron. Guarda y revisa el correo final antes de enviar.')
-    if datos.get('modoEntrega')!='MANUAL':
+    if datos.get('modoEntrega') not in ('MANUAL','MANUAL_ENVIADO'):
         from app.services.drive import resumen_fotos
         if resumen_fotos(db,codigo)['pendientes']:
             raise HTTPException(409,'Confirma las fotos en Drive antes del correo automático o elige envío manual. No se cerró ni se envió la recepción.')

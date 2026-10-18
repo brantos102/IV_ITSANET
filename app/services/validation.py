@@ -57,7 +57,10 @@ def contado_por_sku(db: Session, recepcion_id: int) -> dict[str, float]:
     return {sku: float(total or 0) for sku, total in filas}
 
 
-def contado_de_sku(db: Session, recepcion_id: int, sku: str) -> float:
+def contado_de_sku(db: Session, recepcion_id: int, sku: str, *, actual=False) -> float:
+    if actual:
+        return float(sum(db.scalars(select(ScanEvent.cantidad).where(
+            ScanEvent.recepcion_id==recepcion_id,ScanEvent.sku==sku).with_for_update())) or 0)
     total = db.scalar(
         select(func.sum(ScanEvent.cantidad)).where(
             ScanEvent.recepcion_id == recepcion_id, ScanEvent.sku == sku
@@ -199,6 +202,7 @@ def _asegurar_pallet(db: Session, recepcion_id: int, codigo: str) -> None:
         select(Pallet.id)
         .where(Pallet.recepcion_id == recepcion_id, Pallet.codigo == codigo)
         .limit(1)
+        .with_for_update()
     ).scalar_one_or_none()
     if existe:
         return
@@ -233,6 +237,10 @@ def registrar_scan(
     confirmar_sobrante: bool = False,
 ) -> dict:
     """Registra un conteo fisico. Operacion atomica e idempotente."""
+    # También la API anterior serializa por recepción antes de crear pallets
+    # o cambiar su estado; evita inversiones de bloqueos en MySQL.
+    recepcion=db.scalar(select(Recepcion).where(Recepcion.id==recepcion.id)
+        .with_for_update().execution_options(populate_existing=True))
     if not recepcion.abierta:
         raise ErrorValidacion(
             f"La recepcion {recepcion.codigo} esta {recepcion.estado.value}: no admite escaneos.",
@@ -274,6 +282,7 @@ def registrar_scan(
             select(ScanEvent)
             .where(ScanEvent.idempotency_key == idempotency_key)
             .limit(1)
+            .with_for_update()
         ).scalar_one_or_none()
         if previo:
             return _respuesta_scan(db, recepcion, previo, duplicado=True)
@@ -286,7 +295,7 @@ def registrar_scan(
             )
         ).scalars()
     )
-    contado = contado_de_sku(db, recepcion.id, sku)
+    contado = contado_de_sku(db, recepcion.id, sku, actual=True)
 
     # Sobrante: exige confirmacion explicita del operador.
     if cant > 0 and (contado + cant) > esperado and not confirmar_sobrante:
@@ -351,7 +360,7 @@ def _registrar_pendiente(db, recepcion_id, sku, res_depot, ean, operador) -> Non
     pend = db.execute(
         select(SkuPendiente).where(
             SkuPendiente.recepcion_id == recepcion_id, SkuPendiente.sku == sku
-        )
+        ).with_for_update().execution_options(populate_existing=True)
     ).scalar_one_or_none()
     if pend is None:
         db.add(

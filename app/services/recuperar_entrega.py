@@ -18,7 +18,7 @@ def _grupo(db, codigo, bloquear=False):
     return list(db.scalars(consulta))
 
 
-def _validar(db, e, grupo):
+def _validar(db, e, grupo, *, manual_confirmado=False):
     d = expandir(e.datos)
     r = m.obtener(db, e.recepcion)
     if r.estado != 'CERRADA':
@@ -28,7 +28,7 @@ def _validar(db, e, grupo):
         raise HTTPException(409, 'Selecciona la entrega más reciente de esta recepción; no recuperes un informe antiguo.')
     if e.estado not in ('CANCELADA', 'PENDIENTE', 'REVISION'):
         raise HTTPException(409, 'Esta entrega ya está confirmada o se está procesando. Actualiza el estado.')
-    if any(g.estado == 'PROCESANDO' or g.estado == 'REVISION' and
+    if any(g.estado == 'PROCESANDO' or not manual_confirmado and g.estado == 'REVISION' and
            g.datos.get('revisionMotivo') not in ('ENTREGAS_MULTIPLES','CONEXION_RECHAZADA','FOTOS_RECUPERADAS') for g in grupo):
         raise HTTPException(409, 'Hay un envío en curso o con confirmación interrumpida. Revisa Enviados antes de recuperar; no se repetirá automáticamente.')
     campos = ('sku', 'esperado', 'contado', 'verificado', 'cantidadPnc', 'incidencias', 'pallets', 'descripcion')

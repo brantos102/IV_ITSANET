@@ -1,6 +1,6 @@
-import {pedir,modoLocal} from './local.js?v=20261018-41';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261018-41';
-import {agregarAccionAviso} from './notificaciones.js?v=20261018-41';
+import {pedir,modoLocal} from './local.js?v=20261018-42';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261018-42';
+import {agregarAccionAviso} from './notificaciones.js?v=20261018-42';
 let timer=null,cuenta='',ocupado=false,generacion=0;
 export function iniciarAvisosEntregas({usuario,perfil,aviso}){
  const correo=String(perfil?.email||usuario?.email||'').toLowerCase();
@@ -9,7 +9,7 @@ export function iniciarAvisosEntregas({usuario,perfil,aviso}){
  const leer=k=>{try{return sessionStorage.getItem(k);}catch{return null;}};
  const guardar=(k,v)=>{try{sessionStorage.setItem(k,v);}catch{}};
  async function revisar(){if(ocupado||document.hidden)return;ocupado=true;try{
-   const filas=await pedir('/entregas');if(turno!==generacion)return;const vistos=new Set();
+   const filas=await pedir('/entregas');if(turno!==generacion)return;document.dispatchEvent(new CustomEvent('itsanet:entregas',{detail:filas}));const vistos=new Set();
    for(const e of filas){if((e.remitente?.toLowerCase()!==correo&&e.confirmarConCuenta!==correo)||vistos.has(e.recepcion))continue;vistos.add(e.recepcion);
     const clave='itsanet:entrega:'+correo+':'+e.id,previo=leer(clave);guardar(clave,e.estado);
     if(e.confirmacionDisponible&&leer(clave+':aviso')!==e.confirmacionDisponible){

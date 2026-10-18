@@ -1,11 +1,11 @@
-import {pedir} from './local.js?v=20261018-41';
+import {pedir} from './local.js?v=20261018-42';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const CAMPOS_SALIDA={depot:'Código presente en Depot (OK / N/D)',marca:'Marca',cliente:'Cliente',fisica:'Cantidad física',validacion:'Validación',desface:'Diferencia',pallet:'Pallet',posicion:'Posición',codigoBarra:'Código de barras',cantidadIncidencia:'Cantidad con incidencia / diferencia',incidencia:'Tipo de incidencia',observacion:'Observación',evidencia:'Carpeta Drive del SKU'};
 export const letra=n=>{let s='';for(n++;n>0;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s;};
 const indice=s=>{if(!/^[A-Z]{1,3}$/.test(s))throw Error('Indica letras de columna, por ejemplo A, P o AA.');return [...s].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;};
 export async function configurarPoliticas(contenedor){
- const datos=await api('/politicas'),panel=document.createElement('section');panel.className='panel';
+ const datos=await api('/politicas'),panel=document.createElement('section');panel.className='panel';panel.dataset.configPoliticas='1';
  panel.innerHTML=`<h2>Permisos y reglas por cliente</h2><p class="mini">Los cambios se aplican en el servidor. Las credenciales y la asignación de ADMIN siguen siendo exclusivas del administrador.</p>
  <details><summary>Permisos de los roles</summary><div class="tabla-env"><table><thead><tr><th>Función</th><th>Supervisor</th><th>Operador</th></tr></thead><tbody>${Object.entries(datos.acciones).map(([a,t])=>`<tr><td>${esc(t)}</td>${['SUPERVISOR','OPERADOR'].map(r=>`<td><input type="checkbox" data-rol="${r}" data-accion="${a}" ${datos.permisos[r][a]?'checked':''} aria-label="${esc(t)} ${r}"></td>`).join('')}</tr>`).join('')}</tbody></table></div></details>
  <details><summary>Incidencias disponibles</summary><p class="mini">Las cantidades faltantes y sobrantes se calculan automáticamente. Marcar PNC indica que esas unidades no son conformes.</p><div class="tabla-env"><table><thead><tr><th>Incidencia</th><th>Descripción</th><th>PNC</th><th>Activa</th></tr></thead><tbody>${datos.incidencias.map((i,n)=>`<tr><td><input data-inc="${n}" data-campo="nombre" value="${esc(i.nombre)}" maxlength="80"></td><td><input data-inc="${n}" data-campo="descripcion" value="${esc(i.descripcion)}"></td><td><input type="checkbox" data-inc="${n}" data-campo="pnc" ${i.pnc?'checked':''} ${n<3?'disabled':''}></td><td><input type="checkbox" data-inc="${n}" data-campo="activo" ${i.activo?'checked':''} ${n<3?'disabled':''}></td></tr>`).join('')}</tbody></table></div></details>

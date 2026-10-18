@@ -1,6 +1,10 @@
 # ITSANET IMS
 
-[Versión 41: lecturas del escáner, etiquetas ampliadas, modales y comando de instalación en producción](docs/LECTURAS_ETIQUETAS_Y_NAVEGACION_41.md).
+[Versión 42: cierre y correo manual, concurrencia, perfiles, manuales y comandos de producción y pruebas públicas](docs/CIERRE_MANUALES_Y_PUBLICACION_42.md).
+
+Manuales interactivos: [Operario](firebase/public/manuales/operario.html), [Supervisor](firebase/public/manuales/supervisor.html), [Técnico](firebase/public/manuales/tecnico.html).
+
+[Versión 41: lecturas del escáner, etiquetas ampliadas y modales](docs/LECTURAS_ETIQUETAS_Y_NAVEGACION_41.md).
 
 **Desarrollo en tu PC Windows con MySQL separado de producción:**
 [arranque con Docker Desktop](docs/DESARROLLO_EN_PC.md).

@@ -14,11 +14,11 @@ from uuid import uuid4
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import or_, select, update
+from sqlalchemy import exists, literal, or_, select, update
 
 from app import config
 from app.db import SessionLocal
-from app.models import AppArchivo, AppEntrega, AppInforme, AppRecepcion, utcnow
+from app.models import AppArchivo, AppConfig, AppEntrega, AppInforme, AppRecepcion, utcnow
 from app.services import app_modelo as m, archivos
 from app.services.instantaneas import compactar, expandir
 
@@ -32,7 +32,7 @@ def conexion_rechazada(mensaje):
         'ejecutarse como el supervisor','archivos de versiones diferentes'))
 
 
-def recientes(db, limite=100, *, recepcion=None, cliente=None):
+def recientes(db, limite=100, *, recepcion=None, cliente=None, incluir_archivadas=True):
     """Ordenar claves pequeñas; recuperar las instantáneas sin filesort de JSON.
 
     MySQL puede agotar sort_buffer_size al ordenar SELECT * con los documentos
@@ -40,6 +40,10 @@ def recientes(db, limite=100, *, recepcion=None, cliente=None):
     Las dos lecturas conservan el orden y la instantánea de la transacción.
     """
     consulta = select(AppEntrega.id)
+    if not incluir_archivadas:
+        # El JSON grande tampoco puede participar en el filtro del filesort.
+        consulta=consulta.where(~exists(select(AppConfig.clave).where(
+            AppConfig.clave==literal('he:')+AppEntrega.id)))
     if recepcion is not None:
         consulta = consulta.where(AppEntrega.recepcion == recepcion)
     if cliente is not None:
@@ -83,7 +87,8 @@ def documento(e, tecnico=False):
     if e.datos.get('revisionMotivo')=='FOTOS_RECUPERADAS':mensajes['REVISION']='Fotos en recuperación; al confirmarse, revisa y confirma los documentos finales desde tu correo.'
     if e.datos.get('correoManual'):
         mensajes['CANCELADA']='Envío manual declarado por el supervisor; sin confirmación de Google.' if e.datos['correoManual'].get('estado')=='DECLARADO_ENVIADO' else 'Preparado para envío manual. El envío automático está detenido.'
-    return {'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
+    gestion=hashlib.sha256(json.dumps([e.id,e.estado,e.intentos,e.error,e.datos],sort_keys=True,default=str).encode()).hexdigest()
+    return {'versionGestion':gestion,'archivado':bool(e.datos.get('historialOculto')),'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
                 else mensajes.get(e.estado, 'Comprobando entrega.')),
@@ -146,11 +151,12 @@ def preparar(db, codigo, datos, usuario):
     libros = datos.get('adjuntos')
     if not isinstance(libros, list) or not 1 <= len(libros) <= 30:
         raise HTTPException(422, 'Se requiere un informe por packing list')
+    firma_solicitud=hashlib.sha256(json.dumps([usuario,datos],sort_keys=True,default=str).encode()).hexdigest()
     r = m.obtener(db, codigo)
     if r.estado == 'CERRADA':
         anteriores = recientes(db, 1, recepcion=r.codigo)
         anterior = anteriores[0] if anteriores else None
-        if anterior and anterior.clave == hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest():
+        if anterior and anterior.datos.get('solicitudCierre')==firma_solicitud:
             return documento(anterior)
         raise HTTPException(409, 'La recepcion ya estaba cerrada sin esta entrega')
     r = m.obtener(db, codigo, bloquear=True)
@@ -159,7 +165,14 @@ def preparar(db, codigo, datos, usuario):
     if activas(db, r.codigo):
         raise HTTPException(409, 'Esta recepción ya tiene una entrega sin resolver. Revisa Entrega del informe antes de generar otro envío.')
     from app.services.remitentes import elegir
-    manual = datos.get('modoEntrega') == 'MANUAL'
+    modo_entrega=datos.get('modoEntrega','AUTOMATICO')
+    if modo_entrega not in ('AUTOMATICO','MANUAL','MANUAL_ENVIADO'):
+        raise HTTPException(422,'Selecciona envío automático, preparación manual o envío manual declarado.')
+    declarado=modo_entrega=='MANUAL_ENVIADO'
+    motivo=str(datos.get('motivoManual') or '').strip()
+    if declarado and (datos.get('confirmarEnviadoManual') is not True or not 10<=len(motivo)<=300):
+        raise HTTPException(422,'Confirma que revisaste Enviados e indica cómo se enviaron los documentos (10–300 caracteres).')
+    manual = modo_entrega in ('MANUAL','MANUAL_ENVIADO')
     if manual:
         if not datos.get('correoVersion') or not destinatarios:
             raise HTTPException(422,'Revisa el correo y completa los destinatarios antes de preparar el envío manual.')
@@ -198,6 +211,7 @@ def preparar(db, codigo, datos, usuario):
     e = AppEntrega(id=uuid4().hex, recepcion=r.codigo, usuario=usuario,
         clave=hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest(),
         estado='CANCELADA' if manual else 'PENDIENTE', datos={
+            'solicitudCierre':firma_solicitud,
             'destinatarios': ','.join(correos), 'informes': informes, 'fotos': fotos,
             **({'correoFinal':correo_final} if correo_final else {}),
             'remitente': remitente, 'modoRemitente': modo_remitente,
@@ -211,13 +225,14 @@ def preparar(db, codigo, datos, usuario):
         error=None if manual or configurado(db) else 'Pendiente de configurar el puente con Google')
     db.add(e)
     if informe:
-        informe.estado = 'MANUAL_PREPARADO' if manual else 'EN_COLA'
+        informe.estado = ('MANUAL_DECLARADO' if declarado else 'MANUAL_PREPARADO') if manual else 'EN_COLA'
         informe.datos = {**informe.datos, 'entregaId': e.id}
         e.datos = {**e.datos, 'informeId': informe.id, 'informe': {
             'id': informe.id, 'numero': informe.numero, 'usuario': informe.usuario,
             'creadoEn': m._iso(informe.creado_en)}}
     if manual:
-        registro={'estado':'PREPARADO','usuario':usuario,'fecha':utcnow().isoformat(),'entregaId':e.id,
+        registro={'estado':'DECLARADO_ENVIADO' if declarado else 'PREPARADO','usuario':usuario,'fecha':utcnow().isoformat(),'entregaId':e.id,
+                  **({'motivo':motivo} if declarado else {}),
                   'version':datos['correoVersion'],'destinatarios':destinatarios,'asunto':correo_final['asunto']}
         e.datos={**e.datos,'correoManual':registro}
         from app.models import AppConfig

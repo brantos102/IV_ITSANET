@@ -76,6 +76,14 @@ def reservar(db,codigo,datos,usuario):
     ultimo=db.scalar(select(AppInforme).where(AppInforme.recepcion==r.codigo).order_by(AppInforme.numero.desc()).limit(1).with_for_update())
     if (ultimo.id if ultimo else None)!=datos.get('ultimoVisto'):
         raise HTTPException(409,'Otro supervisor generó un informe. Revisa el historial antes de continuar.')
+    if datos.get('reutilizarId'):
+        if not ultimo or ultimo.id!=datos['reutilizarId'] or ultimo.usuario!=usuario:
+            raise HTTPException(409,'Esta generación pertenece a otro supervisor o ya no es la más reciente.')
+        if ultimo.estado!='GENERADO' or ultimo.huella!=huella(db,r) or ultimo.datos.get('formato')!=datos.get('formato'):
+            raise HTTPException(409,'El informe anterior ya no corresponde a los datos actuales. Revisa y genera una nueva versión.')
+        if datos.get('tipo')=='CORREO' and ultimo.tipo!='CORREO':
+            raise HTTPException(409,'Este informe se preparó para descarga manual. Genera el informe de correo o conserva el envío manual.')
+        return documento(ultimo)
     tipo=datos.get('tipo')
     if tipo not in ('DESCARGA','CORREO'):raise HTTPException(422,'Tipo de generación inválido')
     formato=datos.get('formato')

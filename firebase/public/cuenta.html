@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261018-41"></script>
+<script src="./js/arranque.js?v=20261018-42"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Mi cuenta — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261018-41">
+<link rel="stylesheet" href="./css/marca.css?v=20261018-42">
 <link rel="icon" href="./icono.png">
 </head>
 <body>
@@ -17,6 +17,7 @@
     <div class="sp"></div><a class="b-sec" href="./">Inicio</a>
   </header>
   <div id="avisos" aria-live="polite"></div>
+  <section class="panel perfil-foto-panel" id="panelFoto" hidden></section>
   <section class="panel oculto" id="panelClave">
     <h2>Cambiar mi contraseña</h2>
     <p id="cuenta"></p>
@@ -34,17 +35,19 @@
   <section class="panel oculto" id="panelCorreo"></section>
 </main>
 <script type="module">
-import { observarSesion, cambiarClave, tipoDeAcceso, traducirError } from './js/auth.js?v=20261018-41';
-import {modoLocal} from './js/local.js?v=20261018-41';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-41';
-import {configurarMiCorreo} from './js/mi-correo.js?v=20261018-41';
-import { mostrarAviso } from './js/notificaciones.js?v=20261018-41';
+import { observarSesion, cambiarClave, tipoDeAcceso, traducirError } from './js/auth.js?v=20261018-42';
+import {modoLocal} from './js/local.js?v=20261018-42';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-42';
+import {configurarMiCorreo} from './js/mi-correo.js?v=20261018-42';
+import { mostrarAviso } from './js/notificaciones.js?v=20261018-42';
+import {iniciarFotoPerfil} from './js/perfil-foto.js?v=20261018-42';
 const $ = id => document.getElementById(id);
 const aviso = (texto, tipo, titulo) => mostrarAviso($('avisos'), texto, tipo, titulo);
 observarSesion(async ({usuario, perfil, error}) => {
   globalThis.itsanetArranque?.listo();
   if (!usuario) { location.replace('./'); return; }
   if (error) { aviso(error, 'err'); return; }
+  if(modoLocal()&&!$('panelFoto').children.length)iniciarFotoPerfil($('panelFoto'),usuario,aviso);
   iniciarAvisosEntregas({usuario,perfil,aviso});
   if(modoLocal()&&['ADMIN','SUPERVISOR'].includes(perfil?.rol)){try{await configurarMiCorreo($('panelCorreo'),aviso);}catch(e){aviso(e.message,'err');}}
   if (tipoDeAcceso(usuario) !== 'CLAVE') {

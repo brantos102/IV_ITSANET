@@ -1,7 +1,8 @@
-import {verImagen} from './visor-imagen.js?v=20261018-41';
-import {abrirCorreo} from './correo-redactado.js?v=20261018-41';
-import {pedir} from './local.js?v=20261018-41';
-import {pedirDatos,confirmar} from './modal.js?v=20261018-41';
+import {verImagen} from './visor-imagen.js?v=20261018-42';
+import {abrirCorreo} from './correo-redactado.js?v=20261018-42';
+import {pedir} from './local.js?v=20261018-42';
+import {pedirDatos,confirmar} from './modal.js?v=20261018-42';
+import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261018-42';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -77,24 +78,28 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
       const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');if(e.correoManual)m.textContent=(e.correoManual.estado==='DECLARADO_ENVIADO'?'Envío manual declarado por '+e.correoManual.usuario+'; sin acuse de Google.':'Preparado para envío manual. El envío automático está detenido.');fila.append(m);
       const urls=document.createElement('div');urls.innerHTML=enlace(e.resultado?.carpeta,'Abrir Drive')+' '+enlace(e.resultado?.sheet,'Abrir Sheets');fila.append(urls);
       if(['PENDIENTE','REVISION'].includes(e.estado)){
+        boton(fila,'Ya se envió manualmente',async()=>{if(await declararEnviadoManual(e)){aviso('Envío manual registrado; reintentos detenidos.','ok');await actualizar();}});
         boton(fila,'Anular este envío',async()=>{
           const datos=await pedirDatos({titulo:`Anular envío ${referencia(e)}`,texto:`${esc(codigo)} · ${esc(fecha(e))}. Se conservan archivos, conteos y auditoría.`,
             campos:[{clave:'motivo',etiqueta:'Motivo de anulación (mínimo 10 caracteres)',obligatorio:true}],aceptar:'Anular este envío'});
           if(!datos)return;await pedir('/entregas/'+e.id+'/cancelar',{cuerpo:datos});aviso('Envío anulado; archivos conservados.','ok');await actualizar();
         },'b-peligro');
       }
+      if(e.estado==='CANCELADA'&&e.correoManual?.estado==='PREPARADO')boton(fila,'Ya se envió manualmente',async()=>{if(await declararEnviadoManual(e)){aviso('Envío manual registrado.','ok');await actualizar();}});
+      if(e.estado==='ENTREGADA'||e.estado==='CANCELADA'&&e.correoManual?.estado!=='PREPARADO')boton(fila,e.archivado?'Restaurar historial':'Retirar del historial',async()=>{if(await cambiarArchivoHistorial(e)){aviso('Historial actualizado; documentos conservados.','ok');await actualizar();}});
       if(e.errorAnterior && ['CANCELADA','ENTREGADA'].includes(e.estado)){
         const h=document.createElement('details'),s=document.createElement('summary');s.textContent='Diagnóstico anterior (historial)';h.append(s);
         const t=document.createElement('p');t.textContent=e.errorAnterior;h.append(t);fila.append(h);
       }
       padre.append(fila);
     };
-    activas.forEach(e=>dibujar(e,seccion));
+    const visibles=[...activas,...grupo.filter(e=>e.esUltima&&e.correoManual?.estado==='PREPARADO'&&!activas.includes(e))];
+    visibles.forEach(e=>dibujar(e,seccion));
     if(['PENDIENTE','CANCELADA','REVISION'].includes(ultima.estado)&&ultima.correoManual?.estado!=='DECLARADO_ENVIADO'){
       if(ultima.confirmacionDisponible){const listo=document.createElement('p');listo.className='msg ok';listo.textContent='Tu conexión está verificada. Los documentos finales esperan tu revisión y confirmación; todavía no se enviaron.';seccion.append(listo);}
       boton(seccion,ultima.confirmacionDisponible?'Conexión verificada · revisar correo y confirmar':'Revisar correo final · copiar o enviar',()=>abrirCorreo(codigo,{entregaId:ultima.id}),'b-primario');
     }
-    const historicas=grupo.filter(e=>!activas.includes(e));
+    const historicas=grupo.filter(e=>!visibles.includes(e));
     if(historicas.length){const h=document.createElement('details'),s=document.createElement('summary');s.textContent=`Historial de entregas (${historicas.length})`;h.append(s);historicas.forEach(e=>dibujar(e,h));seccion.append(h);}
     contenedor.append(seccion);
   }

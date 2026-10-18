@@ -350,6 +350,7 @@ export async function sesionLocal() {
 
 /** Convierte lo que devuelve el servidor en el perfil que leen las pantallas. */
 const aPerfil = (yo) => (yo ? {
+  photoURL:yo.photoURL||'',
   uid: yo.uid || yo.usuario,
   email: yo.email || yo.usuario,
   usuario: yo.usuario,
@@ -369,7 +370,7 @@ async function avisar() {
       // La aplicación espera dos cosas: el «usuario» de la sesión y su perfil.
       // Contra el servidor son el mismo dato, así que se entrega dos veces en
       // vez de inventar una diferencia que aquí no existe.
-      estado = { usuario: { uid: perfil.uid, email: perfil.email,
+      estado = { usuario: { uid: perfil.uid, email: perfil.email, photoURL:perfil.photoURL,
                             displayName: perfil.nombre }, perfil };
     }
   } catch (e) {

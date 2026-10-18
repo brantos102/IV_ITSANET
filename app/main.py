@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import os
 from contextlib import suppress
 from contextlib import asynccontextmanager
 
@@ -33,6 +34,8 @@ async def lifespan(_app: FastAPI):
         from app.services.ajustes import habilitar_supervision_inicial
         habilitar_supervision_inicial(db)
         if db.execute(select(Operador).limit(1)).scalar_one_or_none() is None:
+            if os.getenv('ITSANET_PRUEBAS_PUBLICAS')=='1':
+                raise RuntimeError('Inicia las pruebas públicas con scripts/iniciar_local.py y sus contraseñas privadas.')
             db.add(Operador(
                 usuario="admin", nombre="Administrador",
                 pin_hash=hash_pin("1234"), rol=Rol.ADMIN,

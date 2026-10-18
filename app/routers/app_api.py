@@ -49,7 +49,7 @@ def estado_local(db: Session = Depends(get_db), op: Operador = Depends(admin)):
 
 
 @router.get('/entregas')
-def listar_entregas(db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+def listar_entregas(archivadas: bool=False,db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     from app.services.integraciones import _clave_google
     from app.models import AppConfig
     from app.services.drive import resumen_fotos
@@ -58,13 +58,34 @@ def listar_entregas(db: Session = Depends(get_db), op: Operador = Depends(requie
     from app.services.operacion import configuracion
     if not configuracion(db)['correo']['permitirPersonal'] or not ajustes.permisos(db,op).get('cerrarRecepciones'):verificada=''
     filas=[];fotos={}
-    for e in entregas.recientes(db):
+    recientes=entregas.recientes(db,incluir_archivadas=archivadas)
+    estados=dict(db.execute(select(AppRecepcion.codigo,AppRecepcion.estado).where(AppRecepcion.codigo.in_({e.recepcion for e in recientes}))).all())
+    ordenadas=select(AppEntrega.id,func.row_number().over(partition_by=AppEntrega.recepcion,
+        order_by=(AppEntrega.creado_en.desc(),AppEntrega.id.desc())).label('orden')).where(AppEntrega.recepcion.in_(estados)).subquery()
+    ultimas=set(db.scalars(select(ordenadas.c.id).where(ordenadas.c.orden==1)))
+    for e in recientes:
         f=entregas.documento(e,tecnico=op.rol==Rol.ADMIN)
+        f['recepcionEstado']=estados.get(e.recepcion)
+        f['esUltima']=e.id in ultimas
         if verificada and (f['remitente'].lower()==email and f['conexionRechazada'] or f.get('confirmarConCuenta')==email) and e.estado in ('PENDIENTE','REVISION'):
             if e.recepcion not in fotos:fotos[e.recepcion]=resumen_fotos(db,e.recepcion)['pendientes']
             f['confirmacionDisponible']=verificada if not fotos[e.recepcion] and verificada>str(e.datos.get('conexionFallidaEn') or '') else ''
         filas.append(f)
     return filas
+
+
+@router.post('/entregas/{ident}/manual-confirmado')
+def confirmar_manual(ident: str,datos: dict=Body(...),db: Session=Depends(get_db),
+                     op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.historial_entregas import declarar
+    return declarar(db,ident,datos,_quien(op))
+
+
+@router.post('/entregas/{ident}/historial')
+def archivar_entrega(ident: str,datos: dict=Body(...),db: Session=Depends(get_db),
+                     op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.historial_entregas import archivar
+    return archivar(db,ident,datos,_quien(op))
 
 
 @router.get('/recepciones/{codigo}/entregas')

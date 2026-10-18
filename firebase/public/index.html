@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261018-41"></script>
+<script src="./js/arranque.js?v=20261018-42"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>ITSANET — Acceso</title>
@@ -150,7 +150,7 @@
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
                         text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261018-41">
+<link rel="stylesheet" href="./css/marca.css?v=20261018-42">
 </head>
 <body>
 <div class="caja">
@@ -290,18 +290,18 @@
 </div>
 
 <script type="module">
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-41';
-import { mostrarAviso } from './js/notificaciones.js?v=20261018-41';
-import { fechaDe, recientes } from './js/fechas.js?v=20261018-41';
-import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261018-41';
-import { modoLocal, estadoServidor } from './js/local.js?v=20261018-41';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-42';
+import { mostrarAviso } from './js/notificaciones.js?v=20261018-42';
+import { fechaDe, recientes } from './js/fechas.js?v=20261018-42';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261018-42';
+import { modoLocal, estadoServidor } from './js/local.js?v=20261018-42';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
-         normalizarAlias, db, auth } from './js/auth.js?v=20261018-41';
-import { pedirDatos } from './js/modal.js?v=20261018-41';
+         normalizarAlias, db, auth } from './js/auth.js?v=20261018-42';
+import { pedirDatos } from './js/modal.js?v=20261018-42';
 import { doc, getDoc, collection, getDocs, limit, query }
-  from './vendor/firebase-sdk.js?v=20261018-41';
-import { listarRecepciones } from './js/datos.js?v=20261018-41';
+  from './vendor/firebase-sdk.js?v=20261018-42';
+import { listarRecepciones } from './js/datos.js?v=20261018-42';
 
 const $ = (id) => document.getElementById(id);
 $('dominioTxt').textContent = '@' + DOMINIO;

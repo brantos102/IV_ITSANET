@@ -1,5 +1,6 @@
 """Autenticacion y gestion de operadores."""
 from __future__ import annotations
+import os
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
@@ -15,6 +16,7 @@ from app.security import (
     usuario_actual, verify_pin,
 )
 from app.services import ajustes
+from app.services import perfiles
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -40,7 +42,7 @@ def login(datos: LoginIn, response: Response, request: Request, db: Session = De
                                  "mensaje": "Tu cuenta esta desactivada o espera aprobacion de un supervisor."})
     token = crear_sesion(db, op)
     response.set_cookie(
-        COOKIE, token, httponly=True, secure=request.url.scheme == "https", samesite="lax", max_age=SESSION_HOURS * 3600
+        COOKIE, token, httponly=True, secure=request.url.scheme == "https" or os.getenv('VAL_COOKIE_SECURE')=='1', samesite="lax", max_age=SESSION_HOURS * 3600
     )
     return {"token": token, "operador": {"id": op.id, "nombre": op.nombre, "rol": op.rol.value}}
 
@@ -79,7 +81,30 @@ def yo(op: Operador = Depends(usuario_actual), db: Session = Depends(get_db)):
         "activo": op.activo,
         "tipoAcceso": "CLAVE",
         'permisos': ajustes.permisos(db, op),
+        'photoURL': perfiles.url(db,op.id),
     }
+
+
+@router.get('/entorno')
+def entorno_publico():
+    return {'pruebasPublicas':os.getenv('ITSANET_PRUEBAS_PUBLICAS')=='1'}
+
+
+@router.put('/perfil/foto')
+def foto_propia(datos: dict=Body(...),db: Session=Depends(get_db),op: Operador=Depends(usuario_actual)):
+    from app.services.perfiles import guardar
+    return guardar(db,op.id,datos,op.email or op.usuario)
+
+
+@router.get('/operadores/{operador_id}/foto')
+def foto_perfil(operador_id: int,db: Session=Depends(get_db),_: Operador=Depends(usuario_actual)):
+    import base64
+    from app.services.perfiles import clave
+    from app.models import AppConfig
+    f=db.get(AppConfig,clave(operador_id))
+    if not f:raise HTTPException(404,'Este usuario todavía no tiene fotografía.')
+    return Response(base64.b64decode(f.datos['base64']),media_type='image/jpeg',
+        headers={'Cache-Control':'private, max-age=60','Vary':'Cookie, Authorization','X-Content-Type-Options':'nosniff'})
 
 
 @router.post("/clave")

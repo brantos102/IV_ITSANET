@@ -58,7 +58,7 @@ async function lectorDeVideo() {
       }
     } catch { /* Un lector nativo no compatible usa el respaldo sobre video. */ }
   }
-  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261018-41');
+  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261018-42');
   const lector = new MultiFormatReader();
   lector.setHints(new Map([[DecodeHintType.TRY_HARDER,true],
     [DecodeHintType.POSSIBLE_FORMATS,FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()])]]));
@@ -66,8 +66,9 @@ async function lectorDeVideo() {
   const contexto = canvas.getContext('2d',{willReadFrequently:true});
   return {
     leer(video) {
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+      const ancho=video.videoWidth||video.naturalWidth,alto=video.videoHeight||video.naturalHeight;
+      if (canvas.width !== ancho || canvas.height !== alto) {
+        canvas.width=ancho;canvas.height=alto;
       }
       contexto.drawImage(video,0,0);
       const bitmap = new BinaryBitmap(new HybridBinarizer(new HTMLCanvasElementLuminanceSource(canvas)));
@@ -75,6 +76,15 @@ async function lectorDeVideo() {
     },
     cerrar(){lector.reset();canvas.width=0;canvas.height=0;},
   };
+}
+
+/** Alternativa sobre HTTP: foto del código elegida por el usuario; no es evidencia ni conteo. */
+export async function leerCodigoDeImagen(archivo){
+ if(!archivo||!archivo.type.startsWith('image/')||archivo.size>12*1024*1024)throw new Error('Elige una imagen del código de hasta 12 MB.');
+ const url=URL.createObjectURL(archivo),img=new Image();let lector;
+ try{img.src=url;await img.decode();if(img.naturalWidth*img.naturalHeight>24_000_000)throw new Error('La fotografía es demasiado grande. Acércate al código o recorta la foto.');lector=await lectorDeVideo();const codigos=await lector.leer(img);const unicos=[...new Set(codigos.map(c=>c.rawValue).filter(Boolean))];if(unicos.length!==1)throw new Error(unicos.length?'Hay varios códigos. Fotografía solo la etiqueta que deseas consultar.':'No se pudo leer. Acerca la etiqueta, evita reflejos o escribe el código.');return unicos[0];}
+ catch(e){if(e.message?.includes('fotograf')||e.message?.includes('códigos')||e.message?.includes('No se pudo leer'))throw e;throw new Error('No se pudo leer el código de esta foto. Acércate a la etiqueta o escribe el código.');}
+ finally{lector?.cerrar();URL.revokeObjectURL(url);}
 }
 
 /**

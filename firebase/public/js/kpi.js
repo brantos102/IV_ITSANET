@@ -9,10 +9,10 @@
  * el operario. Lo que se ve en la tabla es lo mismo que está en Firestore.
  */
 import { collection, getDocs, query, orderBy, limit }
-  from '../vendor/firebase-sdk.js?v=20261018-41';
-import { db } from './auth.js?v=20261018-41';
-import * as local from './local.js?v=20261018-41';
-import { aNumero, listarRecepciones } from './datos.js?v=20261018-41';
+  from '../vendor/firebase-sdk.js?v=20261018-42';
+import { db } from './auth.js?v=20261018-42';
+import * as local from './local.js?v=20261018-42';
+import { aNumero, listarRecepciones } from './datos.js?v=20261018-42';
 
 /** Fecha de un campo de Firestore, venga como Timestamp o como texto. */
 export function aFecha(v) {

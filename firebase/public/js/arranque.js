@@ -34,3 +34,5 @@
   addEventListener('DOMContentLoaded',mostrar,{once:true});
   temporizador=setTimeout(()=>globalThis.itsanetArranque.error(),12000);
 })();
+// Identificación visible del entorno independiente de pruebas, también al entrar.
+addEventListener('DOMContentLoaded',()=>{if(!location.pathname.startsWith('/app/'))return;fetch('/api/auth/entorno',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(r=>{if(!r?.pruebasPublicas)return;const b=document.createElement('aside');b.className='pruebas-publicas';b.textContent='PRUEBAS · Datos independientes. Utiliza documentos y destinatarios de prueba.';const c=document.querySelector('.envoltorio,.caja')||document.body;c.prepend(b);}).catch(()=>{});},{once:true});
