@@ -1,0 +1,1196 @@
+{
+  "titulo": "ITSANET · Informe técnico de operación y configuración",
+  "fecha": "18 de octubre de 2026 · Ecuador",
+  "version": "Producción: checkout 46 confirmado · Piloto: conservar 48 y enlace actual",
+  "secciones": [
+    {
+      "id": "dictamen",
+      "titulo": "Dictamen y alcance",
+      "evidencia": "Confirmado por el usuario",
+      "bloques": [
+        {
+          "tipo": "p",
+          "texto": "La captura de terminal aportada por el usuario el 18/10/2026 confirma el checkout productivo 201e9a7080a347438991ca1c5cc67059f420102f (versión 46), el servicio iv-itsanet activo/running y /health correcto. El usuario también confirmó cámara y Drive. El estado observado tiene margen de RAM y disco, pero una captura puntual no certifica carga máxima, crecimiento diario o recuperación ante desastre. La medición MySQL de las 17:38:45 de Ecuador se completó sin avisos: 13.14 MiB asignados entre datos e índices en 30 tablas. No hay evidencia de tamaño excesivo en esta captura; el crecimiento requiere una segunda medición."
+        },
+        {
+          "tipo": "p",
+          "texto": "Se conserva la versión publicada 48 y el enlace actual del piloto. Este informe y su captura no reinician el túnel ni actualizan la aplicación. La URL trycloudflare es temporal: mantener el proceso evita un cambio provocado por reinicio, pero no garantiza una dirección permanente ni disponibilidad contractual."
+        },
+        {
+          "tipo": "p",
+          "texto": "La versión 48 es el código publicado para el diagnóstico del piloto. La captura muestra que el checkout empresarial sigue en 46. No se aplicó 47/48 a producción durante esta revisión, ni se reinició su servicio o el túnel del piloto."
+        },
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Elemento",
+            "Evidencia disponible",
+            "Conclusión"
+          ],
+          "filas": [
+            [
+              "Código disponible",
+              "3a2f9d4f9c6cc1fd3a9d7671a612fd1e7c9c178d · interfaz 20261018-48",
+              "Publicado en GitHub; no prueba instalación empresarial."
+            ],
+            [
+              "Checkout empresarial",
+              "201e9a7080a347438991ca1c5cc67059f420102f · versión 46",
+              "HEAD confirmado y WorkingDirectory coincide. No se revisaron cambios locales ni fecha de carga del proceso."
+            ],
+            [
+              "Servicio empresarial",
+              "ActiveState=active; SubState=running; NRestarts=0; /health ok=true",
+              "Cero reinicios en el contador actual de systemd; no equivale a todo el historial."
+            ],
+            [
+              "Cámara y fotos de producción",
+              "Confirmadas por el usuario el 18/10/2026",
+              "Funcionan por el HTTPS empresarial informado."
+            ],
+            [
+              "Google de pruebas",
+              "502 al Verificar remitente y Drive en enlace público",
+              "Causa pendiente del diagnóstico de la PC; no trasladar ese fallo a producción."
+            ],
+            [
+              "Recursos y base medidos",
+              "53G libres; 9,8 GiB RAM disponible; SQL 13.14 MiB; app_archivos local 5,59 MiB.",
+              "Buen margen instantáneo. No es una prueba de carga ni una tendencia de crecimiento."
+            ],
+            [
+              "Entrega pendiente de gestión",
+              "1 REVISION y 10 CANCELADA; 4 recepciones CERRADA",
+              "Revisar el caso y Enviados antes de reintentar. No inferir que los cancelados son errores."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "La revisión directa desde esta nube al HTTPS empresarial devolvió 403. Esa respuesta desde este entorno no demuestra que el servidor empresarial esté caído ni que la VPN del usuario falle. No se dispone aquí de sesión SSH al servidor."
+        }
+      ]
+    },
+    {
+      "id": "https",
+      "titulo": "Qué impedía usar la cámara y cómo se resolvió",
+      "evidencia": "Confirmado por el usuario",
+      "bloques": [
+        {
+          "tipo": "p",
+          "texto": "El acceso inicial era http://192.168.4.94:3002/app/. El navegador exige un contexto seguro para getUserMedia, la API que entrega el video de la cámara. Una IP privada servida por HTTP no satisface ese requisito. La excepción de localhost en la propia PC no se extiende al servidor visto desde un teléfono."
+        },
+        {
+          "tipo": "p",
+          "texto": "El mensaje HTTPS era el diagnóstico de una restricción del navegador. No faltaba una contraseña de Google, una API key de cámara, SERVIDOR_HMAC ni una cuenta especial. La app no puede concederse permiso ni instalar confianza en un certificado."
+        },
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Comprobación realizada por el usuario",
+            "Resultado aportado",
+            "Qué demuestra"
+          ],
+          "filas": [
+            [
+              "DNS corporativo",
+              "apps.flexnetuio.com → 192.168.4.94",
+              "El nombre resuelve al servidor dentro de su red/VPN."
+            ],
+            [
+              "Puerto 443",
+              "Apache; VirtualHost itsanet-data-sync-ssl.conf",
+              "Había otro sitio HTTPS. No debía sustituirse su configuración."
+            ],
+            [
+              "Apache 8443",
+              "VirtualHost apps.flexnetuio.com en itsanet-app-8443.conf",
+              "La app ya disponía de una entrada HTTPS separada."
+            ],
+            [
+              "curl.exe https://apps.flexnetuio.com:8443/health, sin -k",
+              "{\"ok\":true,\"app\":\"ITSANET IMS\",\"version\":\"1.0.0\"}",
+              "Conectividad y validación TLS desde ese Windows en ese momento."
+            ],
+            [
+              "Chrome/Edge en /app/ por :8443",
+              "Usuario confirmó cámara, escaneo y toma de fotos",
+              "Validación funcional en el dispositivo usado."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "La solución fue identificar y utilizar https://apps.flexnetuio.com:8443/app/, conservando el resto de aplicaciones. No se compró ni se emitió un certificado desde esta sesión, ni se instaló o reconfiguró Apache aquí. TI/infraestructura disponía del sitio HTTPS; esta colaboración revisó las salidas, identificó el puerto correcto y mejoró el lector y sus mensajes. No se puede atribuir una compra, una CA, una renovación o una modificación específica de TI sin evidencia adicional."
+        },
+        {
+          "tipo": "p",
+          "texto": "Quedan por registrar el emisor del certificado, vencimiento, cadena y responsable de renovación. Cada móvil debe tener ruta a la red/VPN, navegador compatible, confianza en esa cadena y permiso de cámara para el origen exacto https://apps.flexnetuio.com:8443. La confianza de Windows no instala la CA en Android o iOS."
+        }
+      ]
+    },
+    {
+      "id": "arquitectura",
+      "titulo": "Arquitectura y flujo de la operación",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Capa",
+            "Responsabilidad",
+            "Persistencia / conexión"
+          ],
+          "filas": [
+            [
+              "Navegador /app/",
+              "Consulta SKU, escáner, fotos, conteo, informes y modales",
+              "API del mismo origen; no escribe en Firestore desde /app/."
+            ],
+            [
+              "Apache HTTPS :8443",
+              "Terminación TLS y proxy de la aplicación",
+              "El proxy debe conservar rutas /app/, /api/, archivos y salud al servicio correcto."
+            ],
+            [
+              "FastAPI / Uvicorn · iv-itsanet",
+              "Sesiones, permisos, validación, transacciones, archivos y colas",
+              "Puerto empresarial observado 3002; EnvironmentFile privado."
+            ],
+            [
+              "MySQL / InnoDB",
+              "Recepciones, eventos, cantidades, índices, vínculos y configuración",
+              "utf8mb4, UTC y transacciones; asignación medida de datos e índices: 13,14 MiB."
+            ],
+            [
+              "Disco VAL_DATA_DIR",
+              "Fotos pendientes, informes, miniaturas y clave de cifrado",
+              "Respaldo coherente con MySQL."
+            ],
+            [
+              "Trabajadores internos",
+              "Copia Drive, entregas y catálogo programado",
+              "Operan desde el servidor con credenciales autorizadas; no desde el móvil."
+            ],
+            [
+              "Apps Script / Google",
+              "Cuenta ejecutora, Drive y correo",
+              "Puente firmado por HMAC; confirma operaciones separadamente."
+            ],
+            [
+              "Depot",
+              "Catálogo y stock por cliente",
+              "Credenciales API propias y cache local; la carga final depende del archivo exportado."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "Escanear identifica y consulta. Guardar un conteo es una confirmación independiente. Cerrar una recepción y entregar su informe son estados distintos. Una foto guardada en el servidor tampoco equivale a una copia confirmada en Drive."
+        }
+      ]
+    },
+    {
+      "id": "entornos",
+      "titulo": "Entornos y direcciones actuales",
+      "evidencia": "Confirmado por el usuario",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Entorno",
+            "Acceso y ejecución",
+            "Datos e integraciones"
+          ],
+          "filas": [
+            [
+              "Producción empresarial",
+              "https://apps.flexnetuio.com:8443/app/ · servicio iv-itsanet · Uvicorn 3002 · checkout 46 confirmado",
+              "MySQL y VAL_DATA_DIR empresariales; conexiones reales."
+            ],
+            [
+              "Piloto público en PC",
+              "URL trycloudflare vigente · proyecto iv-itsanet-pruebas-publicas-pc · puerto local 3003 o alternativo persistido",
+              "MySQL, usuarios, archivos y cifrado separados. Docker y PC deben seguir encendidos."
+            ],
+            [
+              "Desarrollo en PC",
+              "Proyecto iv-itsanet-desarrollo · acceso local elegido",
+              "Base y volúmenes separados; no son la instancia pública ni producción."
+            ],
+            [
+              "Nube de trabajo de Codex",
+              "Checkout /workspace/IV_ITSANET y contenedores propios",
+              "Validación con datos sintéticos. No equivale al servidor empresarial ni a la PC del usuario."
+            ],
+            [
+              "Firebase histórico",
+              "https://iv-itsanet.web.app/",
+              "Hosting y lógica histórica Firebase Auth/Firestore; no ejecuta FastAPI/MySQL. No se reemplazó."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "No se copiaron recepciones, usuarios, /etc/iv-itsanet.env ni volúmenes productivos al piloto. Por eso sus cuentas y su Google requieren configuración propia. No se habilitó facturación de Cloud Run o Cloud SQL. El piloto externo permite entrar desde casa sin VPN; no hace público el servidor empresarial."
+        }
+      ]
+    },
+    {
+      "id": "credenciales",
+      "titulo": "Credenciales: cuáles existen y para qué sirven",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Elemento",
+            "Uso",
+            "Estado y manejo"
+          ],
+          "filas": [
+            [
+              "Certificado TLS y clave privada del servidor",
+              "HTTPS y contexto seguro para cámara",
+              "Existencia funcional confirmada desde Windows. Rutas, emisor y vencimiento actuales pendientes de captura/TI."
+            ],
+            [
+              "Permiso de cámara del navegador / SO",
+              "Autorizar getUserMedia por dispositivo y origen",
+              "Se concede en el navegador; no es una clave de Google."
+            ],
+            [
+              "Usuario y contraseña ITSANET",
+              "Autenticar y asignar rol",
+              "Hash PBKDF2-HMAC-SHA256 con salt e iteraciones; se restablece, no se revela el texto original."
+            ],
+            [
+              "Cookie val_session",
+              "Mantener sesión autenticada",
+              "HttpOnly, SameSite=Lax; Secure si HTTPS se reconoce o VAL_COOKIE_SECURE=1. Confirmar cabeceras del proxy y cookie real sin compartir su valor."
+            ],
+            [
+              "VAL_DATABASE_URL",
+              "Conectar el servicio a MySQL",
+              "Secreto en /etc/iv-itsanet.env; no incluir usuario/contraseña completos en informes."
+            ],
+            [
+              "VAL_SECRET_KEY",
+              "Material privado de mecanismos de autenticación/OAuth",
+              "Comprobar presencia personalizada, sin mostrar ni regenerar su valor."
+            ],
+            [
+              "VAL_DATA_DIR/secretos/integraciones.key",
+              "Descifrar las integraciones guardadas en MySQL",
+              "Se respalda junto con datos. Perderla impide usar credenciales cifradas; no se sustituye a ciegas."
+            ],
+            [
+              "Apps Script /exec + SERVIDOR_HMAC",
+              "Autenticar servidor ante el puente de cada supervisor",
+              "Se configura una vez por cuenta; la clave queda cifrada en la base. No usar el /exec de otra identidad."
+            ],
+            [
+              "Autorización Google y CARPETA_EVIDENCIAS",
+              "Drive y correo como la cuenta ejecutora",
+              "Proyecto autorizado, carpeta compartida y cuenta coincidente. No se pide contraseña de Gmail."
+            ],
+            [
+              "Depot usuario/clave y token",
+              "Consulta de WMS",
+              "Independientes de TLS, de la cámara y de Google."
+            ],
+            [
+              "OAuth Client ID/secret/callback",
+              "Botón opcional Entrar con Google",
+              "No concede por sí mismo permiso para enviar correo ni para la cámara."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "El helper opcional comprueba presencia de algunos elementos sin mostrar sus valores. La captura aportada no acredita sus valores ni permisos actuales. Guardar un puente no garantiza que Google haya confirmado cuenta, carpeta, firma y permisos."
+        }
+      ]
+    },
+    {
+      "id": "camara",
+      "titulo": "Optimización del escáner y móviles",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "lista",
+          "items": [
+            "Se usa BarcodeDetector nativo cuando soporta los formatos requeridos. Si no, se usa ZXing local sobre el mismo video, sin depender de un CDN.",
+            "Se solicita cámara trasera, resolución ideal 1920×1080 y hasta 30 fps; enfoque continuo cuando el equipo lo admite. Son preferencias, no garantía física de resolución o velocidad.",
+            "El lector nativo intenta aproximadamente cada 90 ms; ZXing cada 110 ms. No procesa dos fotogramas simultáneos ni vuelve a procesar el mismo instante de video.",
+            "ZXing alterna recorte central y encuadre completo, con escalado acotado. Esto reduce trabajo y evita omitir permanentemente códigos en los bordes.",
+            "Se evita repetir el mismo código durante 2,5 s por defecto. La lectura consulta el producto; no guarda automáticamente unidades.",
+            "Al cerrar el visor se paran tracks, temporizador y lectores. La integración pausa o apaga según la pantalla, evitando uso innecesario de cámara y batería.",
+            "Los códigos se contrastan con el catálogo y los candidatos requieren revisión. No se deben borrar indiscriminadamente ceros que pueden pertenecer al SKU."
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "Las pruebas de video sintético y tamaños móviles no certifican todos los teléfonos ni Safari real. El usuario ya comprobó un dispositivo por HTTPS. TI debe registrar modelos, navegador, iluminación, legibilidad y prueba de etiquetas reales. El tamaño final de una fotografía y la velocidad de decodificación dependen del equipo y la imagen."
+        }
+      ]
+    },
+    {
+      "id": "datos",
+      "titulo": "Qué se almacena en MySQL y qué ocupa disco",
+      "evidencia": "Confirmado por el usuario",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Dato",
+            "Ubicación",
+            "Crecimiento esperado y control"
+          ],
+          "filas": [
+            [
+              "Evidencia de recepción / SKU / bulto",
+              "Disco privado → Drive; metadatos en app_archivos",
+              "El binario no se inserta en MySQL. Hash por recepción/tipo/contenido evita duplicarlo al reintentar el mismo contenido."
+            ],
+            [
+              "Miniaturas privadas",
+              "Disco app_miniaturas",
+              "Cache acotada aproximadamente a 20 MiB; no es un respaldo."
+            ],
+            [
+              "Foto de perfil: excepción importante",
+              "Base64 en app_config",
+              "Se convierte a JPEG 256×256 y reemplaza una ficha por usuario. Sí ocupa MySQL; cada cambio puede añadir auditoría."
+            ],
+            [
+              "Packing list importado",
+              "Filas, encabezados y estructura en tablas/JSON",
+              "Crece con las líneas recibidas y se preserva para devolver informes coherentes."
+            ],
+            [
+              "Informe XLSX generado",
+              "Disco y luego Drive, con referencia SQL",
+              "Los informes locales se conservan; cada versión válida ocupa espacio."
+            ],
+            [
+              "Instantánea de cierre",
+              "app_entregas.datos",
+              "Se compactan campos de operación mediante gzip+base64 con verificación SHA-256. Sigue ocupando SQL y no es una imagen."
+            ],
+            [
+              "Catálogo y posiciones",
+              "productos y app_stock_depot",
+              "Se actualizan por clave; una sincronización no debería añadir una copia íntegra por cada ejecución. Se conservan registros de turnos/resultados."
+            ],
+            [
+              "Conteos, correcciones y auditoría",
+              "Tablas de eventos e historial",
+              "Crecimiento deliberado para trazabilidad. No borrar para maquillar el tamaño."
+            ],
+            [
+              "Sesiones / presencia / trabajos de impresión",
+              "Tablas de soporte",
+              "Revisar retención de expirados o finalizados. No se identificó en el código revisado una purga periódica general."
+            ],
+            [
+              "Logs y respaldos",
+              "Filesystem, journal y carpeta de respaldos",
+              "Crecen fuera de MySQL; requieren política y medición propias."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "La ausencia de columnas BLOB no prueba que toda la base esté libre de contenido binario codificado: los avatares y las instantáneas usan JSON/base64. Los bytes multimedia registrados en app_archivos tampoco son bytes de la tabla: indican el tamaño del archivo externo."
+        },
+        {
+          "tipo": "p",
+          "texto": "Medición de producción aportada por el usuario: 18/10/2026 17:38:45 (Ecuador), sin avisos de consulta. La tabla siguiente muestra asignación y filas estimadas de InnoDB; las cifras de archivos/estados posteriores son agregados consultados. No confundir ambas clases de medida."
+        },
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Concepto",
+            "Medición",
+            "Interpretación"
+          ],
+          "filas": [
+            [
+              "Datos SQL",
+              "8,536,064 bytes · 8.14 MiB",
+              "Asignación estimada"
+            ],
+            [
+              "Índices SQL",
+              "5,242,880 bytes · 5.00 MiB",
+              "Índices necesarios para búsquedas y restricciones"
+            ],
+            [
+              "Total SQL",
+              "13,778,944 bytes · 13.14 MiB · 30 tablas",
+              "No es todo el disco del servidor"
+            ],
+            [
+              "Catálogo productos + stock",
+              "9.53 MiB · 72.5 % del total",
+              "Incluye índices; no borrar cache para ahorrar unos MiB"
+            ],
+            [
+              "Fotos con ID Drive",
+              "69 · 8.692.600 bytes de contenido externo",
+              "No aparecen fotos sin ID en este resumen; no certifica su existencia remota hoy"
+            ],
+            [
+              "Informes con ID Drive",
+              "12 · 2.300.403 bytes",
+              "Referencia registrada en la base"
+            ],
+            [
+              "Informes sin ID Drive",
+              "20 · 2.010.029 bytes",
+              "Archivos, no 20 correos pendientes"
+            ],
+            [
+              "Archivos locales app_archivos",
+              "46 · 5.866.763 bytes · 5,59 MiB",
+              "Incluye informes y otros archivos locales; requiere conciliación, no borrado automático"
+            ],
+            [
+              "Recepciones app",
+              "4 cerradas",
+              "No se muestran recepciones abiertas en esa consulta"
+            ],
+            [
+              "Entregas",
+              "10 canceladas · 1 en revisión",
+              "Un pendiente de gestión; verificar envío manual antes de reenviar"
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "La estimación de app_archivos es 94 filas, mientras el agregado de sus archivos suma 101. Esto es compatible con TABLE_ROWS estimado de InnoDB y no demuestra duplicación. Las fotos promedian aproximadamente 123 KiB por imagen en el agregado aportado; no se garantiza ese peso en tomas futuras."
+        },
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Tabla",
+            "Filas estimadas",
+            "Datos (bytes)",
+            "Índices (bytes)"
+          ],
+          "filas": [
+            [
+              "app_archivo_identidades",
+              "11",
+              "16384",
+              "32768"
+            ],
+            [
+              "app_archivo_skus",
+              "19",
+              "16384",
+              "16384"
+            ],
+            [
+              "app_archivos",
+              "94",
+              "65536",
+              "32768"
+            ],
+            [
+              "app_auditoria_general",
+              "135",
+              "65536",
+              "49152"
+            ],
+            [
+              "app_calidad_skus",
+              "100",
+              "16384",
+              "0"
+            ],
+            [
+              "app_config",
+              "23",
+              "16384",
+              "0"
+            ],
+            [
+              "app_copias_drive",
+              "59",
+              "114688",
+              "49152"
+            ],
+            [
+              "app_entregas",
+              "11",
+              "1228800",
+              "65536"
+            ],
+            [
+              "app_eventos",
+              "348",
+              "180224",
+              "212992"
+            ],
+            [
+              "app_evidencias",
+              "59",
+              "16384",
+              "65536"
+            ],
+            [
+              "app_huellas",
+              "5",
+              "16384",
+              "49152"
+            ],
+            [
+              "app_impresiones",
+              "1",
+              "16384",
+              "65536"
+            ],
+            [
+              "app_informes",
+              "26",
+              "49152",
+              "65536"
+            ],
+            [
+              "app_ingresos",
+              "4",
+              "16384",
+              "0"
+            ],
+            [
+              "app_lineas",
+              "174",
+              "114688",
+              "65536"
+            ],
+            [
+              "app_presencias",
+              "50",
+              "16384",
+              "49152"
+            ],
+            [
+              "app_recepciones",
+              "4",
+              "16384",
+              "49152"
+            ],
+            [
+              "app_skus",
+              "166",
+              "81920",
+              "65536"
+            ],
+            [
+              "app_stock_depot",
+              "6818",
+              "3686400",
+              "0"
+            ],
+            [
+              "app_unidades_logisticas",
+              "52",
+              "16384",
+              "49152"
+            ],
+            [
+              "auditoria",
+              "3",
+              "16384",
+              "65536"
+            ],
+            [
+              "operadores",
+              "5",
+              "16384",
+              "32768"
+            ],
+            [
+              "packing_items",
+              "119",
+              "49152",
+              "98304"
+            ],
+            [
+              "pallets",
+              "2",
+              "16384",
+              "32768"
+            ],
+            [
+              "producto_codigos",
+              "1",
+              "16384",
+              "16384"
+            ],
+            [
+              "productos",
+              "18684",
+              "2588672",
+              "3719168"
+            ],
+            [
+              "recepciones",
+              "2",
+              "16384",
+              "65536"
+            ],
+            [
+              "scan_events",
+              "4",
+              "16384",
+              "180224"
+            ],
+            [
+              "sesiones",
+              "11",
+              "16384",
+              "16384"
+            ],
+            [
+              "skus_pendientes",
+              "0",
+              "16384",
+              "32768"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fotos",
+      "titulo": "Protección, clasificación y nombres de las fotografías",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "lista",
+          "items": [
+            "La imagen se comprime antes de subir, conservando proporción y legibilidad: normalmente 1600 px/0,72; panorámicas 2048 px/0,82; texto y etiquetas 2400 px/0,85. Si comprimir falla o aumenta el tamaño, puede conservarse el original.",
+            "Se valida el archivo y su límite de 12 MiB. No existe una garantía de que todas las fotos queden por debajo de un peso fijo.",
+            "La copia local se escribe y sincroniza antes de confirmar metadatos. Si el envío falla, se conserva; el navegador puede mantener una cola temporal recuperable en el mismo origen, cuenta y dispositivo.",
+            "El worker confirma el archivo en Drive y luego elimina el original local de la foto. Los informes locales se conservan. El borrado remoto posterior por un usuario de Drive requiere controles y respaldo propios.",
+            "La versión 46 añadió nombre por recepción/embarques/fecha de registro/secuencia y carpetas por bulto. La identidad y secuencia permanecen al organizar o reintentar.",
+            "Una foto FALTANTE histórica no se reclasifica automáticamente cuando aparece el producto con PNC. Solo la foto nueva documenta PNC; corregir un vínculo erróneo es una acción explícita.",
+            "Un binario puede tener varios vínculos y accesos directos autorizados. Dos ubicaciones no demuestran por sí mismas dos copias originales."
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "La deduplicación es por contenido idéntico en una recepción y tipo. Otra fotografía, otra compresión o una nueva toma puede tener otro hash; no es un detector universal de imágenes visualmente iguales."
+        }
+      ]
+    },
+    {
+      "id": "crecimiento",
+      "titulo": "Cómo controlar el crecimiento sin perder trazabilidad",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "p",
+          "texto": "Con 13.14 MiB asignados en MySQL, 5,59 MiB locales medidos y 53G libres en el filesystem, no se justifica una limpieza agresiva por capacidad. Las tablas de catálogo/stock e índices explican aproximadamente 72.5 % de la asignación. Es una fotografía del estado; no demuestra la tasa de crecimiento ni que todo almacenamiento ajeno a estas carpetas esté inventariado."
+        },
+        {
+          "tipo": "lista",
+          "items": [
+            "Medir primero MySQL (datos más índices), disco libre, archivos locales y cola de Drive. Repetir la captura con una jornada comparable: un único número no demuestra tendencia.",
+            "Investigar pendientes de Drive antes de aumentar capacidad o comprimir más. No eliminar la carpeta de evidencias para liberar disco: puede contener la única copia todavía sin confirmar.",
+            "Mantener la compresión de instantáneas y la actualización por clave del catálogo. La compactación administrativa existente verifica integridad y trabaja por lotes; no se ejecutó durante esta auditoría.",
+            "Archivar historial de envíos solo cambia su visibilidad y añade trazabilidad; no borra las filas ni garantiza espacio liberado.",
+            "Definir con TI retención de sesiones expiradas, presencia antigua, trabajos finalizados, logs, informes locales y respaldos. Validar recuperación antes de aplicar una limpieza.",
+            "No ejecutar OPTIMIZE TABLE, borrados masivos, truncados, reinicios de Docker o depuración de volúmenes para intentar resolver capacidad sin un diagnóstico.",
+            "Respaldar de forma coherente base, archivos pendientes y clave de cifrado. Conservar los originales y comprobar una restauración en una base independiente."
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "El cálculo interactivo incluido es solo planificación del buffer de fotos en disco, no una medición real ni una estimación del tamaño SQL. MySQL/InnoDB asigna páginas e índices: 0 bytes de diferencia no significa que no se hayan creado registros."
+        }
+      ]
+    },
+    {
+      "id": "operacion",
+      "titulo": "Concurrencia, seguridad y continuidad",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "lista",
+          "items": [
+            "Las mutaciones se validan en el servidor por rol y sesión. Las claves de operación y restricciones únicas evitan ciertos dobles registros; los bloqueos y versiones rechazan conflictos entre usuarios.",
+            "El pool MySQL usa comprobación de conexión y reciclaje. Sus valores predeterminados son cinco conexiones y otras cinco de desahogo por proceso; deben contrastarse con workers y capacidad reales.",
+            "Los trabajos Drive/entrega tienen reservas y claves estables. Una confirmación incierta de correo exige revisión para evitar reenvíos; la declaración manual exige confirmación explícita.",
+            "En la versión publicada 48, estado de Google usa timeout de conexión 8 s y lectura 25 s por petición. Las transferencias/finalización conservan 120 s. Esto mejora el diagnóstico; no acredita reparación del Google del piloto.",
+            "El servicio arranca trabajadores internos y puede aplicar actualización de esquema al iniciar. Por eso el paquete de captura no importa app.main ni app.db y no reinicia el servicio.",
+            "La escucha 0.0.0.0:3002 se observó en el servidor. TI debe revisar firewall y necesidad de acceso directo al backend al consolidar HTTPS; no se modificó durante esta revisión."
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "El respaldo privado reportado tras un pase fue /home/enicolalde/bryan/respaldos-itsanet/pase-20261018T172552Z-h1BVUu. Su existencia fue comunicada por el usuario; no se abrió ni restauró desde aquí. Confirmar calendario, destino independiente, cifrado y ensayo de restauración."
+        }
+      ]
+    },
+    {
+      "id": "rutas",
+      "titulo": "Configuraciones y estructura del código",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Ruta / componente",
+            "Función",
+            "Qué revisar en el servidor"
+          ],
+          "filas": [
+            [
+              "app/main.py",
+              "Arranque FastAPI y workers",
+              "Proceso, health, uptime y código instalado."
+            ],
+            [
+              "app/config.py y /etc/iv-itsanet.env",
+              "Configuración por entorno",
+              "Presencia y permisos, sin imprimir secretos."
+            ],
+            [
+              "app/models.py y app/db.py",
+              "Tablas, SQLAlchemy, pool y esquema",
+              "Versión MySQL, utf8mb4, tamaño de tablas/índices y migraciones."
+            ],
+            [
+              "app/routers/ y app/services/",
+              "API, reglas, archivos, Google, informes y auditoría",
+              "Permisos y validaciones; no ejecutar tests sobre datos reales."
+            ],
+            [
+              "firebase/public/",
+              "Interfaz servida bajo /app/",
+              "Versión de recursos y cache coherentes."
+            ],
+            [
+              "firebase/public/js/camara.js",
+              "Video y lectores nativo/ZXing",
+              "Contexto HTTPS, permisos y prueba física."
+            ],
+            [
+              "app/services/archivos.py, drive.py, perfiles.py, instantaneas.py",
+              "Persistencia y espacio",
+              "Distinguir fotos externas, avatar SQL y cierre comprimido."
+            ],
+            [
+              "apps-script/proxy/{Proxy,Clientes,Servidor}.gs",
+              "Integraciones Google/Depot",
+              "Proyecto y cuenta correctos, código publicado y capacidad fotosAuditables."
+            ],
+            [
+              "/etc/apache2/sites-enabled/itsanet-app-8443.conf",
+              "Entrada HTTPS empresarial",
+              "Proxy /app y /api, cadena TLS y cabeceras."
+            ],
+            [
+              "scripts/actualizar_produccion.sh y respaldo_produccion.py",
+              "Pase controlado y respaldo",
+              "No se ejecutan para emitir el informe."
+            ],
+            [
+              "scripts/publicar_pruebas.ps1",
+              "Instancia pública de PC",
+              "No ejecutarlo si se desea conservar sin reinicio el enlace temporal actual."
+            ],
+            [
+              "scripts/diagnosticar_google_pruebas.*",
+              "Diagnóstico de pruebas",
+              "No cambia conexiones y no es auditoría del servidor empresarial."
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pendientes",
+      "titulo": "Hallazgos y decisiones pendientes para TI",
+      "evidencia": "Pendiente de captura",
+      "bloques": [
+        {
+          "tipo": "tabla",
+          "columnas": [
+            "Prioridad",
+            "Hallazgo / evidencia",
+            "Siguiente comprobación"
+          ],
+          "filas": [
+            [
+              "Comprobado",
+              "Checkout 46, servicio activo, health correcto, 53G de disco disponibles y 9,8 GiB de RAM disponible",
+              "Conservar evidencia; completar CPU/carga real, cambios locales y fecha de arranque."
+            ],
+            [
+              "Operativa",
+              "1 entrega REVISION; 20 archivos de informe sin ID Drive",
+              "Revisar entrega concreta y Enviados. No son 20 correos ni motivo para reenviar en bloque."
+            ],
+            [
+              "Seguimiento",
+              "SQL 13.14 MiB, app_archivos local 5,59 MiB y 69 fotos con ID Drive. Falta tendencia y conciliación.",
+              "Repetir captura en una jornada comparable. Conservar informes y auditoría."
+            ],
+            [
+              "Alta",
+              "TLS funciona en el Windows probado; vencimiento y cadena actuales no registrados",
+              "Registrar emisor, fecha y renovación; comprobar cada clase de móvil."
+            ],
+            [
+              "Alta",
+              "Respaldo reportado; restauración independiente no acreditada",
+              "Validar restauración completa y RPO/RTO con TI."
+            ],
+            [
+              "Media",
+              "Retención periódica general de sesiones/presencia no identificada",
+              "Cuantificar primero y diseñar mantenimiento sin borrar auditoría operativa."
+            ],
+            [
+              "Media",
+              "Avatares en SQL e informes/respaldos en disco",
+              "Medir app_config y carpetas; fijar políticas por tipo."
+            ],
+            [
+              "Media",
+              "Backend 3002 observado en todas las interfaces",
+              "Revisar acceso/firewall y cabeceras proxy con TI; conservar compatibilidad de operación."
+            ],
+            [
+              "Independiente",
+              "502 de Google en el piloto por túnel",
+              "Pendiente del diagnóstico de la PC; producción funciona según el usuario."
+            ]
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "Estos puntos son una revisión técnica y un plan de medición. No demuestran explotación, pérdida de información o saturación. Tampoco constituyen aprobación formal de TI."
+        }
+      ]
+    },
+    {
+      "id": "captura",
+      "titulo": "Captura real sin actualizar ni reiniciar",
+      "evidencia": "Pendiente de captura",
+      "bloques": [
+        {
+          "tipo": "p",
+          "texto": "El ZIP incluye revisar_servidor_lectura.sh, auditar_servidor_lectura.py y estado_produccion.py. Extraerlos juntos fuera del checkout empresarial. El wrapper usa una unidad temporal distinta a iv-itsanet, con el mismo EnvironmentFile privado; guarda solo informes JSON y Markdown privados."
+        },
+        {
+          "tipo": "codigo",
+          "texto": "bash revisar_servidor_lectura.sh \"$HOME/bryan/IV_ITSANET\""
+        },
+        {
+          "tipo": "p",
+          "texto": "Ejecutar en la terminal Linux @apps, desde la carpeta donde se extrajo el ZIP. Requiere sudo/systemd y la .venv ya instalada. No requiere pull, instalación de dependencias, migración ni acceso a la app con una contraseña."
+        },
+        {
+          "tipo": "lista",
+          "items": [
+            "La captura lee servicio, recursos, puertos, directivas permitidas de Apache y certificado verificado desde el servidor; no abre archivos de clave TLS.",
+            "La consulta MySQL usa transacción READ ONLY con límites de consulta y rollback. Lee agregados/metadatos; no crea tablas ni aumenta datos operativos.",
+            "No mide carga empresarial ni verifica todos los archivos remotos. Los recuentos de archivos son inmediatos y acotados, no un inventario recursivo de respaldos.",
+            "Puedes cargar el JSON localmente en este HTML. No se sube a ningún servidor. Dos capturas de la misma base permiten comparar asignación; no mezclar piloto y producción."
+          ]
+        },
+        {
+          "tipo": "p",
+          "texto": "Si hay un fallo de permisos o de consulta, se informa como no confirmado, no como cero ni como correcto. Revisar el resultado antes de emitir un dictamen definitivo."
+        }
+      ]
+    },
+    {
+      "id": "evidencia",
+      "titulo": "Pruebas y límites del informe",
+      "evidencia": "Comprobado en código",
+      "bloques": [
+        {
+          "tipo": "p",
+          "texto": "La versión 48 publicó diagnóstico de piloto y errores: 48 pruebas Python, 194 JavaScript y 7 comprobaciones PowerShell, más el botón ADMIN con respuestas simuladas. La versión 46 tiene evidencia previa de fotos auditables, secuencias y concurrencia. Estas son pruebas en entornos propios y datos sintéticos, no mediciones del servidor empresarial."
+        },
+        {
+          "tipo": "p",
+          "texto": "Este paquete se comprueba con generación reproducible, navegación/búsqueda/impresión offline, carga de capturas sintéticas y pruebas del helper de solo lectura. No se inicia el túnel ni se prueban correos reales durante su elaboración."
+        },
+        {
+          "tipo": "p",
+          "texto": "La versión genérica /health 1.0.0 no identifica el commit desplegado. La interfaz 20261018-48 identifica recursos en disco; tampoco prueba por sí sola que un proceso haya recargado código posterior a su arranque. Se necesitan las evidencias operativas solicitadas."
+        },
+        {
+          "tipo": "p",
+          "texto": "Informe preparado el 18/10/2026, zona America/Guayaquil, e incorpora la captura del usuario de las 17:38:45: checkout 46, servicio y MySQL accesibles, recursos con margen, SQL 13.14 MiB y un pendiente de entrega. Quedan fuera de esta evidencia el crecimiento entre jornadas, CPU bajo carga, estado actual de cada archivo remoto, vencimiento TLS y restauración efectiva del respaldo."
+        },
+        {
+          "tipo": "p",
+          "texto": "Referencias oficiales: MDN getUserMedia y Secure Contexts (https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia y https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts); Apache mod_proxy (https://httpd.apache.org/docs/2.4/mod/mod_proxy.html); Apps Script Web Apps (https://developers.google.com/apps-script/guides/web). Los enlaces requieren Internet; el informe funciona sin conexión."
+        }
+      ]
+    }
+  ],
+  "capturaTerminal": {
+    "origen": "Terminal @apps, aportada por el usuario el 18/10/2026; hora exacta no indicada",
+    "commit": "201e9a7080a347438991ca1c5cc67059f420102f",
+    "servicio": "active / running; NRestarts=0",
+    "filesystem": "73G total · 17G usados · 53G disponibles · 25 %",
+    "memoria": "11Gi total · 1,9Gi usados · 9,8Gi disponibles · swap 0B usada",
+    "salud": "ok=true; ITSANET IMS; version genérica 1.0.0"
+  },
+  "capturaMedicion": {
+    "fechaEcuador": "2026-10-18T17:38:45.051865-05:00",
+    "fechaUTC": "2026-10-18T22:38:45.051865+00:00",
+    "commitInstalado": "201e9a7080a347438991ca1c5cc67059f420102f",
+    "saludLocal": "ok",
+    "servicio": "Result=success\nNRestarts=0\nActiveState=active\nSubState=running",
+    "discoFilesystem": {
+      "libresTexto": "53G (df, redondeado)",
+      "porcentajeUsado": 25
+    },
+    "tls": {
+      "verificacion": "HTTPS/cámara confirmados por el usuario; emisor y vencimiento pendientes de captura"
+    },
+    "mysql": {
+      "identidad": null,
+      "version": null,
+      "tablas": [
+        {
+          "nombre": "app_archivo_identidades",
+          "filas_estimadas": 11,
+          "datos_bytes": 16384,
+          "indices_bytes": 32768
+        },
+        {
+          "nombre": "app_archivo_skus",
+          "filas_estimadas": 19,
+          "datos_bytes": 16384,
+          "indices_bytes": 16384
+        },
+        {
+          "nombre": "app_archivos",
+          "filas_estimadas": 94,
+          "datos_bytes": 65536,
+          "indices_bytes": 32768
+        },
+        {
+          "nombre": "app_auditoria_general",
+          "filas_estimadas": 135,
+          "datos_bytes": 65536,
+          "indices_bytes": 49152
+        },
+        {
+          "nombre": "app_calidad_skus",
+          "filas_estimadas": 100,
+          "datos_bytes": 16384,
+          "indices_bytes": 0
+        },
+        {
+          "nombre": "app_config",
+          "filas_estimadas": 23,
+          "datos_bytes": 16384,
+          "indices_bytes": 0
+        },
+        {
+          "nombre": "app_copias_drive",
+          "filas_estimadas": 59,
+          "datos_bytes": 114688,
+          "indices_bytes": 49152
+        },
+        {
+          "nombre": "app_entregas",
+          "filas_estimadas": 11,
+          "datos_bytes": 1228800,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "app_eventos",
+          "filas_estimadas": 348,
+          "datos_bytes": 180224,
+          "indices_bytes": 212992
+        },
+        {
+          "nombre": "app_evidencias",
+          "filas_estimadas": 59,
+          "datos_bytes": 16384,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "app_huellas",
+          "filas_estimadas": 5,
+          "datos_bytes": 16384,
+          "indices_bytes": 49152
+        },
+        {
+          "nombre": "app_impresiones",
+          "filas_estimadas": 1,
+          "datos_bytes": 16384,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "app_informes",
+          "filas_estimadas": 26,
+          "datos_bytes": 49152,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "app_ingresos",
+          "filas_estimadas": 4,
+          "datos_bytes": 16384,
+          "indices_bytes": 0
+        },
+        {
+          "nombre": "app_lineas",
+          "filas_estimadas": 174,
+          "datos_bytes": 114688,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "app_presencias",
+          "filas_estimadas": 50,
+          "datos_bytes": 16384,
+          "indices_bytes": 49152
+        },
+        {
+          "nombre": "app_recepciones",
+          "filas_estimadas": 4,
+          "datos_bytes": 16384,
+          "indices_bytes": 49152
+        },
+        {
+          "nombre": "app_skus",
+          "filas_estimadas": 166,
+          "datos_bytes": 81920,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "app_stock_depot",
+          "filas_estimadas": 6818,
+          "datos_bytes": 3686400,
+          "indices_bytes": 0
+        },
+        {
+          "nombre": "app_unidades_logisticas",
+          "filas_estimadas": 52,
+          "datos_bytes": 16384,
+          "indices_bytes": 49152
+        },
+        {
+          "nombre": "auditoria",
+          "filas_estimadas": 3,
+          "datos_bytes": 16384,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "operadores",
+          "filas_estimadas": 5,
+          "datos_bytes": 16384,
+          "indices_bytes": 32768
+        },
+        {
+          "nombre": "packing_items",
+          "filas_estimadas": 119,
+          "datos_bytes": 49152,
+          "indices_bytes": 98304
+        },
+        {
+          "nombre": "pallets",
+          "filas_estimadas": 2,
+          "datos_bytes": 16384,
+          "indices_bytes": 32768
+        },
+        {
+          "nombre": "producto_codigos",
+          "filas_estimadas": 1,
+          "datos_bytes": 16384,
+          "indices_bytes": 16384
+        },
+        {
+          "nombre": "productos",
+          "filas_estimadas": 18684,
+          "datos_bytes": 2588672,
+          "indices_bytes": 3719168
+        },
+        {
+          "nombre": "recepciones",
+          "filas_estimadas": 2,
+          "datos_bytes": 16384,
+          "indices_bytes": 65536
+        },
+        {
+          "nombre": "scan_events",
+          "filas_estimadas": 4,
+          "datos_bytes": 16384,
+          "indices_bytes": 180224
+        },
+        {
+          "nombre": "sesiones",
+          "filas_estimadas": 11,
+          "datos_bytes": 16384,
+          "indices_bytes": 16384
+        },
+        {
+          "nombre": "skus_pendientes",
+          "filas_estimadas": 0,
+          "datos_bytes": 16384,
+          "indices_bytes": 32768
+        }
+      ],
+      "archivos": [
+        {
+          "tipo": "foto",
+          "destino": "DRIVE",
+          "cantidad": 69,
+          "contenido_bytes": 8692600
+        },
+        {
+          "tipo": "informe",
+          "destino": "DRIVE",
+          "cantidad": 12,
+          "contenido_bytes": 2300403
+        },
+        {
+          "tipo": "informe",
+          "destino": "PENDIENTE",
+          "cantidad": 20,
+          "contenido_bytes": 2010029
+        }
+      ],
+      "entregas": [
+        {
+          "estado": "CANCELADA",
+          "cantidad": 10
+        },
+        {
+          "estado": "REVISION",
+          "cantidad": 1
+        }
+      ],
+      "recepciones": [
+        {
+          "estado": "CERRADA",
+          "cantidad": 4
+        }
+      ],
+      "columnas_binarias": []
+    },
+    "archivos": {
+      "app_archivos": {
+        "estado": "ok",
+        "archivos": 46,
+        "bytes": 5866763
+      }
+    },
+    "fuente": "Terminal del usuario; agregados del Markdown. Identidad de base y versión MySQL no incluidas en el texto aportado. Cargar el JSON original para comparar."
+  }
+}

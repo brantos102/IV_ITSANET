@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Informe técnico del servidor, HTTPS/cámara y almacenamiento · 18/10/2026](docs/descargas/ITSANET-informe-servidor-20261018.md) · [Descargar HTML y captura de lectura](docs/descargas/ITSANET-informe-servidor-20261018.zip).
+
 [Versión 48: diagnóstico de Google y errores 502 del piloto](docs/DIAGNOSTICO_GOOGLE_PILOTO_48.md).
 
 [Versión 47: demos autónomas, FAQ, instalación por supervisor y acceso al estado de Drive](docs/MANUALES_Y_DEMOS_47.md).
