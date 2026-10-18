@@ -1,5 +1,5 @@
-import {pedir, reintentarEntrega} from './local.js?v=20261017-37';
-import {pedirDatos} from './modal.js?v=20261017-37';
+import {pedir} from './local.js?v=20261017-39';
+import {pedirDatos,confirmar} from './modal.js?v=20261017-39';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -12,7 +12,7 @@ export async function revisarDrive(codigo, aviso, operativo=false) {
   const d = document.createElement('dialog'); d.className='modal';
   d.innerHTML=`<h3>Fotos y carpetas · ${esc(codigo)}</h3><div data-estado role="status">Consultando fotos…</div>
     <p data-resultado role="status"></p><div class="modal-acciones"><button class="b-sec" data-actualizar>Actualizar</button>
-    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-cerrar>Cerrar</button></div>`;
+    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-mi-cuenta>Copiar pendientes desde mi cuenta</button><button class="b-sec" data-cerrar>Cerrar</button></div>`;
   document.body.append(d); d.showModal();
   const ruta='/recepciones/'+encodeURIComponent(codigo)+'/drive'; let ocupado=false;
   const actualizar = async () => {
@@ -34,6 +34,13 @@ export async function revisarDrive(codigo, aviso, operativo=false) {
       d.querySelector('[data-resultado]').innerHTML=`${enlace(r.carpeta,'Abrir carpeta confirmada')}<p>${esc(r.mensaje)} ${r.programadas} foto(s) programadas.</p>`;
       await actualizar();
     }catch(e){d.querySelector('[data-resultado]').textContent=e.message;aviso(e.message,'err');}finally{b.disabled=false;}
+  };
+  d.querySelector('[data-mi-cuenta]').onclick=async ev=>{
+    const b=ev.currentTarget;
+    if(!await confirmar({titulo:'Copiar fotos desde tu conexión Google',texto:'Se usará tu cuenta autorizada para las fotos pendientes de esta recepción. Debe tener acceso a la carpeta matriz. Los informes se conservan y aún no se envía correo.',aceptar:'Verificar y copiar'}))return;
+    b.disabled=true;
+    try{const r=await operacion(ruta+'/desde-mi-cuenta',{cuerpo:{}});d.querySelector('[data-resultado]').textContent=r.mensaje;await actualizar();}
+    catch(e){d.querySelector('[data-resultado]').textContent=e.message;}finally{b.disabled=false;}
   };
   d.querySelector('[data-actualizar]').onclick=actualizar;
   d.querySelector('[data-cerrar]').onclick=()=>d.close();
@@ -65,10 +72,7 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
       const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
       const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');fila.append(m);
       const urls=document.createElement('div');urls.innerHTML=enlace(e.resultado?.carpeta,'Abrir Drive')+' '+enlace(e.resultado?.sheet,'Abrir Sheets');fila.append(urls);
-      if(!e.conexionRechazada&&(e.estado==='PENDIENTE'||e.estado==='REVISION'&&e.revisionMotivo==='ENTREGAS_MULTIPLES')){
-        boton(fila,'Reintentar',async()=>{await reintentarEntrega(e.id);await actualizar();});
-      }
-      if(!operativo&&['PENDIENTE','REVISION'].includes(e.estado)){
+      if(['PENDIENTE','REVISION'].includes(e.estado)){
         boton(fila,'Anular este envío',async()=>{
           const datos=await pedirDatos({titulo:`Anular envío ${referencia(e)}`,texto:`${esc(codigo)} · ${esc(fecha(e))}. Se conservan archivos, conteos y auditoría.`,
             campos:[{clave:'motivo',etiqueta:'Motivo de anulación (mínimo 10 caracteres)',obligatorio:true}],aceptar:'Anular este envío'});
@@ -88,10 +92,10 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
         const v=await pedir('/entregas/'+ultima.id+'/solicitar');
         if(!v.responsable.disponible)throw new Error('Autoriza tu propia conexión en Mi cuenta y correo; después no se solicita una clave por envío.');
         const datos=await pedirDatos({titulo:`Confirmar envío de documentos finales · ${referencia(ultima)}`,texto:`<p>${esc(codigo)} · ${esc(fecha(ultima))}</p><p>De: <b>${esc(v.responsable.correo)}</b><br>Para: ${esc(ultima.destinatarios || 'Sin correo')}</p><p>Se utilizará el mismo informe archivado: ${v.archivos.map(esc).join(', ')}. ${v.sustituye.length} entrega(s) anterior(es) pendiente(s) serán anuladas.</p><p>Comprueba Enviados en las cuentas anteriores y en la responsable para evitar un envío duplicado. Tu cuenta y el puente se acaban de verificar. Al confirmar se programará este envío; espera después la confirmación de Google.</p>`,
-          campos:[{clave:'motivo',etiqueta:'Motivo de recuperación (10–300 caracteres)',obligatorio:true},
+          campos:[{clave:'destinatarios',etiqueta:'Enviar documentos a · correos separados por coma',valor:ultima.destinatarios||'',obligatorio:true},{clave:'motivo',etiqueta:'Motivo de recuperación (10–300 caracteres)',obligatorio:true},
             {clave:'confirmarNoEnviado',etiqueta:'Revisé Enviados: este informe todavía no fue enviado',tipo:'interruptor',valor:false}],aceptar:'Confirmar envío de documentos finales'});
         if(!datos)return;await pedir('/entregas/'+ultima.id+'/solicitar',{cuerpo:{...datos,remitenteConfirmado:v.responsable.correo}});
-        aviso('Se recuperó el mismo informe con tu cuenta autorizada. Espera la confirmación de entrega.','ok');await actualizar();
+        aviso('El mismo informe quedó programado con tu cuenta autorizada. Espera la confirmación de Google.','info','Envío pendiente de confirmación');await actualizar();
       },'b-primario');
     }
     const historicas=grupo.filter(e=>!activas.includes(e));

@@ -42,8 +42,7 @@ def test_admin_anula_solo_envio_antiguo_y_reintenta_el_mismo_elegido(admin,clien
     codigo,a,b=duplicadas
     monkeypatch.setattr(entregas,'configurado',lambda *a:True)
     assert entregas.procesar_uno()
-    assert cliente.post(f'/api/app/entregas/{a}/cancelar',json={'motivo':'Se conserva el informe más reciente'}).status_code==403
-    r=admin.post(f'/api/app/entregas/{a}/cancelar',json={'motivo':'Se conserva el informe más reciente'})
+    r=cliente.post(f'/api/app/entregas/{a}/cancelar',json={'motivo':'Se conserva el informe más reciente'})
     assert r.status_code==200 and r.json()['estado']=='CANCELADA'
     r=cliente.post(f'/api/app/entregas/{b}/reintentar',json={})
     assert r.status_code==200 and r.json()['id']==b and r.json()['estado']=='PENDIENTE'

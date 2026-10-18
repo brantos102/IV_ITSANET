@@ -136,7 +136,7 @@ def test_drive_crea_carpeta_con_responsable_y_muestra_fotos_locales(admin, clien
     assert r.json()['programadas'] == 1 and r.json()['carpeta'].startswith('https://drive.google.com/')
     assert admin.get(ruta).json()['carpetas'] == [r.json()['carpeta']]
     assert llamadas == ['estado','prepararCarpeta']  # Nunca finalizar/correo.
-    assert cliente.post(ruta+'/preparar',json={}).status_code == 403
+    assert cliente.post(ruta+'/preparar',json={}).status_code == 200  # Supervisor opera; conexiones base siguen ADMIN.
 
 
 def test_drive_fallo_hmac_no_inventa_carpeta_ni_envia(admin, pendiente, monkeypatch):

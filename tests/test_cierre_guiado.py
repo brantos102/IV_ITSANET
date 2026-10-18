@@ -96,7 +96,7 @@ def test_reintento_termina_en_drive_y_habilita_cierre_sin_enviar_correo(cliente,
     acciones = []
     def puente(accion, clave, datos):
         acciones.append(accion)
-        if accion == 'estado': return {'versionPuente': 2, 'remitente': 'sup'}
+        if accion == 'estado': return {'versionPuente': 2, 'remitente': 'sup','capacidades':['fotosSkuSimples']}
         return {'fileId': 'foto-confirmada', 'carpetaSkuUrl': 'https://drive.google.com/drive/folders/sku'}
     monkeypatch.setattr(entregas, 'llamar', puente)
     assert cliente.post(ruta + '/drive/reintentar', json={}).status_code == 200

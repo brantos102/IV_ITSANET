@@ -20,7 +20,10 @@ export function interpretarEtiquetaMadre(valor) {
 }
 
 /** La etiqueta interna identifica una unidad exacta sin reemplazar la del proveedor. */
-export function interpretarEtiquetaDeBulto(valor,unidadId){
+export function interpretarEtiquetaDeBulto(valor,unidadId,rotulo='',rotulos=[]){
+  const codigo=String(valor||'').trim().replace(/^\][A-Za-z][0-9]/,'').toUpperCase();
+  if(rotulos.includes(codigo)&&codigo!==rotulo)throw new Error('Esta etiqueta corresponde a otro bulto. Abre ese bulto antes de registrar sus fotos.');
+  if(rotulo&&codigo===rotulo)return {interna:true,pallet:rotulo};
   const interna=String(valor || '').trim().replace(/^\][A-Za-z][0-9]/,'').match(/^LB([0-9a-f]{32})$/i);
   if(!interna)return interpretarEtiquetaMadre(valor);
   if(interna[1].toLowerCase()!==String(unidadId).toLowerCase())throw new Error('Esta etiqueta corresponde a otro bulto. Abre ese bulto antes de registrar sus fotos.');

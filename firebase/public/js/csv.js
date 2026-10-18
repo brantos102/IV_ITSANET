@@ -18,10 +18,10 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261017-37';
-import { db } from './auth.js?v=20261017-37';
-import * as local from './local.js?v=20261017-37';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261017-37';
+} from '../vendor/firebase-sdk.js?v=20261017-39';
+import { db } from './auth.js?v=20261017-39';
+import * as local from './local.js?v=20261017-39';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261017-39';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -192,7 +192,8 @@ function filaDe(formato, dato, comunes) {
   const valores = { ...comunes, ...dato, ...pos };
   return formato.columnas.map(c => {
     const valor = c.campo ? valores[c.campo] : '';
-    if (dato.estado === 'PNC' && ['estado','categoria'].includes(c.campo)) return c.valorPnc ?? (c.campo === 'estado' ? 'PNC' : '');
+    if(dato.estado==='PNC'&&c.campo==='estado')return c.valorPnc??'PNC';
+    if(dato.estado==='PNC'&&c.campo==='categoria')return c.valorPnc??valor??'';
     return valor !== undefined && valor !== null && valor !== '' ? valor : (c.valor ?? '');
   });
 }
@@ -213,7 +214,7 @@ export function csvDeCantidades(formato, datos) {
   };
   const filas = agruparConteos(datos?.eventos, { skus: datos?.skus }).map(d => {
     const p = datos?.catalogo?.[d.sku] || {};
-    return {...d,unidad:d.unidad || p.unidad || '',estado:d.estado === 'PNC' ? 'PNC' : '',categoria:''};
+    return {...d,unidad:d.unidad || p.unidad || '',estado:d.estado === 'PNC' ? 'PNC' : '',categoria:(d.estado==='PNC'?datos.categoriaLogicaPnc:datos.categoriaLogica)||''};
   });
   return resultadoModelo(f, filas.map(d => filaDe(f,d,comunes)), rec.codigo);
 }

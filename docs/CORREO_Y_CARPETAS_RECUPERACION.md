@@ -1,5 +1,7 @@
 # Recuperar correo y fotografías en producción
 
+Instrucciones actuales: [Recepciones, fotos e informes de producción](PRODUCCION_RECEPCIONES_Y_FOTOS.md).
+
 Entrega `itsanet-20261016-correo-carpetas`, interfaz `20261016-35`.
 
 La captura recibida muestra los envíos de VW anulados y otro envío pendiente de ISZ con una cuenta personal y error HMAC. Anular detiene el envío: pulsar Actualizar no lo reactiva. El error HMAC también impide subir fotografías y crear sus carpetas. Que `verificarGoogleServidor` termine correctamente en el editor prueba los permisos de Google, pero no que la clave guardada en el servidor coincida con la de ese despliegue.

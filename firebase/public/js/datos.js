@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261017-37';
-import { db } from './auth.js?v=20261017-37';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261017-37';
-import * as local from './local.js?v=20261017-37';
+} from '../vendor/firebase-sdk.js?v=20261017-39';
+import { db } from './auth.js?v=20261017-39';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261017-39';
+import * as local from './local.js?v=20261017-39';
 
 /**
  * Dónde se guardan los datos.
@@ -42,13 +42,13 @@ export function normalizarCodigo(v) {
 }
 
 export function normalizarPallet(v) {
-  return limpiar(v).toUpperCase().replace(/[\s_-]/g, '');
+  return limpiar(v).toUpperCase().replace(/\s/g, '');
 }
 
 /**
  * Posición del almacén: `A-01-03-2`.
  *
- * NO vale `normalizarPallet` aquí: ese borra los guiones, y los guiones son el
+ * NO vale `normalizarPallet` aquí: la posición tiene su propia validación: los guiones son el
  * separador de nave, calle, columna y nivel. Pasar una posición por él la
  * convertía en `A01032`, que no se puede buscar en Depot ni leer de un vistazo.
  */
@@ -58,7 +58,7 @@ export function normalizarPosicion(v) {
 
 export function palletValido(c) {
   const p = normalizarPallet(c);
-  return !!p && p.length <= 40 && /^[A-Z0-9]+(\.[A-Z0-9]+)*$/.test(p);
+  return !!p && p.length <= 40 && /^[A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)*$/.test(p);
 }
 
 /**
@@ -183,12 +183,33 @@ export const ROL_COLUMNA = {
   'DESFACE': 'desface', 'DESFASE': 'desface', 'DIFERENCIA': 'desface',
   'PALLET': 'pallet', 'PALETA': 'pallet',
   'CODIGO BARRA': 'codigoBarra', 'CODIGOBARRA': 'codigoBarra',
-  'MARCA':'marca','CLIENTE':'cliente','TIPO DE INCIDENCIA':'incidencia','TIPO INCIDENCIA':'incidencia',
-  'CANT CON INCIDENCIA':'cantidadIncidencia','CANTIDAD CON INCIDENCIA':'cantidadIncidencia',
-  'EVIDENCIA FOTOGRAFICA DIR URL DRIVE':'evidencia','CARPETA DRIVE':'evidencia',
+  'MARCA':'marca','CLIENTE':'cliente','TIPO DE INCIDENCIA':'incidencia','TIPO INCIDENCIA':'incidencia','INCIDENCIA':'incidencia','INCIDENCIAS':'incidencia',
+  'CANT CON INCIDENCIA':'cantidadIncidencia','CANT CON INCIDENCIA DIFERENCIA':'cantidadIncidencia','CANTIDAD CON INCIDENCIA':'cantidadIncidencia','CANT. CON INCIDENCIA':'cantidadIncidencia',
+  'EVIDENCIA FOTOGRAFICA : DIR, URL (DRIVE)':'evidencia','EVIDENCIA FOTOGRAFICA DIR URL DRIVE':'evidencia','CARPETA DRIVE':'evidencia','CARPETA DRIVE DEL SKU':'evidencia',
+  'OK DEPOT':'depot','POSICION':'posicion','POSICION REAL':'posicion',
   'CODIGO DE BARRAS':'codigoBarra','CODIGO BARRAS':'codigoBarra',
   'OBSERVACION': 'observacion', 'OBSERVACIONES': 'observacion',
 };
+
+const normalizarEncabezadoInforme=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+export function destinosInforme(formato,rol){
+  return (formato.encabezados||[]).flatMap((e,i)=>{
+    const clave=normalizarEncabezadoInforme(e),salida=ROL_COLUMNA[clave];
+    if(ALIAS[clave])return [];
+    return (salida===rol||!salida&&formato.columnas?.[rol]===i)?[i]:[];
+  });
+}
+export function columnasSegurasInforme(formato,columnas){
+  const resultado={};
+  for(const [rol,i] of Object.entries(columnas||{})){
+    if(!Object.values(ROL_COLUMNA).includes(rol)){resultado[rol]=i;continue;}
+    const destinos=destinosInforme(formato,rol);
+    if(destinos.includes(i))resultado[rol]=i;
+    else if(destinos.length)resultado[rol]=destinos[0];
+  }
+  return resultado;
+}
+export const prefijoInforme=formato=>(formato.prefijo||[]).filter(f=>!(f.celdas||f).some(c=>/espacio que llena/i.test(String(c||''))));
 
 const COLUMNAS_RESULTADO = new Set(Object.keys(ROL_COLUMNA));
 

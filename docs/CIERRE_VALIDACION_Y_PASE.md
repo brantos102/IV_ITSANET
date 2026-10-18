@@ -1,5 +1,7 @@
 # Validación, Drive y candidato de producción
 
+Para las correcciones actuales de fotos, etiquetas, recepción e informes, ver [PRODUCCION_RECEPCIONES_Y_FOTOS.md](PRODUCCION_RECEPCIONES_Y_FOTOS.md).
+
 Estos cambios se preparan en `desarrollo-local`. No trasladar la base de desarrollo a producción: las recepciones, fotografías, conteos y usuarios que ya registran los operadores deben conservarse.
 
 ## Actualizar la PC de desarrollo
@@ -56,18 +58,18 @@ Antes del pase, completar las pruebas de Google y de un celular real por HTTPS d
 
 El responsable del servidor debe obtener un respaldo consistente de MySQL y del directorio configurado en `VAL_DATA_DIR`, incluida `secretos/integraciones.key`, y conservar `/etc/iv-itsanet.env`. Coordinar una pausa de escritura para que base y archivos correspondan a la misma captura. Guardar el commit anterior y comprobar la restauración del respaldo. No copiar la base, las credenciales ni el volumen de Docker de desarrollo sobre producción.
 
-La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261017-37`; recargar las pantallas antes de retomar operación.
+La actualización agrega tablas de clasificación, presencia, generaciones de informes y auditoría mediante el arranque normal de la aplicación; no borra ni reemplaza tablas existentes. Desplegar el commit revisado en una entrega identificada, conservando la modificación local de `mysql/01-crear-base.sql` y los directorios no versionados existentes. No ejecutar reset/clean ni forzar un pull ante conflictos. El frontend usa versión `20261017-39`; recargar las pantallas antes de retomar operación.
 
 ### Ejecutar el pase desde la terminal del servidor
 
-La etiqueta corregida de esta entrega es `itsanet-20261017-previa-y-correo`. Tras avisar a los
+La etiqueta corregida de esta entrega es `itsanet-20261017-recepciones-fotos`. Tras avisar a los
 operadores que deben terminar sus guardados y pausar nuevos registros, ejecutar
 en la terminal **SSH del servidor**, con el usuario que administra `iv-itsanet`:
 
 ```bash
 cd ~/bryan/IV_ITSANET &&
-git fetch origin tag itsanet-20261017-previa-y-correo &&
-VERSION_ITSANET=$(git rev-parse 'itsanet-20261017-previa-y-correo^{commit}') &&
+git fetch origin tag itsanet-20261017-recepciones-fotos &&
+VERSION_ITSANET=$(git rev-parse 'itsanet-20261017-recepciones-fotos^{commit}') &&
 SCRIPT_PASE_ITSANET=$(mktemp /tmp/itsanet-pase.XXXXXX.sh) &&
 git show "$VERSION_ITSANET:scripts/actualizar_produccion.sh" > "$SCRIPT_PASE_ITSANET" &&
 bash "$SCRIPT_PASE_ITSANET" "$PWD" "$VERSION_ITSANET"
@@ -79,9 +81,10 @@ list; ver [SUPERVISION_CORREO_Y_FORMATOS.md](SUPERVISION_CORREO_Y_FORMATOS.md).
 Agrega vista previa del archivo y autorización de la conexión propia del
 supervisor, además de avisos para confirmar el envío final; ver
 [VISTA_PREVIA_Y_CORREO_PROPIO.md](VISTA_PREVIA_Y_CORREO_PROPIO.md). Si el puente
-ya está en la versión 36 y corresponde a esa cuenta, no hay cambios nuevos de
-Apps Script: se conserva su /exec y clave. Para una cuenta distinta se necesita
-su autorización y despliegue propios.
+corresponde a esa cuenta, conserva su /exec y clave, actualiza Proxy.gs y
+Servidor.gs y publica una Nueva versión del mismo despliegue. La versión 39
+requiere fotosSkuSimples y lectura privada de miniaturas. Para una cuenta distinta
+se necesita su autorización y despliegue propios.
 
 Conserva la corrección del HTTP 500 de MySQL al listar informes grandes; ver [MYSQL_1038_ENTREGAS.md](MYSQL_1038_ENTREGAS.md).
 La versión 35 permite crear y comprobar carpetas, localizar fotos pendientes y

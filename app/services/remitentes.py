@@ -66,7 +66,7 @@ def elegir(db, codigo, datos, usuario):
     opcion = next(o for o in disponibles['opciones'] if o['modo'] == modo)
     if not opcion['disponible']:
         raise HTTPException(409, 'El correo ' + ('responsable' if modo == 'RESPONSABLE' else 'personal')
-            + ' no está listo. ADMIN debe vincularlo a un supervisor activo y configurar su puente Google en Administración → Drive y envío de correo. No se envió el informe.')
+            + (' no está listo. Verifica una vez tu conexión en Mi cuenta y correo; la clave guardada se reutiliza para los envíos. No se envió el informe.' if modo=='PERSONAL' else ' no está listo. ADMIN debe vincularlo a un supervisor activo y configurar su puente Google. No se envió el informe.'))
     confirmado = datos.get('remitenteConfirmado')
     if confirmado is not None and str(confirmado).strip().lower() != opcion['correo']:
         raise HTTPException(409, 'Cambió el correo remitente mientras preparabas el cierre. Actualiza y confirma la cuenta antes de enviar.')

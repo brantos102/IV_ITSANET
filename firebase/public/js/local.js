@@ -420,8 +420,8 @@ export async function proxyLocal(accion, datos = {}) {
   if (accion === 'subirFoto' || accion === 'guardarInforme') {
     const tipo = accion === 'subirFoto' ? 'foto' : 'informe';
     const r = await pedir(`/recepciones/${encodeURIComponent(datos.recepcion)}/archivos/${tipo}`, { cuerpo: datos });
-    const origen = typeof location !== 'undefined' ? location.origin : null;
-    if (origen) { r.url = new URL(r.url, origen).href; r.enlace = r.url; }
+    // Referencia estable del mismo servidor: también funciona en la WiFi con HTTP.
+    // Nunca guardar el host de una estación ni imágenes base64 en los conteos.
     return r;
   }
   throw new ErrorServidor('Esta opcion requiere configuracion adicional del servidor. El conteo y los archivos locales siguen disponibles.', 'NO_CONFIGURADO');

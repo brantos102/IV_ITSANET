@@ -1,5 +1,7 @@
 # Vista previa y correo propio del supervisor
 
+Instrucciones actuales: [Recepciones, fotos e informes de producción](PRODUCCION_RECEPCIONES_Y_FOTOS.md).
+
 Versión `20261017-37`, etiqueta `itsanet-20261017-previa-y-correo`.
 Conserva datos, documentos archivados, claves y la versión anterior.
 

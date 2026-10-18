@@ -34,15 +34,9 @@ def zpl(etiquetas, formato, recepcion, cliente, marca):
     partes = []
     for e in etiquetas:
         grande = alto == 1200
-        partes += ['^XA', '^CI28', '^PW800', f'^LL{alto}', '^LH0,0',
-            texto(24, 34, cliente[:60]), texto(75, 28, recepcion[:80], 2),
-            texto(200 if grande else 140, 90 if grande else 50, e['rotulo']),
-            texto(330 if grande else 205, 58 if grande else 32, f"BULTO {e['numero']} DE {e['total']}"),
-            texto(440 if grande else 250, 28 if grande else 20, marca[:60]),
-            texto(510, 27, e['codigoMadre'][:80], 2) if grande else '',
-            f"^FO62,{760 if grande else 290}^BY1,2,{150 if grande else 55}^BCN,{150 if grande else 55},N,N,N,A^FD{e['serie']}^FS",
-            texto(950 if grande else 355, 22 if grande else 17, 'ID ' + e['unidadId']),
-            '^PQ1', '^XZ']
+        partes += ['^XA','^CI28','^PW800',f'^LL{alto}','^LH0,0',
+            texto(200 if grande else 45,130 if grande else 90,e['rotulo']),
+            f"^FO100,{650 if grande else 200}^BY3,2,{240 if grande else 120}^BCN,{240 if grande else 120},N,N,N,A^FD{e['rotulo']}^FS",'^PQ1','^XZ']
     return '\n'.join(partes)
 
 
@@ -61,7 +55,7 @@ def generar(db, codigo, datos, usuario, estacion=None):
     if datos.get('version') != revision or datos.get('cantidadAnterior') != r.bultos:
         raise HTTPException(409, 'Otro supervisor cambió la recepción. Actualiza antes de imprimir.')
     literal = str(datos.get('literal') or '').strip().upper()
-    if not re.fullmatch(r'[A-Z0-9]{1,8}', literal): raise HTTPException(422, 'Literal: de 1 a 8 letras o números')
+    if not re.fullmatch(r'[A-Z]', literal): raise HTTPException(422, 'Literal: una letra de A a Z')
     formato, destino = datos.get('formato'), datos.get('destino')
     if formato not in ('100x50', '100x150') or destino not in ('NAVEGADOR', 'ZPL', 'ESTACION'):
         raise HTTPException(422, 'Selecciona tamaño y destino de impresión')
@@ -75,8 +69,8 @@ def generar(db, codigo, datos, usuario, estacion=None):
     etiquetas = []
     for u in unidades:
         etiquetas.append({'unidadId': u.id, 'numero': u.numero, 'total': n,
-            'rotulo': f'{literal}-{u.numero:03d}', 'codigoMadre': u.codigo or '', 'serie': 'LB'+u.id})
-        u.datos = {**(u.datos or {}), 'etiquetaEmitida': True}
+            'rotulo': f'{literal}{u.numero:02d}', 'codigoMadre': u.codigo or '', 'serie': f'{literal}{u.numero:02d}'})
+        u.datos = {**(u.datos or {}), 'etiquetaEmitida': True, 'rotulo': f'{literal}{u.numero:02d}'}
     f = f or AppIngreso(recepcion=r.codigo, datos={})
     d = {'protocolo': 'REGLAMENTARIO', **(f.datos or {}),
         'etiquetasBultos': {'literal': literal, 'formato': formato}, 'version': revision+1}

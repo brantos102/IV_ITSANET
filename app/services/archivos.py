@@ -110,3 +110,40 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=Tru
         destino.unlink(missing_ok=True)
         raise
     return archivo
+
+
+def miniatura_drive(db, archivo):
+    """Miniaturas privadas y acotadas en disco; los originales viven en Drive."""
+    from app.models import AppCopiaDrive
+    from app.services import entregas
+    carpeta=DATA_DIR / 'app_miniaturas'
+    destino=carpeta / archivo.id
+    if destino.is_file():return destino.read_bytes()
+    copia=db.get(AppCopiaDrive,archivo.id)
+    if not copia or not archivo.drive_id:raise HTTPException(404,'Imagen sin copia confirmada en Drive')
+    try:
+        respuesta=entregas.llamar('miniatura',archivo.id,{'usuario':copia.usuario,'fileId':archivo.drive_id})
+        contenido=respuesta.get('base64') or ''
+        if len(contenido)>400000:raise ValueError('miniatura demasiado grande')
+        bruto=base64.b64decode(contenido,validate=True)
+        if not (bruto.startswith((b'\xff\xd8\xff',b'\x89PNG\r\n\x1a\n')) or bruto.startswith(b'RIFF') and bruto[8:12]==b'WEBP'):raise ValueError('formato de miniatura no válido')
+    except (RuntimeError,ValueError,binascii.Error):
+        raise HTTPException(502,'No se pudo cargar la vista previa privada. Actualiza el puente Google o abre la imagen en Drive.') from None
+    carpeta.mkdir(parents=True,exist_ok=True)
+    temporal=carpeta / (archivo.id+'.'+uuid4().hex+'.tmp')
+    try:
+        with temporal.open('xb') as f:os.chmod(temporal,0o600);f.write(bruto)
+        temporal.replace(destino)
+    finally:temporal.unlink(missing_ok=True)
+    archivos=[]
+    for p in carpeta.iterdir():
+        try:
+            if len(p.name)==32:archivos.append((p.stat().st_mtime,p))
+        except FileNotFoundError:pass
+    total=0
+    for _,p in sorted(archivos,reverse=True):
+        try:
+            total+=p.stat().st_size
+            if total>20*1024*1024:p.unlink(missing_ok=True)
+        except FileNotFoundError:pass
+    return bruto

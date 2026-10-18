@@ -59,8 +59,8 @@ def normalizar_codigo(v) -> str:
 
 
 def normalizar_pallet(v) -> str:
-    """El punto del subpallet se conserva; los guiones y espacios no."""
-    return re.sub(r"[\s\-_]", "", limpiar(v)).upper()
+    """Punto de subpallet y guion entre bultos se conservan; se quitan espacios."""
+    return re.sub(r"\s", "", limpiar(v)).upper()
 
 
 def clave_pallet(p) -> str:
@@ -351,11 +351,12 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
 
     # 1. Las líneas, tal cual venían. El orden se conserva sumando el número de
     #    línea a lo que ya había: así dos listas con una línea 1 no se pisan.
+    orden_base=db.scalar(select(func.max(AppLinea.orden)).where(AppLinea.recepcion==codigo)) or 0
     conocidas = {"linea", "sku", "descripcion", "cantidad", "origen", "orden"}
     for l in lineas:
         n = int(a_numero(l.get("linea"), 0))
         db.add(AppLinea(
-            recepcion=r.codigo, origen=origen, linea=n, orden=base + n,
+            recepcion=r.codigo, origen=origen, linea=n, orden=orden_base + n,
             sku=normalizar_codigo(l.get("sku")),
             descripcion=limpiar(l.get("descripcion"))[:300] or None,
             cantidad=a_numero(l.get("cantidad"), 0),
@@ -565,6 +566,8 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, 
     reglas = ajustes.cliente(db, r.cliente)
     if not pallet and reglas['palletRequerido']:
         raise ErrorApp("Falta el pallet.", "PALLET_REQUERIDO")
+    if pallet and (len(pallet)>40 or not re.fullmatch(r'[A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)*',pallet)):
+        raise ErrorApp('Pallet / subpallet: usa letras y números; punto para subpallet (B02.1), guion entre bultos (B02-B03). No se admiten otros caracteres.', 'PALLET_INVALIDO')
     if cantidad > 0 and reglas['posicionRequerida'] and not normalizar_pallet(p.get('posicionReal')):
         raise ErrorApp('Este cliente requiere la posición real.', 'POSICION_REQUERIDA')
 
@@ -654,6 +657,8 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, 
         r.estado = "EN_VALIDACION"
 
     calidad.actualizar(db, s)
+    from app.services.operacion import actualizar_fotos_conteo
+    actualizar_fotos_conteo(db,s,fotos)
     db.commit() if confirmar else db.flush()
     return {
         "duplicado": False, "eventoId": idem, "sku": sku,

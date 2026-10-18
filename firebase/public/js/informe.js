@@ -10,12 +10,12 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261017-37';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261017-37';
-import { db } from './auth.js?v=20261017-37';
-import * as local from './local.js?v=20261017-37';
-import {eventosActivos} from './conteo.js?v=20261017-37';
-import { aNumero, decodificarPallets } from './datos.js?v=20261017-37';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261017-39';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261017-39';
+import { db } from './auth.js?v=20261017-39';
+import * as local from './local.js?v=20261017-39';
+import {eventosActivos} from './conteo.js?v=20261017-39';
+import { aNumero, decodificarPallets, columnasSegurasInforme, destinosInforme, prefijoInforme } from './datos.js?v=20261017-39';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -284,15 +284,16 @@ export function soloPallets(mapa) {
  * otro formato obliga a rehacer el archivo a mano antes de subirlo.
  */
 function hojaOriginal(filas, formato, ampliado=false) {
+  formato={...formato,columnas:columnasSegurasInforme(formato,formato.columnas),prefijo:prefijoInforme(formato)};
   if(ampliado){formato={...formato,encabezados:[...(formato.encabezados||[])],columnas:{...formato.columnas}};
-    for(const [rol,titulo] of Object.entries({fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot'}))if(formato.columnas[rol]===undefined){formato.columnas[rol]=formato.encabezados.length;formato.encabezados.push(titulo);}}
+    for(const [rol,titulo] of Object.entries({fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot'}))if(formato.columnas[rol]===undefined){const existente=destinosInforme(formato,rol)[0];if(existente!==undefined)formato.columnas[rol]=existente;else{formato.columnas[rol]=formato.encabezados.length;formato.encabezados.push(titulo);}}}
   const enc = (formato?.encabezados || []).slice();
   const col = formato?.columnas || {};
   const ancho = enc.length;
   const salida=new Set(['marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot']);
   for(const [rol,i] of Object.entries(col))if(salida.has(rol)&&(!Number.isInteger(i)||i<0||i>=ancho))throw Error('La columna de '+rol+' no existe en este packing list. Revisa Columnas del informe.');
 
-  const prefijo=(formato?.prefijo||[]).map(f=>f.celdas||f);
+  const prefijo=prefijoInforme(formato).map(f=>f.celdas||f);
   const matriz = [...prefijo,enc];
   for (const l of filas) {
     const fila = (l.cruda || []).slice(0, ancho);
@@ -309,7 +310,7 @@ function hojaOriginal(filas, formato, ampliado=false) {
     poner('observacion', l.observacion || '');
     for(const rol of ['marca','cliente','posicion','codigoBarra','cantidadIncidencia','incidencia','evidencia']){
       const valor=rol==='posicion'?l.posicionReal:l[rol];
-      if(valor!==undefined&&valor!==null&&valor!=='')poner(rol,valor);
+      if(valor!==undefined&&valor!==null&&valor!==''&&(!['marca','cliente'].includes(rol)||!fila[col[rol]]))poner(rol,valor);
     }
 
     matriz.push(fila);
@@ -525,7 +526,7 @@ export function previsualizarLista(lista,columnas,{ampliado=false,offset=0,limit
     for(const [rol,i] of Object.entries(formato.columnas||{}))if(['sku','descripcion','cantidad'].includes(rol))f.cruda[i]=f[rol];
     filas=[f];
   }
-  const hoja=hojaOriginal(filas,formato,ampliado),filaCabecera=(formato.prefijo||[]).length;
+  const hoja=hojaOriginal(filas,formato,ampliado),filaCabecera=prefijoInforme(formato).length;
   const ancho=XLSX.utils.decode_range(hoja['!ref']).e.c+1;
   const celda=(r,c)=>hoja[XLSX.utils.encode_cell({r,c})]||{};
   return {ejemplo,total:filas.length,encabezados:Array.from({length:ancho},(_,c)=>String(celda(filaCabecera,c).v??'')),
@@ -593,9 +594,9 @@ export function completarIncidencias(filas,eventos,meta={}){
  }
  return filas.map(l=>{let disponible=Number(l.fisica)||0,pnc=0,novedad=0;const tipos=[];
   for(const origen of [l.origen||'PRINCIPAL','']){const gs=grupos.get(JSON.stringify([l.sku,origen]))||[];
-   for(const f of gs){const n=Math.min(disponible,f.cantidad);if(n<=0)continue;f.cantidad-=n;disponible-=n;novedad+=n;if(f.pnc)pnc+=n;tipos.push((f.nombre||f.tipo)+' ('+n+')');}
+   for(const f of gs){const n=Math.min(disponible,f.cantidad);if(n<=0)continue;f.cantidad-=n;disponible-=n;novedad+=n;if(f.pnc)pnc+=n;if(!tipos.includes(f.nombre||f.tipo))tipos.push(f.nombre||f.tipo);}
   }
-  if(l.diferencia)tipos.push((l.diferencia<0?'FALTANTE':'SOBRANTE')+' ('+Math.abs(l.diferencia)+')');
+  if(l.diferencia)tipos.push(l.diferencia<0?'FALTANTE':'SOBRANTE');
   const sinDesglose=l.calidadPorRevisar&&pnc===0;if(sinDesglose)tipos.push('PNC · cantidad por revisar');
   return {...l,pnc:pnc?'PNC ('+pnc+')':sinDesglose?'PNC · cantidad por revisar':'',cantidadPnc:sinDesglose?null:pnc,cantidadConforme:sinDesglose?null:Number(l.fisica)-pnc,
    cantidadIncidencia:sinDesglose?null:novedad||Math.abs(l.diferencia||0),incidencia:tipos.join(' / ')||'OK',

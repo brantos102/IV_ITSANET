@@ -24,7 +24,7 @@ await test('normalizarCodigo quita guiones, puntos y espacios invisibles', () =>
 
 await test('normalizarPallet conserva el punto del subpallet', () => {
   eq(datos.normalizarPallet(' b04 . 1 '), 'B04.1');
-  eq(datos.normalizarPallet('a-1'), 'A1');
+  eq(datos.normalizarPallet('a-1'), 'A-1');
 });
 
 // El guion separa nave, calle, columna y nivel: borrarlo convertía A-01-03-2 en
@@ -37,8 +37,8 @@ await test('claveMapa conserva el nombre de la lista y protege el punto', () => 
   eq(datos.claveMapa('v1.2'), 'V1~2', 'el punto sí, que Firestore lo usa de ruta');
   eq(datos.palletDesdeClave(datos.claveMapa('v1.2')), 'V1.2');
   eq(datos.claveMapa(''), '');
-  // Y sigue siendo distinto del de pallets, que sí borra los guiones.
-  eq(datos.clavePallet('PL-A'), 'PLA');
+  // Las claves de pallet conservan los guiones entre bultos.
+  eq(datos.clavePallet('PL-A'), 'PL-A');
 });
 
 await test('normalizarPosicion conserva los guiones de la ubicación', () => {
@@ -48,7 +48,7 @@ await test('normalizarPosicion conserva los guiones de la ubicación', () => {
   eq(datos.normalizarPosicion(''), '');
   eq(datos.normalizarPosicion(null), '');
   // Y sigue siendo distinto de lo que hace el normalizador de pallets.
-  eq(datos.normalizarPallet('a-01-03-2'), 'A01032');
+  eq(datos.normalizarPallet('a-01-03-2'), 'A-01-03-2');
 });
 
 await test('palletValido rechaza lo que rompería el informe', () => {

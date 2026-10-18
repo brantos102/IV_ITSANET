@@ -250,7 +250,7 @@ def test_el_pallet_vacio_desaparece_del_mapa_al_anular(db, rec):
     ev = contar(db, rec, "SKU001", 10, pallet="A1-B04-C1.3", id="e1")["eventoId"]
     s = m.leer_coleccion(db, rec, "skus")
     pallets = next(x for x in s if x["sku"] == "SKU001")["pallets"]
-    assert pallets == {"A1B04C1~3": 10}, "el punto del subpallet se protege, no se borra"
+    assert pallets == {"A1-B04-C1~3": 10}, "el punto del subpallet se protege, no se borra"
 
     m.anular_conteo(db, rec, "sup", ev, "motivo")
     pallets = next(x for x in m.leer_coleccion(db, rec, "skus")
@@ -429,7 +429,7 @@ def test_normalizar_codigo(entrada, salida):
 
 @pytest.mark.parametrize("entrada,salida", [
     (" b04 . 1 ", "B04.1"),
-    ("a-1", "A1"),
+    ("a-1", "A-1"),
 ])
 def test_normalizar_pallet_conserva_el_punto_del_subpallet(entrada, salida):
     assert m.normalizar_pallet(entrada) == salida
@@ -439,4 +439,4 @@ def test_la_clave_de_una_lista_conserva_su_guion(db):
     """«PL-A» como «PLA» hacía que lo imputado a una lista no se encontrara."""
     assert m.clave_mapa("PL-A") == "PL-A"
     assert m.clave_mapa("v1.2") == "V1~2", "el punto no, que en un mapa es una ruta"
-    assert m.clave_pallet("A1-B04-C1.3") == "A1B04C1~3"
+    assert m.clave_pallet("A1-B04-C1.3") == "A1-B04-C1~3"

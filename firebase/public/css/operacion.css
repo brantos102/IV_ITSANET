@@ -20,3 +20,16 @@ body.ficha-activa::before{content:'';position:fixed;inset:0;background:#15274390
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 @media(max-width:600px){.operacion-movil input,.operacion-movil select,.operacion-movil textarea{font-size:16px}.operacion-movil button{min-height:44px}#detallesConteo>.mini{text-transform:none;letter-spacing:0;display:block;padding:8px 0;font-size:12px}#ficha .kpi .e{font-size:9px}.etiqueta-fila{min-height:40px}}
+
+/* Agrupar acciones secundarias sin ocultar el filtro ni el cierre. */
+.acciones-recepcion{margin-bottom:14px;align-items:flex-start;gap:8px}
+.menu-recepcion{position:relative;margin:0;flex:0 0 auto}
+.menu-recepcion>summary{list-style:none;cursor:pointer;padding:12px 16px;border:1px solid var(--borde,#dbe3ee);border-radius:12px;background:var(--input,#f3f6f9);font-weight:650;white-space:nowrap}
+.menu-recepcion>summary::after{content:' ▾';font-size:.8em}
+.menu-recepcion[open]>summary::after{content:' ▴'}
+.menu-recepcion-opciones{display:grid;gap:8px;position:absolute;z-index:30;min-width:215px;right:0;padding:10px;background:var(--panel,#fff);border:1px solid var(--borde,#dbe3ee);border-radius:12px;box-shadow:0 8px 24px #142b4930}
+.menu-recepcion-opciones button{text-align:left;width:100%}
+.acciones-sku{gap:6px;margin-top:6px;flex-wrap:nowrap}
+@media(max-width:600px){.acciones-recepcion .menu-recepcion-opciones{left:0;right:auto}.acciones-sku .menu-recepcion-opciones{right:0;left:auto}.menu-recepcion>summary{padding:11px 12px}}
+
+.acciones-sku .menu-recepcion-opciones{position:static;min-width:170px}

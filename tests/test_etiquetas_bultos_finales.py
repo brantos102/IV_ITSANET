@@ -32,9 +32,10 @@ def test_una_etiqueta_por_bulto_y_reintento_no_duplica(cliente,db,formato,ll):
     ruta=crear(cliente)
     cuerpo=solicitud(cliente,ruta,formato=formato)
     r=cliente.post(ruta,json=cuerpo);assert r.status_code==201,r.text
-    lote=r.json();assert [e['rotulo'] for e in lote['etiquetas']]==['P-001','P-002','P-003']
+    lote=r.json();assert [e['rotulo'] for e in lote['etiquetas']]==['P01','P02','P03']
     assert [e['numero'] for e in lote['etiquetas']]==[1,2,3]
-    assert len({e['serie'] for e in lote['etiquetas']})==3
+    assert [e['serie'] for e in lote['etiquetas']]==['P01','P02','P03']
+    assert all('^FD'+e['rotulo']+'^FS' in lote['zpl'] for e in lote['etiquetas'])
     assert all(e['total']==3 for e in lote['etiquetas'])
     assert lote['zpl'].count('^XA')==lote['zpl'].count('^PQ1')==3
     assert lote['zpl'].count(f'^LL{ll}')==3 and '^PQ3' not in lote['zpl']

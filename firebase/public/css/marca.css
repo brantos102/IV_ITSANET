@@ -43,3 +43,11 @@
 .fotos-bulto{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.fotos-bulto img{display:block;width:100%;height:90px;object-fit:cover;border-radius:8px}
 .ingreso-guiado[data-ocupado] [data-cuerpo] button{opacity:.65;pointer-events:none}
 @media(max-width:520px){.ingreso-guiado input,.ingreso-guiado select,#modal input,#modal textarea{font-size:16px}}
+
+.modal-operativa{width:min(1100px,96vw);max-height:92dvh;overflow:auto;border:1px solid var(--border);border-radius:20px;padding:22px;background:var(--surface);color:var(--primary)}
+.modal-operativa::backdrop{background:#15274390;backdrop-filter:blur(3px)}
+.modal-operativa h3{margin-top:6px}.modal-operativa [data-tabla]{border:1px solid var(--border);border-radius:12px;margin-block:12px}
+.modal-operativa .acciones{flex-wrap:wrap;gap:8px}.acciones-recepcion-lista{margin:8px 0;min-width:150px}.acciones-recepcion-lista summary{cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:10px}.acciones-recepcion-lista[open]{display:grid;gap:6px}
+.galeria-imagenes article{border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--surface);overflow-wrap:anywhere}
+.galeria-imagenes article .b-sec{display:inline-block;margin:4px 4px 4px 0}.vista-etiquetas svg{max-width:100%}
+[aria-invalid=true]{outline:2px solid var(--danger);outline-offset:2px}

@@ -8,7 +8,7 @@ import re
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import or_, select, update
+from sqlalchemy import or_, select, update, func
 
 from app.db import SessionLocal
 from app.models import AppArchivo, AppCopiaDrive, AppEvidencia, AppUnidadLogistica, utcnow
@@ -22,7 +22,7 @@ def carpeta_sku(j,e):
     if not j or j.estado!='COPIADA' or not e.sku:return None
     vinculo=j.datos.get('vinculosDrive',{}).get(e.categoria+'|'+e.sku,{})
     if vinculo.get('carpetaSkuUrl'):return vinculo['carpetaSkuUrl']
-    if j.datos.get('sku')==e.sku and (j.datos.get('ruta') or [None])[0]==e.categoria:
+    if j.datos.get('sku')==e.sku and (j.datos.get('categoria') or (j.datos.get('ruta') or [None])[0])==e.categoria:
         return j.datos.get('carpetaSkuUrl')
     return None
 
@@ -103,6 +103,7 @@ def reintentar_pendientes(db, codigo, usuario):
             if nueva['ruta'] != j.datos.get('ruta') or nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
                 j.datos = {**nueva, 'accion': 'ubicar'}
                 j.usuario, j.estado = nueva['usuario'], 'PENDIENTE'
+        if j.estado=='REVISION':j.estado='PENDIENTE'
         if j.estado == 'PENDIENTE':
             j.proximo_en = ahora
             cantidad += 1
@@ -115,9 +116,11 @@ def reintentar_pendientes(db, codigo, usuario):
 def verificar_puente(db, clave, datos):
     from app.services.integraciones import google
     g = google(db, datos['usuario'])
-    k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(), datos['usuario'], datos.get('carpetaRaiz'))
+    k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(), datos['usuario'], datos.get('carpetaRaiz'),bool(datos.get('rutaSku')))
     if _verificados.get(k, 0) > time.monotonic(): return
     r = entregas.llamar('estado', clave, {'usuario': datos['usuario'], 'carpetaRaiz': datos.get('carpetaRaiz', '')})
+    if datos.get('rutaSku') and 'fotosSkuSimples' not in r.get('capacidades',[]):
+        raise RuntimeError('Actualiza Servidor.gs y publica una Nueva versión del mismo /exec para fotos por SKU con nombres simples. Se conservan las imágenes locales.')
     if r.get('versionPuente', 0) < 2:
         raise RuntimeError('Actualiza Servidor.gs y publica su versión con rutas de evidencias')
     if str(r.get('remitente') or '').lower() != datos['usuario'].lower():
@@ -128,6 +131,22 @@ def verificar_puente(db, clave, datos):
     _verificados[k] = time.monotonic() + 300
 
 
+def ruta_evidencia(e):
+    if e and e.sku:
+        return ([e.categoria] if e.categoria in ('PNC','SOBRANTE','FALTANTE') else [])+[e.sku]
+    return [e.categoria if e else 'GENERAL']+([e.tipo] if e else [])
+
+
+def nombre_evidencia(db,archivo,e):
+    if not e or not e.sku:return archivo.nombre
+    ids=[f[0] for f in db.execute(select(AppArchivo.id,func.min(AppEvidencia.creado_en)).join(AppEvidencia,
+        AppEvidencia.archivo_id==AppArchivo.id).where(AppEvidencia.recepcion==archivo.recepcion,
+        AppEvidencia.sku==e.sku)
+        .group_by(AppArchivo.id).order_by(func.min(AppEvidencia.creado_en),AppArchivo.id))]
+    extension='.png' if archivo.mime=='image/png' else '.webp' if archivo.mime=='image/webp' else '.jpg'
+    return f'{e.sku}_{ids.index(archivo.id)+1:03d}'+extension
+
+
 def descripcion(db, archivo, evidencia=None):
     es = list(db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id == archivo.id,
         AppEvidencia.eliminado_en.is_(None)).order_by(AppEvidencia.creado_en, AppEvidencia.id)))
@@ -136,22 +155,21 @@ def descripcion(db, archivo, evidencia=None):
     d['usuario'] = d.pop('supervisor')
     from app.services.remitentes import responsable
     d['usuario'] = responsable(db, archivo.recepcion, d['usuario']) or d['usuario']
-    d['ruta'] = [e.categoria if e else 'GENERAL']
-    if e and e.sku: d['ruta'].append(e.sku)
+    anterior=db.get(AppCopiaDrive,archivo.id)
+    if anterior and anterior.datos.get('usuarioDriveFijado'):
+        d['usuarioDriveFijado']=anterior.datos['usuarioDriveFijado'];d['usuario']=d['usuarioDriveFijado']
+    d['ruta'] = ruta_evidencia(e)
     d['sku'] = e.sku if e else ''
+    d['categoria'] = e.categoria if e else 'GENERAL'
+    d['rutaSku'] = ruta_evidencia(e) if e and e.sku else []
     d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo):
-        {'categoria':v.categoria,'sku':v.sku or '', 'ruta':[v.categoria]+([v.sku] if v.sku else [])+[v.tipo]}
+        {'categoria':v.categoria,'sku':v.sku or '', 'ruta':ruta_evidencia(v),
+         'rutaSku':ruta_evidencia(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
         for v in es}.values())
-    if e: d['ruta'].append(e.tipo)
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
         recepcion=archivo.recepcion, evidencia=e.id if e else None)
-    if e and e.sku:
-        ids = [f[0] for f in db.execute(select(AppArchivo.id,AppArchivo.creado_en).join(AppEvidencia,
-            AppEvidencia.archivo_id == AppArchivo.id).where(AppEvidencia.recepcion == archivo.recepcion,
-            AppEvidencia.sku == e.sku, AppEvidencia.categoria == e.categoria)
-            .order_by(AppArchivo.creado_en, AppArchivo.id).distinct())]
-        extension = '.png' if archivo.mime == 'image/png' else '.webp' if archivo.mime == 'image/webp' else '.jpg'
-        d['nombre'] = f'{e.sku}_{ids.index(archivo.id)+1:04d}' + extension
+    d['nombre']=nombre_evidencia(db,archivo,e)
+    d['tipoEvidencia']=e.tipo if e else ''
     return d
 
 
@@ -225,7 +243,7 @@ def procesar_uno():
             db.rollback()
             j = db.get(AppCopiaDrive, aid)
             if not j: return True
-            j.estado = 'PENDIENTE'
+            j.estado = 'REVISION' if entregas.conexion_rechazada(str(exc)) else 'PENDIENTE'
             j.error = str(exc)[:160] if type(exc) is RuntimeError else 'Copia pendiente; se reintentará sin perder la foto'
             j.proximo_en = utcnow() + timedelta(seconds=min(1800, 15 * 2 ** min(j.intentos, 7)))
             db.commit()
@@ -271,9 +289,34 @@ def manifiesto(db, codigo):
     salida = []
     for grupo in grupos.values():
         for i, (a, d) in enumerate(grupo, 1):
-            sku = d['ruta'][-2] if len(d['ruta']) > 1 else 'RECEPCION'
-            # No usar '/' en el nombre: la galería muestra i/total, el archivo usa _de_.
-            nombre = f'{sku}_{i:02d}_de_{len(grupo):02d}' + ('.png' if a.mime == 'image/png' else '.webp' if a.mime == 'image/webp' else '.jpg')
+            nombre = d['nombre'] if d.get('sku') else f'RECEPCION_{i:03d}' + ('.png' if a.mime == 'image/png' else '.webp' if a.mime == 'image/webp' else '.jpg')
             salida.append({**d, 'archivoId': a.id, 'fileId': a.drive_id,
                 'nombreFinal': nombre, 'indice': i, 'total': len(grupo)})
     return salida
+
+
+def reintentar_desde_cuenta(db,codigo,usuario):
+    """Recuperación explícita con la cuenta propia, sin tocar conexiones base."""
+    from app.services.integraciones import google
+    correo=str(usuario or '').lower()
+    destino=operacion.destino_drive(db,codigo)
+    conexion=google(db,correo)
+    db.rollback()
+    try:
+        estado=entregas.llamar_conexion('estado',uuid4().hex,{'usuario':correo,'carpetaRaiz':destino['carpetaRaiz']},conexion)
+        if str(estado.get('remitente') or '').lower()!=correo or 'fotosSkuSimples' not in estado.get('capacidades',[]):raise RuntimeError('Google no confirmó tu cuenta y el puente actualizado para fotos por SKU.')
+        if destino['carpetaRaiz'] and estado.get('carpetaId')!=destino['carpetaRaiz']:raise RuntimeError('Tu cuenta Google no confirmó la carpeta matriz de esta recepción.')
+    except RuntimeError as exc:raise HTTPException(502,str(exc)+' Las fotos siguen guardadas; no se envió correo.') from None
+    db.rollback();m.obtener(db,codigo,bloquear=True)
+    if google(db,correo)!=conexion:raise HTTPException(409,'La conexión cambió durante la verificación. Actualiza antes de reintentar.')
+    n=0
+    for j in db.scalars(select(AppCopiaDrive).where(AppCopiaDrive.recepcion==codigo,AppCopiaDrive.estado.in_(['PENDIENTE','REVISION'])).with_for_update()):
+        if j.datos.get('accion')=='papelera':continue
+        j.usuario=correo;j.datos={**j.datos,'usuario':correo,'usuarioDriveFijado':correo};j.estado='PENDIENTE';j.error=None;j.proximo_en=utcnow();n+=1
+    from app.models import AppEntrega
+    for e in db.scalars(select(AppEntrega).where(AppEntrega.recepcion==codigo,AppEntrega.estado.in_(['PENDIENTE','REVISION'])).with_for_update()):
+        if e.estado=='REVISION' and e.datos.get('revisionMotivo') not in ('CONEXION_RECHAZADA','ENTREGAS_MULTIPLES','FOTOS_RECUPERADAS'):continue
+        e.estado='REVISION';e.datos={**e.datos,'revisionMotivo':'FOTOS_RECUPERADAS','confirmarConCuenta':correo}
+        e.error='Fotos en recuperación. Al confirmarse en Drive, el supervisor debe revisar y confirmar el envío desde su correo.'
+    operacion.auditoria(db,codigo,usuario,'FOTOS_RECUPERADAS_CUENTA_PROPIA',{'programadas':n,'remitente':correo})
+    db.commit();return {'programadas':n,'mensaje':f'{n} foto(s) programadas desde tu conexión verificada. Espera su confirmación en Drive antes de enviar los documentos.'}

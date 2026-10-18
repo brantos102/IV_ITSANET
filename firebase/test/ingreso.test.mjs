@@ -44,4 +44,8 @@ await test('etiqueta interna no mezcla fotos de bultos ni reemplaza la etiqueta 
   let fallo=false;try{interpretarEtiquetaDeBulto('LB'+'b'.repeat(32),id);}catch(e){fallo=e.message.includes('otro bulto');}ok(fallo);
   eq(interpretarEtiquetaDeBulto('MADRE-123',id).codigo,'MADRE-123');
 });
+await test('B02 conserva el bulto correcto y rechaza una etiqueta de otro bulto',()=>{
+ const id='a'.repeat(32);eq(interpretarEtiquetaDeBulto(']C1B02',id,'B02',['B01','B02']),{interna:true,pallet:'B02'});
+ let fallo=false;try{interpretarEtiquetaDeBulto('B01',id,'B02',['B01','B02']);}catch(e){fallo=e.message.includes('otro bulto');}ok(fallo);
+});
 resumen();

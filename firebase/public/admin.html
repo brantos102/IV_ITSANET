@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261017-37"></script>
+<script src="./js/arranque.js?v=20261017-39"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261017-37" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261017-39" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261017-37">
+<link rel="stylesheet" href="./css/marca.css?v=20261017-39">
 </head>
 <body>
 <div class="envoltorio">
@@ -322,21 +322,21 @@
 </div>
 
 <script type="module">
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261017-37';
-import { mostrarAviso } from './js/notificaciones.js?v=20261017-37';
-import { configurarPoliticas } from './js/admin-politicas.js?v=20261017-37';
-import { pintarEntregas } from './js/admin-entregas.js?v=20261017-37';
-import { configurarOperacion } from './js/admin-operacion.js?v=20261017-37';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261017-37';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261017-37';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261017-37';
-import { confirmar, pedirDatos } from './js/modal.js?v=20261017-37';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261017-39';
+import { mostrarAviso } from './js/notificaciones.js?v=20261017-39';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261017-39';
+import { pintarEntregas } from './js/admin-entregas.js?v=20261017-39';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261017-39';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261017-39';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261017-39';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261017-39';
+import { confirmar, pedirDatos } from './js/modal.js?v=20261017-39';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261017-37';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261017-37';
+} from './js/csv.js?v=20261017-39';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261017-39';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261017-37';
+  from './vendor/firebase-sdk.js?v=20261017-39';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];

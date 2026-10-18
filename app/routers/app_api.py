@@ -16,7 +16,7 @@ al prototipo y a sus KPIs.
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -60,7 +60,7 @@ def listar_entregas(db: Session = Depends(get_db), op: Operador = Depends(requie
     filas=[];fotos={}
     for e in entregas.recientes(db):
         f=entregas.documento(e,tecnico=op.rol==Rol.ADMIN)
-        if verificada and f['remitente'].lower()==email and f['conexionRechazada'] and e.estado in ('PENDIENTE','REVISION'):
+        if verificada and (f['remitente'].lower()==email and f['conexionRechazada'] or f.get('confirmarConCuenta')==email) and e.estado in ('PENDIENTE','REVISION'):
             if e.recepcion not in fotos:fotos[e.recepcion]=resumen_fotos(db,e.recepcion)['pendientes']
             f['confirmacionDisponible']=verificada if not fotos[e.recepcion] and verificada>str(e.datos.get('conexionFallidaEn') or '') else ''
         filas.append(f)
@@ -179,7 +179,7 @@ def solicitar_envio(ident: str, datos: dict = Body(...), db: Session = Depends(g
 
 @router.post('/entregas/{ident}/cancelar')
 def cancelar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db),
-                     op: Operador = Depends(admin)):
+                     op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
     e = db.get(AppEntrega, ident)
     if not e: raise HTTPException(404, 'Entrega no encontrada')
     m.obtener(db, e.recepcion, bloquear=True)
@@ -344,7 +344,7 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
             AppCopiaDrive.archivo_id.in_([a.id for a in filas])))}
         for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_([a.id for a in filas]),
                 AppEvidencia.eliminado_en.is_(None))):
-            metadatos.setdefault(e.archivo_id, []).append({'sku': e.sku, 'categoria': e.categoria,
+            metadatos.setdefault(e.archivo_id, []).append({'id':e.id,'protocolo':e.protocolo,'sku': e.sku, 'categoria': e.categoria,
                 'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen,
                 'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e) or ''})
     for a in filas:
@@ -362,7 +362,7 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
 
 
 @router.get('/archivos/{archivo_id}')
-def archivo_local(archivo_id: str, db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+def archivo_local(archivo_id: str, miniatura: bool = False, db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     a = db.get(AppArchivo, archivo_id)
     if a is None:
@@ -374,6 +374,10 @@ def archivo_local(archivo_id: str, db: Session = Depends(get_db), op: Operador =
     if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
         raise HTTPException(410, 'Evidencia retirada por supervisión; se conserva su trazabilidad')
     if not archivos.ruta(a).is_file():
+        if a.drive_id and a.tipo=='foto' and miniatura:
+            bruto=archivos.miniatura_drive(db,a)
+            mime='image/png' if bruto.startswith(b'\x89PNG') else 'image/webp' if bruto.startswith(b'RIFF') else 'image/jpeg'
+            return Response(bruto,media_type=mime,headers={'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'})
         if a.drive_id:
             return RedirectResponse(f'https://drive.google.com/uc?export=view&id={a.drive_id}', headers={'Cache-Control': 'private, no-store'})
         raise HTTPException(404, 'Archivo no encontrado')
@@ -625,12 +629,20 @@ def catalogo(codigo: str, cliente: str | None = None, db: Session = Depends(get_
     """Lo que la pantalla necesita saber de un código escaneado."""
     r = depot_svc.resolver_codigo(db, codigo, usar_api=False)
     from app.services.catalogo_programado import posiciones_de
+    from app.services.codigos import buscar
+    producto=buscar(db,r.sku)
+    propietarios={producto.cliente} if producto else set()
+    from app.models import AppStockDepot
+    propietarios.update(db.scalars(select(AppStockDepot.cliente).where(AppStockDepot.sku==r.sku)))
     return {
         "sku": r.sku, "existe": r.existe, "descripcion": r.descripcion,
         "ean": r.ean, "unidad": r.unidad, "inactivo": r.inactivo,
         "fuente": r.fuente, "degradado": r.degradado,
         "candidatos": r.candidatos, "mensaje": r.mensaje, "accion": r.accion,
         **posiciones_de(db, r.sku, cliente),
+        'cliente':producto.cliente if producto else '', 'clientesCatalogo':sorted(propietarios),
+        'otroCliente':bool(cliente and propietarios and cliente.upper() not in {str(c).upper() for c in propietarios}),
+        'existeDepot':bool(producto and producto.existe_depot),
     }
 
 

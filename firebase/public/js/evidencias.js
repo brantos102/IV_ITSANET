@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261017-37';
-import {comprimir} from './imagen.js?v=20261017-37';
-import {confirmar} from './modal.js?v=20261017-37';
+import {pedir} from './local.js?v=20261017-39';
+import {comprimir} from './imagen.js?v=20261017-39';
+import {confirmar,pedirDatos} from './modal.js?v=20261017-39';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -37,6 +37,12 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   const final=tipo==='ESTADO_FINAL';
   if(sku&&categoria==='GENERAL')categoria='VALIDACION';
   if(final){sku='';categoria='RECEPCION';}
+  let producto=null;
+  if(sku){producto=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/estado-sku/${encodeURIComponent(sku)}`);
+    if(!producto)throw Error('No se encontró este SKU en la recepción. Actualiza antes de cargar sus fotos.');
+    categoria=producto.tienePnc?'PNC':producto.estado==='SOBRANTE'||producto.enPackingList===false?'SOBRANTE':['FALTANTE','NO_ENCONTRADO'].includes(producto.estado)?'FALTANTE':'VALIDACION';
+    tipo=categoria==='VALIDACION'?'ADICIONAL':'ITEM_NOVEDAD';
+  }
   const d=document.createElement('dialog');d.className='dialogo-operativo';
   d.innerHTML=`<div class="acciones"><h2 style="flex:1">${final?'Estado final de la mercadería':sku ? 'Evidencias · '+esc(sku) : 'Evidencias de recepción'}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
     <label class="campo"><span>Foto de</span><select data-tipo>${Object.entries(TIPOS_EVIDENCIA).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
@@ -47,16 +53,28 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Cámara del equipo</button><a class="b-sec" data-camara-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
     <input data-captura type="file" accept="image/*" capture="environment" hidden><input data-archivos type="file" accept="image/*" multiple hidden>
     <div data-seleccion></div><p data-estado role="status"></p>
-    <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-actualizar>Actualizar fotos y Drive</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar fotos pendientes</button></div>
-    <div data-carpetas></div><div class="rejilla"><label class="campo"><span>Filtrar fotografías por clasificación</span><select data-filtro-categoria><option value="">Todas</option>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label><label class="campo"><span>SKU de las fotografías</span><input data-filtro-sku value="${esc(sku)}" placeholder="Todos los códigos"></label><button data-filtrar class="b-sec">Aplicar filtro</button></div><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
+    <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-actualizar>↻ Actualizar</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar pendientes</button></div>
+    <div data-carpetas></div><div class="rejilla"><label class="campo"><span>Filtrar fotografías por clasificación</span><select data-filtro-categoria><option value="">Todas</option>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label><label class="campo"><span>SKU de las fotografías</span><input data-filtro-sku value="${esc(sku)}" placeholder="Todos los códigos"></label><button data-filtrar class="b-sec">Aplicar filtro</button></div><p data-resumen-galeria class="mini" role="status"></p><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
   document.body.append(d); d.showModal();
   const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false;
   const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
   $('[data-camara]').hidden=esWindows;$('[data-camara-windows]').hidden=!esWindows;
   $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
-  if(supervisor){const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='Excel de trazabilidad';d.querySelector('.acciones').append(a);}
+  if(supervisor){const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='▦';a.title='Descargar Excel de trazabilidad de fotos: SKU, tipo, autor y carpeta Drive';a.setAttribute('aria-label',a.title);a.style.cssText='flex:0 0 42px;min-width:42px;width:42px;display:grid;place-items:center';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
   $('[data-tipo]').value=tipo || (sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO');
+  if(sku){
+    $('[data-tipo]').closest('label').hidden=true;$('[data-categoria]').closest('details').hidden=true;
+    const destino=document.createElement('p');destino.className='mini';destino.textContent=`${producto.descripcion||''} · Fotos en ${categoria==='VALIDACION'?sku:categoria+'/'+sku}. La clasificación se toma del estado actual del SKU.`;
+    d.querySelector('h2').parentElement.after(destino);$('[data-recomendacion]').hidden=true;
+    $('[data-protocolo]').value='GENERAL';
+  }
+  if(sku||final){
+    const filtros=$('[data-filtro-sku]').closest('.rejilla'),detalles=document.createElement('details');
+    detalles.innerHTML='<summary>Filtrar fotos</summary>';filtros.before(detalles);detalles.append(filtros);
+    $('[data-filtro-sku]').closest('label').hidden=true;
+  }
+  $('[data-subir]').disabled=true;
   if(rec.estado==='CERRADA'&&!final){for(const selector of ['[data-camara]','[data-camara-windows]','[data-galeria]','[data-subir]'])$(selector).hidden=true;$('[data-tipo]').disabled=true;}
   if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;$('[data-estado]').textContent=rec.estado==='CERRADA'?'Evidencia posterior al cierre: conserva autor y fecha; los informes emitidos permanecen iguales.':'Fotografía cómo queda la mercadería al terminar. Las imágenes se vinculan a esta recepción.';}
   // Recibir sin fotos no impide adjuntar posteriormente evidencia de una novedad.
@@ -69,7 +87,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   for(const selector of ['[data-protocolo]','[data-categoria]','[data-tipo]','[data-unidad]','[data-origen]']) {
     $(selector).addEventListener('change',()=>{cache=new Map();});
   }
-  const pintar=()=>{$('[data-seleccion]').replaceChildren();elegidas.forEach((f,i)=>{
+  const pintar=()=>{$('[data-subir]').disabled=ocupado||!elegidas.length;$('[data-seleccion]').replaceChildren();elegidas.forEach((f,i)=>{
     const b=document.createElement('button');b.className='chip';b.textContent=`${i+1} · ${f.name} ✕`;b.disabled=ocupado;
     b.onclick=()=>{elegidas.splice(i,1);pintar();};$('[data-seleccion]').append(b);
   });};
@@ -88,13 +106,25 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       if(final && !(f.evidencias || []).some(e=>e.tipo==='ESTADO_FINAL'))continue;
       const card=document.createElement('article');
       const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
-      const img=document.createElement('img');img.src=f.url;img.loading='lazy';img.alt=f.nombre;a.append(img);card.append(a);
+      const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.loading='lazy';img.alt=f.nombre;a.append(img);card.append(a);
       const p=document.createElement('p');p.className='mini';p.textContent=`${offset+i+1}/${r.total} · ${f.nombre} · ${f.almacen}`;card.append(p);
       const tags=document.createElement('p');tags.className='mini';tags.textContent=(f.evidencias || []).map(e=>`${e.categoria}${e.sku?' · '+e.sku:''} · ${TIPOS_EVIDENCIA[e.tipo] || e.tipo}${e.origen ? ' · '+e.origen : ''}`).join(' / ');card.append(tags);
       const filtroSku=$('[data-filtro-sku]').value.trim().toUpperCase(),filtroCategoria=$('[data-filtro-categoria]').value,vistos=new Set();
       for(const e of f.evidencias||[]){if(!e.carpetaDrive || filtroSku&&e.sku!==filtroSku || filtroCategoria&&e.categoria!==filtroCategoria || vistos.has(e.carpetaDrive) || !/^https:\/\/drive\.google\.com\//.test(e.carpetaDrive))continue;
         vistos.add(e.carpetaDrive);const link=document.createElement('a');link.href=e.carpetaDrive;link.target='_blank';link.rel='noopener';link.textContent=`Carpeta ${e.sku} · ${e.categoria}`;link.className='b-sec';card.append(link);}
       img.onerror=()=>{img.hidden=true;a.textContent='Abrir imagen en Drive (requiere permiso de Google)';};
+      if(supervisor&&rec.estado!=='CERRADA'){
+        const editar=document.createElement('button');editar.className='b-sec';editar.textContent='Editar vínculo';editar.onclick=async()=>{
+          const es=f.evidencias||[];if(!es.length)return;
+          let e=es[0];if(es.length>1){const v=await pedirDatos({titulo:'Vínculo que deseas corregir',campos:[{clave:'id',etiqueta:'SKU / clasificación',tipo:'lista',valor:e.id,opciones:es.map(x=>({valor:x.id,titulo:(x.sku||'Recepción')+' · '+x.categoria+' · '+(x.origen||'Sin embarque')}))}]});if(!v)return;e=es.find(x=>x.id===v.id);}
+          const v=await pedirDatos({titulo:'Editar vínculo de la foto',texto:'Se conserva la misma imagen y la corrección queda auditada. La ubicación en Drive se actualiza en segundo plano.',campos:[
+            {clave:'sku',etiqueta:'SKU (vacío para foto de recepción)',valor:e.sku||''},
+            {clave:'categoria',etiqueta:'Clasificación',tipo:'lista',valor:e.categoria,opciones:['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>({valor:c,titulo:c}))},
+            {clave:'tipoEvidencia',etiqueta:'Tipo de foto',tipo:'lista',valor:e.tipo,opciones:Object.entries(TIPOS_EVIDENCIA).map(([valor,titulo])=>({valor,titulo}))},
+            {clave:'origen',etiqueta:'Embarque / packing list',tipo:'lista',valor:e.origen||'',opciones:[{valor:'',titulo:'Sin vínculo de embarque'},...(rec.origenes||[]).map(o=>({valor:o,titulo:o}))]}]});if(!v)return;
+          editar.disabled=true;try{const r=await operacion('/evidencias/'+f.id,{metodo:'PUT',cuerpo:{...v,evidenciaId:e.id,unidadId:e.unidadId||'',protocolo:e.protocolo||'GENERAL'}});$('[data-estado]').textContent=r.mensaje;await cargar();}catch(err){$('[data-estado]').textContent=err.message;}finally{editar.disabled=false;}
+        };card.append(editar);
+      }
       if(supervisor && rec.estado!=='CERRADA'){const b=document.createElement('button');b.className='b-peligro';b.textContent='Retirar evidencia';b.onclick=async()=>{
         if(!await confirmar({titulo:'¿Retirar esta evidencia?',texto:'Se retira la imagen de todos sus vínculos con ítems y bultos. Se conserva la auditoría. La copia de Drive pasa a la papelera cuando haya conexión.',aceptar:'Retirar'}))return;
         try{await operacion('/evidencias/'+f.id,{metodo:'DELETE'});await cargar();}catch(e){$('[data-estado]').textContent=e.message;}
@@ -102,6 +132,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       $('[data-imagenes]').append(card);
     }
     offset+=r.archivos.length;$('[data-mas]').hidden=offset>=r.total;
+    $('[data-resumen-galeria]').textContent=`${r.total} fotos ${final?'del estado final':sku?'de este SKU':'en esta selección'} · ${offset} mostradas`;
     await actualizarDrive();
     } finally {consultando=false;if(filtroPendiente&&d.open){filtroPendiente=false;await cargar();}}
   }
@@ -113,8 +144,8 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       const revision=JSON.stringify([estado.sincronizacion,estado.carpetas]);
       const cambio=revisionDrive && revisionDrive!==revision;revisionDrive=revision;
       const s=estado.sincronizacion;
-      if(s){$('[data-estado-drive]').textContent=`${s.guardadas} fotos guardadas · ${s.copiadas} confirmadas en Drive · ${s.pendientes} pendientes (${s.procesando} en proceso).`+
-        (s.requierenAyuda?' Si persiste, ADMIN debe verificar el puente y el acceso a la carpeta. Las fotos siguen guardadas.':'');
+      if(s){$('[data-estado-drive]').textContent=`Recepción completa: ${s.guardadas} fotos guardadas · ${s.copiadas} confirmadas en Drive · ${s.pendientes} pendientes (${s.procesando} en proceso).`+
+        (s.requierenAyuda?' Hay fotos que requieren revisión. El supervisor responsable debe verificar una vez su conexión en Mi cuenta y correo; después reintenta las fotos.':'');
         $('[data-reintentar]').hidden=!s.pendientes;}
       $('[data-carpetas]').replaceChildren();for(const url of estado.carpetas || []){
         if(!/^https:\/\/drive\.google\.com\//.test(url))continue;
@@ -131,14 +162,14 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     const controles=[...d.querySelectorAll('select,input,[data-camara],[data-galeria]')];
     controles.forEach(e=>e.disabled=true);
     try{
-      const urls=await cargarEvidencias(recepcion,elegidas,{sku,categoria:$('[data-categoria]').value,
+      const urls=await cargarEvidencias(recepcion,elegidas,{sku,desdeSku:!!sku,categoria:$('[data-categoria]').value,
         tipoEvidencia:$('[data-tipo]').value,protocolo:$('[data-protocolo]').value,
         unidadId:$('[data-unidad]').value,origen:$('[data-origen]').value},
         (n,t)=>{$('[data-estado]').textContent=`Guardando ${n} de ${t}…`;},cache);
       elegidas=[];cache=new Map();await cargar();
       $('[data-estado]').textContent=`${new Set(urls).size} imágenes únicas guardadas; copia a Drive en segundo plano.`;
     }catch(e){$('[data-estado]').textContent=e.message+' Puedes reintentar: las imágenes confirmadas no se repiten.';}
-    finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}$('[data-subir]').disabled=false;$('[data-cerrar]').disabled=false;}
+    finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}$('[data-subir]').disabled=!elegidas.length;$('[data-cerrar]').disabled=false;}
   };
   $('[data-filtrar]').onclick=()=>cargar().catch(e=>{$('[data-estado]').textContent=e.message;});
   $('[data-filtro-categoria]').onchange=()=>cargar().catch(e=>{$('[data-estado]').textContent=e.message;});

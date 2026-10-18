@@ -1,9 +1,9 @@
-import {pedir} from './local.js?v=20261017-37';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261017-37';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261017-37';
-import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261017-37';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261017-37';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261017-37';
+import {pedir} from './local.js?v=20261017-39';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261017-39';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261017-39';
+import {pedirDatos as pedirCampos,confirmar} from './modal.js?v=20261017-39';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261017-39';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261017-39';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -27,6 +27,14 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   async function guardarUnidad(cambios){
     ingreso=await operacion(ruta+'/unidades',{cuerpo:{id:u.id,tipo:u.tipo,version:u.version,...cambios}});
     u=ingreso.unidades.find(x=>x.id===u.id);versiones.set(u.id,u.version);return u;
+  }
+  let sugeridasEtiquetas=false;
+  async function sugerirEtiquetas(){
+    if(sugeridasEtiquetas||ingreso.unidades.some(u=>u.etiquetaEmitida))return;
+    sugeridasEtiquetas=true;
+    if(await confirmar({titulo:'¿Imprimir etiquetas de los bultos?',texto:'La recepción está guardada. Puedes imprimir los códigos A01, B02… antes de tomar las fotos.',aceptar:'Revisar etiquetas',cancelar:'Continuar sin imprimir'})){
+      const modal=await abrirEtiquetasBultos(codigo);await new Promise(resolve=>modal.addEventListener('close',resolve,{once:true}));await refrescar();
+    }
   }
   async function guardarInicio(){
     const marca=$('[data-marca]').value.trim(),protocolo=$('[data-protocolo]').value;
@@ -63,7 +71,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     $('[data-recargar]').onclick=seguro(async()=>{const marca=$('[data-marca]').value,protocolo=$('[data-protocolo]').value,anterior=ingreso;
       await refrescar();inicio();if(marca!==(anterior.marca || ''))$('[data-marca]').value=marca;if(protocolo!==anterior.protocolo)$('[data-protocolo]').value=protocolo;
       pintarProtocolo();estado('Ingreso actualizado. Revisa marca y protocolo antes de guardar.');});
-    $('[data-empezar]').onclick=seguro(async()=>{if($('[data-protocolo]').value==='SIN_FOTOS'){await continuarPacking();return;}await guardarInicio();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
+    $('[data-empezar]').onclick=seguro(async()=>{if($('[data-protocolo]').value==='SIN_FOTOS'){await continuarPacking();return;}await guardarInicio();await sugerirEtiquetas();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
     $('[data-total]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Total de bultos',campos:[{clave:'cantidad',etiqueta:'Bultos recibidos',tipo:'number',valor:recepcion.bultos || bs.length || 1,obligatorio:true}]});if(!v)return;
       ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Number(v.cantidad),cantidadAnterior:recepcion.bultos}});await refrescar();inicio();});
     $('[data-packing]').onclick=seguro(continuarPacking);
@@ -76,7 +84,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     try{
       const cerrar=await abrirCamara(video,raw=>{
         if(ocupado || conflicto || !leyendo || !d.open || sesion!==camaraSesion)return;
-        let interna=false;leyendo=false;seguro(async()=>{const etiqueta=interpretarEtiquetaDeBulto(raw,u.id);
+        let interna=false;leyendo=false;seguro(async()=>{const etiqueta=interpretarEtiquetaDeBulto(raw,u.id,u.rotulo,bultos().map(b=>b.rotulo).filter(Boolean));
           if(etiqueta.interna){interna=true;estado('Bulto identificado con su etiqueta interna. Puedes tomar las fotos.');return;}
           await guardarUnidad({...etiqueta,pallet:etiqueta.pallet || (u.codigo===etiqueta.codigo ? u.pallet : '')});
           pintarEtiqueta();estado('Etiqueta registrada. Puedes tomar las fotos.');
@@ -142,7 +150,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     $('[data-activar]').onclick=seguro(encender);
     $('[data-escanear]').onclick=seguro(async()=>{leyendo=true;estado('Enfoca el código de la etiqueta madre.');await encender();});
     $('[data-manual]').onclick=seguro(async()=>{leyendo=false;const v=await pedirCampos({titulo:'Etiqueta madre',campos:[{clave:'codigo',etiqueta:'Código madre',valor:u.codigo,obligatorio:true}]});
-      if(!v){leyendo=!u.codigo;return;}const e=interpretarEtiquetaDeBulto(v.codigo,u.id);if(e.interna){estado('Bulto identificado; se conserva su etiqueta madre.');return;}await guardarUnidad({...e,pallet:e.pallet || (u.codigo===e.codigo ? u.pallet : '')});pintarEtiqueta();});
+      if(!v){leyendo=!u.codigo;return;}const e=interpretarEtiquetaDeBulto(v.codigo,u.id,u.rotulo,bultos().map(b=>b.rotulo).filter(Boolean));if(e.interna){estado('Bulto identificado; se conserva su etiqueta madre.');return;}await guardarUnidad({...e,pallet:e.pallet || (u.codigo===e.codigo ? u.pallet : '')});pintarEtiqueta();});
     $('[data-tomar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de adjuntar fotos.');
       if(!camaraDisponible()){abrirNativa();return;}
       if(!cerrarCamara){await encender();return;}leyendo=false;pendientes.push(await fotografiarVideo($('[data-video]')));try{await subir();}finally{pintarCantidad();if(!u.codigo)leyendo=true;}});

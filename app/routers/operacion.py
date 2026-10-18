@@ -84,7 +84,7 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
     copias = list(db.scalars(select(AppCopiaDrive).where(AppCopiaDrive.recepcion == codigo)))
     from app.services.drive import resumen_fotos
     salida = {'sincronizacion': resumen_fotos(db, codigo), 'estados': {e: sum(c.estado == e for c in copias)
-        for e in ('PENDIENTE', 'PROCESANDO', 'COPIADA', 'ELIMINADA')},
+        for e in ('PENDIENTE', 'PROCESANDO', 'REVISION', 'COPIADA', 'ELIMINADA')},
         'carpetas': sorted({c.datos.get('carpetaRecepcionUrl') for c in copias if c.datos.get('carpetaRecepcionUrl')})}
     confirmada = db.scalar(select(AppEvento).where(AppEvento.recepcion == codigo,
         AppEvento.tipo == 'AUDITORIA', AppEvento.motivo == 'CARPETA_DRIVE_VERIFICADA')
@@ -95,14 +95,14 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
     operativo=destino_drive(db,codigo)
     salida['destinoOperativo']={k:operativo[k] for k in ('cliente','marca')}
     salida['destinoOperativo']['supervisor']=responsable(db,codigo) or operativo['supervisor']
-    if op.rol == Rol.ADMIN:
+    if op.rol in (Rol.ADMIN,Rol.SUPERVISOR):
         from app.services.remitentes import responsable
         salida['destino'] = destino_drive(db, codigo)
         salida['destino']['supervisor'] = responsable(db, codigo) or salida['destino']['supervisor']
         salida['avisos'] = sorted({c.error for c in copias if c.error})
         from app.models import AppArchivo
         salida['archivos'] = [{'id': a.id, 'nombre': a.nombre, 'estado': c.estado if c else 'SIN_COLA',
-            'error': c.error if c and c.estado == 'PENDIENTE' else None,
+            'error': c.error if c and c.estado in ('PENDIENTE','REVISION') else None,
             'enlace': a.drive_url if a.drive_id else None,
             'carpeta': (c.datos.get('carpeta') or '') if c and c.estado == 'COPIADA' else '',
             'ruta': c.datos.get('ruta', []) if c else []}
@@ -114,7 +114,7 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
 
 
 @router.post('/recepciones/{codigo}/drive/preparar')
-def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(admin)):
+def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     from uuid import uuid4
     from app.services import entregas, remitentes, drive
     destino = svc.destino_drive(db, codigo)
@@ -209,3 +209,14 @@ def guardar_formato_packing(cliente: str, datos: dict=Body(...), db: Session=Dep
         'encabezado':datos['encabezado'],'columnas':columnas,'encabezados':[str(v)[:200] for v in cabeceras]}}
     c.usuario,c.modificado_en=op.email or op.usuario,utcnow();db.add(c);db.commit()
     return {'guardado':True}
+
+
+@router.post('/recepciones/{codigo}/drive/desde-mi-cuenta')
+def recuperar_fotos_propias(codigo:str,db:Session=Depends(get_db),op:Operador=Depends(requiere_supervisor)):
+    from app.services.drive import reintentar_desde_cuenta
+    return reintentar_desde_cuenta(db,codigo,op.email or op.usuario)
+
+
+@router.put('/evidencias/{archivo_id}')
+def editar_evidencia(archivo_id:str,datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(requiere_supervisor)):
+    return svc.editar_evidencia(db,archivo_id,datos,op.email or op.usuario)

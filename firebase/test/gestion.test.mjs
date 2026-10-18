@@ -23,7 +23,7 @@ await test('A M P Q R S configurables conservan filas, cabeceras y código con c
  const f=informe.construirLibro({recepcion:{codigo:'R',informe:{id:'id-auditado',numero:1,sufijo:'_R0001_20261016-080000',usuario:'sup@itsanet.com'}},detalle,porOrigen:[{origen:'PL',formato:{encabezados,columnas},detalle}],adicionales:[],eventos:[],auditoria:[]},{version:'envio'});
  ok(f.nombre.endsWith('_R0001_20261016-080000.xlsx'));
  const w=XLSX.read(f.base64,{type:'base64'}),tabla=XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1});
- eq(tabla.length,2);eq(tabla[0],encabezados);eq(tabla[1][0],'ISUZU');eq(tabla[1][12],'00001234');eq(tabla[1][15],2);eq(tabla[1][16],'MAL ESTADO (2)');eq(tabla[1][18],'https://drive.google.com/drive/folders/sku');eq(tabla[1][4],'original');eq(w.Props.Author,'sup@itsanet.com');
+ eq(tabla.length,2);eq(tabla[0],encabezados);eq(tabla[1][0],'original');eq(tabla[1][12],'00001234');eq(tabla[1][15],2);eq(tabla[1][16],'MAL ESTADO');eq(tabla[1][18],'https://drive.google.com/drive/folders/sku');eq(tabla[1][4],'original');eq(w.Props.Author,'sup@itsanet.com');
 });
 await test('los dos modelos de Depot no incluyen plantilla de barras inexistente',()=>eq(csv.FORMATOS_BASE.length,2));
 await test('un PNC antiguo sin desglose no inventa unidades conformes',()=>{
@@ -83,5 +83,32 @@ await test('vista ampliada y paginada conserva las filas reales; ejemplos solo s
  const lista={origen:'A',formato:{encabezados:['SKU','Cantidad'],columnas:{sku:0,cantidad:1}},detalle:Array.from({length:14},(_,i)=>({sku:'S'+i,cantidad:2,fisica:1,estado:'FALTANTE',diferencia:-1,cruda:['S'+i,2]}))};
  const vista=informe.previsualizarLista(lista,lista.formato.columnas,{ampliado:true,offset:12});eq(vista.total,14);eq(vista.filas.length,2);eq(vista.filas[0].celdas[0].texto,'S12');ok(vista.encabezados.includes('Cantidad Física'));ok(!vista.ejemplo);
  const vacia=informe.previsualizarLista({...lista,detalle:[]},lista.formato.columnas);ok(vacia.ejemplo);eq(vacia.filas[0].celdas[0].texto,'EJEMPLO001');eq(lista.detalle.length,14);
+});
+await test('formato ampliado protege ITEM, mantiene bloque original y elimina solo rótulos de muestra',()=>{
+ const encabezados=['MARCA','ITEM','Descripción','ReferenciaPedido','Factura','Cantidad','PrecioUnit','PrecioTotal','Numero de pieza reemplazo','Embarque','Cantidad Física','PALLET','CODIGO BARRA','COD/PROD','ok','Cant. Con incidencia','Tipo de incidencia','OBSERVACION','Evidencia fotografica : Dir, Url (Drive)'];
+ const cruda=['ISUZU','3QF615301F','BRAKE DISC','RAISZ260926','ECUAD03658','255','4.66','466','','RB654123','','','','','','','','',''];
+ const columnas={sku:1,descripcion:2,cantidad:5,depot:1,marca:1,cliente:2,fisica:10,pallet:11,codigoBarra:12,incidencia:14,observacion:17};
+ const lista={origen:'RB654123',formato:{encabezados,columnas,prefijo:[{celdas:['Espacio que llenan opertivos','Espacio que llena el ejecutivo']} ]},detalle:[{sku:'3QF615301F',fisica:255,diferencia:0,estado:'OK',depot:'N/D',marca:'VENTURA',cliente:'VENTURA',cantidadIncidencia:2,incidencia:'ROTULADO ERRONEO',observacion:'Revisado',cruda}]};
+ const vista=informe.previsualizarLista(lista,columnas,{ampliado:true});
+ eq(vista.encabezados.slice(0,encabezados.length),encabezados);eq(vista.filas[0].numero,2);
+ eq(vista.filas[0].celdas.slice(0,10).map(c=>c.texto),cruda.slice(0,10));
+ eq(vista.filas[0].celdas[14].texto,'N/D');eq(vista.filas[0].celdas[15].texto,'2');eq(vista.filas[0].celdas[16].texto,'ROTULADO ERRONEO');
+ eq(vista.encabezados.filter(v=>/incidencia/i.test(v)).length,2);eq(vista.encabezados.filter(v=>/drive/i.test(v)).length,1);
+});
+await test('categoría NUV DEV o SCRAP y posición viajan en el modelo de cantidades',()=>{
+ for(const categoria of ['NUV','DEV','SCRAP']){
+  const r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],{categoriaLogica:categoria,eventos:[{id:'e',sku:'S',cantidad:2,pallet:'B02',posicionReal:'BM-A1-02-3'}],catalogo:{S:{unidad:'CS'}}});
+  eq(r.tabla[1][7],categoria);eq(r.tabla[1][5],'B02');ok(r.tabla[1].includes('BM'));eq(r.filas,1);
+ }
+});
+const bultos=await cargar('etiquetas-bultos.js');
+await test('etiqueta compacta imprime solo literal y código de barras del mismo dato',()=>{
+ const dibujados=[];const html=bultos.htmlEtiquetasBultos({formato:'100x50',recepcion:'R',lote:1,etiquetas:[{rotulo:'B02',serie:'LB-identificador-interno',numero:2,total:8,unidadId:'interno'}]},codigo=>{dibujados.push(codigo);return '<svg/>';});
+ eq(dibujados,['B02']);ok(html.includes('B02'));ok(!html.includes('LB-identificador-interno'));ok(!html.includes('BULTO 2 DE 8'));ok(!html.includes('ID interno'));
+});
+await test('NUV del ingreso no vuelve conformes a los PNC sin una categoría autorizada',()=>{
+ const datos={categoriaLogica:'NUV',eventos:[{id:'pnc',sku:'S',cantidad:1,pallet:'B02',estadoFisico:'PNC'}],catalogo:{S:{unidad:'CS'}}};
+ let r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],datos);eq(r.tabla[1][7],'');ok(r.incidencias.some(i=>i.encabezado==='CODIGO CATEGORIA LÓGICA'));
+ r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],{...datos,categoriaLogicaPnc:'DEV'});eq(r.tabla[1][7],'DEV');
 });
 resumen();

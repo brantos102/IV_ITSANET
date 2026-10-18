@@ -86,7 +86,7 @@ def test_caida_google_reintento_y_revision_sin_reenviar_automaticamente(cliente,
     assert not entregas.procesar_uno()  # respeta espera entre intentos
     assert cliente.post(f'/api/app/entregas/{ident}/reintentar').status_code == 200
     def ambiguo(operacion, clave, payload):
-        if operacion == 'estado': return {'exito': True, 'remitente': 'sup', 'versionPuente': 2}
+        if operacion == 'estado': return {'exito': True, 'remitente': 'sup', 'versionPuente': 2,'capacidades':['fotosSkuSimples']}
         if operacion == 'archivo': return {'exito': True, 'fileId': 'file-test', 'tipoArchivo': 'informe'}
         raise entregas.RevisionEntrega('Confirmacion del correo interrumpida')
     monkeypatch.setattr(entregas, 'llamar', ambiguo)
@@ -154,7 +154,7 @@ def test_foto_confirmada_en_drive_deja_solo_referencia_mysql_y_url_autenticada(c
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_URL', 'https://script.google.com/macros/s/prueba/exec')
     monkeypatch.setattr(config, 'VAL_GOOGLE_PROXY_SECRET', 's' * 40)
     def entregar(operacion, clave, payload):
-        if operacion == 'estado': return {'exito': True, 'remitente': 'sup', 'versionPuente': 2}
+        if operacion == 'estado': return {'exito': True, 'remitente': 'sup', 'versionPuente': 2,'capacidades':['fotosSkuSimples']}
         if operacion == 'archivo':
             return {'exito': True, 'fileId': 'drive-' + clave.split(':')[1], 'tipoArchivo': payload['tipoArchivo']}
         assert 'eventos' not in payload and 'lineas' not in payload

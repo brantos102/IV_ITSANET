@@ -177,6 +177,23 @@ def columnas_informe(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),
     f=dict(formatos[origen]);columnas=datos.get('columnas')
     permitidas={'marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot'}
     if not isinstance(columnas,dict) or set(columnas)-permitidas or any(type(v)is not int or not 0<=v<len(f.get('encabezados',[])) for v in columnas.values()) or len(set(columnas.values()))!=len(columnas):raise HTTPException(422,'Selecciona columnas distintas dentro del packing list')
+    from app.services.formato_informe import validar_columnas
+    validar_columnas(f,columnas)
     f['salida']=columnas;formatos[origen]=f;r.formatos=formatos
     ajustes.auditar(db,op.email or op.usuario,'COLUMNAS_INFORME',r.codigo,{'origen':origen,'columnas':columnas})
     db.commit();return {'ok':True}
+
+@router.get('/recepciones/{codigo}/edicion')
+def edicion_recepcion(codigo:str,db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
+    from app.services.recepcion_edicion import obtener
+    return obtener(db,codigo)
+
+@router.put('/recepciones/{codigo}/edicion')
+def editar_recepcion(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
+    from app.services.recepcion_edicion import editar
+    return editar(db,codigo,datos,op.email or op.usuario)
+
+@router.post('/recepciones/{codigo}/embarques/{origen}/retirar')
+def retirar_embarque(codigo:str,origen:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
+    from app.services.recepcion_edicion import retirar
+    return retirar(db,codigo,origen,datos,op.email or op.usuario)

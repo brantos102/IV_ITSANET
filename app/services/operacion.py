@@ -225,6 +225,14 @@ def guardar_unidad(db, codigo, datos, usuario):
 
 def validar_evidencia(db, codigo, datos):
     tipo, categoria = datos.get('tipoEvidencia', 'ADICIONAL'), datos.get('categoria', 'GENERAL')
+    if datos.get('desdeSku') is True:
+        from app.models import AppSku
+        sku=normalizar_sku(datos.get('sku'))
+        s=db.scalar(select(AppSku).where(AppSku.recepcion==codigo,AppSku.sku==sku))
+        if not s and (not sku or datos.get('conteoPendiente') is not True):raise HTTPException(422,'Selecciona un SKU de esta recepción para adjuntar sus fotos.')
+        categoria='SOBRANTE' if not s else ('PNC' if s.tiene_pnc else 'SOBRANTE' if s.estado=='SOBRANTE' or not s.en_packing_list
+            else 'FALTANTE' if s.estado in ('FALTANTE','NO_ENCONTRADO') else 'VALIDACION')
+        tipo='ITEM_NOVEDAD' if categoria!='VALIDACION' else 'ADICIONAL'
     if tipo not in TIPOS or categoria not in CATEGORIAS:
         raise HTTPException(422, 'Clasificación de evidencia inválida')
     if tipo == 'ESTADO_FINAL' and (categoria != 'RECEPCION' or str(datos.get('sku') or '').strip()):
@@ -303,3 +311,44 @@ def ajustar_bultos(db, codigo, datos, usuario, confirmar=True):
     db.flush()
     if confirmar: db.commit()
     return obtener_ingreso(db, codigo)
+
+
+def actualizar_fotos_conteo(db,s,fotos):
+    """Las fotos del conteo siguen el resultado físico confirmado sin duplicarse."""
+    if not fotos:return
+    from app.models import AppArchivo
+    from app.services import drive
+    ids={str(url).split('/api/app/archivos/')[-1].split('?')[0] for url in fotos if '/api/app/archivos/' in url}
+    categoria='PNC' if s.tiene_pnc else 'SOBRANTE' if s.estado=='SOBRANTE' or not s.en_packing_list else 'FALTANTE' if s.estado in ('FALTANTE','NO_ENCONTRADO') else 'VALIDACION'
+    for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_(ids),AppEvidencia.recepcion==s.recepcion,AppEvidencia.sku==s.sku,AppEvidencia.eliminado_en.is_(None)).with_for_update()):
+        e.categoria=categoria;e.tipo='ADICIONAL' if categoria=='VALIDACION' else 'ITEM_NOVEDAD'
+        db.flush();drive.encolar(db,db.get(AppArchivo,e.archivo_id))
+
+
+def editar_evidencia(db,archivo_id,datos,usuario):
+    """Corrige un vínculo de la imagen conservando el archivo y el historial."""
+    from app.models import AppArchivo,AppArchivoSku,AppSku,AppCopiaDrive
+    from app.services import drive
+    a=db.get(AppArchivo,archivo_id)
+    if not a or a.tipo!='foto':raise HTTPException(404,'Foto no encontrada')
+    r=m.obtener(db,a.recepcion,bloquear=True)
+    if r.estado not in m.ABIERTAS:raise HTTPException(409,'Reabre la recepción antes de editar las fotos; los informes emitidos se conservan.')
+    j=db.scalar(select(AppCopiaDrive).where(AppCopiaDrive.archivo_id==a.id).with_for_update().execution_options(populate_existing=True))
+    if j and (j.estado in ('PROCESANDO','ELIMINADA') or j.datos.get('accion')=='papelera'):raise HTTPException(409,'La foto se está procesando o fue retirada. Actualiza antes de editar su vínculo.')
+    e=db.scalar(select(AppEvidencia).where(AppEvidencia.id==datos.get('evidenciaId'),AppEvidencia.archivo_id==a.id,AppEvidencia.eliminado_en.is_(None)).with_for_update())
+    if not e:raise HTTPException(409,'El vínculo ya cambió. Actualiza la galería antes de editar.')
+    nuevo=validar_evidencia(db,a.recepcion,{**datos,'desdeSku':False})
+    if nuevo['sku'] and not db.scalar(select(AppSku.id).where(AppSku.recepcion==a.recepcion,AppSku.sku==nuevo['sku'])):raise HTTPException(422,'SKU: selecciona un código registrado en esta recepción o deja vacío para una foto de recepción.')
+    if nuevo['origen'] and nuevo['origen'] not in (r.origenes or []):raise HTTPException(422,'Embarque: selecciona una lista de esta recepción o deja el vínculo vacío.')
+    anterior={k:getattr(e,k) for k in nuevo}
+    if anterior==nuevo:return {'ok':True,'mensaje':'La foto ya tiene estos datos.'}
+    sku_anterior=e.sku;e.eliminado_en=utcnow()
+    nueva=AppEvidencia(id=uuid4().hex,archivo_id=a.id,recepcion=a.recepcion,usuario=usuario,**nuevo)
+    db.add(nueva);db.flush()
+    if sku_anterior and not db.scalar(select(AppEvidencia.id).where(AppEvidencia.archivo_id==a.id,AppEvidencia.sku==sku_anterior,AppEvidencia.eliminado_en.is_(None))):
+        vinculo=db.get(AppArchivoSku,(a.id,sku_anterior))
+        if vinculo:db.delete(vinculo)
+    if nuevo['sku'] and not db.get(AppArchivoSku,(a.id,nuevo['sku'])):db.add(AppArchivoSku(archivo_id=a.id,sku=nuevo['sku']))
+    drive.encolar(db,a)
+    auditoria(db,a.recepcion,usuario,'EVIDENCIA_CORREGIDA',{'archivoId':a.id,'vinculoAnterior':e.id,'vinculoNuevo':nueva.id,'antes':anterior,'despues':nuevo})
+    db.commit();return {'ok':True,'mensaje':'Vínculo corregido. Se conserva la imagen y se actualiza su ubicación en Drive.'}

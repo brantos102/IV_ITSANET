@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261017-37';
-import {esc} from './evidencias.js?v=20261017-37';
+import {pedir,nuevoIdentificador} from './local.js?v=20261017-39';
+import {esc} from './evidencias.js?v=20261017-39';
 
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/impresion'});
 function barras(serie){
@@ -19,7 +19,7 @@ export function htmlEtiquetasBultos(lote,dibujar=barras){
     .rotulo{font-size:${alto===150?48:26}pt;font-weight:bold;margin:${alto===150?15:0}mm 0 0}.numero{font-size:${alto===150?27:14}pt;font-weight:bold}
     .marca,.madre{font-size:${alto===150?10:8}pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.codigo{height:${alto===150?28:11}mm;width:100%;margin-top:auto}.id{font-size:${alto===150?6:5.5}pt}
     @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-    </style></head><body>${lote.etiquetas.map(e=>`<article class="etiqueta-bulto"><div class="cliente">${esc(lote.cliente)}</div><div class="recepcion">${esc(lote.recepcion)}</div><div class="rotulo">${esc(e.rotulo)}</div><div class="numero">BULTO ${e.numero} DE ${e.total}</div><div class="marca">${esc(lote.marca)}</div>${alto===150&&e.codigoMadre?`<div class="madre">Caja madre: ${esc(e.codigoMadre)}</div>`:''}<div class="codigo">${dibujar(e.serie)}</div><div class="id">ID ${esc(e.unidadId)} · Lote ${lote.lote}</div></article>`).join('')}</body></html>`;
+    </style></head><body>${lote.etiquetas.map(e=>`<article class="etiqueta-bulto"><div class="rotulo">${esc(e.rotulo)}</div><div class="codigo">${dibujar(e.rotulo)}</div></article>`).join('')}</body></html>`;
 }
 
 export async function abrirEtiquetasBultos(codigo){
@@ -28,7 +28,7 @@ export async function abrirEtiquetasBultos(codigo){
   let pendiente=null,ocupado=false,ultimo=null;
   const d=document.createElement('dialog');d.className='dialogo-operativo';
   d.innerHTML=`<header class="acciones"><h2>Etiquetas de bultos</h2><button class="b-sec" data-cerrar>Cerrar</button></header><p>${esc(codigo)}</p>
-    <div class="rejilla"><label class="campo"><span>Literal</span><input data-literal maxlength="8" pattern="[A-Za-z0-9]{1,8}" placeholder="B, P, CAJA…"></label>
+    <div class="rejilla"><label class="campo"><span>Literal</span><input data-literal maxlength="1" pattern="[A-Za-z]" placeholder="A, B, C…"></label>
     <label class="campo"><span>Total confirmado de bultos</span><input data-total type="number" min="1" max="1000" step="1"></label>
     <label class="campo"><span>Tamaño</span><select data-formato><option value="100x150">10 × 15 cm</option><option value="100x50">10 × 5 cm</option></select></label>
     <label class="campo"><span>Destino</span><select data-destino><option value="NAVEGADOR">Imprimir / PDF en esta PC</option><option value="ZPL">Descargar ZPL</option>${preferencias.impresoras.length?'<option value="ESTACION">Impresora mediante PC puente</option>':''}</select></label>
@@ -36,10 +36,10 @@ export async function abrirEtiquetasBultos(codigo){
     <p data-resumen></p><p class="mini">Una etiqueta por bulto. Si corriges el total, reemplaza las etiquetas anteriores para que todas indiquen el mismo total.</p>
     <details><summary>Solicitudes anteriores</summary><div data-historial></div></details>
     <p data-estado role="status" aria-live="polite"></p><div class="acciones"><button class="b-primario" data-generar>Confirmar e imprimir</button><button class="b-sec" data-nuevo>Actualizar / nueva solicitud</button><button class="b-sec" data-ver-estado hidden>Consultar envío</button></div>
-    <details><summary>Vista previa del último lote</summary><iframe data-vista title="Etiquetas de bultos" sandbox style="width:100%;height:340px;border:0"></iframe></details>`;
+    <details open><summary>Vista previa del último lote</summary><div data-vista class="vista-etiquetas" style="max-height:380px;overflow:auto;background:white;color:black"></div></details>`;
   document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
   const controles=()=>[...d.querySelectorAll('input,select')];
-  const resumen=()=>{$('[data-resumen]').textContent=`${$('[data-literal]').value.toUpperCase() || 'B'}-001 → ${$('[data-literal]').value.toUpperCase() || 'B'}-${String($('[data-total]').value || 0).padStart(3,'0')} · ${$('[data-total]').value || 0} etiquetas`;
+  const resumen=()=>{$('[data-resumen]').textContent=`${$('[data-literal]').value.toUpperCase() || 'B'}01 → ${$('[data-literal]').value.toUpperCase() || 'B'}${String($('[data-total]').value || 0).padStart(2,'0')} · ${$('[data-total]').value || 0} etiquetas`;
     $('[data-elegir-estacion]').hidden=$('[data-destino]').value!=='ESTACION';};
   const pintar=()=>{$('[data-literal]').value=estado.literal;$('[data-total]').value=estado.total || 1;$('[data-formato]').value=estado.formato;
     $('[data-historial]').innerHTML=estado.anteriores.length?estado.anteriores.map(j=>`<p>L${j.lote} · ${esc(j.usuario)} · ${esc(new Date(j.fecha).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}))} · ${j.total} etiquetas · ${esc(j.estado)}</p>`).join(''):'Sin solicitudes anteriores.';
@@ -49,7 +49,7 @@ export async function abrirEtiquetasBultos(codigo){
   $('[data-generar]').onclick=async()=>{
     if(ocupado)return;
     const total=Number($('[data-total]').value),literal=$('[data-literal]').value.trim().toUpperCase();
-    if(!Number.isInteger(total)||total<1||total>1000||!/^[A-Z0-9]{1,8}$/.test(literal)){$('[data-estado]').textContent='Confirma un total entero de 1 a 1000 y un literal de 1 a 8 letras o números.';return;}
+    if(!Number.isInteger(total)||total<1||total>1000||!/^[A-Z]$/.test(literal)){$('[data-estado]').textContent='Confirma un total entero de 1 a 1000 y un literal de una letra (A–Z).';return;}
     const destino=$('[data-destino]').value;
     const ventana=destino==='NAVEGADOR'?window.open('','_blank'):null;
     if(destino==='NAVEGADOR'&&!ventana){$('[data-estado]').textContent='Permite ventanas emergentes para imprimir o elige Descargar ZPL.';return;}
@@ -58,7 +58,11 @@ export async function abrirEtiquetasBultos(codigo){
       formato:$('[data-formato]').value,destino,estacion:destino==='ESTACION'?$('[data-estacion]').value:null};
     try{
       const lote=await api(ruta,{cuerpo:pendiente});ultimo=lote;
-      const html=htmlEtiquetasBultos(lote);$('[data-vista]').srcdoc=html;
+      const html=htmlEtiquetasBultos(lote);const documento=new DOMParser().parseFromString(html,'text/html');
+      $('[data-vista]').replaceChildren(...[...documento.body.children].map(e=>document.importNode(e,true)));
+      for(const e of $('[data-vista]').children)e.style.cssText='width:100mm;max-width:100%;min-height:50mm;padding:12px;text-align:center;border:1px solid #ccd5e3;margin:8px auto;display:grid;gap:6px';
+      $('[data-vista]').querySelectorAll('.rotulo').forEach(e=>e.style.cssText='font:bold 36px Arial');
+      $('[data-vista]').querySelectorAll('.codigo').forEach(e=>e.style.cssText='height:55px');
       if(destino==='NAVEGADOR'){ventana.document.write(html);ventana.document.close();ventana.focus();ventana.print();}
       if(destino==='ZPL'){const url=URL.createObjectURL(new Blob([lote.zpl],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`bultos-${codigo.replace(/[^A-Za-z0-9_-]/g,'_')}-L${lote.lote}.zpl`;a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);}
       $('[data-estado]').textContent=`Lote ${lote.lote} · ${total} etiquetas correlativas · ${lote.estado==='PENDIENTE'?'Pendiente de envío por el puente':'Generadas; confirma el resultado en la impresora'}.`;

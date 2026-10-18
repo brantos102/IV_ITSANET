@@ -30,6 +30,8 @@ async def lifespan(_app: FastAPI):
     """Crea el esquema y el usuario inicial al arrancar."""
     init_db()
     with SessionLocal() as db:
+        from app.services.ajustes import habilitar_supervision_inicial
+        habilitar_supervision_inicial(db)
         if db.execute(select(Operador).limit(1)).scalar_one_or_none() is None:
             db.add(Operador(
                 usuario="admin", nombre="Administrador",

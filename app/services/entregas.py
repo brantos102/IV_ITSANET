@@ -80,7 +80,8 @@ def documento(e, tecnico=False):
         mensajes['REVISION'] = 'Hay varias entregas de esta recepción. ADMIN debe revisar fechas e informes y anular los envíos que no correspondan antes de reintentar.'
     if e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA':
         mensajes['REVISION'] = 'Envío pausado: autoriza tu conexión en Mi cuenta y correo. Después revisa y confirma los documentos finales; no se reintenta automáticamente.'
-    return {'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
+    if e.datos.get('revisionMotivo')=='FOTOS_RECUPERADAS':mensajes['REVISION']='Fotos en recuperación; al confirmarse, revisa y confirma los documentos finales desde tu correo.'
+    return {'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
                 else mensajes.get(e.estado, 'Comprobando entrega.')),
@@ -125,6 +126,13 @@ def resumen_final(skus, eventos=None):
             r['discrepancias'].append({**detalle, 'estado': 'Faltante' if f < e else 'Sobrante'})
     r['exactitud'] = round(r['ok'] / len(skus) * 100, 1) if skus else 0
     return r
+
+
+def validar_destinatarios(valor):
+    correos=[s.strip() for s in str(valor or '').split(',') if s.strip()]
+    if len(correos)>20 or any(not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+',c) for c in correos):
+        raise HTTPException(422,'Revisa los correos de destino (máximo 20, separados por coma).')
+    return ','.join(dict.fromkeys(c.lower() for c in correos))
 
 
 def preparar(db, codigo, datos, usuario):
@@ -340,7 +348,7 @@ def procesar_uno():
                     raise RuntimeError('Falta un archivo de la entrega; revisa el almacenamiento')
                 from app.models import AppCopiaDrive
                 copia_pendiente = db.get(AppCopiaDrive, aid)
-                if copia_pendiente and copia_pendiente.estado in ('PENDIENTE', 'PROCESANDO'):
+                if copia_pendiente and copia_pendiente.estado in ('PENDIENTE', 'PROCESANDO','REVISION'):
                     raise RuntimeError('Las evidencias siguen copiándose a Drive; la entrega esperará su confirmación')
                 e.proximo_en = utcnow() + timedelta(minutes=15)
                 db.commit()

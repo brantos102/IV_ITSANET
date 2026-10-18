@@ -29,7 +29,7 @@ def _validar(db, e, grupo):
     if e.estado not in ('CANCELADA', 'PENDIENTE', 'REVISION'):
         raise HTTPException(409, 'Esta entrega ya está confirmada o se está procesando. Actualiza el estado.')
     if any(g.estado == 'PROCESANDO' or g.estado == 'REVISION' and
-           g.datos.get('revisionMotivo') not in ('ENTREGAS_MULTIPLES','CONEXION_RECHAZADA') for g in grupo):
+           g.datos.get('revisionMotivo') not in ('ENTREGAS_MULTIPLES','CONEXION_RECHAZADA','FOTOS_RECUPERADAS') for g in grupo):
         raise HTTPException(409, 'Hay un envío en curso o con confirmación interrumpida. Revisa Enviados antes de recuperar; no se repetirá automáticamente.')
     campos = ('sku', 'esperado', 'contado', 'verificado', 'cantidadPnc', 'incidencias', 'pallets', 'descripcion')
     comparar = lambda filas: sorted([{k: s.get(k) for k in campos} for s in filas], key=lambda s: s['sku'])
@@ -79,6 +79,8 @@ def recuperar(db, ident, datos, usuario):
     vista(db, ident, usuario, modo_solicitado)
     e = db.get(AppEntrega, ident)
     codigo = e.recepcion
+    destinatarios=entregas.validar_destinatarios(datos.get('destinatarios',e.datos.get('destinatarios','')))
+    if 'destinatarios' in datos and not destinatarios:raise HTTPException(422,'Indica al menos un destinatario para enviar los documentos finales.')
     correo, modo = remitentes.elegir(db, codigo, {'modoRemitente': modo_solicitado,
         'remitenteConfirmado': datos.get('remitenteConfirmado', '')}, usuario)
     firma = _firma_config(db, correo, codigo)
@@ -118,9 +120,10 @@ def recuperar(db, ident, datos, usuario):
                     informe.estado = 'CANCELADO'
     recuperacion = {'usuario': usuario, 'fecha': m._iso(ahora), 'motivo': motivo,
         'remitenteAnterior': e.datos.get('remitente') or e.usuario, 'remitente': correo,
-        'estadoAnterior': e.estado, 'confirmarNoEnviado': True}
+        'estadoAnterior': e.estado, 'confirmarNoEnviado': True,
+        'destinatariosAnteriores':e.datos.get('destinatarios',''),'destinatarios':destinatarios}
     completo = expandir(e.datos)
-    e.datos = compactar({**completo, 'remitente': correo, 'modoRemitente': modo,
+    e.datos = compactar({**completo, 'remitente': correo, 'modoRemitente': modo,'destinatarios':destinatarios,'confirmarConCuenta':correo,
         'destino': {k: v for k, v in destino.items() if k != 'supervisor'},
         'resumen': entregas.resumen_final(completo['skus'], completo['eventos']),
         'revisionMotivo': None, 'recuperaciones': [*e.datos.get('recuperaciones', []), recuperacion]})

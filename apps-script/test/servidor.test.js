@@ -8,8 +8,8 @@ const secreto = 'secreto-prueba-'.repeat(4);
 function entorno() {
   let correos = 0, creados = 0, falloCorreo = false, sheets = 0,cuenta='supervisor@gmail.com';
   const archivos = new Map(), blobs = new Map(), propiedades=new Map(), registros=[];
-  const carpeta = { getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
-    createFile(blob) { creados++; const f = { getId: () => 'archivo-'+creados, getUrl: () => 'https://drive.google.com/file', setDescription() {},
+  const carpeta = { getFiles(){const lista=[...archivos.values()];return {hasNext:()=>!!lista.length,next:()=>lista.shift()};},getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
+    createFile(blob) { creados++;let nombreActual=blob.nombre,descripcion=''; const f = { getId: () => 'archivo-'+creados, getUrl: () => 'https://drive.google.com/file', setDescription(d){descripcion=d;},getDescription:()=>descripcion,setName(n){archivos.delete(nombreActual);nombreActual=n;archivos.set(n,f);},
       getBlob: () => ({ getDataAsString: () => String(blobs.get(f)), getBytes: () => Buffer.from(String(blobs.get(f))) }),
       setContent: (s) => blobs.set(f, s) };
       blobs.set(f, blob.datos); archivos.set(blob.nombre, f); return f; },
@@ -102,5 +102,16 @@ test('diagnóstico distingue permiso de correo y cuenta no disponible',()=>{
   const e=entorno();e.g.PROPS.setProperty('CARPETA_EVIDENCIAS','carpeta-prueba-1234567890');e.g.MailApp.getRemainingDailyQuota=()=>{throw Error('Authorization required');};
   let fallo='';try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}ok(fallo==='PERMISO DE CORREO: Authorization required');
   e.cambiarCuenta('');try{e.g.verificarGoogleServidor();}catch(err){fallo=err.message;}ok(fallo.startsWith('CUENTA GOOGLE:'));ok(e.correos()===0);
+});
+test('miniatura privada exige firma y cuenta sin publicar archivo ni enviar correo',()=>{
+ const e=entorno(),bytes=Buffer.from('miniatura-privada');let lecturas=0;
+ e.g.DriveApp.getFileById=ident=>{ok(ident==='foto-privada');lecturas++;return {getThumbnail:()=>({getBytes:()=>bytes,getContentType:()=> 'image/png'})};};
+ const peticion=e.peticion('miniatura',id,{fileId:'foto-privada'}),r=e.g.entregaServidor_(peticion);ok(r.base64===bytes.toString('base64'));ok(r.tipo==='image/png');ok(lecturas===1);
+ peticion.firma='0'.repeat(64);try{e.g.entregaServidor_(peticion);}catch{}ok(lecturas===1);ok(e.creados()===0);ok(e.correos()===0);
+});
+test('miniatura no devuelve originales grandes ni consulta archivo con otra cuenta',()=>{
+ const e=entorno();let lecturas=0;e.g.DriveApp.getFileById=()=>{lecturas++;return {getThumbnail:()=>null,getSize:()=>10000000};};
+ let fallo=false;try{e.g.entregaServidor_(e.peticion('miniatura',id,{fileId:'foto-privada'}));}catch(err){fallo=err.message.includes('Vista previa');}ok(fallo);
+ e.cambiarCuenta('otra@example.test');try{e.g.entregaServidor_(e.peticion('miniatura',id,{fileId:'foto-privada'}));}catch{}ok(lecturas===1);ok(e.correos()===0);
 });
 console.log(`${pasadas} pasadas, ${falladas} falladas`); process.exitCode=falladas?1:0;

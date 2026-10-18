@@ -54,8 +54,15 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku'].concat(
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples'].concat(
         typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'] : []) };
+  }
+  if(p.operacion==='miniatura'){
+    if(!/^[A-Za-z0-9_-]{5,128}$/.test(p.datos.fileId||''))throw new Error('Imagen no válida.');
+    var foto=DriveApp.getFileById(p.datos.fileId),blob=foto.getThumbnail();
+    if(!blob&&foto.getSize()<=262144)blob=foto.getBlob();
+    if(!blob||blob.getBytes().length>300000)throw new Error('Vista previa no disponible; abre la imagen en Drive.');
+    return {exito:true,base64:Utilities.base64Encode(blob.getBytes()),tipo:blob.getContentType()};
   }
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -133,25 +140,39 @@ function archivoServidor_(clave, p) {
   var nombre = (punto < 0 ? original : original.slice(0, punto)) + '__' + clave.split(':')[1]
     + (punto < 0 ? '' : original.slice(punto));
   var existentes = carpeta.getFilesByName(nombre);
-  var archivo = p.fileId ? DriveApp.getFileById(p.fileId) : existentes.hasNext() ? existentes.next() : carpeta.createFile(
-    Utilities.newBlob(Utilities.base64Decode(p.base64), p.tipo, nombre));
-  if (p.fileId) {archivo.moveTo(carpeta);archivo.setName(nombre);}
+  var archivo = p.fileId ? DriveApp.getFileById(p.fileId) : existentes.hasNext() ? existentes.next() : null;
+  // El identificador técnico queda en la descripción, no en el nombre visible.
+  // Buscarlo conserva la idempotencia aunque se pierda la respuesta tras renombrar.
+  if(!archivo && p.tipoArchivo==='foto'){
+    var fotos=carpeta.getFiles(),marca='ITSANET '+clave+' |';
+    while(fotos.hasNext()){var foto=fotos.next();if(foto.getDescription && String(foto.getDescription()).indexOf(marca)===0){archivo=foto;break;}}
+  }
+  if(!archivo)archivo=carpeta.createFile(Utilities.newBlob(Utilities.base64Decode(p.base64),p.tipo,nombre));
+  if (p.fileId) {
+    // Los informes anteriores pueden enlazar la ubicación antigua: conservar un acceso directo.
+    if(archivo.getParents){var padres=archivo.getParents();while(padres.hasNext()){var padre=padres.next();if(padre.getId()!==carpeta.getId()){
+      var refs=padre.getFiles(),hay=false;while(refs.hasNext()){var ref=refs.next();if(ref.getTargetId&&ref.getTargetId()===archivo.getId())hay=true;}
+      if(!hay){var previo=DriveApp.createShortcut(archivo.getId());previo.moveTo(padre);previo.setName(original);}
+    }}}
+    archivo.moveTo(carpeta);archivo.setName(nombre);
+  }
   archivo.setDescription('ITSANET ' + clave + ' | Recepcion ' + p.recepcion + ' | ' + p.usuario);
+  if(p.tipoArchivo==='foto'){nombre=original;archivo.setName(nombre);}
   var vinculos = {};
   (p.rutasVinculadas || []).forEach(function(v) {
     var destino=carpetaEvidenciaServidor_(recepcion,v);
     if(destino.getUrl()!==carpeta.getUrl()) {
-      var existentes=destino.getFilesByName(nombre),encontrado=false;
-      while(existentes.hasNext()){var f=existentes.next();if(f.getId()===archivo.getId() || f.getTargetId&&f.getTargetId()===archivo.getId())encontrado=true;}
-      if(!encontrado){var enlace=DriveApp.createShortcut(archivo.getId());enlace.moveTo(destino);enlace.setName(nombre);}
+      var nombreEnlace=limpiarNombre_(v.nombre||nombre),existentes=destino.getFiles(),encontrado=false;
+      while(existentes.hasNext()){var f=existentes.next();if(f.getId()===archivo.getId() || f.getTargetId&&f.getTargetId()===archivo.getId()){encontrado=true;f.setName(nombreEnlace);}}
+      if(!encontrado){var enlace=DriveApp.createShortcut(archivo.getId());enlace.moveTo(destino);enlace.setName(nombreEnlace);}
     }
-    vinculos[v.categoria+'|'+v.sku]={carpeta:destino.getUrl(),carpetaSkuUrl:v.sku?carpetaEvidenciaServidor_(recepcion,{ruta:v.ruta.slice(0,-1)}).getUrl():''};
+    vinculos[v.categoria+'|'+v.sku]={carpeta:destino.getUrl(),carpetaSkuUrl:v.sku?carpetaEvidenciaServidor_(recepcion,{ruta:v.rutaSku && v.rutaSku.length ? v.rutaSku : v.ruta.slice(0,-1)}).getUrl():''};
   });
   return { exito: true, fileId: archivo.getId(), nombre: original, tipoArchivo: p.tipoArchivo,
     enlace: archivo.getUrl(), url: 'https://drive.google.com/uc?id=' + archivo.getId(),
     carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl(),vinculosDrive:vinculos,
-    carpetaSkuUrl: p.sku && p.ruta && p.ruta.length > 1
-      ? carpetaEvidenciaServidor_(recepcion, {ruta:p.ruta.slice(0,-1)}).getUrl() : '' };
+    carpetaSkuUrl: p.sku && p.ruta && p.ruta.length
+      ? carpetaEvidenciaServidor_(recepcion, {ruta:p.rutaSku && p.rutaSku.length ? p.rutaSku : p.ruta.slice(0,-1)}).getUrl() : '' };
 }
 
 function celdaServidor_(valor) {
@@ -250,7 +271,7 @@ function fotosCorreoServidor_(archivos, manifiesto) {
   var tipos = {};
   manifiesto.forEach(function(f) {
     var ruta = f.ruta || [];
-    var tipo = ruta[ruta.length-1] || '';
+    var tipo = f.tipoEvidencia || ruta[ruta.length-1] || '';
     if (!tipos[f.fileId] || tipo === 'PANORAMICA' || tipo === 'ESTADO_FINAL') tipos[f.fileId] = tipo;
   });
   var fotos = archivos.filter(function(a){return a.tipoArchivo === 'foto';});

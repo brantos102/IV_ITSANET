@@ -1,11 +1,12 @@
-import {pedir} from './local.js?v=20261017-37';
-import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261017-37';
-import {reunirInforme,previsualizarLista} from './informe.js?v=20261017-37';
+import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261017-39';
+import {pedir} from './local.js?v=20261017-39';
+import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261017-39';
+import {reunirInforme,previsualizarLista} from './informe.js?v=20261017-39';
 const api=(r,o={})=>pedir(r,{...o,base:'/api/operacion'});
 export async function configurarColumnasInforme(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo),meta=await api(ruta+'/informe-metadatos');
  const ds=document.createElement('dialog');ds.className='modal-operativa';ds.style.cssText='max-width:1100px;width:94vw;max-height:90dvh;overflow:auto';
- ds.innerHTML='<h3>Columnas del informe</h3><p class="mini">Selecciona las columnas de cada packing list y revisa debajo cómo quedarán sus datos. Sin asignar conserva la celda original. Esta vista no envía correo ni genera una versión.</p><label class="campo"><span>Packing list · archivo independiente</span><select data-lista></select></label><div data-campos class="rejilla"></div><h3>Así quedará el archivo</h3><div class="acciones"><label class="campo"><span>Presentación que deseas revisar</span><select data-presentacion><option value="original">Formato original</option><option value="ampliado">Con columnas adicionales</option></select></label><button class="b-sec" data-actualizar>Actualizar registros</button></div><p class="mini" data-estado-vista role="status">Cargando registros actuales…</p><div data-tabla style="max-height:360px;overflow:auto" tabindex="0" aria-label="Vista previa del archivo Excel"></div><div class="acciones"><button data-anterior class="b-sec">Anterior</button><button data-siguiente class="b-sec">Siguiente</button></div><p data-mensaje role="status" class="mini"></p><div class="acciones"><button data-guardar class="b-primario">Guardar columnas de esta lista</button><button data-cerrar class="b-sec">Cerrar</button></div>';
+ ds.innerHTML='<h3>Columnas del informe</h3><p class="mini">Selecciona las columnas de cada packing list y revisa debajo cómo quedarán sus datos. Solo se rellenan columnas de resultado. SKU, descripción, cantidades y demás datos de origen están protegidos. Las columnas nuevas se añaden al final. Sin asignar conserva la celda original. Esta vista no envía correo ni genera una versión.</p><label class="campo"><span>Packing list · archivo independiente</span><select data-lista></select></label><div data-campos class="rejilla"></div><h3>Así quedará el archivo</h3><div class="acciones"><label class="campo"><span>Presentación que deseas revisar</span><select data-presentacion><option value="original">Formato original</option><option value="ampliado">Con columnas adicionales</option></select></label><button class="b-sec" data-actualizar>Actualizar registros</button></div><p class="mini" data-estado-vista role="status">Cargando registros actuales…</p><div data-tabla style="max-height:360px;overflow:auto" tabindex="0" aria-label="Vista previa del archivo Excel"></div><div class="acciones"><button data-anterior class="b-sec">Anterior</button><button data-siguiente class="b-sec">Siguiente</button></div><p data-mensaje role="status" class="mini"></p><div class="acciones"><button data-guardar class="b-primario">Guardar columnas de esta lista</button><button data-cerrar class="b-sec">Cerrar</button></div>';
  const $=s=>ds.querySelector(s),selector=$('[data-lista]'),campos=$('[data-campos]');
  for(const origen of Object.keys(meta.formatos)){const o=new Option(origen,origen);selector.append(o);}
  document.body.append(ds);ds.showModal();
@@ -37,8 +38,9 @@ export async function configurarColumnasInforme(codigo){
   }catch(e){estado.textContent=e.message;$('[data-guardar]').disabled=true;}
  }
  function pintar(){campos.replaceChildren();offset=0;const f=meta.formatos[selector.value];if(!f){previa();return;}
-  const actuales=borradores.get(selector.value)||f.salida||{...f.columnas,...meta.columnas};
-  for(const [k,t] of Object.entries(CAMPOS_SALIDA)){const l=document.createElement('label');l.className='campo';const texto=document.createElement('span');texto.textContent=t;const s=document.createElement('select');s.dataset.campo=k;s.append(new Option('Sin asignar',''));f.encabezados.forEach((enc,i)=>s.append(new Option(letra(i)+' · '+enc,String(i))));s.value=actuales[k]===undefined?'':String(actuales[k]);l.append(texto,s);campos.append(l);}
+  const actuales=columnasSegurasInforme(f,borradores.get(selector.value)||f.salida||{...f.columnas,...meta.columnas});
+  for(const [k,t] of Object.entries(CAMPOS_SALIDA)){const l=document.createElement('label');l.className='campo';const texto=document.createElement('span');texto.textContent=t;const s=document.createElement('select');s.dataset.campo=k;s.append(new Option('Sin asignar',''));for(const i of destinosInforme(f,k))s.append(new Option(letra(i)+' · '+f.encabezados[i],String(i)));
+   if(s.options.length===1){s.options[0].textContent='Sin columna · se añade al elegir ampliado';}s.value=actuales[k]===undefined?'':String(actuales[k]);l.append(texto,s);campos.append(l);}
   previa();
  }
  campos.onchange=()=>{borradores.set(selector.value,columnas());offset=0;previa();};selector.onchange=pintar;

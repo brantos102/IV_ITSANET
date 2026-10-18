@@ -146,8 +146,8 @@ def test_de_punta_a_punta(cliente, conPacking):
     sku = next(s for s in cliente.get(f"/api/app/recepciones/{rec}/skus").json()
                if s["sku"] == "SKU001")
     assert sku["contado"] == 10 and sku["estado"] == "OK"
-    assert sku["pallets"] == {"A1B04C1": 6, "A1B04C2": 4}
-    assert sku["porOrigen"] == {"PRINCIPAL": {"A1B04C1": 6, "A1B04C2": 4}}
+    assert sku["pallets"] == {"A1-B04-C1": 6, "A1-B04-C2": 4}
+    assert sku["porOrigen"] == {"PRINCIPAL": {"A1-B04-C1": 6, "A1-B04-C2": 4}}
     assert sku["ultimoOperador"]
 
     # La recepción se movió sola a EN_VALIDACION.

@@ -109,15 +109,15 @@ def test_copia_drive_abierta_reintenta_y_elimina_local_solo_con_confirmacion(cli
     llamadas=[]
     def puente(op,clave,d):
         llamadas.append((op,d))
-        if op=='estado':return {'versionPuente':2,'remitente':'sup'}
+        if op=='estado':return {'versionPuente':2,'capacidades':['fotosSkuSimples'],'remitente':'sup'}
         raise RuntimeError('Interrupción de prueba')
     monkeypatch.setattr(entregas,'llamar',puente)
     assert drive.procesar_uno()
     assert (tmp_path/'app_archivos'/f['id']).exists()
     db.rollback();db.expire_all();j=db.get(AppCopiaDrive,f['id']);j.proximo_en=utcnow();db.commit()
     def confirmado(op,clave,d):
-        if op=='estado':return {'versionPuente':2,'remitente':'sup'}
-        assert d['ruta']==['PNC','SKU1','ADICIONAL'] and d['cliente']=='VENTURA'
+        if op=='estado':return {'versionPuente':2,'capacidades':['fotosSkuSimples'],'remitente':'sup'}
+        assert d['ruta']==['PNC','SKU1'] and d['cliente']=='VENTURA'
         return {'exito':True,'fileId':'drive-confirmada','carpetaRecepcionUrl':'https://drive.google.com/folders/recepcion'}
     monkeypatch.setattr(entregas,'llamar',confirmado)
     assert drive.procesar_uno()

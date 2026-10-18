@@ -77,3 +77,21 @@ def guardar(db,datos,usuario):
         if i['codigo'] in ('OK','FALTANTE','SOBRANTE'):i['pnc']=False;i['activo']=True
     f=db.get(AppConfig,'politicas') or AppConfig(clave='politicas');f.datos=d;f.usuario=usuario;db.add(f)
     auditar(db,usuario,'POLITICAS_ACTUALIZADAS','politicas',{'clientes':list(d['clientes']),'permisos':d['permisos']});db.commit();return configuracion(db)
+
+
+def habilitar_supervision_inicial(db):
+    """Migración única autorizada: funciones de supervisión; conexiones siguen ADMIN."""
+    from sqlalchemy import select
+    from sqlalchemy.exc import IntegrityError
+    clave='migracion_supervision_completa_39'
+    if db.get(AppConfig,clave):return
+    f=db.scalar(select(AppConfig).where(AppConfig.clave=='politicas').with_for_update())
+    if f:
+        d=deepcopy(f.datos);d['permisos']={**d.get('permisos',{}),'SUPERVISOR':{a:True for a in ACCIONES}}
+        f.datos=d
+    db.add(AppConfig(clave=clave,datos={'version':39},usuario='ACTUALIZACION'))
+    auditar(db,'ACTUALIZACION','SUPERVISION_COMPLETA_HABILITADA','SUPERVISOR',{'acciones':list(ACCIONES),'rolesModificados':False})
+    try:db.commit()
+    except IntegrityError:
+        db.rollback()
+        if not db.get(AppConfig,clave):raise
