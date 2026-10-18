@@ -1,8 +1,9 @@
-import {verImagen} from './visor-imagen.js?v=20261018-42';
-import {manualFotos} from './manual-fotos.js?v=20261018-42';
-import {pedir} from './local.js?v=20261018-42';
-import {comprimir} from './imagen.js?v=20261018-42';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-42';
+import {verImagen} from './visor-imagen.js?v=20261018-43';
+import {manualFotos} from './manual-fotos.js?v=20261018-43';
+import {pedir} from './local.js?v=20261018-43';
+import {comprimir} from './imagen.js?v=20261018-43';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-43';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-43';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -17,15 +18,15 @@ export const TIPOS_EVIDENCIA = {
 
 /** Lote secuencial sin máximo de imágenes. Cada archivo conserva su resultado al reintentar. */
 export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=>{}, cache=new Map()) {
-  const urls=[];
+  const urls=[],actor=await actorFotos();
   for(let i=0;i<archivos.length;i++) {
     const f=archivos[i];
     const clave=f; // Identidad File: nombre repetido no significa contenido repetido.
     if(!cache.has(clave)) {
       alAvanzar(i,archivos.length);
-      const img=await comprimir(f);
-      const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/archivos/foto`,{
-        cuerpo:{...datos,nombre:f.name || 'evidencia.jpg',base64:img.base64,tipo:img.tipo}});
+      const texto=['PACKING_INICIAL','ETIQUETA_CAJA','ABIERTO_CON_PACKING'].includes(datos.tipoEvidencia);
+      const img=await comprimir(f,texto?{lado:2400,calidad:.85}:datos.tipoEvidencia==='PANORAMICA'?{lado:2048,calidad:.82}:{});
+      const r=await subirFotoProtegida(recepcion,f,img,datos,actor);
       cache.set(clave,r.url);
     }
     urls.push(cache.get(clave));
@@ -36,7 +37,7 @@ export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=
 
 export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo='',supervisor=false}) {
   const [ingreso,rec]=await Promise.all([operacion(`/recepciones/${encodeURIComponent(recepcion)}/ingreso`),pedir(`/recepciones/${encodeURIComponent(recepcion)}`)]);
-  const final=tipo==='ESTADO_FINAL';
+  const final=tipo==='ESTADO_FINAL',panoramica=tipo==='PANORAMICA'&&!sku&&categoria==='RECEPCION';
   if(sku&&categoria==='GENERAL')categoria='VALIDACION';
   if(final){sku='';categoria='RECEPCION';}
   let producto=null;
@@ -46,7 +47,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     tipo=categoria==='VALIDACION'?'ADICIONAL':'ITEM_NOVEDAD';
   }
   const d=document.createElement('dialog');d.className='dialogo-operativo evidencias-dialogo';
-  d.innerHTML=`<div class="acciones"><h2 style="flex:1">${final?'Estado final de la mercadería':sku ? 'Evidencias · '+esc(sku) : 'Evidencias de recepción'}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
+  d.innerHTML=`<div class="acciones"><h2 style="flex:1">${final?'Estado final de la mercadería':panoramica?'Panorámicas de la recepción':sku ? 'Evidencias · '+esc(sku) : 'Evidencias de recepción'}</h2><button data-cerrar class="b-sec">Cerrar</button></div>
     <label class="campo"><span>Foto de</span><select data-tipo>${Object.entries(TIPOS_EVIDENCIA).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
     <details><summary>Clasificación y vínculos · ${esc(categoria)}</summary><div class="rejilla"><label class="campo"><span>Protocolo</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">General</option></select></label>
     <label class="campo"><span>Clasificación</span><select data-categoria>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label>
@@ -55,7 +56,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Cámara del equipo</button><a class="b-sec" data-camara-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
     <input data-captura type="file" accept="image/*" capture="environment" hidden><input data-archivos type="file" accept="image/*" multiple hidden>
     <div data-seleccion></div><p data-estado role="status"></p>
-    <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-actualizar>↻ Actualizar</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar pendientes</button></div>
+    <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><button class="b-sec" data-actualizar>↻ Actualizar</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar pendientes de Drive</button></div>
     <div data-carpetas></div><div class="rejilla"><label class="campo"><span>Filtrar fotografías por clasificación</span><select data-filtro-categoria><option value="">Todas</option>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label><label class="campo"><span>SKU de las fotografías</span><input data-filtro-sku value="${esc(sku)}" placeholder="Todos los códigos"></label><button data-filtrar class="b-sec">Aplicar filtro</button></div><p data-resumen-galeria class="mini" role="status"></p><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
   document.body.append(d); d.showModal();d.querySelector('h2').parentElement.after(manualFotos(ingreso));
   const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false;
@@ -86,6 +87,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   $('[data-subir]').disabled=true;
   if(rec.estado==='CERRADA'&&!final){for(const selector of ['[data-camara]','[data-camara-windows]','[data-galeria]','[data-subir]'])$(selector).hidden=true;$('[data-tipo]').disabled=true;}
   if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;$('[data-estado]').textContent=rec.estado==='CERRADA'?'Evidencia posterior al cierre: conserva autor y fecha; los informes emitidos permanecen iguales.':'Fotografía cómo queda la mercadería al terminar. Las imágenes se vinculan a esta recepción.';}
+  if(panoramica){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;$('[data-unidad]').value='';$('[data-unidad]').disabled=true;$('[data-estado]').textContent='Estas fotos documentan la recepción completa y se guardan como PANORAMICA, sin vincularlas al primer bulto.';}
   // Recibir sin fotos no impide adjuntar posteriormente evidencia de una novedad.
   $('[data-protocolo]').value=ingreso.protocolo==='SIN_FOTOS' ? 'GENERAL' : ingreso.protocolo || 'REGLAMENTARIO';
   const recomendar=()=>{$('[data-recomendacion]').textContent=$('[data-protocolo]').value==='GENERAL'
@@ -112,7 +114,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     consultando=true;
     try {
     if(reset){offset=0;$('[data-imagenes]').replaceChildren();}
-    const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent($('[data-filtro-sku]').value.trim())}&contexto=${!$('[data-filtro-categoria]').value}&categoriaEvidencia=${encodeURIComponent($('[data-filtro-categoria]').value)}&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':''}`);
+    const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent($('[data-filtro-sku]').value.trim())}&contexto=${!$('[data-filtro-categoria]').value}&categoriaEvidencia=${encodeURIComponent($('[data-filtro-categoria]').value)}&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':panoramica?'&tipoEvidencia=PANORAMICA':''}`);
     for(const [i,f] of r.archivos.entries()) {
       if(final && !(f.evidencias || []).some(e=>e.tipo==='ESTADO_FINAL'))continue;
       const card=document.createElement('article');
@@ -180,7 +182,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       elegidas=[];cache=new Map();await cargar();
       $('[data-estado]').textContent=`${new Set(urls).size} imágenes únicas guardadas; copia a Drive en segundo plano.`;
     }catch(e){$('[data-estado]').textContent=e.message+' Puedes reintentar: las imágenes confirmadas no se repiten.';}
-    finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}$('[data-subir]').disabled=!elegidas.length;$('[data-cerrar]').disabled=false;}
+    finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final||panoramica){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}if(panoramica)$('[data-unidad]').disabled=true;$('[data-subir]').disabled=!elegidas.length;$('[data-cerrar]').disabled=false;}
   };
   $('[data-filtrar]').onclick=()=>cargar().catch(e=>{$('[data-estado]').textContent=e.message;});
   $('[data-filtro-sku]').addEventListener('keydown',ev=>{if(ev.key==='Enter'&&!ev.isComposing&&!ev.repeat){ev.preventDefault();$('[data-filtrar]').click();}});
@@ -192,9 +194,12 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     try{const r=await operacion(`/recepciones/${encodeURIComponent(recepcion)}/drive/reintentar`,{cuerpo:{}});$('[data-estado]').textContent=r.mensaje;await cargar();}
     catch(e){$('[data-estado]').textContent=e.message;}finally{b.disabled=false;}
   };
-  $('[data-cerrar]').onclick=()=>d.close();
+  $('[data-temporales]').onclick=()=>{if(!ocupado)abrirFotosPendientes(recepcion,{alGuardar:()=>cargar()}).catch(e=>{$('[data-estado]').textContent=e.message;});};
+  async function cerrar(){if(ocupado)return;if(elegidas.length){if(!await confirmar({titulo:'Hay fotografías sin guardar',texto:'Guarda las imágenes antes de cerrar. Si el envío falla, se conservará la copia temporal cuando el navegador tenga almacenamiento disponible.',aceptar:'Guardar imágenes y cerrar',cancelar:'Seguir revisando'}))return;await $('[data-subir]').onclick();if(elegidas.length)return;}d.close();}
+  $('[data-cerrar]').onclick=cerrar;
   const temporizador=supervisor?setInterval(()=>{if(d.open&&!document.hidden&&!ocupado&&!consultando)
     actualizarDrive(true).catch(e=>{if(d.open)$('[data-estado-drive]').textContent=e.message;});},5000):null;
-  d.addEventListener('cancel',ev=>{if(ocupado)ev.preventDefault();});d.addEventListener('close',()=>{liberarVistas();clearInterval(temporizador);d.remove();});
+  const antesDeSalir=ev=>{if(ocupado||elegidas.length){ev.preventDefault();ev.returnValue='';}};window.addEventListener('beforeunload',antesDeSalir);
+  d.addEventListener('cancel',ev=>{ev.preventDefault();cerrar();});d.addEventListener('close',()=>{window.removeEventListener('beforeunload',antesDeSalir);liberarVistas();clearInterval(temporizador);d.remove();});
   try{await cargar();}catch(e){$('[data-estado]').textContent=e.message;}return d;
 }

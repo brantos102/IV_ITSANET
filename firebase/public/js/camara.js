@@ -47,34 +47,42 @@ export function errorDeCamara(error) {
   return 'No se pudo iniciar la cámara. Cierra el visor y vuelve a intentarlo.';
 }
 
-async function lectorDeVideo() {
+async function lectorDeVideo({foto=false}={}) {
   if (typeof window.BarcodeDetector === 'function') {
     try {
       const soportados = window.BarcodeDetector.getSupportedFormats ? await window.BarcodeDetector.getSupportedFormats() : FORMATOS;
       const formatos = FORMATOS.filter(f=>soportados.includes(f));
       if (formatos.length) {
         const detector = new window.BarcodeDetector({formats:formatos});
-        return {leer:video=>detector.detect(video),cerrar(){}};
+        return {intervalo:90,leer:video=>detector.detect(video),cerrar(){}};
       }
     } catch { /* Un lector nativo no compatible usa el respaldo sobre video. */ }
   }
-  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261018-42');
-  const lector = new MultiFormatReader();
-  lector.setHints(new Map([[DecodeHintType.TRY_HARDER,true],
-    [DecodeHintType.POSSIBLE_FORMATS,FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()])]]));
+  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261018-43');
+  const formatos=FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()]);
+  const rapido=new MultiFormatReader(),completo=new MultiFormatReader();
+  rapido.setHints(new Map([[DecodeHintType.POSSIBLE_FORMATS,formatos]]));
+  completo.setHints(new Map([[DecodeHintType.TRY_HARDER,true],[DecodeHintType.POSSIBLE_FORMATS,formatos]]));
   const canvas = document.createElement('canvas');
   const contexto = canvas.getContext('2d',{willReadFrequently:true});
+  let intento=0;
   return {
+    intervalo:110,
     leer(video) {
       const ancho=video.videoWidth||video.naturalWidth,alto=video.videoHeight||video.naturalHeight;
-      if (canvas.width !== ancho || canvas.height !== alto) {
-        canvas.width=ancho;canvas.height=alto;
-      }
-      contexto.drawImage(video,0,0);
+      if(!ancho||!alto)return [];
+      // La foto elegida conserva toda su resolución. En vivo alternamos un
+      // recorte central rápido y el encuadre completo para no omitir bordes.
+      const todo=foto||++intento%2===0;
+      const w=todo?ancho:Math.round(ancho*.82),h=todo?alto:Math.round(alto*.64);
+      const escala=foto?1:Math.min(1,(todo?1920:1280)/Math.max(w,h));
+      const destinoW=Math.max(1,Math.round(w*escala)),destinoH=Math.max(1,Math.round(h*escala));
+      if(canvas.width!==destinoW||canvas.height!==destinoH){canvas.width=destinoW;canvas.height=destinoH;}
+      contexto.drawImage(video,(ancho-w)/2,(alto-h)/2,w,h,0,0,destinoW,destinoH);
       const bitmap = new BinaryBitmap(new HybridBinarizer(new HTMLCanvasElementLuminanceSource(canvas)));
-      return [{rawValue:lector.decodeWithState(bitmap).getText()}];
+      return [{rawValue:(todo?completo:rapido).decodeWithState(bitmap).getText()}];
     },
-    cerrar(){lector.reset();canvas.width=0;canvas.height=0;},
+    cerrar(){rapido.reset();completo.reset();canvas.width=0;canvas.height=0;},
   };
 }
 
@@ -82,7 +90,7 @@ async function lectorDeVideo() {
 export async function leerCodigoDeImagen(archivo){
  if(!archivo||!archivo.type.startsWith('image/')||archivo.size>12*1024*1024)throw new Error('Elige una imagen del código de hasta 12 MB.');
  const url=URL.createObjectURL(archivo),img=new Image();let lector;
- try{img.src=url;await img.decode();if(img.naturalWidth*img.naturalHeight>24_000_000)throw new Error('La fotografía es demasiado grande. Acércate al código o recorta la foto.');lector=await lectorDeVideo();const codigos=await lector.leer(img);const unicos=[...new Set(codigos.map(c=>c.rawValue).filter(Boolean))];if(unicos.length!==1)throw new Error(unicos.length?'Hay varios códigos. Fotografía solo la etiqueta que deseas consultar.':'No se pudo leer. Acerca la etiqueta, evita reflejos o escribe el código.');return unicos[0];}
+ try{img.src=url;await img.decode();if(img.naturalWidth*img.naturalHeight>24_000_000)throw new Error('La fotografía es demasiado grande. Acércate al código o recorta la foto.');lector=await lectorDeVideo({foto:true});const codigos=await lector.leer(img);const unicos=[...new Set(codigos.map(c=>c.rawValue).filter(Boolean))];if(unicos.length!==1)throw new Error(unicos.length?'Hay varios códigos. Fotografía solo la etiqueta que deseas consultar.':'No se pudo leer. Acerca la etiqueta, evita reflejos o escribe el código.');return unicos[0];}
  catch(e){if(e.message?.includes('fotograf')||e.message?.includes('códigos')||e.message?.includes('No se pudo leer'))throw e;throw new Error('No se pudo leer el código de esta foto. Acércate a la etiqueta o escribe el código.');}
  finally{lector?.cerrar();URL.revokeObjectURL(url);}
 }
@@ -99,22 +107,27 @@ export async function leerCodigoDeImagen(archivo){
  */
 export async function abrirCamara(video, alLeer, opciones = {}) {
   if (!camaraDisponible()) throw new Error(motivoNoDisponible());
-  const intervaloMs = opciones.intervaloMs || 180;
   // El mismo código delante de la cámara se lee treinta veces por segundo. Sin
   // esta espera, un solo acercamiento registraría decenas de unidades.
   const repetirTrasMs = opciones.repetirTrasMs ?? 2500;
 
   const detector = await lectorDeVideo();
+  const intervaloMs=Math.max(60,opciones.intervaloMs||detector.intervalo);
   let flujo;
   try { flujo = await navigator.mediaDevices.getUserMedia({
     video: {
       // La trasera: la frontal enfoca al operario.
       facingMode: { ideal: 'environment' },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal:30,max:30 },
     },
     audio: false,
   }); } catch(e) { detector.cerrar(); throw e; }
+
+  // Es opcional: equipos sin este control mantienen su enfoque predeterminado.
+  const pista=flujo.getVideoTracks?.()[0];
+  try{if(pista?.getCapabilities?.().focusMode?.includes('continuous'))await pista.applyConstraints({advanced:[{focusMode:'continuous'}]});}catch{/* El navegador conserva la cámara aunque rechace este ajuste. */}
 
   video.srcObject = flujo;
   video.setAttribute('playsinline', '');   // iOS no abre pantalla completa
@@ -126,13 +139,16 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
   let ultimoEn = 0;
   let vivo = true;
   let detectando = false;
+  let fotograma=-1;
 
   const temporizador = setInterval(async () => {
     if (!vivo || detectando || video.readyState < 2 || (opciones.puedeLeer && !opciones.puedeLeer())) return;
+    if(Number.isFinite(video.currentTime)&&video.currentTime===fotograma)return;
+    fotograma=video.currentTime;
     detectando = true;
     try {
       const codigos = await detector.leer(video);
-      if (!vivo || !codigos.length) return;
+      if (!vivo || (opciones.puedeLeer&&!opciones.puedeLeer()) || !codigos.length) return;
 
       const valor = String(codigos[0].rawValue || '').trim();
       if (!valor) return;
@@ -141,9 +157,9 @@ export async function abrirCamara(video, alLeer, opciones = {}) {
       if (valor === ultimo && ahora - ultimoEn < repetirTrasMs) return;
       ultimo = valor;
       ultimoEn = ahora;
-      alLeer(valor);
+      await alLeer(valor);
     } catch {
-      // Un fotograma ilegible no es un error: el siguiente llega en 180 ms.
+      // Un fotograma ilegible es normal. Nunca se procesan dos a la vez.
     } finally { detectando = false; }
   }, intervaloMs);
 

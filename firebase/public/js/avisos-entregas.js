@@ -1,6 +1,6 @@
-import {pedir,modoLocal} from './local.js?v=20261018-42';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261018-42';
-import {agregarAccionAviso} from './notificaciones.js?v=20261018-42';
+import {pedir,modoLocal} from './local.js?v=20261018-43';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261018-43';
+import {agregarAccionAviso} from './notificaciones.js?v=20261018-43';
 let timer=null,cuenta='',ocupado=false,generacion=0;
 export function iniciarAvisosEntregas({usuario,perfil,aviso}){
  const correo=String(perfil?.email||usuario?.email||'').toLowerCase();

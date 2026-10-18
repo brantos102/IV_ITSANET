@@ -266,6 +266,8 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
                    op: Operador = Depends(usuario_actual)):
     from app.services import archivos
     from app.services import operacion, drive
+    if 'operadorOrigen' in datos and str(datos['operadorOrigen'])!=str(op.id):
+        raise HTTPException(409,'La sesión cambió desde que se preparó esta foto. Entra con la cuenta que la seleccionó para recuperar sus pendientes.')
     if tipo == 'informe' and op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
         raise HTTPException(403, 'Solo un supervisor archiva informes')
     if tipo == 'foto':

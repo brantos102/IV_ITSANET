@@ -5,9 +5,9 @@
  * Script, que es quien guarda las credenciales de cada cliente. Este módulo
  * solo sabe pedirle cosas.
  */
-import { doc, getDoc } from '../vendor/firebase-sdk.js?v=20261018-42';
-import { auth, db } from './auth.js?v=20261018-42';
-import * as local from './local.js?v=20261018-42';
+import { doc, getDoc } from '../vendor/firebase-sdk.js?v=20261018-43';
+import { auth, db } from './auth.js?v=20261018-43';
+import * as local from './local.js?v=20261018-43';
 
 let urlProxy = null;
 

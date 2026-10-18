@@ -1,10 +1,11 @@
-import {verImagen} from './visor-imagen.js?v=20261018-42';
-import {pedir} from './local.js?v=20261018-42';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-42';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-42';
-import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261018-42';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-42';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-42';
+import {verImagen} from './visor-imagen.js?v=20261018-43';
+import {pedir} from './local.js?v=20261018-43';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-43';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-43';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261018-43';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-43';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-43';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-43';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -39,14 +40,14 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       const modal=await abrirEtiquetasBultos(codigo);await new Promise(resolve=>modal.addEventListener('close',resolve,{once:true}));await refrescar();
     }
   }
-  async function guardarInicio(){
+  async function guardarInicio({crearBultos=true}={}){
     const marca=$('[data-marca]').value.trim(),protocolo=$('[data-protocolo]').value;
     if(marca!==(ingreso.marca || '') || protocolo!==ingreso.protocolo || !ingreso.version || !ingreso.responsable)
       ingreso=await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{marca,protocolo,version:ingreso.version}});
-    if(protocolo!=='SIN_FOTOS' && !bultos().length)ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Math.max(1,Number(recepcion.bultos)||1)}});
+    if(crearBultos&&protocolo!=='SIN_FOTOS' && !bultos().length)ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Math.max(1,Number(recepcion.bultos)||1)}});
   }
   async function continuarPacking(){
-    await guardarInicio();
+    await guardarInicio({crearBultos:false});
     await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{paso:'PACKING',version:ingreso.version}});
     d.close();continuar();
   }
@@ -58,23 +59,25 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       <div class="rejilla ingreso-opciones"><label class="campo"><span>Marca</span><input data-marca placeholder="Isuzu, Geely…" value="${esc(ingreso.marca || '')}"></label>
       <label class="campo"><span>Protocolo de fotos</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">Cotidiano / panorámicas</option><option value="SIN_FOTOS">Sin registro fotográfico</option></select></label></div>
       <p class="mini" data-sin-fotos hidden>La decisión del supervisor queda registrada. Continúa al packing list sin tomar fotos.</p>
-      <button class="b-primario ingreso-principal" data-empezar>${completos ? 'Continuar bultos' : 'Empezar primer bulto'} · escanear y fotografiar</button>
+      <section class="ingreso-eleccion"><h2>¿Cómo deseas continuar?</h2><p class="mini">Elige el primer paso. Puedes volver después para completar las fotografías.</p><div class="ingreso-rutas"><button class="b-sec" data-panoramicas><b>1 · Fotos panorámicas</b><span>Documentar la recepción completa antes del primer bulto.</span></button><button class="b-primario ingreso-principal" data-empezar><b>${completos?'Continuar bultos':'2 · Fotos de los bultos'}</b><span>Identificar y fotografiar cada bulto por separado.</span></button><button class="b-sec" data-packing><b>3 · Cargar packing list</b><span>Continuar a los archivos; las fotos se pueden completar después.</span></button></div></section><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button>
       <details class="ingreso-lista"><summary>Revisar bultos (${bs.length})</summary>${bs.map((b,i)=>`<button class="b-sec" data-ir="${i}">Bulto ${b.numero} · ${esc(b.codigo || 'sin etiqueta')} · ${b.concluido?'Registrado':'Pendiente'}</button>`).join('')}</details>
-      <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button><footer class="ingreso-pie"><button class="b-sec" data-packing>Continuar a packing lists →</button></footer>`;
+      <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button>`;
     $('[data-protocolo]').value=ingreso.protocolo || 'REGLAMENTARIO';
     const pintarProtocolo=()=>{const sinFotos=$('[data-protocolo]').value==='SIN_FOTOS';
       $('[data-sin-fotos]').hidden=!sinFotos;
-      $('[data-empezar]').textContent=sinFotos ? 'Continuar sin fotos → packing list' : `${completos ? 'Continuar bultos' : 'Empezar primer bulto'} · escanear y fotografiar`;
+      $('[data-empezar]').disabled=sinFotos||recepcion.estado==='CERRADA';$('[data-panoramicas]').disabled=sinFotos||recepcion.estado==='CERRADA';
       $('.ingreso-lista').hidden=sinFotos;
     };
     $('[data-protocolo]').onchange=pintarProtocolo;pintarProtocolo();
     $('[data-etiquetas]').onclick=seguro(async()=>{if(recepcion.estado!=='CERRADA')await guardarInicio();const modal=await abrirEtiquetasBultos(codigo);modal.addEventListener('close',()=>refrescar().then(inicio).catch(manejarError));});
     $('[data-finales]').onclick=seguro(async()=>{if(recepcion.estado!=='CERRADA')await guardarInicio();await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'ESTADO_FINAL',supervisor:true});});
-    if(recepcion.estado==='CERRADA')for(const s of ['[data-total]','[data-empezar]','[data-packing]','[data-marca]','[data-protocolo]'])$(s).disabled=true;
+    if(recepcion.estado==='CERRADA')for(const s of ['[data-total]','[data-empezar]','[data-packing]','[data-panoramicas]','[data-marca]','[data-protocolo]'])$(s).disabled=true;
     $('[data-recargar]').onclick=seguro(async()=>{const marca=$('[data-marca]').value,protocolo=$('[data-protocolo]').value,anterior=ingreso;
       await refrescar();inicio();if(marca!==(anterior.marca || ''))$('[data-marca]').value=marca;if(protocolo!==anterior.protocolo)$('[data-protocolo]').value=protocolo;
       pintarProtocolo();estado('Ingreso actualizado. Revisa marca y protocolo antes de guardar.');});
     $('[data-empezar]').onclick=seguro(async()=>{if($('[data-protocolo]').value==='SIN_FOTOS'){await continuarPacking();return;}await guardarInicio();await sugerirEtiquetas();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
+    $('[data-panoramicas]').onclick=seguro(async()=>{await guardarInicio({crearBultos:false});const modal=await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'PANORAMICA',supervisor:true});if(modal.open)await new Promise(ok=>modal.addEventListener('close',ok,{once:true}));await refrescar();inicio();});
+    $('[data-temporales]').onclick=seguro(()=>abrirFotosPendientes(codigo,{alGuardar:refrescar}));
     $('[data-total]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Total de bultos',campos:[{clave:'cantidad',etiqueta:'Bultos recibidos',tipo:'number',valor:recepcion.bultos || bs.length || 1,obligatorio:true}]});if(!v)return;
       ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Number(v.cantidad),cantidadAnterior:recepcion.bultos}});await refrescar();inicio();});
     $('[data-packing]').onclick=seguro(continuarPacking);
@@ -138,7 +141,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       <div class="acciones ingreso-herramientas"><button class="b-sec" data-escanear>↻ Escanear etiqueta</button><button class="b-sec" data-manual>Escribir código</button></div>
       <label class="campo"><span>Fotos de</span><select data-tipo>${['EXTERIOR_BULTO','ABIERTO_CON_PACKING','ETIQUETA_CAJA','DANO_EMBALAJE','PACKING_INICIAL','PANORAMICA','ADICIONAL'].map(k=>`<option value="${k}">${esc(TIPOS_EVIDENCIA[k])}</option>`).join('')}</select></label>
       <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Tomar foto</button><button class="b-sec" data-nativa>Cámara del equipo</button><a class="b-sec" data-nativa-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button class="b-sec" data-archivos>＋ Galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-captura accept="image/*" capture="environment" hidden><input type="file" data-ficheros accept="image/*" multiple hidden>
-      <p class="mini" data-cantidad-fotos></p><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
+      <p class="mini" data-cantidad-fotos></p><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
       <details class="nota-bulto"><summary>＋ Observación opcional</summary><textarea data-nota rows="2" maxlength="300" placeholder="Estado del embalaje o novedad…">${esc(u.observacion || '')}</textarea></details>
       <details><summary>Guía de fotos</summary><p class="mini">${ingreso.protocolo==='GENERAL' ? `${ingreso.recomendaciones.panoramicasMin} panorámicas recomendadas por recepción.` : `${ingreso.recomendaciones.exterioresMin} exteriores por bulto (objetivo ${ingreso.recomendaciones.exterioresObjetivo}), ${ingreso.recomendaciones.abiertosMin} abierto con lista visible y ${ingreso.recomendaciones.packingMin} packing inicial por recepción.`} Sin máximo de imágenes.</p></details>
       <details><summary>Caja interior, pallet o lista (opcional)</summary><label class="campo"><span>Packing list</span><input data-origen value="${esc((u.origenes || recepcion.origenes || [])[0] || 'PRINCIPAL')}"></label>
@@ -163,6 +166,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     $('[data-archivos]').onclick=()=>{if(!ocupado && !conflicto)$('[data-ficheros]').click();};
     $('[data-ficheros]').onchange=seguro(async()=>{const files=$('[data-ficheros]').files;pendientes.push(...files);$('[data-ficheros]').value='';try{await subir();}finally{pintarCantidad();}});
     $('[data-reintentar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de reintentar.');await subir();});
+    $('[data-temporales]').onclick=seguro(()=>abrirFotosPendientes(codigo,{alGuardar:refrescar}));
     $('[data-fotos-guardadas]').addEventListener('toggle',ev=>{if(ev.target.open)galeria().catch(manejarError);});
     const terminar=async()=>{if(conflicto)throw new Error('Revisa los cambios antes de guardar.');await subir();
       await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value,

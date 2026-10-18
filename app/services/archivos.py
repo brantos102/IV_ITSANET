@@ -21,6 +21,31 @@ def ruta(archivo: AppArchivo) -> Path:
     return DATA_DIR / 'app_archivos' / archivo.id
 
 
+def escribir_durable(destino,bruto,*,reemplazar=False):
+    """Confirma contenido y entrada de directorio antes de confirmar metadatos."""
+    temporal=destino.with_name(destino.name+'.'+uuid4().hex+'.tmp') if reemplazar else destino
+    try:
+        with temporal.open('xb') as f:
+            os.chmod(temporal,0o600)
+            f.write(bruto);f.flush();os.fsync(f.fileno())
+        if reemplazar:os.replace(temporal,destino)
+        if hasattr(os,'O_DIRECTORY'):
+            fd=os.open(destino.parent,os.O_RDONLY|os.O_DIRECTORY)
+            try:os.fsync(fd)
+            finally:os.close(fd)
+    finally:
+        if reemplazar:temporal.unlink(missing_ok=True)
+
+
+def comprobar_copia(archivo,bruto):
+    """Un reintento no confirma una copia local ausente sin respaldo Drive."""
+    destino=ruta(archivo)
+    if archivo.drive_id:return
+    if not destino.is_file() or hashlib.sha256(destino.read_bytes()).hexdigest()!=archivo.sha256:
+        destino.parent.mkdir(parents=True,exist_ok=True)
+        escribir_durable(destino,bruto,reemplazar=True)
+
+
 def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=True) -> AppArchivo:
     codigo = str(codigo).strip().upper()
     if db.get(AppRecepcion, codigo) is None:
@@ -78,6 +103,7 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=Tru
             copia = db.get(AppCopiaDrive, anterior.id)
             if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
                 raise HTTPException(409, 'Esta imagen fue retirada por supervisión. Selecciona una nueva evidencia.')
+        comprobar_copia(anterior,bruto)
         vincular(anterior)
         return anterior
     nombre = str(datos.get('nombre') or (str(datos.get('sku') or 'foto') + extension))
@@ -90,9 +116,7 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=Tru
     destino = ruta(archivo)
     destino.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with destino.open('xb') as f:
-            os.chmod(destino, 0o600)
-            f.write(bruto)
+        escribir_durable(destino,bruto)
         db.add(archivo)
         if sku:
             db.add(AppArchivoSku(archivo_id=archivo.id, sku=sku))
@@ -102,6 +126,7 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=Tru
         destino.unlink(missing_ok=True)
         anterior = existente()
         if anterior is not None:
+            comprobar_copia(anterior,bruto)
             vincular(anterior)
             return anterior
         raise

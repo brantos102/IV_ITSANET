@@ -1,6 +1,8 @@
 # ITSANET IMS
 
-[Versión 42: cierre y correo manual, concurrencia, perfiles, manuales y comandos de producción y pruebas públicas](docs/CIERRE_MANUALES_Y_PUBLICACION_42.md).
+[Versión 43: cámara optimizada, fotos recuperables, manuales descargables y piloto desde una PC](docs/CAMARA_FOTOS_MANUALES_Y_PILOTO_43.md).
+
+[Descargar manuales en ZIP](docs/descargas/ITSANET-manuales-v43.zip) · [Entrega anterior: versión 42](docs/CIERRE_MANUALES_Y_PUBLICACION_42.md).
 
 Manuales interactivos: [Operario](firebase/public/manuales/operario.html), [Supervisor](firebase/public/manuales/supervisor.html), [Técnico](firebase/public/manuales/tecnico.html).
 

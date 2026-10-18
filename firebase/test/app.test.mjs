@@ -626,6 +626,27 @@ await test('lector en vivo evita repeticiones y apaga todas las pistas', async (
   finally {globalThis.setInterval=intervalo;globalThis.clearInterval=limpiar;if(w)Object.defineProperty(globalThis,'window',w);else delete globalThis.window;if(n)Object.defineProperty(globalThis,'navigator',n);else delete globalThis.navigator;}
 });
 
+await test('lector móvil limita procesamiento, revalida la pausa y conserva cada carácter', async () => {
+  const w=Object.getOwnPropertyDescriptor(globalThis,'window'),n=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  const intervalo=globalThis.setInterval,limpiar=globalThis.clearInterval;
+  let tick,ms,detectar,activo=true,llamadas=0,paradas=0,ajuste,restricciones;
+  const leidos=[],video={readyState:2,currentTime:1,setAttribute(){},async play(){},srcObject:null};
+  const pista={stop(){paradas++;},getCapabilities:()=>({focusMode:['continuous','manual']}),async applyConstraints(c){ajuste=c;}};
+  class Detector{static async getSupportedFormats(){return ['code_128'];}detect(){llamadas++;return new Promise(r=>detectar=r);}}
+  Object.defineProperty(globalThis,'window',{value:{BarcodeDetector:Detector},configurable:true});
+  Object.defineProperty(globalThis,'navigator',{value:{mediaDevices:{async getUserMedia(c){restricciones=c;return {getTracks:()=>[pista],getVideoTracks:()=>[pista]};}}},configurable:true});
+  globalThis.setInterval=(f,t)=>{tick=f;ms=t;return 8;};globalThis.clearInterval=()=>{};
+  try{
+    const cerrar=await camara.abrirCamara(video,c=>leidos.push(c),{puedeLeer:()=>activo});
+    eq(ms,90);eq(restricciones.video.facingMode.ideal,'environment');eq(restricciones.video.width.ideal,1920);eq(ajuste.advanced[0].focusMode,'continuous');
+    const primero=tick();await tick();eq(llamadas,1,'no procesa en paralelo');
+    activo=false;detectar([{rawValue:'2GJ805901C'}]);await primero;eq(leidos,[],'no entrega si la ficha se abrió durante el reconocimiento');
+    activo=true;await tick();eq(llamadas,1,'no reprocesa un fotograma congelado');video.currentTime=2;
+    const segundo=tick();detectar([{rawValue:"2GJ'805'901'C 04100000"}]);await segundo;eq(leidos,["2GJ'805'901'C 04100000"],'el detector no recorta ni corrige el código antes de consultar el catálogo');
+    video.currentTime=3;const tercero=tick();cerrar();detectar([{rawValue:'2GJ9411113'}]);await tercero;eq(leidos.length,1);eq(paradas,1);eq(video.srcObject,null);
+  }finally{globalThis.setInterval=intervalo;globalThis.clearInterval=limpiar;if(w)Object.defineProperty(globalThis,'window',w);else delete globalThis.window;if(n)Object.defineProperty(globalThis,'navigator',n);else delete globalThis.navigator;}
+});
+
 // ====================== El vocabulario ================================== //
 // «Unid. sistema» no le dice nada a quien esta delante de un pallet. Si el
 // glosario y las pantallas se separan, acaban conviviendo dos palabras para lo

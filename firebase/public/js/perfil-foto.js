@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261018-42';
-import {comprimir} from './imagen.js?v=20261018-42';
+import {pedir} from './local.js?v=20261018-43';
+import {comprimir} from './imagen.js?v=20261018-43';
 export function iniciarFotoPerfil(panel,usuario,aviso){
  const titulo=document.createElement('h2');titulo.textContent='Mi foto de perfil';
  const imagen=document.createElement('img');imagen.className='foto-perfil-grande';imagen.alt='Foto de perfil';imagen.src=usuario.photoURL||'';imagen.hidden=!usuario.photoURL;
