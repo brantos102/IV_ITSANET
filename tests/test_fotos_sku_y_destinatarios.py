@@ -18,11 +18,12 @@ def test_fotos_sku_solo_en_su_carpeta_segun_estado(cliente,db,monkeypatch,tmp_pa
         r=foto(cliente,c,sku='SKU1',desdeSku=True,categoria='GENERAL',tipoEvidencia='EXTERIOR_BULTO',variante=i);assert r.status_code==201,r.text
         db.rollback();db.expire_all();j=db.get(AppCopiaDrive,r.json()['id'])
         assert j.datos['ruta']==(['SKU1'] if categoria=='VALIDACION' else [categoria,'SKU1'])
-        assert j.datos['rutaSku']==j.datos['ruta'] and j.datos['nombre']==f'SKU1_{i+1:03d}.png'
+        assert j.datos['rutaSku']==j.datos['ruta'] and j.datos['nombre'].startswith('MEJORAS_SIN-EMBARQUE_') and j.datos['nombre'].endswith(f'_{i+1:05d}.png')
         e=db.scalar(select(AppEvidencia).where(AppEvidencia.archivo_id==r.json()['id']))
         assert e.categoria==categoria and e.tipo==('ADICIONAL' if categoria=='VALIDACION' else 'ITEM_NOVEDAD')
     manifest=drive.manifiesto(db,c)
-    assert [f['nombreFinal'] for f in manifest]==['SKU1_001.png','SKU1_002.png']
+    assert [f['nombreFinal'] for f in manifest]==[f['nombre'] for f in manifest]
+    assert [f['nombreFinal'].rsplit('_',1)[1] for f in manifest]==['00001.png','00002.png']
     assert all('_de_' not in f['nombreFinal'] and '__' not in f['nombreFinal'] for f in manifest)
 
 
@@ -43,11 +44,11 @@ def test_reubicar_foto_antigua_renombra_sin_subir_otro_binario(cliente,db,monkey
     llamadas=[]
     def google(accion,clave,d):
         assert accion=='archivo' and d['fileId']=='foto-antigua-confirmada' and 'base64' not in d
-        assert d['nombre']=='SKU1_001.png' and d['ruta']==['PNC','SKU1'];llamadas.append(accion)
+        assert d['nombre'].startswith('MEJORAS_SIN-EMBARQUE_') and d['nombre'].endswith('_00001.png') and d['ruta']==['PNC','SKU1'];llamadas.append(accion)
         return {'fileId':d['fileId'],'nombre':d['nombre'],'carpetaSkuUrl':'https://drive.google.com/drive/folders/sku1'}
     monkeypatch.setattr(entregas,'llamar',google)
     assert drive.procesar_uno();db.rollback();db.expire_all()
-    assert db.get(AppArchivo,ident).drive_id=='foto-antigua-confirmada' and db.get(AppArchivo,ident).nombre=='SKU1_001.png'
+    assert db.get(AppArchivo,ident).drive_id=='foto-antigua-confirmada' and db.get(AppArchivo,ident).nombre.endswith('_00001.png')
     assert llamadas==['archivo']
 
 
@@ -86,7 +87,7 @@ def test_secuencia_del_sku_no_se_repite_al_cambiar_clasificacion(cliente,db,monk
     dos=foto(cliente,c,sku='SKU1',desdeSku=True,variante=2).json()
     db.rollback();db.expire_all();a,b=[db.get(AppCopiaDrive,r['id']) for r in (uno,dos)]
     assert a.datos['ruta']==b.datos['ruta']==['SKU1']
-    assert [a.datos['nombre'],b.datos['nombre']]==['SKU1_001.png','SKU1_002.png']
+    assert [j.datos['nombre'].rsplit('_',1)[1] for j in (a,b)]==['00001.png','00002.png']
 
 
 def test_recuperar_fotos_con_cuenta_propia_pausa_correo_y_avisa_al_confirmarse(cliente,db,pendiente,monkeypatch):
@@ -99,7 +100,7 @@ def test_recuperar_fotos_con_cuenta_propia_pausa_correo_y_avisa_al_confirmarse(c
     llamadas=[]
     def verificar(accion,clave,d,conexion):
         llamadas.append(accion);assert accion=='estado' and d['usuario']=='personal@example.test'
-        return {'remitente':d['usuario'],'versionPuente':2,'capacidades':['fotosSkuSimples']}
+        return {'remitente':d['usuario'],'versionPuente':2,'capacidades':['fotosSkuSimples','fotosAuditables']}
     monkeypatch.setattr(entregas,'llamar_conexion',verificar)
     res=cliente.post(f'/api/operacion/recepciones/{c}/drive/desde-mi-cuenta',json={})
     assert res.status_code==200 and res.json()['programadas']==1,res.text
@@ -109,7 +110,7 @@ def test_recuperar_fotos_con_cuenta_propia_pausa_correo_y_avisa_al_confirmarse(c
     assert not next(e for e in cliente.get('/api/app/entregas').json() if e['id']==ident)['confirmacionDisponible']
     def copiar(accion,clave,d):
         llamadas.append(accion);assert d['usuario']=='personal@example.test'
-        if accion=='estado':return {'versionPuente':2,'remitente':d['usuario'],'capacidades':['fotosSkuSimples']}
+        if accion=='estado':return {'versionPuente':2,'remitente':d['usuario'],'capacidades':['fotosSkuSimples','fotosAuditables']}
         assert accion=='archivo'
         return {'fileId':'fotos-cuenta-propia','tipoArchivo':'foto','carpetaRecepcionUrl':'https://drive.google.com/drive/folders/recepcion'}
     monkeypatch.setattr(entregas,'llamar',copiar)

@@ -28,7 +28,7 @@ def test_foto_pendiente_adopta_responsable_al_reintentar_sin_perder_autor(client
     def llamar(accion,clave,datos):
         assert datos['usuario']=='responsable@example.test'
         acciones.append((accion,clave))
-        if accion=='estado':return {'versionPuente':2,'capacidades':['fotosSkuSimples'],'remitente':'responsable@example.test'}
+        if accion=='estado':return {'versionPuente':2,'capacidades':['fotosSkuSimples','fotosAuditables'],'remitente':'responsable@example.test'}
         return {'fileId':'foto-confirmada-drive','carpetaSkuUrl':'https://drive.google.com/drive/folders/sku'}
     monkeypatch.setattr(entregas,'llamar',llamar)
     assert cliente.post(ruta+'/drive/reintentar',json={}).status_code==200

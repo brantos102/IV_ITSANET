@@ -44,6 +44,18 @@ def ingreso(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(us
     except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
 
 
+@router.get('/recepciones/{codigo}/fotos/organizacion')
+def plan_fotos(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    from app.services.fotos_organizacion import plan
+    return plan(db,codigo)
+
+
+@router.post('/recepciones/{codigo}/fotos/organizar')
+def organizar_fotos(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    from app.services.fotos_organizacion import programar
+    return programar(db,codigo,op.email or op.usuario,datos)
+
+
 @router.put('/recepciones/{codigo}/ingreso')
 def actualizar_ingreso(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db),
                        op: Operador = Depends(requiere_supervisor)):

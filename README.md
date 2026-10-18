@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 46: nombres de fotos, clasificación histórica y carpetas por bulto](docs/FOTOS_AUDITORIA_Y_CARPETAS_46.md).
+
 [Versión 43: cámara optimizada, fotos recuperables, manuales descargables y piloto desde una PC](docs/CAMARA_FOTOS_MANUALES_Y_PILOTO_43.md).
 
 [Descargar manuales en ZIP](docs/descargas/ITSANET-manuales-v43.zip) · [Entrega anterior: versión 42](docs/CIERRE_MANUALES_Y_PUBLICACION_42.md).

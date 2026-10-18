@@ -27,7 +27,7 @@ def confirmacion():
 
 def google(accion, clave, datos):
     assert datos['usuario'] == 'responsable@example.test'
-    return {'exito': True, 'versionPuente': 2, 'remitente': datos['usuario'],
+    return {'exito': True, 'versionPuente': 2, 'capacidades':['fotosSkuSimples','fotosAuditables'], 'remitente': datos['usuario'],
         'fileId': 'archivo-confirmado', 'enviadoA':datos.get('destinatarios',''), 'carpeta': 'https://drive.google.com/drive/folders/confirmada'}
 
 

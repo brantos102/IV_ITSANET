@@ -119,6 +119,9 @@ try {
         if (-not $Imagenes.Count) { throw 'No hay imagen preparada para este proyecto. Ejecuta sin -SinConstruir.' }
         DockerPruebas up --detach --no-build --wait --wait-timeout 300 mysql app
     } else { DockerPruebas up --detach --build --wait --wait-timeout 300 mysql app }
+    # El código se monta desde el repositorio y el piloto no usa --reload.
+    # Releerlo también cuando la imagen de dependencias no cambió; MySQL sigue activo.
+    DockerPruebas up --detach --no-deps --force-recreate --no-build --wait --wait-timeout 300 app
     $salud = Invoke-RestMethod -Uri "http://127.0.0.1:$Puerto/health" -TimeoutSec 5
     $entorno = Invoke-RestMethod -Uri "http://127.0.0.1:$Puerto/api/auth/entorno" -TimeoutSec 5
     if ($salud.ok -ne $true -or $entorno.pruebasPublicas -ne $true) { throw 'La app no confirma que sea la instancia de pruebas. No se abrio el enlace.' }

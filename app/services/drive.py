@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlalchemy import or_, select, update, func
 
 from app.db import SessionLocal
-from app.models import AppArchivo, AppCopiaDrive, AppEvidencia, AppUnidadLogistica, utcnow
+from app.models import AppArchivo, AppArchivoIdentidad, AppCopiaDrive, AppEvidencia, AppUnidadLogistica, utcnow
 from app.services import archivos, entregas, operacion
 from app.services import app_modelo as m
 
@@ -116,11 +116,13 @@ def reintentar_pendientes(db, codigo, usuario):
 def verificar_puente(db, clave, datos):
     from app.services.integraciones import google
     g = google(db, datos['usuario'])
-    k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(), datos['usuario'], datos.get('carpetaRaiz'),bool(datos.get('rutaSku')))
+    k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(), datos['usuario'], datos.get('carpetaRaiz'),bool(datos.get('rutaSku')),datos.get('versionFotos'))
     if _verificados.get(k, 0) > time.monotonic(): return
     r = entregas.llamar('estado', clave, {'usuario': datos['usuario'], 'carpetaRaiz': datos.get('carpetaRaiz', '')})
     if datos.get('rutaSku') and 'fotosSkuSimples' not in r.get('capacidades',[]):
         raise RuntimeError('Actualiza Servidor.gs y publica una Nueva versión del mismo /exec para fotos por SKU con nombres simples. Se conservan las imágenes locales.')
+    if datos.get('versionFotos')==2 and 'fotosAuditables' not in r.get('capacidades',[]):
+        raise RuntimeError('Actualiza Servidor.gs: faltan nombres auditables y clasificación histórica. Las fotos siguen guardadas en el servidor.')
     if r.get('versionPuente', 0) < 2:
         raise RuntimeError('Actualiza Servidor.gs y publica su versión con rutas de evidencias')
     if str(r.get('remitente') or '').lower() != datos['usuario'].lower():
@@ -138,6 +140,9 @@ def ruta_evidencia(e):
 
 
 def nombre_evidencia(db,archivo,e):
+    if db.get(AppArchivoIdentidad,archivo.id):
+        from app.services.fotos_identidad import nombre
+        return nombre(db,archivo)
     if not e or not e.sku:return archivo.nombre
     ids=[f[0] for f in db.execute(select(AppArchivo.id,func.min(AppEvidencia.creado_en)).join(AppEvidencia,
         AppEvidencia.archivo_id==AppArchivo.id).where(AppEvidencia.recepcion==archivo.recepcion,
@@ -158,18 +163,32 @@ def descripcion(db, archivo, evidencia=None):
     anterior=db.get(AppCopiaDrive,archivo.id)
     if anterior and anterior.datos.get('usuarioDriveFijado'):
         d['usuarioDriveFijado']=anterior.datos['usuarioDriveFijado'];d['usuario']=d['usuarioDriveFijado']
-    d['ruta'] = ruta_evidencia(e)
+    identidad=db.get(AppArchivoIdentidad,archivo.id)
+    def ruta(v):
+        from app.services.fotos_identidad import ruta_bulto
+        bulto=ruta_bulto(db,v) if identidad else []
+        return bulto+(ruta_evidencia(v) if v and v.sku else []) if bulto else ruta_evidencia(v)
+    d['ruta'] = ruta(e)
     d['sku'] = e.sku if e else ''
     d['categoria'] = e.categoria if e else 'GENERAL'
-    d['rutaSku'] = ruta_evidencia(e) if e and e.sku else []
-    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo):
-        {'categoria':v.categoria,'sku':v.sku or '', 'ruta':ruta_evidencia(v),
-         'rutaSku':ruta_evidencia(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
+    d['rutaSku'] = ruta(e) if e and e.sku else []
+    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen):
+        {'categoria':v.categoria,'sku':v.sku or '', 'ruta':ruta(v),
+         'rutaSku':ruta(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
         for v in es}.values())
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
         recepcion=archivo.recepcion, evidencia=e.id if e else None)
     d['nombre']=nombre_evidencia(db,archivo,e)
     d['tipoEvidencia']=e.tipo if e else ''
+    if identidad:
+        d.update(versionFotos=2,conservarAccesosPrevios=False,secuencia=identidad.secuencia,
+            nombreOriginal=identidad.nombre_original,embarques=identidad.datos.get('embarques',[]))
+        if anterior:
+            # Solo rutas de esta recepción conocidas por el servidor; no buscar
+            # ni eliminar archivos ajenos. El puente trata únicamente atajos.
+            previas=[anterior.datos.get('ruta',[])]+[v.get('ruta',[]) for v in anterior.datos.get('rutasVinculadas',[])]+anterior.datos.get('rutasIntentadas',[])
+            d['rutasAnteriores']=[list(r) for r in sorted(set(tuple(r) for r in previas if r))]
+        d['rutasIntentadas']=[list(r) for r in sorted(set(tuple(r) for r in [d['ruta']]+d.get('rutasAnteriores',[]) if r))]
     return d
 
 
@@ -289,7 +308,7 @@ def manifiesto(db, codigo):
     salida = []
     for grupo in grupos.values():
         for i, (a, d) in enumerate(grupo, 1):
-            nombre = d['nombre'] if d.get('sku') else f'RECEPCION_{i:03d}' + ('.png' if a.mime == 'image/png' else '.webp' if a.mime == 'image/webp' else '.jpg')
+            nombre = d['nombre'] if d.get('sku') or d.get('versionFotos')==2 else f'RECEPCION_{i:03d}' + ('.png' if a.mime == 'image/png' else '.webp' if a.mime == 'image/webp' else '.jpg')
             salida.append({**d, 'archivoId': a.id, 'fileId': a.drive_id,
                 'nombreFinal': nombre, 'indice': i, 'total': len(grupo)})
     return salida

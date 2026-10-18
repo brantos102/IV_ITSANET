@@ -54,7 +54,7 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples'].concat(
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables'].concat(
         typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'].concat(accionEnviarInforme_.versionServidor>=3?['correoEditable']:[]) : []) };
   }
   if(p.operacion==='miniatura'){
@@ -120,6 +120,48 @@ function carpetaEvidenciaServidor_(recepcion, p) {
   }, recepcion);
 }
 
+/** Consultar rutas anteriores nunca crea carpetas vacías ni sale de la recepción. */
+function buscarCarpetaEvidenciaServidor_(recepcion, ruta) {
+  if(!Array.isArray(ruta)||!ruta.length||ruta.length>8)return null;
+  var carpeta=recepcion;
+  for(var i=0;i<ruta.length;i++){
+    if(typeof ruta[i]!=='string'||!ruta[i].trim()||ruta[i].length>180)throw new Error('Ruta anterior no válida.');
+    var encontradas=carpeta.getFoldersByName(limpiarNombre_(ruta[i]));
+    if(!encontradas.hasNext())return null;
+    carpeta=encontradas.next();
+  }
+  return carpeta;
+}
+
+function buscarFotoServidor_(carpeta,clave) {
+  var fotos=carpeta.getFiles(),marca='ITSANET '+clave+' |',sufijo='__'+clave.split(':')[1];
+  while(fotos.hasNext()){
+    var f=fotos.next();
+    if(f.getTargetId&&f.getTargetId())continue;
+    if(f.getDescription&&String(f.getDescription()).indexOf(marca)===0 ||
+       f.getName&&f.getName().indexOf(sufijo)>=0)return f;
+  }
+  return null;
+}
+
+/** Retira solo accesos directos a ESTA imagen en rutas conocidas. El binario no se toca. */
+function limpiarAccesosFotoServidor_(recepcion,archivo,carpeta,p) {
+  var permitidas={},retirados=0;
+  (p.rutasVinculadas||[]).forEach(function(v){var c=carpetaEvidenciaServidor_(recepcion,v);permitidas[c.getId()]=true;});
+  var revisar=[carpeta].concat((p.rutasAnteriores||[]).map(function(r){return buscarCarpetaEvidenciaServidor_(recepcion,r);}).filter(Boolean)),vistos={};
+  revisar.forEach(function(c){
+    if(vistos[c.getId()])return;vistos[c.getId()]=true;
+    var fotos=c.getFiles(),conservado=false;
+    while(fotos.hasNext()){
+      var f=fotos.next();
+      if(!f.getTargetId||f.getTargetId()!==archivo.getId())continue;
+      if(c.getId()!==carpeta.getId()&&permitidas[c.getId()]&&!conservado){conservado=true;continue;}
+      f.setTrashed(true);retirados++;
+    }
+  });
+  return retirados;
+}
+
 /** MailApp envia como el ejecutor del despliegue; replyTo no cambia el From. */
 function cuentaServidor_(supervisor) {
   var real = String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
@@ -143,32 +185,34 @@ function archivoServidor_(clave, p) {
   var archivo = p.fileId ? DriveApp.getFileById(p.fileId) : existentes.hasNext() ? existentes.next() : null;
   // El identificador técnico queda en la descripción, no en el nombre visible.
   // Buscarlo conserva la idempotencia aunque se pierda la respuesta tras renombrar.
-  if(!archivo && p.tipoArchivo==='foto'){
-    var fotos=carpeta.getFiles(),marca='ITSANET '+clave+' |';
-    while(fotos.hasNext()){var foto=fotos.next();if(foto.getDescription && String(foto.getDescription()).indexOf(marca)===0){archivo=foto;break;}}
+  if(!archivo && p.tipoArchivo==='foto')archivo=buscarFotoServidor_(carpeta,clave);
+  if(!archivo && p.tipoArchivo==='foto' && p.versionFotos===2){
+    (p.rutasAnteriores||[]).some(function(r){var anterior=buscarCarpetaEvidenciaServidor_(recepcion,r);if(anterior)archivo=buscarFotoServidor_(anterior,clave);return !!archivo;});
   }
   if(!archivo)archivo=carpeta.createFile(Utilities.newBlob(Utilities.base64Decode(p.base64),p.tipo,nombre));
-  if (p.fileId) {
+  if (p.fileId || p.versionFotos===2) {
     // Los informes anteriores pueden enlazar la ubicación antigua: conservar un acceso directo.
-    if(archivo.getParents){var padres=archivo.getParents();while(padres.hasNext()){var padre=padres.next();if(padre.getId()!==carpeta.getId()){
+    if(p.conservarAccesosPrevios!==false&&archivo.getParents){var padres=archivo.getParents();while(padres.hasNext()){var padre=padres.next();if(padre.getId()!==carpeta.getId()){
       var refs=padre.getFiles(),hay=false;while(refs.hasNext()){var ref=refs.next();if(ref.getTargetId&&ref.getTargetId()===archivo.getId())hay=true;}
       if(!hay){var previo=DriveApp.createShortcut(archivo.getId());previo.moveTo(padre);previo.setName(original);}
     }}}
     archivo.moveTo(carpeta);archivo.setName(nombre);
   }
-  archivo.setDescription('ITSANET ' + clave + ' | Recepcion ' + p.recepcion + ' | ' + p.usuario);
+  archivo.setDescription('ITSANET ' + clave + ' | Recepcion ' + p.recepcion + ' | ' + p.usuario+
+    (p.versionFotos===2?' | Secuencia '+p.secuencia+' | Original '+p.nombreOriginal+' | Embarques '+(p.embarques||[]).join(', '):''));
   if(p.tipoArchivo==='foto'){nombre=original;archivo.setName(nombre);}
   var vinculos = {};
   (p.rutasVinculadas || []).forEach(function(v) {
     var destino=carpetaEvidenciaServidor_(recepcion,v);
     if(destino.getUrl()!==carpeta.getUrl()) {
-      var nombreEnlace=limpiarNombre_(v.nombre||nombre),existentes=destino.getFiles(),encontrado=false;
+      var nombreEnlace=(p.versionFotos===2?'ACCESO__':'')+limpiarNombre_(v.nombre||nombre),existentes=destino.getFiles(),encontrado=false;
       while(existentes.hasNext()){var f=existentes.next();if(f.getId()===archivo.getId() || f.getTargetId&&f.getTargetId()===archivo.getId()){encontrado=true;f.setName(nombreEnlace);}}
-      if(!encontrado){var enlace=DriveApp.createShortcut(archivo.getId());enlace.moveTo(destino);enlace.setName(nombreEnlace);}
+      if(!encontrado){var enlace=DriveApp.createShortcut(archivo.getId());enlace.moveTo(destino);enlace.setName(nombreEnlace);enlace.setDescription('ITSANET ACCESO '+clave);}
     }
     vinculos[v.categoria+'|'+v.sku]={carpeta:destino.getUrl(),carpetaSkuUrl:v.sku?carpetaEvidenciaServidor_(recepcion,{ruta:v.rutaSku && v.rutaSku.length ? v.rutaSku : v.ruta.slice(0,-1)}).getUrl():''};
   });
-  return { exito: true, fileId: archivo.getId(), nombre: original, tipoArchivo: p.tipoArchivo,
+  var retirados=p.versionFotos===2&&p.conservarAccesosPrevios===false?limpiarAccesosFotoServidor_(recepcion,archivo,carpeta,p):0;
+  return { exito: true, fileId: archivo.getId(), nombre: original, tipoArchivo: p.tipoArchivo,accesosRetirados:retirados,
     enlace: archivo.getUrl(), url: 'https://drive.google.com/uc?id=' + archivo.getId(),
     carpeta: carpeta.getUrl(), carpetaRecepcionUrl: recepcion.getUrl(),vinculosDrive:vinculos,
     carpetaSkuUrl: p.sku && p.ruta && p.ruta.length

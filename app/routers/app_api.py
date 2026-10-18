@@ -286,6 +286,13 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
     try:
         a = archivos.guardar(db, codigo, tipo, datos, _quien(op), confirmar=False)
         if tipo == 'foto':
+            from app.services import fotos_identidad
+            # Un conflicto de contenido puede haber terminado la transacción
+            # inicial. Releer el estado y recuperar el bloqueo antes de numerar.
+            r=m.obtener(db,r.codigo,bloquear=True)
+            if r.estado not in m.ABIERTAS and not (datos.get('tipoEvidencia')=='ESTADO_FINAL' and not str(datos.get('sku') or '').strip() and op.rol in (Rol.ADMIN,Rol.SUPERVISOR)):
+                raise HTTPException(409,'La recepción se cerró. Actualiza antes de adjuntar esta foto.')
+            fotos_identidad.asegurar_archivo(db,a)
             creada = operacion.vincular_evidencia(db, a, datos, _quien(op), confirmar=False)
             drive.encolar(db, a)
             if r.estado not in m.ABIERTAS and creada:
@@ -365,9 +372,10 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
         for aid, cod in db.execute(select(AppArchivoSku.archivo_id, AppArchivoSku.sku).where(AppArchivoSku.archivo_id.in_([a.id for a in filas]))):
             etiquetas.setdefault(aid, []).append(cod)
     resultado = []
-    from app.models import AppEvidencia, AppCopiaDrive
+    from app.models import AppEvidencia, AppCopiaDrive, AppArchivoIdentidad
     from app.services.drive import carpeta_sku
     metadatos = {}
+    identidades={i.archivo_id:i for i in db.scalars(select(AppArchivoIdentidad).where(AppArchivoIdentidad.archivo_id.in_([a.id for a in filas])))} if filas else {}
     if filas:
         copias = {j.archivo_id: j for j in db.scalars(select(AppCopiaDrive).where(
             AppCopiaDrive.archivo_id.in_([a.id for a in filas])))}
@@ -381,6 +389,9 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
              'skus': etiquetas.get(a.id, []), 'bytes': a.bytes, 'creadoEn': m._iso(a.creado_en),
              'almacen': 'DRIVE' if a.drive_id else 'SERVIDOR', 'driveUrl': a.drive_url or '',
              'evidencias': metadatos.get(a.id, [])}
+        identidad=identidades.get(a.id)
+        f.update(nombreOriginal=identidad.nombre_original if identidad else a.nombre,
+            secuencia=identidad.secuencia if identidad else None,registradaPor=a.usuario)
         if op.rol == Rol.ADMIN:
             f['rutaServidor'] = str(archivos.ruta(a)) if archivos.ruta(a).exists() else None
         resultado.append(f)

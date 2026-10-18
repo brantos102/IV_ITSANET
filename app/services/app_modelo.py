@@ -419,6 +419,8 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
     r.hoja = resultado.get("hoja") or r.hoja
     r.embarques = sorted({*(r.embarques or []), *(resultado.get("embarques") or [])})
     r.packing_list_en = ahora
+    from app.services.fotos_organizacion import actualizar_por_embarques
+    actualizar_por_embarques(db,r.codigo)
 
     resumen = resultado.get("resumen") or {}
     if resumen.get("huella"):
@@ -661,7 +663,7 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, 
 
     calidad.actualizar(db, s)
     from app.services.operacion import actualizar_fotos_conteo
-    actualizar_fotos_conteo(db,s,fotos)
+    actualizar_fotos_conteo(db,s,fotos,usuario,idem)
     db.commit() if confirmar else db.flush()
     return {
         "duplicado": False, "eventoId": idem, "sku": sku,

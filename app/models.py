@@ -559,6 +559,17 @@ class AppArchivo(Base):
     creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
 
 
+class AppArchivoIdentidad(Base):
+    """Secuencia por recepción y procedencia de la foto, independientes de Drive."""
+    __tablename__ = 'app_archivo_identidades'
+    __table_args__ = (UniqueConstraint('recepcion', 'secuencia', name='uq_app_foto_secuencia'),)
+    archivo_id: Mapped[str] = mapped_column(ForeignKey('app_archivos.id', ondelete='CASCADE'), primary_key=True)
+    recepcion: Mapped[str] = mapped_column(ForeignKey('app_recepciones.codigo', ondelete='CASCADE'), index=True)
+    secuencia: Mapped[int] = mapped_column(Integer)
+    nombre_original: Mapped[str] = mapped_column(String(200))
+    datos: Mapped[dict] = mapped_column(JSON_MAPA, default=dict)
+
+
 class AppArchivoSku(Base):
     """Una imagen puede documentar varios ítems sin duplicar el archivo."""
     __tablename__ = 'app_archivo_skus'

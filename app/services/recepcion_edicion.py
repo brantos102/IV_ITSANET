@@ -36,6 +36,8 @@ def editar(db,codigo,datos,usuario):
     if n==0 and r.bultos:raise HTTPException(422,'Bultos: conserva al menos uno; usa Corregir total para revisar las unidades registradas.')
     if n!=(r.bultos or 0):operacion.ajustar_bultos(db,r.codigo,{'cantidad':n,'cantidadAnterior':r.bultos},usuario,confirmar=False)
     r.descripcion=descripcion;r.embarques=list(dict.fromkeys(e.strip().upper() for e in embarques))
+    from app.services.fotos_organizacion import actualizar_por_embarques
+    actualizar_por_embarques(db,r.codigo)
     ajustes.auditar(db,usuario,'RECEPCION_EDITADA',codigo,{'antes':anterior,'despues':{'descripcion':descripcion,'embarques':r.embarques,'bultos':n}})
     db.commit();return obtener(db,codigo)
 

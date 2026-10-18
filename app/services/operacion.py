@@ -233,7 +233,7 @@ def validar_evidencia(db, codigo, datos):
         from app.models import AppSku
         sku=normalizar_sku(datos.get('sku'))
         s=db.scalar(select(AppSku).where(AppSku.recepcion==codigo,AppSku.sku==sku))
-        if not s and (not sku or datos.get('conteoPendiente') is not True):raise HTTPException(422,'Selecciona un SKU de esta recepción para adjuntar sus fotos.')
+        if not s and (not sku or not (datos.get('conteoPendiente') is True or datos.get('registroAdicional') is True)):raise HTTPException(422,'Selecciona un SKU de esta recepción para adjuntar sus fotos.')
         categoria='SOBRANTE' if not s else ('PNC' if s.tiene_pnc else 'SOBRANTE' if s.estado=='SOBRANTE' or not s.en_packing_list
             else 'FALTANTE' if s.estado in ('FALTANTE','NO_ENCONTRADO') else 'VALIDACION')
         tipo='ITEM_NOVEDAD' if categoria!='VALIDACION' else 'ADICIONAL'
@@ -261,11 +261,21 @@ def vincular_evidencia(db, archivo, datos, usuario, confirmar=True):
     q = select(AppEvidencia).where(AppEvidencia.archivo_id == archivo.id,
         AppEvidencia.eliminado_en.is_(None), *[getattr(AppEvidencia, k) == v for k, v in d.items()])
     e = db.scalar(q)
+    if not e and datos.get('desdeSku') is True:
+        # Reutilizar una foto conocida no crea otra clasificación histórica.
+        e=db.scalar(select(AppEvidencia).where(AppEvidencia.archivo_id==archivo.id,
+            AppEvidencia.eliminado_en.is_(None),AppEvidencia.sku==d['sku'],
+            AppEvidencia.unidad_id==d['unidad_id'],AppEvidencia.origen==d['origen']))
     creada = e is None
     if not e:
         e = AppEvidencia(id=uuid4().hex, archivo_id=archivo.id, recepcion=archivo.recepcion,
             usuario=usuario, **d)
         db.add(e)
+        if datos.get('desdeSku') is True and datos.get('conteoPendiente') is True:
+            from app.models import AppArchivoIdentidad
+            identidad=db.get(AppArchivoIdentidad,archivo.id)
+            if identidad:
+                identidad.datos={**identidad.datos,'pendientesConteo':{**identidad.datos.get('pendientesConteo',{}),e.id:usuario}}
         auditoria(db, archivo.recepcion, usuario, 'EVIDENCIA_REGISTRADA',
             {'archivoId': archivo.id, 'unidadId': d['unidad_id'], 'sku': d['sku'], 'categoria': d['categoria']})
         db.commit() if confirmar else db.flush()
@@ -317,15 +327,23 @@ def ajustar_bultos(db, codigo, datos, usuario, confirmar=True):
     return obtener_ingreso(db, codigo)
 
 
-def actualizar_fotos_conteo(db,s,fotos):
-    """Las fotos del conteo siguen el resultado físico confirmado sin duplicarse."""
+def actualizar_fotos_conteo(db,s,fotos,usuario,evento_id):
+    """Clasifica una sola vez las fotos nuevas preparadas para este conteo."""
     if not fotos:return
-    from app.models import AppArchivo
+    from app.models import AppArchivo,AppArchivoIdentidad
     from app.services import drive
     ids={str(url).split('/api/app/archivos/')[-1].split('?')[0] for url in fotos if '/api/app/archivos/' in url}
     categoria='PNC' if s.tiene_pnc else 'SOBRANTE' if s.estado=='SOBRANTE' or not s.en_packing_list else 'FALTANTE' if s.estado in ('FALTANTE','NO_ENCONTRADO') else 'VALIDACION'
     for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_(ids),AppEvidencia.recepcion==s.recepcion,AppEvidencia.sku==s.sku,AppEvidencia.eliminado_en.is_(None)).with_for_update()):
+        identidad=db.get(AppArchivoIdentidad,e.archivo_id)
+        pendientes=(identidad.datos or {}).get('pendientesConteo',{}) if identidad else {}
+        if pendientes.get(e.id)!=usuario:continue
+        anterior=e.categoria
         e.categoria=categoria;e.tipo='ADICIONAL' if categoria=='VALIDACION' else 'ITEM_NOVEDAD'
+        identidad.datos={**identidad.datos,'pendientesConteo':{k:v for k,v in pendientes.items() if k!=e.id},
+            'conteos':{**identidad.datos.get('conteos',{}),e.id:evento_id}}
+        auditoria(db,s.recepcion,usuario,'EVIDENCIA_ASOCIADA_CONTEO',{'archivoId':e.archivo_id,'evidenciaId':e.id,
+            'eventoId':evento_id,'categoriaAntes':anterior,'categoria':categoria})
         db.flush();drive.encolar(db,db.get(AppArchivo,e.archivo_id))
 
 

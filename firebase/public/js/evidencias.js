@@ -1,9 +1,10 @@
-import {verImagen} from './visor-imagen.js?v=20261018-43';
-import {manualFotos} from './manual-fotos.js?v=20261018-43';
-import {pedir} from './local.js?v=20261018-43';
-import {comprimir} from './imagen.js?v=20261018-43';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-43';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-43';
+import {organizarFotos} from './organizar-fotos.js?v=20261018-46';
+import {verImagen} from './visor-imagen.js?v=20261018-46';
+import {manualFotos} from './manual-fotos.js?v=20261018-46';
+import {pedir} from './local.js?v=20261018-46';
+import {comprimir} from './imagen.js?v=20261018-46';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-46';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-46';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -70,12 +71,12 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
   $('[data-camara]').hidden=esWindows;$('[data-camara-windows]').hidden=!esWindows;
   $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
-  if(supervisor){const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='▦';a.title='Descargar Excel de trazabilidad de fotos: SKU, tipo, autor y carpeta Drive';a.setAttribute('aria-label',a.title);a.style.cssText='flex:0 0 42px;min-width:42px;width:42px;display:grid;place-items:center';d.querySelector('.acciones').append(a);}
+  if(supervisor){const organizar=document.createElement('button');organizar.className='b-sec';organizar.textContent='Organizar fotos';organizar.onclick=()=>{if(!ocupado)organizarFotos(recepcion,()=>cargar()).catch(e=>$('[data-estado]').textContent=e.message);};$('[data-temporales]').parentElement.append(organizar);const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='▦';a.title='Descargar Excel de trazabilidad de fotos: SKU, tipo, autor y carpeta Drive';a.setAttribute('aria-label',a.title);a.style.cssText='flex:0 0 42px;min-width:42px;width:42px;display:grid;place-items:center';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
   $('[data-tipo]').value=tipo || (sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO');
   if(sku){
     $('[data-tipo]').closest('label').hidden=true;$('[data-categoria]').closest('details').hidden=true;
-    const destino=document.createElement('p');destino.className='mini';destino.textContent=`${producto.descripcion||''} · Fotos en ${categoria==='VALIDACION'?sku:categoria+'/'+sku}. La clasificación se toma del estado actual del SKU.`;
+    const destino=document.createElement('p');destino.className='mini';destino.textContent=`${producto.descripcion||''} · Fotos en ${categoria==='VALIDACION'?sku:categoria+'/'+sku}. Las fotos nuevas toman el estado actual; las anteriores conservan su clasificación histórica.`;
     d.querySelector('h2').parentElement.after(destino);$('[data-recomendacion]').hidden=true;
     $('[data-protocolo]').value='GENERAL';
   }
@@ -121,7 +122,8 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
       const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.loading='lazy';img.alt=f.nombre;a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};card.append(a);
       const p=document.createElement('p');p.className='mini';p.textContent=`${offset+i+1}/${r.total} · ${f.nombre} · ${f.almacen}`;card.append(p);
-      const tags=document.createElement('p');tags.className='mini';tags.textContent=(f.evidencias || []).map(e=>`${e.categoria}${e.sku?' · '+e.sku:''} · ${TIPOS_EVIDENCIA[e.tipo] || e.tipo}${e.origen ? ' · '+e.origen : ''}`).join(' / ');card.append(tags);
+      const registro=document.createElement('p');registro.className='mini';registro.textContent=`Registro ${f.secuencia?'#'+String(f.secuencia).padStart(5,'0')+' · ':''}${f.registradaPor||''} · ${f.creadoEn?new Date(f.creadoEn).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):''}`;card.append(registro);
+      const tags=document.createElement('p');tags.className='mini';tags.textContent=(f.evidencias || []).map(e=>`${e.categoria}${sku&&e.sku===sku&&e.categoria!==categoria?' · Histórica':''}${e.sku?' · '+e.sku:''} · ${TIPOS_EVIDENCIA[e.tipo] || e.tipo}${e.origen ? ' · '+e.origen : ''}`).join(' / ');card.append(tags);
       const filtroSku=$('[data-filtro-sku]').value.trim().toUpperCase(),filtroCategoria=$('[data-filtro-categoria]').value,vistos=new Set();
       for(const e of f.evidencias||[]){if(!e.carpetaDrive || filtroSku&&e.sku!==filtroSku || filtroCategoria&&e.categoria!==filtroCategoria || vistos.has(e.carpetaDrive) || !/^https:\/\/drive\.google\.com\//.test(e.carpetaDrive))continue;
         vistos.add(e.carpetaDrive);const link=document.createElement('a');link.href=e.carpetaDrive;link.target='_blank';link.rel='noopener';link.textContent=`Carpeta ${e.sku} · ${e.categoria}`;link.className='b-sec';card.append(link);}

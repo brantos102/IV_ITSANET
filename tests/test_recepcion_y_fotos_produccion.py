@@ -66,7 +66,7 @@ def test_validacion_pallet_preserva_guion_y_rechaza_caracteres(cliente,db,pallet
 
 def test_foto_conteo_referencia_local_y_destino_pnc(cliente,db,monkeypatch,tmp_path):
     monkeypatch.setattr(archivos,'DATA_DIR',tmp_path)
-    c=preparar(db);f=foto(cliente,c,sku='SKU1',desdeSku=True).json()
+    c=preparar(db);f=foto(cliente,c,sku='SKU1',desdeSku=True,conteoPendiente=True).json()
     res=cliente.post(f'/api/app/recepciones/{c}/conteos',json={'id':'foto-conteo','sku':'SKU1','cantidad':6,'pallet':'B02','fotos':[f['url']],'incidencias':[{'tipo':'MAL_ESTADO','cantidad':1}]})
     assert res.status_code==200,res.text
     db.rollback();db.expire_all();j=db.get(AppCopiaDrive,f['id'])
@@ -137,7 +137,7 @@ def test_editar_vinculo_resuelve_foto_de_embarque_exclusivo_sin_perder_archivo(c
 
 
 def test_editar_foto_copiada_reubica_mismo_id_y_rechaza_vinculo_viejo(cliente,db,monkeypatch,tmp_path):
-    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path);c=preparar(db);f=foto(cliente,c,sku='SKU1',desdeSku=True).json()
+    monkeypatch.setattr(archivos,'DATA_DIR',tmp_path);c=preparar(db);f=foto(cliente,c,sku='SKU1',desdeSku=True,conteoPendiente=True).json()
     meta=cliente.get(f'/api/app/recepciones/{c}/imagenes?sku=SKU1').json()['archivos'][0]['evidencias'][0]
     db.rollback();db.expire_all();a=db.get(AppArchivo,f['id']);j=db.get(AppCopiaDrive,a.id);a.drive_id='foto-id-original';j.estado='COPIADA';db.commit()
     cuerpo={'evidenciaId':meta['id'],'sku':'SKU1','categoria':'PNC','tipoEvidencia':'ITEM_NOVEDAD','protocolo':'GENERAL'}

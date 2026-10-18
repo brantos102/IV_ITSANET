@@ -26,7 +26,9 @@ def test_foto_local_autenticada_repetible_sin_firebase(cliente, db, monkeypatch,
     r = cliente.post('/api/app/recepciones/PRUEBA-LOCAL/archivos/foto', json=payload)
     assert r.status_code == 201, r.text
     foto = r.json()
-    assert foto['nombre'] == 'foto.png'
+    assert foto['nombre'].startswith('PRUEBA-LOCAL_SIN-EMBARQUE_') and foto['nombre'].endswith('_00001.png')
+    from app.models import AppArchivoIdentidad
+    assert db.get(AppArchivoIdentidad,foto['id']).nombre_original=='foto.png'
     assert foto['sha256'] == hashlib.sha256(PNG).hexdigest()
     assert TestClient(app).get(foto['url']).status_code == 401
     res = cliente.get(foto['url'])
