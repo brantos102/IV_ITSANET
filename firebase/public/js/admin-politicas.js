@@ -1,4 +1,4 @@
-import {pedir} from './local.js?v=20261018-49';
+import {pedir} from './local.js?v=20261019-50';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const CAMPOS_SALIDA={depot:'Código presente en Depot (OK / N/D)',marca:'Marca',cliente:'Cliente',fisica:'Cantidad física',validacion:'Validación',desface:'Diferencia',pallet:'Pallet',posicion:'Posición',codigoBarra:'Código de barras',cantidadIncidencia:'Cantidad con incidencia / diferencia',incidencia:'Tipo de incidencia',observacion:'Observación',evidencia:'Carpeta Drive del SKU'};

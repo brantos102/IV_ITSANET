@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 50: cámara dentro de la ficha y recuperación del borrador del operario](docs/FOTO_OPERADOR_Y_BORRADOR_50.md).
+
 [Versión 49: correo con selección de fotos, escáner móvil y ayudas operativas](docs/CORREO_CAMARA_Y_AYUDAS_49.md).
 
 [Informe técnico del servidor, HTTPS/cámara y almacenamiento · 18/10/2026](docs/descargas/ITSANET-informe-servidor-20261018.md) · [Descargar HTML y captura de lectura](docs/descargas/ITSANET-informe-servidor-20261018.zip).

@@ -1,10 +1,11 @@
-import {organizarFotos} from './organizar-fotos.js?v=20261018-49';
-import {verImagen} from './visor-imagen.js?v=20261018-49';
-import {manualFotos} from './manual-fotos.js?v=20261018-49';
-import {pedir} from './local.js?v=20261018-49';
-import {comprimir} from './imagen.js?v=20261018-49';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-49';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-49';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-50';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-50';
+import {verImagen} from './visor-imagen.js?v=20261019-50';
+import {manualFotos} from './manual-fotos.js?v=20261019-50';
+import {pedir} from './local.js?v=20261019-50';
+import {comprimir} from './imagen.js?v=20261019-50';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-50';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-50';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -106,7 +107,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     b.onclick=()=>{elegidas.splice(i,1);pintar();};$('[data-seleccion]').append(card);
   });};
   for(const [boton,input] of [['camara','captura'],['galeria','archivos']]) {
-    $(`[data-${boton}]`).onclick=()=>$(`[data-${input}]`).click();
+    $(`[data-${boton}]`).onclick=async()=>{if(ocupado)return;if(boton==='galeria')return $(`[data-${input}]`).click();const foto=await tomarFotoEnPagina({titulo:sku?'Foto del producto · '+sku:'Foto de recepción',alUsarNativa:()=>$(`[data-${input}]`).click()});if(foto){elegidas.push(foto);pintar();}};
     $(`[data-${input}]`).onchange=ev=>{elegidas.push(...ev.target.files);ev.target.value='';pintar();};
   }
   async function cargar(reset=true) {

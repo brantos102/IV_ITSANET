@@ -675,6 +675,19 @@ await test('las ayudas distinguen cerrar una vista de cerrar una recepción y no
  ok(ayudas.ayudaDeAccion('Leer ahora').includes('sin registrar'));
 });
 
+const borradores=await cargar('borrador-conteo.js');
+await test('el borrador sin IndexedDB conserva campos, clave y contexto por usuario y recepción',async()=>{
+ const datos=new Map(),almacen={getItem:k=>datos.get(k)||null,setItem:(k,v)=>datos.set(k,v)};
+ const a=borradores.crearBorradorConteo({actor:'op-a',recepcion:'REC50',almacen});
+ const meta={actual:{sku:'SKU50'},claveEnvio:'conteo50-original',campos:{fCantidad:'5',fPallet:'B50',fEstado:'PNC',fCantidadIncidencia:'1'}};
+ a.anotar(meta);const recargado=borradores.crearBorradorConteo({actor:'op-a',recepcion:'REC50',almacen});
+ eq((await recargado.recuperar()).datos,meta);
+ eq(await borradores.crearBorradorConteo({actor:'op-b',recepcion:'REC50',almacen}).recuperar(),null);
+ eq(await borradores.crearBorradorConteo({actor:'op-a',recepcion:'OTRA50',almacen}).recuperar(),null);
+ let rechazo=false;try{await recargado.guardar(meta,[]);}catch{rechazo=true;}ok(rechazo,'no finge copia binaria sin IndexedDB');eq((await recargado.recuperar()).datos.claveEnvio,meta.claveEnvio);
+ try{await recargado.borrar();}catch{}eq(await recargado.recuperar(),null,'el descartado explícito no resucita la copia anterior');
+});
+
 // ====================== El vocabulario ================================== //
 // «Unid. sistema» no le dice nada a quien esta delante de un pallet. Si el
 // glosario y las pantallas se separan, acaban conviviendo dos palabras para lo

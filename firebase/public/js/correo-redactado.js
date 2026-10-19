@@ -1,8 +1,8 @@
-import {abrirEvidencias} from './evidencias.js?v=20261018-49';
-import {verImagen} from './visor-imagen.js?v=20261018-49';
-import {pedir} from './local.js?v=20261018-49';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-49';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261018-49';
+import {abrirEvidencias} from './evidencias.js?v=20261019-50';
+import {verImagen} from './visor-imagen.js?v=20261019-50';
+import {pedir} from './local.js?v=20261019-50';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-50';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-50';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Notas y ubicación de la mercadería',despedida:'Despedida',firma:'Firma'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
