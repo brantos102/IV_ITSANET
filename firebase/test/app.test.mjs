@@ -647,6 +647,34 @@ await test('lector móvil limita procesamiento, revalida la pausa y conserva cad
   }finally{globalThis.setInterval=intervalo;globalThis.clearInterval=limpiar;if(w)Object.defineProperty(globalThis,'window',w);else delete globalThis.window;if(n)Object.defineProperty(globalThis,'navigator',n);else delete globalThis.navigator;}
 });
 
+await test('el recorte del lector coincide con el visor cubierto en vertical y horizontal',()=>{
+ const r=camara.regionDeLectura(1080,1920,400,300,true);eq(r,{x:0,y:555,w:1080,h:810});
+ const g=camara.regionDeLectura(1080,1920,400,300);ok(Math.abs(g.x-86.4)<.001);ok(Math.abs(g.y-652.2)<.001);ok(Math.abs(g.w-907.2)<.001);ok(Math.abs(g.h-615.6)<.001);
+ eq(camara.regionDeLectura(1920,1080,1600,900,true),{x:0,y:0,w:1920,h:1080});eq(camara.regionDeLectura(0,1080),null);
+});
+await test('Leer ahora respeta pausa, duplicados y apagado; zoom y linterna son opcionales',async()=>{
+ const w=Object.getOwnPropertyDescriptor(globalThis,'window'),n=Object.getOwnPropertyDescriptor(globalThis,'navigator'),intervalo=globalThis.setInterval,limpiar=globalThis.clearInterval;
+ let codigos=[{rawValue:'SKU-0001'}],activo=true,paradas=0,ajustes=[],detectadas=0;const leidos=[];
+ const pista={stop(){paradas++;},getCapabilities:()=>({torch:true,zoom:{min:1,max:4,step:.1}}),getSettings:()=>({zoom:1,width:1080,height:1920}),async applyConstraints(v){ajustes.push(v);}};
+ class Detector{static async getSupportedFormats(){return ['code_128'];}async detect(){detectadas++;return codigos;}}
+ Object.defineProperty(globalThis,'window',{value:{BarcodeDetector:Detector},configurable:true});Object.defineProperty(globalThis,'navigator',{value:{mediaDevices:{async getUserMedia(){return {getTracks:()=>[pista],getVideoTracks:()=>[pista]};}}},configurable:true});globalThis.setInterval=()=>1;globalThis.clearInterval=()=>{};
+ try{
+  const video={readyState:2,currentTime:1,setAttribute(){},async play(){}};const cerrar=await camara.abrirCamara(video,c=>leidos.push(c),{puedeLeer:()=>activo});
+  eq(await cerrar.leerAhora(),'LEIDO');eq(leidos,['SKU-0001']);eq(await cerrar.leerAhora(),'REPETIDO');
+  codigos=[{rawValue:'SKU2'},{rawValue:'SKU3'}];eq(await cerrar.leerAhora(),'VARIOS');eq(leidos.length,1);
+  activo=false;const antes=detectadas;eq(await cerrar.leerAhora(),'PAUSADA');eq(detectadas,antes);activo=true;
+  ok(cerrar.tieneLinterna);ok(await cerrar.linterna(true));ok(await cerrar.ajustarZoom(2));eq(ajustes,[{advanced:[{torch:true}]},{advanced:[{zoom:2}]}]);ok(!await cerrar.ajustarZoom(99));
+  cerrar();cerrar();eq(paradas,1);eq(await cerrar.leerAhora(),'APAGADA');ok(!await cerrar.linterna(true));
+ }finally{globalThis.setInterval=intervalo;globalThis.clearInterval=limpiar;if(w)Object.defineProperty(globalThis,'window',w);else delete globalThis.window;if(n)Object.defineProperty(globalThis,'navigator',n);else delete globalThis.navigator;}
+});
+const ayudas=await cargar('ayudas-operativas.js');
+await test('las ayudas distinguen cerrar una vista de cerrar una recepción y no atribuyen conteos a las fotos',()=>{
+ ok(ayudas.ayudaDeAccion('Cerrar recepción').includes('validaciones'));
+ ok(ayudas.ayudaDeAccion('Cerrar').includes('vista'));
+ ok(ayudas.ayudaDeAccion('Guardar solo fotos · sin unidades').includes('No añade unidades'));
+ ok(ayudas.ayudaDeAccion('Leer ahora').includes('sin registrar'));
+});
+
 // ====================== El vocabulario ================================== //
 // «Unid. sistema» no le dice nada a quien esta delante de un pallet. Si el
 // glosario y las pantallas se separan, acaban conviviendo dos palabras para lo

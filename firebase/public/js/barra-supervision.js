@@ -1,7 +1,8 @@
-import {pedir} from './local.js?v=20261018-48';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261018-48';
-import {mostrarAviso} from './notificaciones.js?v=20261018-48';
-import {abrirEtiqueta} from './etiquetas.js?v=20261018-48';
+import {iniciarAyudas} from './ayudas-operativas.js?v=20261018-49';
+import {pedir} from './local.js?v=20261018-49';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261018-49';
+import {mostrarAviso} from './notificaciones.js?v=20261018-49';
+import {abrirEtiqueta} from './etiquetas.js?v=20261018-49';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let avanceActual=null, liberarBarra=()=>{};
 export function publicarAvance(datos){
@@ -9,13 +10,13 @@ export function publicarAvance(datos){
  document.dispatchEvent(new CustomEvent('itsanet:avance',{detail:datos}));
 }
 export function iniciarBarra({usuario,perfil}){
- liberarBarra();document.querySelector('#barraSupervision')?.remove();
+ iniciarAyudas();liberarBarra();document.querySelector('#barraSupervision')?.remove();
  const cabecera=document.querySelector('.envoltorio>header,body>header,.caja>header,.caja>.sub');
  if(!cabecera||!usuario||!perfil)return;
  const supervisor=['SUPERVISOR','ADMIN'].includes(perfil.rol);
  const nav=document.createElement('nav');nav.id='barraSupervision';nav.className='barra-supervision';nav.setAttribute('aria-label','Navegación y herramientas');
  const aqui=new URL(location.href),codigo=aqui.pathname.endsWith('/validar.html')?aqui.searchParams.get('r'):null;
- const enlaces=[['./','Inicio'],...(supervisor?[['./recepciones.html','Recepciones']]:[]),[codigo?'./validar.html?r='+encodeURIComponent(codigo):'./validar.html','Validar recepción'],...(supervisor?[['./kpis.html','KPIs'],['./usuarios.html','Equipo']]:[]),['./cuenta.html','Mi cuenta y correo'],['./manuales/'+(supervisor?'supervisor':'operario')+'.html','Ayuda · manual interactivo'],...(perfil.rol==='ADMIN'?[['./admin.html','Administración']]:[])];
+ const enlaces=[['./','Inicio'],...(supervisor?[['./recepciones.html','Recepciones']]:[]),[codigo?'./validar.html?r='+encodeURIComponent(codigo):'./validar.html','Validar recepción'],...(supervisor?[['./kpis.html','Indicadores'],['./usuarios.html','Equipo']]:[]),['./cuenta.html','Mi cuenta y correo'],['./manuales/'+(supervisor?'supervisor':'operario')+'.html','Ayuda · manual interactivo'],...(perfil.rol==='ADMIN'?[['./admin.html','Administración']]:[])];
  nav.innerHTML=`<div class="barra-fila"><details class="nav-menu"><summary>☰ Menú</summary><div class="nav-opciones">${enlaces.map(([href,t])=>`<a href="${esc(href)}"${new URL(href,location.href).pathname===aqui.pathname?' aria-current="page"':''}>${t}</a>`).join('')}</div></details><div class="barra-herramientas">${supervisor?'<button class="b-sec" data-catalogo title="Consultar Depot y actualizar el catálogo de productos">↻ Catálogo</button><button class="b-sec" data-etiqueta>▥ Etiqueta por código</button><button class="b-sec" data-pendientes title="Recepciones cerradas con correo pendiente">▣ Entregas <span data-cantidad-pendientes></span></button>':''}</div><div class="barra-reloj"><a class="perfil-acceso" href="./cuenta.html" data-avatar title="Mi foto y mi cuenta"></a><time data-reloj title="Hora de Ecuador · reloj del equipo"></time><button class="b-sec" data-tema></button></div></div><div class="avance-encabezado" data-avance hidden><div><strong data-avance-codigo></strong><span data-avance-cifras></span></div><span class="avance-pastel" role="img" aria-label="Avance de referencias verificadas"><b data-avance-porcentaje></b></span></div>`;
  cabecera.after(nav);
  nav.querySelector('[data-catalogo]')?.addEventListener('click',()=>abrirCatalogo());

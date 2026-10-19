@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261018-48"></script>
+<script src="./js/arranque.js?v=20261018-49"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261018-48" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261018-49" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261018-48">
+<link rel="stylesheet" href="./css/marca.css?v=20261018-49">
 </head>
 <body>
 <div class="envoltorio">
@@ -322,22 +322,22 @@
 </div>
 
 <script type="module">
-import {organizarAdministracion} from './js/admin-navegacion.js?v=20261018-48';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-48';
-import { mostrarAviso } from './js/notificaciones.js?v=20261018-48';
-import { configurarPoliticas } from './js/admin-politicas.js?v=20261018-48';
-import { pintarEntregas } from './js/admin-entregas.js?v=20261018-48';
-import { configurarOperacion } from './js/admin-operacion.js?v=20261018-48';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261018-48';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261018-48';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261018-48';
-import { confirmar, pedirDatos } from './js/modal.js?v=20261018-48';
+import {organizarAdministracion} from './js/admin-navegacion.js?v=20261018-49';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-49';
+import { mostrarAviso } from './js/notificaciones.js?v=20261018-49';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261018-49';
+import { pintarEntregas } from './js/admin-entregas.js?v=20261018-49';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261018-49';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261018-49';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261018-49';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261018-49';
+import { confirmar, pedirDatos } from './js/modal.js?v=20261018-49';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261018-48';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261018-48';
+} from './js/csv.js?v=20261018-49';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261018-49';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261018-48';
+  from './vendor/firebase-sdk.js?v=20261018-49';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export const VERSION_FRONTEND='20261018-48';
+export const VERSION_FRONTEND='20261018-49';
 export async function versionarFrontend() {
   const raiz=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../firebase/public');
   for(const carpeta of [raiz,path.join(raiz,'js')]) {
@@ -14,6 +14,7 @@ export async function versionarFrontend() {
         (_,antes,modulo,fin)=>`${antes}${modulo}?v=${VERSION_FRONTEND}${fin}`);
       texto=texto.replace(/(<script\b[^>]*\bsrc=['"])(\.\/[^'"]+\.js)(?:\?v=[\w.-]+)?(['"])/g,
         (_,antes,recurso,fin)=>`${antes}${recurso}?v=${VERSION_FRONTEND}${fin}`);
+      texto=texto.replace(/(export const VERSION_LECTOR=')[^']+(';)/,`$1${VERSION_FRONTEND}$2`);
       texto=texto.replace(/(css\/marca\.css)\?v=[\w.-]+/g,`$1?v=${VERSION_FRONTEND}`);
       if(texto!==original)await fs.writeFile(ruta,texto);
     }

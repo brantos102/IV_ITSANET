@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261018-48"></script>
+<script src="./js/arranque.js?v=20261018-49"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261018-48">
+<link rel="stylesheet" href="./css/marca.css?v=20261018-49">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261018-48" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261018-48" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261018-49" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261018-49" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -67,7 +67,7 @@
 <!-- Paso 1: escanear -->
 <p class="mini" id="equipoActivo" aria-live="polite"></p>
 <div class="panel oculto" id="panelEscaneo">
-  <div class="herramientas-conteo"><b>Escanea y valida</b><button type="button" class="b-sec" id="bCaceria" aria-pressed="true">Cacería activa</button></div>
+  <div class="herramientas-conteo"><b>Consultar producto por código</b><button type="button" class="b-sec" id="bCaceria" aria-pressed="true">Consulta previa</button></div>
   <p class="mini" id="ayudaCaceria">Consulta el estado antes de registrar.</p>
   <!-- Va dentro de un <form>: en el teclado del móvil, la tecla Intro solo
        envía si el campo pertenece a un formulario. Sin esto, el operario
@@ -75,7 +75,7 @@
   <form id="formEscaner" autocomplete="off">
     <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
       <label class="campo" style="flex:3;min-width:180px">
-        <span>Código o referencia</span>
+        <span>SKU o código de barras</span>
         <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
                autocorrect="off" spellcheck="false" enterkeyhint="go"
                inputmode="text" placeholder="Escanear…" list="sugerencias">
@@ -94,10 +94,10 @@
   </form>
   <div id="visorCamara" class="oculto" style="margin-top:14px">
     <div class="visor-lector"><video id="video" muted playsinline></video><span class="guia-lector" aria-hidden="true"></span></div>
-    <p class="mini" style="margin-top:7px">
-      Centra el código dentro del marco, mantén la etiqueta quieta y evita reflejos. Revisa el producto antes de guardar.
-      <button type="button" class="chip" id="bCerrarCamara">Apagar</button>
-    </p>
+    <div class="lector-controles"><button type="button" class="b-primario" id="bLeerAhora" title="Intenta leer ahora con el lector nativo y el respaldo local. Solo consulta el producto.">Leer ahora</button><button type="button" class="b-sec" id="bLinterna" hidden aria-pressed="false">Linterna</button><button type="button" class="b-sec" id="bCerrarCamara">Apagar cámara</button></div>
+    <label class="lector-zoom" id="controlZoom" hidden>Zoom <input id="zoomCamara" type="range" aria-label="Zoom de la cámara"><output id="valorZoom"></output></label>
+    <p class="mini" id="estadoLector" role="status">Encuadra una etiqueta; puede estar horizontal o vertical. Leer consulta el código, sin guardar unidades.</p>
+    <details class="mini"><summary>Información del escáner</summary><p id="datosLector"></p><a href="./diagnostico-camara.html" target="_blank" rel="noopener">Comprobar cámara y versión en este dispositivo</a></details>
   </div>
   <div id="pistaCodigo"></div>
   <details class="ayuda-conteo"><summary>¿Cómo registrar?</summary><p>Escanea, revisa el producto, indica cantidad y pallet, y guarda. La cantidad predeterminada es 1. Escanear no guarda por sí solo.</p></details>
@@ -110,7 +110,7 @@
   <div class="acciones acciones-item" aria-label="Acciones del producto">
     <button type="button" class="b-sec" id="bAccionCodigo">▥ Código</button>
     <button type="button" class="b-sec" id="bAccionHistorial">◷ Historial</button>
-    <button type="button" class="b-sec" id="bAccionEvidencias" title="Consultar fotos y vínculos del SKU">▧ Fotos</button>
+    <button type="button" class="b-sec" id="bAccionEvidencias" title="Ver las fotos guardadas de este SKU y registrar evidencia independiente del conteo">▧ Ver fotos guardadas</button>
   </div>
   <div id="estadoCaceria" role="status"></div>
   <button type="button" class="b-sec oculto" id="bDetenerCamaraFicha">Apagar cámara</button>
@@ -193,7 +193,7 @@
        En el handheld, un <input capture> abre la cámara y devuelve UNA foto:
        el «multiple» lo ignora. Por eso hay un botón que se puede pulsar varias
        veces en vez de confiar en que el navegador deje elegir dos de golpe. -->
-  <details id="filaFotos" style="margin-top:13px"><summary title="Adjuntar fotos al SKU, con o sin conteo">📷 Adjuntar fotos al SKU</summary>
+  <details id="filaFotos" style="margin-top:13px"><summary title="Seleccionar fotos nuevas para guardar con el conteo o por separado">📷 Fotos para este conteo · opcional</summary><p class="mini">Tomar foto y Elegir de la galería seleccionan imágenes nuevas. Guardar conteo las registra junto con las unidades; Guardar solo fotos conserva las imágenes sin añadir unidades. En Ver fotos guardadas revisas lo ya registrado.</p>
     <label class="campo"><span>Fotos de la evidencia</span></label>
     <div class="acciones" style="margin:0">
       <button type="button" class="b-sec" id="bTomarFoto">📷 Tomar foto</button>
@@ -204,7 +204,7 @@
     <input type="file" id="fCamara" accept="image/*" capture="environment" class="oculto">
     <input type="file" id="fFotos" accept="image/*" multiple class="oculto">
     <div id="listaFotos" style="margin-top:10px"></div>
-    <button type="button" class="b-sec" id="bGuardarFotos">Guardar fotos sin registrar conteo</button>
+    <button type="button" class="b-sec" id="bGuardarFotos">Guardar solo fotos · sin unidades</button>
   </details>
 
   <div class="acciones">
@@ -313,7 +313,7 @@
 </div>
 
 <dialog id="galeriaFotos" class="modal" style="width:min(920px,94vw);max-width:94vw;max-height:90vh;overflow:auto">
-  <div class="acciones"><h3 id="tituloGaleria" style="flex:1">Imágenes</h3><button class="b-sec" id="bCerrarGaleria">Cerrar</button></div>
+  <div class="acciones"><h3 id="tituloGaleria" style="flex:1">Fotos guardadas</h3><button class="b-sec" id="bCerrarGaleria">Cerrar</button></div>
   <p id="estadoGaleria" role="status"></p><div id="carpetasGaleria"></div>
   <div class="acciones"><input id="filtroGaleria" placeholder="Filtrar por SKU"><button class="b-sec" id="bBuscarFotos">Buscar imágenes</button></div>
   <div id="imagenesGaleria" class="galeria-imagenes"></div>
@@ -321,45 +321,45 @@
 </dialog>
 
 <script type="module">
-import {abrirCorreo} from './js/correo-redactado.js?v=20261018-48';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-48';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261018-48';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261018-48';
-import { mostrarAviso } from './js/notificaciones.js?v=20261018-48';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261018-48';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261018-48';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261018-48';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261018-48';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261018-48';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261018-49';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261018-49';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261018-49';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261018-49';
+import { mostrarAviso } from './js/notificaciones.js?v=20261018-49';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261018-49';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261018-49';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261018-49';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261018-49';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261018-49';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261018-48';
+import { pedir as pedirLocal } from './js/local.js?v=20261018-49';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261018-48';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261018-48';
-import { observarSesion } from './js/auth.js?v=20261018-48';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261018-49';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261018-49';
+import { observarSesion } from './js/auth.js?v=20261018-49';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261018-48';
+} from './js/datos.js?v=20261018-49';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261018-48';
+} from './js/conteo.js?v=20261018-49';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261018-48';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261018-48';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen } from './js/camara.js?v=20261018-48';
-import { conectarGlosario } from './js/glosario.js?v=20261018-48';
-import { parecidos } from './js/sugerir.js?v=20261018-48';
-import { publicarAvance } from './js/barra-supervision.js?v=20261018-48';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261018-48';
+} from './js/informe.js?v=20261018-49';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261018-49';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261018-49';
+import { conectarGlosario } from './js/glosario.js?v=20261018-49';
+import { parecidos } from './js/sugerir.js?v=20261018-49';
+import { publicarAvance } from './js/barra-supervision.js?v=20261018-49';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261018-49';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261018-48';
-import { Proxy } from './js/proxy.js?v=20261018-48';
-import { modoLocal } from './js/local.js?v=20261018-48';
+} from './js/csv.js?v=20261018-49';
+import { Proxy } from './js/proxy.js?v=20261018-49';
+import { modoLocal } from './js/local.js?v=20261018-49';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -459,7 +459,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261018-48');
+      const l=await import('./js/local.js?v=20261018-49');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -548,7 +548,7 @@ $('tSkus').addEventListener('click', ev => {
   const etiqueta = ev.target.closest('[data-etiqueta]'); if (etiqueta) etiquetaDe(skus.find(s => s.sku === etiqueta.dataset.etiqueta));
 });
 function pintarModo() {
-  $('bCaceria').textContent = modoCaceria ? 'Cacería activa' : 'Conteo directo';
+  $('bCaceria').textContent = modoCaceria ? 'Consulta previa' : 'Conteo directo';
   $('bCaceria').setAttribute('aria-pressed', String(modoCaceria));
   $('ayudaCaceria').textContent = modoCaceria ? 'Escanea para consultar. Decide después si agregar un conteo.' : 'Escanea, indica cantidad y pallet, y guarda.';
 }
@@ -852,18 +852,22 @@ $('bCamara').addEventListener('click', async () => {
   const solicitud = ++solicitudCamara;
   $('bCamara').disabled = true;
   try {
-    $('visorCamara').classList.remove('oculto');
+    document.activeElement?.blur();$('visorCamara').classList.remove('oculto');$('estadoLector').textContent='Iniciando cámara y enfoque…';
     const cerrar = await abrirCamara($('video'), (codigo) => {
       // La cámara se queda encendida: se escanea una caja tras otra sin volver
       // a pulsar nada, que es como se trabaja con la pistola.
       if (solicitud !== solicitudCamara || actual || modalAbierto()) return;
       $('inEscaner').value = codigo;
-      escanear(codigo);
+      return escanear(codigo);
     }, {puedeLeer:()=>solicitud === solicitudCamara && !actual && !buscandoCodigo && !modalAbierto()});
     if (solicitud !== solicitudCamara || document.hidden) { cerrar(); return; }
     cerrarCamara = cerrar;
+    $('bLinterna').hidden=!cerrar.tieneLinterna;$('bLinterna').setAttribute('aria-pressed','false');$('bLinterna').textContent='Encender linterna';
+    $('controlZoom').hidden=!cerrar.zoom;if(cerrar.zoom){Object.assign($('zoomCamara'),{min:cerrar.zoom.min,max:cerrar.zoom.max,step:cerrar.zoom.step,value:cerrar.zoom.valor});$('valorZoom').textContent=Number(cerrar.zoom.valor).toFixed(1)+'×';}
+    const info=cerrar.diagnostico;$('datosLector').textContent=`Interfaz ${VERSION_LECTOR} · ${info.motor} · video ${info.resolucion.join(' × ')} · ${info.fps||'—'} fps · origen ${location.origin}. Producción y pruebas usan el mismo lector cuando tienen la misma versión; el equipo determina resolución, enfoque y controles.`;
+    $('estadoLector').textContent='Lectura automática activa. Encuadra una sola etiqueta o pulsa Leer ahora. No se registran unidades.';
     $('bDetenerCamaraFicha').classList.remove('oculto');
-    $('bCamara').textContent = '📷 Apagar';
+    $('bCamara').textContent = '📷 Apagar';$('visorCamara').scrollIntoView({behavior:'smooth',block:'center'});
   } catch (e) {
     if (solicitud !== solicitudCamara) return;
     $('visorCamara').classList.add('oculto');
@@ -877,10 +881,13 @@ function apagarCamara() {
   cerrarCamara = null;
   $('bDetenerCamaraFicha').classList.add('oculto');
   $('visorCamara').classList.add('oculto');
-  $('bCamara').textContent = '📷 Cámara';
+  $('bCamara').textContent = '📷 Cámara';$('bLinterna').hidden=true;$('controlZoom').hidden=true;
   $('bCamara').disabled = recepcion?.estado === 'CERRADA';
 }
 
+$('bLeerAhora').onclick=async()=>{if(!cerrarCamara)return;const b=$('bLeerAhora');b.disabled=true;$('estadoLector').textContent='Leyendo el encuadre…';try{const resultado=await cerrarCamara.leerAhora();$('estadoLector').textContent=({LEIDO:'Código leído. Revisa el producto antes de registrar.',SIN_CODIGO:'No se distinguió el código. Acércate, enfoca y evita reflejos; puedes usar zoom o linterna.',VARIOS:'Hay varios códigos: encuadra una sola etiqueta.',PAUSADA:'Revisa o cierra el producto o diálogo abierto para continuar.',REPETIDO:'Este código acaba de leerse. Revisa el producto mostrado.',OCUPADA:'El lector está procesando un fotograma. Vuelve a pulsar en un momento.',APAGADA:'Activa la cámara para leer.'})[resultado]||'Mantén la etiqueta enfocada.';}finally{b.disabled=false;}};
+$('zoomCamara').onchange=async ev=>{try{if(await cerrarCamara?.ajustarZoom(Number(ev.target.value)))$('valorZoom').textContent=Number(ev.target.value).toFixed(1)+'×';}catch{$('estadoLector').textContent='La cámara no aceptó este nivel de zoom. Puedes acercarte a la etiqueta.';}};
+$('bLinterna').onclick=async()=>{const b=$('bLinterna'),encender=b.getAttribute('aria-pressed')!=='true';b.disabled=true;try{if(await cerrarCamara?.linterna(encender)){b.setAttribute('aria-pressed',String(encender));b.textContent=encender?'Apagar linterna':'Encender linterna';}}catch{$('estadoLector').textContent='No se pudo ajustar la linterna en este navegador.';}finally{b.disabled=false;}};
 $('bCerrarCamara').addEventListener('click', apagarCamara);
 $('bDetenerCamaraFicha').addEventListener('click', apagarCamara);
 
@@ -1528,7 +1535,7 @@ async function subirFotos(sku,conteoPendiente=false) {
   if(modoLocal())return cargarEvidencias(RECEPCION,fotosElegidas,{sku,desdeSku:true,conteoPendiente,registroAdicional:actual?.enPackingList===false,
     categoria:'VALIDACION',tipoEvidencia:'ADICIONAL',protocolo:'GENERAL',origen:$('fOrigen').value==='__REPARTIR__'?'':$('fOrigen').value},
     (n,total)=>{$('bGuardarFotos').textContent=`Guardando fotos ${n}/${total}…`;},cacheFotosConteo)
-    .finally(()=>{$('bGuardarFotos').textContent='Guardar fotos sin registrar conteo';});
+    .finally(()=>{$('bGuardarFotos').textContent='Guardar solo fotos · sin unidades';});
   const subidas=[];
   for(const f of fotosElegidas){const img=await comprimir(f);const r=await Proxy.subirFoto({base64:img.base64,sku,recepcion:RECEPCION,tipo:img.tipo,...destinoEnDrive(recepcion)});if(r.url)subidas.push(r.url);}
   return subidas;
@@ -1574,7 +1581,7 @@ async function cargarGaleria(reiniciarLista=true) {
 }
 function abrirGaleria(sku='') {
   if(modoLocal()){apagarCamara();return abrirEvidencias({recepcion:RECEPCION,sku,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)}).catch(e=>aviso(e.message,'err'));}
-  $('filtroGaleria').value=sku;$('tituloGaleria').textContent=sku ? `Imágenes · ${sku}` : `Imágenes · ${RECEPCION}`;
+  $('filtroGaleria').value=sku;$('tituloGaleria').textContent=sku ? `Fotos guardadas · ${sku}` : `Fotos guardadas · ${RECEPCION}`;
   $('galeriaFotos').showModal();cargarGaleria();
 }
 $('bFotosItem').onclick=()=>{if(actual)abrirGaleria(actual.sku);};
@@ -1598,7 +1605,7 @@ function reiniciar() {
   $('inEscaner').value = '';
   $('inCantidad').value = '1';
   $('fCantidad').value = '1';
-  $('inEscaner').focus();
+  if(cerrarCamara)$('bLeerAhora').focus({preventScroll:true});else $('inEscaner').focus();
 }
 
 // --- Paso 8: no encontrado ------------------------------------------------ //
@@ -1878,8 +1885,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261018-48').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261018-48').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261018-49').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261018-49').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;

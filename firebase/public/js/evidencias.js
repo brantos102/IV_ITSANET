@@ -1,10 +1,10 @@
-import {organizarFotos} from './organizar-fotos.js?v=20261018-48';
-import {verImagen} from './visor-imagen.js?v=20261018-48';
-import {manualFotos} from './manual-fotos.js?v=20261018-48';
-import {pedir} from './local.js?v=20261018-48';
-import {comprimir} from './imagen.js?v=20261018-48';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-48';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-48';
+import {organizarFotos} from './organizar-fotos.js?v=20261018-49';
+import {verImagen} from './visor-imagen.js?v=20261018-49';
+import {manualFotos} from './manual-fotos.js?v=20261018-49';
+import {pedir} from './local.js?v=20261018-49';
+import {comprimir} from './imagen.js?v=20261018-49';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261018-49';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-49';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -54,7 +54,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     <label class="campo"><span>Clasificación</span><select data-categoria>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label>
     <label class="campo"><span>Bulto / caja madre</span><select data-unidad><option value="">Sin unidad específica</option>${ingreso.unidades.map(u=>`<option value="${u.id}">${esc(u.tipo)} ${u.numero} · ${esc(u.codigo || 'sin código')}</option>`).join('')}</select></label>
     <label class="campo"><span>Packing list vinculado</span><input data-origen placeholder="PRINCIPAL o embarque"></label></div>
-    <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Cámara del equipo</button><a class="b-sec" data-camara-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button data-galeria class="b-sec">＋ Galería</button><button data-subir class="b-sec">Guardar imágenes</button></div>
+    <p class="mini" data-recomendacion></p></details><div class="acciones"><button data-camara class="b-primario">📷 Cámara del equipo</button><a class="b-sec" data-camara-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button data-galeria class="b-sec">Elegir de la galería</button><button data-subir class="b-sec">Guardar fotos seleccionadas</button></div>
     <input data-captura type="file" accept="image/*" capture="environment" hidden><input data-archivos type="file" accept="image/*" multiple hidden>
     <div data-seleccion></div><p data-estado role="status"></p>
     <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><button class="b-sec" data-actualizar>↻ Actualizar</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar pendientes de Drive</button></div>
@@ -62,7 +62,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   document.body.append(d); d.showModal();d.querySelector('h2').parentElement.after(manualFotos(ingreso));
   const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false;
   d.firstElementChild.classList.add('modal-cabecera');
-  const captura=document.createElement('section');captura.className='fotos-captura';captura.innerHTML='<h3>1. Adjuntar fotografías</h3><p class="mini">Elige el tipo de foto, abre la cámara o la galería y pulsa Guardar imágenes. Seleccionar archivos todavía no los guarda.</p>';
+  const captura=document.createElement('section');captura.className='fotos-captura';captura.innerHTML='<h3>1. Seleccionar fotos nuevas</h3><p class="mini">Elige el tipo de foto, abre la cámara o la galería y pulsa Guardar fotos seleccionadas. Cámara y Galería seleccionan fotos nuevas; Guardar fotos seleccionadas las registra. Las fotos ya guardadas se consultan debajo.</p>';
   $('[data-tipo]').closest('label').before(captura);
   for(const el of [...d.children]){if(el===captura)continue;if(el.contains($('[data-tipo]'))||el.tagName==='DETAILS'&&!el.classList.contains('manual-fotos')||el.contains($('[data-camara]'))||el.matches('[data-captura],[data-archivos],[data-seleccion],[data-estado]'))captura.append(el);}
   const guardadas=document.createElement('h3');guardadas.textContent='2. Fotografías guardadas';$('[data-estado-drive]').before(guardadas);
@@ -197,7 +197,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     catch(e){$('[data-estado]').textContent=e.message;}finally{b.disabled=false;}
   };
   $('[data-temporales]').onclick=()=>{if(!ocupado)abrirFotosPendientes(recepcion,{alGuardar:()=>cargar()}).catch(e=>{$('[data-estado]').textContent=e.message;});};
-  async function cerrar(){if(ocupado)return;if(elegidas.length){if(!await confirmar({titulo:'Hay fotografías sin guardar',texto:'Guarda las imágenes antes de cerrar. Si el envío falla, se conservará la copia temporal cuando el navegador tenga almacenamiento disponible.',aceptar:'Guardar imágenes y cerrar',cancelar:'Seguir revisando'}))return;await $('[data-subir]').onclick();if(elegidas.length)return;}d.close();}
+  async function cerrar(){if(ocupado)return;if(elegidas.length){if(!await confirmar({titulo:'Hay fotografías sin guardar',texto:'Guarda las imágenes antes de cerrar. Si el envío falla, se conservará la copia temporal cuando el navegador tenga almacenamiento disponible.',aceptar:'Guardar fotos seleccionadas y cerrar',cancelar:'Seguir revisando'}))return;await $('[data-subir]').onclick();if(elegidas.length)return;}d.close();}
   $('[data-cerrar]').onclick=cerrar;
   const temporizador=supervisor?setInterval(()=>{if(d.open&&!document.hidden&&!ocupado&&!consultando)
     actualizarDrive(true).catch(e=>{if(d.open)$('[data-estado-drive]').textContent=e.message;});},5000):null;

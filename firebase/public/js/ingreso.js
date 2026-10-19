@@ -1,11 +1,11 @@
-import {verImagen} from './visor-imagen.js?v=20261018-48';
-import {pedir} from './local.js?v=20261018-48';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-48';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-48';
-import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261018-48';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-48';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-48';
-import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-48';
+import {verImagen} from './visor-imagen.js?v=20261018-49';
+import {pedir} from './local.js?v=20261018-49';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261018-49';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261018-49';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261018-49';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261018-49';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261018-49';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261018-49';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -104,7 +104,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   }
   function pintarEtiqueta(){
     $('[data-etiqueta]').textContent=u.codigo ? `Etiqueta: ${u.codigo}${u.pallet ? ' · Pallet: '+u.pallet : ''}` : 'Escanea la etiqueta madre';
-    $('[data-tomar]').textContent=esWindows && !camaraDisponible() ? 'Adjuntar foto' : '📷 Tomar foto';
+    $('[data-tomar]').textContent=esWindows && !camaraDisponible() ? 'Elegir archivo' : '📷 Capturar del visor';
     $('[data-pallet]').value=u.pallet || '';
   }
   function pintarCantidad(){
@@ -140,8 +140,8 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
       <p data-etiqueta class="etiqueta-madre"></p><div class="camara-bulto"><video data-video playsinline muted></video><p data-error-camara class="mini" hidden></p><button class="b-sec" data-activar>Activar cámara</button></div>
       <div class="acciones ingreso-herramientas"><button class="b-sec" data-escanear>↻ Escanear etiqueta</button><button class="b-sec" data-manual>Escribir código</button></div>
       <label class="campo"><span>Fotos de</span><select data-tipo>${['EXTERIOR_BULTO','ABIERTO_CON_PACKING','ETIQUETA_CAJA','DANO_EMBALAJE','PACKING_INICIAL','PANORAMICA','ADICIONAL'].map(k=>`<option value="${k}">${esc(TIPOS_EVIDENCIA[k])}</option>`).join('')}</select></label>
-      <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Tomar foto</button><button class="b-sec" data-nativa>Cámara del equipo</button><a class="b-sec" data-nativa-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button class="b-sec" data-archivos>＋ Galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-captura accept="image/*" capture="environment" hidden><input type="file" data-ficheros accept="image/*" multiple hidden>
-      <p class="mini" data-cantidad-fotos></p><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
+      <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Capturar del visor</button><button class="b-sec" data-nativa>Cámara del teléfono</button><a class="b-sec" data-nativa-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button class="b-sec" data-archivos>Elegir de la galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-captura accept="image/*" capture="environment" hidden><input type="file" data-ficheros accept="image/*" multiple hidden>
+      <p class="mini">Capturar del visor guarda una foto de la cámara abierta; Cámara del teléfono abre la aplicación del dispositivo. Galería permite elegir fotos existentes.</p><p class="mini" data-cantidad-fotos></p><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
       <details class="nota-bulto"><summary>＋ Observación opcional</summary><textarea data-nota rows="2" maxlength="300" placeholder="Estado del embalaje o novedad…">${esc(u.observacion || '')}</textarea></details>
       <details><summary>Guía de fotos</summary><p class="mini">${ingreso.protocolo==='GENERAL' ? `${ingreso.recomendaciones.panoramicasMin} panorámicas recomendadas por recepción.` : `${ingreso.recomendaciones.exterioresMin} exteriores por bulto (objetivo ${ingreso.recomendaciones.exterioresObjetivo}), ${ingreso.recomendaciones.abiertosMin} abierto con lista visible y ${ingreso.recomendaciones.packingMin} packing inicial por recepción.`} Sin máximo de imágenes.</p></details>
       <details><summary>Caja interior, pallet o lista (opcional)</summary><label class="campo"><span>Packing list</span><input data-origen value="${esc((u.origenes || recepcion.origenes || [])[0] || 'PRINCIPAL')}"></label>

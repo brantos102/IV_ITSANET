@@ -1,6 +1,6 @@
 """Un mismo correo revisable para el envío firmado y para la copia manual.
 
-Solo se editan textos; las tablas y sus enlaces se calculan con datos reales.
+Se editan textos, presentación y selección de fotos guardadas; las tablas se calculan con datos reales.
 No hace llamadas a Google ni almacena imágenes dentro del borrador.
 """
 import hashlib
@@ -70,70 +70,122 @@ def _parrafo(texto):
     return '<p>' + escape(str(texto or '')).replace('\n', '<br>') + '</p>' if texto else ''
 
 
-def renderizar(codigo, fuente, campos, archivos, remitente):
+MAX_FOTOS = 12
+PRESENTACION = {'mostrarTotales': False, 'fotosModo': 'NOVEDADES', 'fotosIds': []}
+
+
+def _novedad_foto(foto, resumen, categoria=None):
+    grupos = foto.get('rutasVinculadas') or [foto]
+    actuales = {s['sku']: s for s in resumen['discrepancias'] + resumen['novedades']}
+    for v in grupos:
+        s = actuales.get(v.get('sku'))
+        c = v.get('categoria')
+        if not s or categoria and c != categoria:
+            continue
+        if c == 'PNC' and any(n['sku'] == s['sku'] for n in resumen['novedades']):
+            return True
+        if c == 'FALTANTE' and s['diferencia'] < 0 or c == 'SOBRANTE' and s['diferencia'] > 0:
+            return True
+    return False
+
+
+def fotos_correo(fuente, presentacion):
+    fotos = fuente['fotos']
+    modo = presentacion['fotosModo']
+    if modo == 'NINGUNA': return []
+    if modo == 'ELEGIDAS':
+        por_id = {f['archivoId']: f for f in fotos}
+        return [por_id[i] for i in presentacion['fotosIds'] if i in por_id][:MAX_FOTOS]
+    if modo == 'NOVEDADES':
+        resumen = entregas.resumen_final(fuente['skus'], fuente['eventos'])
+        fotos = [f for f in fotos if _novedad_foto(f, resumen)]
+    return fotos[:MAX_FOTOS]
+
+
+def validar_presentacion(valor, disponibles):
+    if not isinstance(valor, dict) or set(valor) != set(PRESENTACION):
+        raise HTTPException(422, 'Revisa las opciones de presentación del correo.')
+    if type(valor['mostrarTotales']) is not bool or valor['fotosModo'] not in ('NOVEDADES', 'TODAS', 'NINGUNA', 'ELEGIDAS'):
+        raise HTTPException(422, 'Selecciona totales y fotografías válidos.')
+    ids = valor['fotosIds']
+    if not isinstance(ids, list) or len(ids) > MAX_FOTOS or any(not isinstance(i, str) for i in ids) or len(set(ids)) != len(ids):
+        raise HTTPException(422, 'Selecciona hasta 12 fotografías diferentes para el correo.')
+    if not set(ids) <= set(disponibles):
+        raise HTTPException(409, 'Una foto seleccionada ya no pertenece a las evidencias disponibles. Actualiza el correo.')
+    return {'mostrarTotales': valor['mostrarTotales'], 'fotosModo': valor['fotosModo'], 'fotosIds': list(ids)}
+
+
+def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
+    opciones = {**PRESENTACION, **(presentacion or {})}
     resumen = entregas.resumen_final(fuente['skus'], fuente['eventos'])
-    def tabla(titulo, filas, novedad=False):
-        if not filas:
-            return ''
+    fotos = fotos_correo(fuente, opciones)
+    usadas = set()
+    def numero(v):
+        return str(int(v)) if type(v) in (int, float) and float(v).is_integer() else str(v)
+    def fotos_html(filas, categoria=None):
+        html = ''
+        for f in filas:
+            usadas.add(f['archivoId'])
+            url = f.get('enlace') or f.get('driveUrl') or ('https://drive.google.com/file/d/' + f['fileId'] + '/view' if f.get('fileId') else '')
+            vinculos=f.get('rutasVinculadas') or [f]
+            codigos=list(dict.fromkeys(v['sku'] for v in vinculos if v.get('sku') and (not categoria or _novedad_foto(v,resumen,categoria))))
+            caption=' · '.join(codigos) or 'Evidencia de recepción'
+            img = ''
+            if f.get('fileId'):
+                img = '<img data-archivo="' + escape(f['archivoId'], quote=True) + '" src="https://drive.google.com/thumbnail?id=' + escape(f['fileId'], quote=True) + '&amp;sz=w320" alt="' + escape(caption, quote=True) + '" width="176" height="132" style="display:block;width:176px;height:132px;object-fit:contain;background:#f3f6fa;border:0;border-radius:8px">'
+            else:
+                img = '<span style="display:block;padding:16px;color:#64748b">Copia a Drive pendiente</span>'
+            html += '<div style="display:inline-block;vertical-align:top;width:184px;max-width:100%;margin:8px 8px 0 0"><div style="border:1px solid #dce5ef;border-radius:9px;padding:4px">' + img + '<p style="margin:6px 2px;font-size:12px;overflow-wrap:anywhere">' + (_link(url, caption) or escape(caption)) + '</p></div></div>'
+        return '<div style="margin-top:10px">' + html + '</div>' if html else ''
+    def tabla(titulo, filas, categoria, color, novedad=False):
+        if not filas: return ''
         cab = ['Referencia', 'Descripción', 'Declarado', 'Contado', 'Diferencia', 'Pallets']
-        if novedad:
-            cab += ['Unidades afectadas', 'Novedad']
+        if novedad: cab += ['Uds. afectadas', 'Novedad']
         cab += ['Observaciones']
         cuerpo = ''
-        for s in filas:
-            valores = [s['sku'], s['descripcion'], s['esperado'], s['fisico'],
-                       s['diferencia'], str(s['pallets']).replace('~', '.')]
+        for n, s in enumerate(filas):
+            valores = [s['sku'], s['descripcion'], s['esperado'], s['fisico'], s['diferencia'], str(s['pallets']).replace('~', '.')]
             if novedad:
                 inc = s.get('incidencias', [])
-                valores += [sum(float(i.get('cantidad') or 0) for i in inc),
-                            ' · '.join(dict.fromkeys(i.get('nombre') or i.get('tipo', '') for i in inc)) or 'PNC por revisar']
+                valores += [sum(float(i.get('cantidad') or 0) for i in inc), ' · '.join(dict.fromkeys(i.get('nombre') or i.get('tipo', '') for i in inc)) or 'PNC por revisar']
             valores += [s['observacion']]
-            cuerpo += '<tr>' + ''.join('<td style="padding:7px;border:1px solid #d9e1ed">' + escape(str(int(v)) if type(v) in (int,float) and float(v).is_integer() else str(v)) + '</td>' for v in valores) + '</tr>'
-        return ('<h3>' + titulo + '</h3><table style="border-collapse:collapse;width:100%;font-size:12px">'
-                '<thead><tr>' + ''.join('<th style="padding:7px;background:#edf3ff;border:1px solid #d9e1ed">' + c + '</th>' for c in cab)
-                + '</tr></thead><tbody>' + cuerpo + '</tbody></table>')
-    fotos = fuente['fotos']
-    carpetas = list(dict.fromkeys(f.get('carpetaRecepcion') or f.get('carpeta', '') for f in fotos))
-    links = ''.join('<p>' + _link(u, 'Abrir carpeta de evidencias') + '</p>' for u in carpetas if u)
-    fotos_html = ''
-    for i, f in enumerate(fotos[:12], 1):
-        url = f.get('enlace') or f.get('driveUrl') or ('https://drive.google.com/file/d/' + f['fileId'] + '/view' if f.get('fileId') else '')
-        nombre = f.get('nombre') or f.get('sku') or 'Fotografía'
-        miniatura=''
-        if f.get('fileId'):
-            miniatura='<img data-archivo="'+escape(f['archivoId'],quote=True)+'" src="https://drive.google.com/thumbnail?id='+escape(f['fileId'],quote=True)+'&amp;sz=w320" alt="'+escape(nombre,quote=True)+'" style="display:block;width:150px;height:120px;object-fit:contain;border:1px solid #ddd">'
-        fotos_html += '<li style="display:inline-block;vertical-align:top;width:170px;max-width:100%;margin:4px;overflow-wrap:anywhere;word-break:break-word">' + miniatura + '<div style="max-width:170px;overflow-wrap:anywhere;word-break:break-all;font-size:11px;line-height:1.5">' + str(i) + '. ' + (_link(url, nombre) or escape(nombre + ' · copia a Drive pendiente')) + '</div></li>'
-    html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#172033;max-width:1100px">'
-    html += _parrafo(campos['saludo']) + _parrafo(campos['introduccion']) + links
-    html += '<p><b>Recepción: ' + escape(codigo) + '</b> · Cliente: ' + escape(fuente['cliente']) + '</p>'
-    html += '<p>' + str(resumen['unidadesEsperadas']) + ' unidades declaradas · ' + str(resumen['unidadesFisicas']) + ' contadas · ' + str(resumen['unidadesPnc']) + ' PNC.</p>'
-    html += tabla('Sobrantes', [s for s in resumen['discrepancias'] if s['diferencia'] > 0])
-    html += tabla('Faltantes', [s for s in resumen['discrepancias'] if s['diferencia'] < 0])
-    html += tabla('Producto no conforme y otras novedades físicas', resumen['novedades'], True)
+            cuerpo += '<tr style="background:' + ('#ffffff' if n % 2 else '#f7f9fc') + '">' + ''.join('<td style="padding:9px 7px;border-bottom:1px solid #e3e9f1;vertical-align:top;overflow-wrap:anywhere;' + ('font-weight:700;color:#174c91;' if i == 0 else '') + '">' + escape(numero(v)) + '</td>' for i, v in enumerate(valores)) + '</tr>'
+        contenido = ('<div style="overflow-x:auto"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;line-height:1.45;text-align:left">'
+            '<thead><tr>' + ''.join('<th style="padding:9px 7px;background:#eaf0f8;color:#33465f;border-bottom:1px solid #d1ddeb;font-size:11px">' + c + '</th>' for c in cab) + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>')
+        imagenes = [f for f in fotos if f['archivoId'] not in usadas and _novedad_foto(f, resumen, categoria)]
+        return '<section style="margin:22px 0"><h3 style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ' + color + ';background:#f2f5fa;font-size:16px;color:#1e3655">' + titulo + '</h3>' + contenido + fotos_html(imagenes, categoria) + '</section>'
+    carpetas = list(dict.fromkeys(f.get('carpetaRecepcion') or f.get('carpeta', '') for f in fuente['fotos']))
+    links = ''.join('<p style="margin:8px 0">' + _link(u, 'Consultar carpeta de evidencias →') + '</p>' for u in carpetas if u)
+    html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#22334a;max-width:960px;margin:0 auto;background:#ffffff">'
+    html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(codigo) + '</h2><p style="margin:0;color:#e2ecf9">Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
+    html += '<div style="padding:20px 18px;border:1px solid #dce5ef;border-top:0;border-radius:0 0 12px 12px">' + _parrafo(campos['saludo']) + _parrafo(campos['introduccion']) + links
+    if opciones['mostrarTotales']:
+        html += '<p style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
+    html += tabla('Sobrantes', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
+    html += tabla('Faltantes', [s for s in resumen['discrepancias'] if s['diferencia'] < 0], 'FALTANTE', '#d79315')
+    html += tabla('Producto no conforme (PNC) y novedades físicas', resumen['novedades'], 'PNC', '#cf5252', True)
     if not resumen['discrepancias'] and not resumen['novedades']:
-        html += '<p>Sin diferencias de cantidad ni novedades físicas registradas.</p>'
-    if fotos_html:
-        html += '<h3>Fotografías registradas · orden de registro</h3><ol style="list-style:none;padding:0">' + fotos_html + '</ol>'
-        if len(fotos) > 12:
-            html += '<p>' + str(len(fotos) - 12) + ' fotos adicionales disponibles en las carpetas de evidencias.</p>'
+        html += '<p style="padding:14px;background:#eff9f4;border-left:4px solid #20a277">Sin diferencias de cantidad ni novedades físicas registradas.</p>'
+    otras = [f for f in fotos if f['archivoId'] not in usadas]
+    if otras: html += '<h3 style="font-size:16px;margin-top:24px">Evidencias seleccionadas</h3>' + fotos_html(otras)
     if archivos:
-        html += '<h3>Documentos finales</h3><ul>' + ''.join('<li>' + escape(a.nombre) + '</li>' for a in archivos) + '</ul>'
+        html += '<div style="padding:14px 16px;background:#f3f6fa;border-radius:8px;margin-top:22px"><h3 style="font-size:15px;margin:0 0 8px">Documentos finales</h3><ul style="margin:0;padding-left:20px">' + ''.join('<li style="overflow-wrap:anywhere">' + escape(a.nombre) + '</li>' for a in archivos) + '</ul></div>'
     html += _parrafo(campos['notas']) + _parrafo(campos['despedida']) + _parrafo(campos['firma'])
-    html += '<p style="font-size:11px;color:#586477">Preparado por: ' + escape(remitente) + ' · ' + escape(codigo) + '</p></div>'
+    html += '<p style="font-size:11px;color:#63758d;border-top:1px solid #e0e7f0;padding-top:12px;margin-top:24px">Preparado por: ' + escape(remitente) + ' · ' + escape(codigo) + '</p></div></div>'
     from html.parser import HTMLParser
     class Texto(HTMLParser):
-        def __init__(self):
-            super().__init__(); self.partes = []
+        def __init__(self): super().__init__(); self.partes = []
         def handle_data(self, data): self.partes.append(data)
         def handle_endtag(self, tag):
-            if tag in ('p', 'tr', 'h3', 'li'): self.partes.append('\n')
+            if tag in ('p', 'tr', 'h2', 'h3', 'li'): self.partes.append('\n')
             elif tag in ('td', 'th'): self.partes.append(' | ')
         def handle_starttag(self, tag, attrs):
             if tag == 'a': self.partes.append(dict(attrs).get('href', '') + ' ')
             if tag == 'br': self.partes.append('\n')
     t = Texto(); t.feed(html)
     return {'asunto': campos['asunto'], 'html': html, 'texto': ''.join(t.partes), 'remitente': remitente,
-            'imagenesDrive':[f['fileId'] for f in fotos[:12] if f.get('fileId')]}
+            'imagenesDrive': list(dict.fromkeys(f['fileId'] for f in fotos if f.get('fileId'))),
+            'presentacion': opciones, 'fotosSeleccionadas': [f['archivoId'] for f in fotos]}
 
 
 def vista(db, codigo, usuario, entrega_id=''):
@@ -146,20 +198,27 @@ def vista(db, codigo, usuario, entrega_id=''):
     campos.update({k: v for k, v in guardado.get('campos', {}).items() if k in CAMPOS})
     # Un envío confirmado conserva el texto que efectivamente se solicitó.
     congelado = expandir(e.datos).get('correoFinal') if e else None
-    final = congelado if congelado and e.estado in ('ENTREGADA','PROCESANDO') else renderizar(codigo, fuente, campos, archivos, usuario)
+    presentacion = {**PRESENTACION, **guardado.get('presentacion', {})}
+    final = congelado if congelado and e.estado in ('ENTREGADA','PROCESANDO') else renderizar(codigo, fuente, campos, archivos, usuario, presentacion)
     declarado=bool(e and (e.datos.get('correoManual') or {}).get('estado')=='DECLARADO_ENVIADO')
     if congelado and (e.estado in ('ENTREGADA','PROCESANDO') or declarado):
         campos=congelado.get('campos',campos);final=congelado
-    final={'imagenesDrive':[],**final}
+    final={'imagenesDrive':[], 'presentacion':presentacion, 'fotosSeleccionadas':[], **final}
     g = integraciones.google(db, usuario)
-    version = _hash([fuente, guardado.get('revision', 0),usuario])
+    version = _hash([49, fuente, guardado.get('revision', 0), usuario])
     ultima=entregas.recientes(db,1,recepcion=codigo)
+    resumen=entregas.resumen_final(fuente['skus'], fuente['eventos'])
     return {'campos': campos, 'version': version, 'revision': guardado.get('revision', 0), **final,
             'entregaDisponible':ultima[0].id if ultima and not entrega_id else '',
             'conexionConfigurada': bool(g['url'] and g['secreto']),
             'soloLectura': bool(e and e.estado in ('ENTREGADA', 'PROCESANDO') or declarado),
             'archivos': [{'id': a.id, 'nombre': a.nombre, 'url': '/api/app/archivos/' + a.id} for a in archivos],
-            'fotos': [{'id': f['archivoId'], 'nombre': f.get('nombre', ''), 'url': '/api/app/archivos/' + f['archivoId']} for f in fuente['fotos'][:12]],
+            'limiteFotos':MAX_FOTOS, 'permiteFotoNueva':r.estado!='CERRADA',
+            'fotos': [{'id': f['archivoId'], 'nombre': f.get('nombre', ''), 'sku':f.get('sku') or '',
+                       'categoria':f.get('categoria') or 'GENERAL',
+                       'vinculos':[{'sku':v.get('sku') or '', 'categoria':v.get('categoria') or 'GENERAL'} for v in f.get('rutasVinculadas') or [f]],
+                       'esNovedad':_novedad_foto(f, resumen),
+                       'enDrive':bool(f.get('fileId')), 'url': '/api/app/archivos/' + f['archivoId']} for f in fuente['fotos']],
             'manual':(db.get(AppConfig,clave_config(codigo,manual=True)).datos if db.get(AppConfig,clave_config(codigo,manual=True)) else None),
             'modificadoPor': guardado.get('usuario'), 'modificadoEn': guardado.get('fecha')}
 
@@ -183,7 +242,8 @@ def guardar(db, codigo, datos, usuario):
         raise HTTPException(422, 'Escribe el asunto en una sola línea.')
     campos['destinatarios'] = entregas.validar_destinatarios(campos['destinatarios'])
     f = db.get(AppConfig, clave_config(codigo)) or AppConfig(clave=clave_config(codigo))
-    f.datos = {'campos': campos, 'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat()}
+    presentacion=validar_presentacion(datos.get('presentacion', anterior['presentacion']), [f['id'] for f in anterior['fotos']])
+    f.datos = {'campos': campos, 'presentacion':presentacion, 'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat()}
     f.usuario = usuario; db.add(f)
     ajustes.auditar(db, usuario, 'CORREO_BORRADOR_GUARDADO', codigo, {'revision': f.datos['revision']})
     db.commit()
@@ -204,7 +264,7 @@ def congelar(db, codigo, datos, usuario, entrega_id=''):
             raise HTTPException(409,'Confirma las fotos en Drive antes del correo automático o elige envío manual. No se cerró ni se envió la recepción.')
     if len(v['html'])>500000:
         raise HTTPException(422,'El correo supera el tamaño permitido. Reduce los textos o envía las novedades extensas en los documentos finales.')
-    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive')}
+    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas')}
 
 
 def manual(db,codigo,datos,usuario):
@@ -242,7 +302,7 @@ def manual(db,codigo,datos,usuario):
             anterior.estado='CANCELADA'
             anterior.datos={**anterior.datos,'anulacion':{'usuario':usuario,'fecha':registro['fecha'],'motivo':'Preparado para envío manual; automático detenido.'}}
     if e:
-        e.datos={**e.datos,'correoManual':registro,'correoFinal':{k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive')}}
+        e.datos={**e.datos,'correoManual':registro,'correoFinal':{k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas')}}
         if e.datos.get('informeId'):
             informe=db.get(AppInforme,e.datos['informeId'])
             if informe:informe.estado='MANUAL_DECLARADO' if accion=='CONFIRMAR' else 'MANUAL_PREPARADO'
