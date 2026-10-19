@@ -53,6 +53,12 @@ def _fuente(db, codigo, entrega_id=''):
     fotos=sorted(unicas.values(),key=lambda foto:(db.get(AppArchivo,foto['archivoId']).creado_en,foto['archivoId']))
     fuente = {'cliente': r.cliente, 'descripcion': r.descripcion, 'skus': skus,
               'eventos': eventos, 'fotos': fotos, 'entrega': entrega_id}
+    if e:
+        fuente['validacionDepot']=(d.get('correoFinal') or {}).get('validacionDepot')
+    if not e or (fuente['validacionDepot'] is None and e.estado not in ('ENTREGADA','PROCESANDO')
+            and (d.get('correoManual') or {}).get('estado')!='DECLARADO_ENVIADO'):
+        from app.services.validacion_depot import validar
+        fuente['validacionDepot']=validar(db,r.cliente,[s['sku'] for s in skus])
     return r, e, fuente, archivos
 
 
@@ -166,6 +172,21 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
     html += tabla('Producto no conforme (PNC) y novedades físicas', resumen['novedades'], 'PNC', '#cf5252', True)
     if not resumen['discrepancias'] and not resumen['novedades']:
         html += '<p style="padding:14px;background:#eff9f4;border-left:4px solid #20a277">Sin diferencias de cantidad ni novedades físicas registradas.</p>'
+    depot=fuente.get('validacionDepot')
+    if depot:
+        html += '<section style="margin:22px 0;padding:14px;border:1px solid #dce5ef;border-radius:8px"><h3 style="margin:0 0 8px;color:#1e3655;font-size:16px">Observaciones de validación en Depot</h3>'
+        html += _parrafo(depot['notaMaestro'])+_parrafo(depot['metodo'])
+        if depot.get('actualizadoEn'):html += _parrafo('Actualización del catálogo: '+(depot.get('fechaActualizacion') or depot['actualizadoEn']))
+        pendientes=[s for s in fuente['skus'] if depot['porSku'].get(s['sku'],{}).get('estado','OK')!='OK']
+        if pendientes:
+            html += '<p><b>Verificar los siguientes productos antes de cargar sus cantidades en Depot:</b></p><ul>'
+            for s in pendientes:
+                d=depot['porSku'][s['sku']]
+                html += '<li style="margin-bottom:10px"><b>'+escape(s['sku'])+'</b>'+(' · '+escape(s['descripcion']) if s.get('descripcion') else '')+'<br>'+escape(d['observacion'])+'</li>'
+            html += '</ul>'
+            if any(depot['porSku'][s['sku']]['estado']=='NO_ENCONTRADO' for s in pendientes):html += _parrafo('La ausencia en la consulta de stock no confirma inexistencia en el maestro de Depot. La creación debe solicitarse después de verificar el registro.')
+        else:html += _parrafo('Los productos de esta recepción figuran en el catálogo consultado para el cliente.')
+        html += '</section>'
     otras = [f for f in fotos if f['archivoId'] not in usadas]
     if otras: html += '<h3 style="font-size:16px;margin-top:24px">Evidencias seleccionadas</h3>' + fotos_html(otras)
     if archivos:
@@ -185,7 +206,7 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
     t = Texto(); t.feed(html)
     return {'asunto': campos['asunto'], 'html': html, 'texto': ''.join(t.partes), 'remitente': remitente,
             'imagenesDrive': list(dict.fromkeys(f['fileId'] for f in fotos if f.get('fileId'))),
-            'presentacion': opciones, 'fotosSeleccionadas': [f['archivoId'] for f in fotos]}
+            'presentacion': opciones, 'fotosSeleccionadas': [f['archivoId'] for f in fotos], 'validacionDepot':depot}
 
 
 def vista(db, codigo, usuario, entrega_id=''):
@@ -205,7 +226,7 @@ def vista(db, codigo, usuario, entrega_id=''):
         campos=congelado.get('campos',campos);final=congelado
     final={'imagenesDrive':[], 'presentacion':presentacion, 'fotosSeleccionadas':[], **final}
     g = integraciones.google(db, usuario)
-    version = _hash([49, fuente, guardado.get('revision', 0), usuario])
+    version = _hash([51, fuente, guardado.get('revision', 0), usuario])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     resumen=entregas.resumen_final(fuente['skus'], fuente['eventos'])
     return {'campos': campos, 'version': version, 'revision': guardado.get('revision', 0), **final,
@@ -264,7 +285,7 @@ def congelar(db, codigo, datos, usuario, entrega_id=''):
             raise HTTPException(409,'Confirma las fotos en Drive antes del correo automático o elige envío manual. No se cerró ni se envió la recepción.')
     if len(v['html'])>500000:
         raise HTTPException(422,'El correo supera el tamaño permitido. Reduce los textos o envía las novedades extensas en los documentos finales.')
-    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas')}
+    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot') if k in v}
 
 
 def manual(db,codigo,datos,usuario):

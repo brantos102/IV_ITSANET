@@ -2,6 +2,7 @@ import {createRequire} from 'node:module';
 import {cargar,test,eq,ok,resumen} from './cargador.mjs';
 const require=createRequire(import.meta.url);globalThis.XLSX=require('xlsx');
 const informe=await cargar('informe.js'),csv=await cargar('csv.js');
+const organizacion=await cargar('orden-informe.js');
 await test('2 PNC de 6 mantienen 4 conformes y no se duplican en filas repetidas',()=>{
  const filas=[{sku:'S',origen:'PL',fisica:1,diferencia:0},{sku:'S',origen:'PL',fisica:5,diferencia:0}];
  const eventos=[{id:'a',sku:'S',origen:'PL',cantidad:6,incidencias:[{tipo:'MAL_ESTADO',nombre:'MAL ESTADO',cantidad:2,pnc:true}]}];
@@ -53,17 +54,17 @@ await test('cliente ampliado genera un archivo por lista y enlaces del SKU sin h
  const ls=['A','B'].map((origen,i)=>({origen,formato:{encabezados:['SKU','Cantidad','ok'],columnas:{depot:2}},detalle:[{sku:'S'+i,cantidad:3,fisica:3,diferencia:0,estado:'OK',depot:'ok',observacion:'Solo '+origen,evidencia:'https://drive.google.com/drive/folders/sku'+i,cruda:['S'+i,3,'anterior']}]}));
  const datos={recepcion:{codigo:'PRUEBA'},detalle:ls.flatMap(l=>l.detalle),porOrigen:ls,eventos:[],adicionales:[],auditoria:[]};
  const libros=informe.construirLibros(datos,{version:'envio-ampliado'});eq(libros.length,2);
- for(let i=0;i<libros.length;i++){const w=XLSX.read(libros[i].base64,{type:'base64'});eq(w.SheetNames.length,1);const sh=w.Sheets[w.SheetNames[0]],rs=XLSX.utils.sheet_to_json(sh,{header:1});eq(rs.length,2);eq(rs[1][0],'S'+i);eq(rs[1][2],'ok');ok(rs[1].includes('Solo '+ls[i].origen));ok(!rs[1].includes('Solo '+ls[1-i].origen));const j=rs[0].indexOf('Carpeta Drive del SKU');eq(sh[XLSX.utils.encode_cell({r:1,c:j})].l.Target,'https://drive.google.com/drive/folders/sku'+i);}
+ for(let i=0;i<libros.length;i++){const w=XLSX.read(libros[i].base64,{type:'base64'});eq(w.SheetNames.length,1);const sh=w.Sheets[w.SheetNames[0]],rs=XLSX.utils.sheet_to_json(sh,{header:1});eq(rs.length,2);eq(rs[0].slice(0,2),['MARCA','CLIENTE']);eq(rs[1][rs[0].indexOf('SKU')],'S'+i);eq(rs[1][rs[0].indexOf('ok')],'ok');ok(rs[1].includes('Solo '+ls[i].origen));ok(!rs[1].includes('Solo '+ls[1-i].origen));const j=rs[0].indexOf('Carpeta Drive del SKU');eq(sh[XLSX.utils.encode_cell({r:1,c:j})].l.Target,'https://drive.google.com/drive/folders/sku'+i);}
  const original=informe.construirLibros(datos,{version:'envio'});const w=XLSX.read(original[0].base64,{type:'base64'});eq(XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1})[0],['SKU','Cantidad','ok']);
 });
-await test('ampliado añade posición, barras y cliente al final sin desplazar origen',()=>{
+await test('ampliado inicia con marca y cliente y conserva cada dato del origen',()=>{
  const formato={encabezados:['ITEM','Descripción','Cantidad'],columnas:{sku:0,descripcion:1,cantidad:2}};
  const detalle=[{sku:'S01',descripcion:'Producto original',cantidad:8,fisica:6,estado:'FALTANTE',diferencia:-2,posicionReal:'A-01-02-1',codigoBarra:'00001234',cliente:'CLIENTE',marca:'MARCA',cruda:['S01','Producto original',8]}];
  const datos={recepcion:{codigo:'R'},detalle,porOrigen:[{origen:'EMB',formato,detalle}],adicionales:[],eventos:[],auditoria:[]};
  const leer=version=>{const libro=informe.construirLibro(datos,{version}),w=XLSX.read(libro.base64,{type:'base64'});return XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1,defval:''});};
  const original=leer('envio'),ampliado=leer('envio-ampliado');
- eq(original,[formato.encabezados,detalle[0].cruda]);eq(ampliado[0].slice(0,3),formato.encabezados);eq(ampliado[1].slice(0,3),detalle[0].cruda);
- for(const [campo,valor] of [['Posición','A-01-02-1'],['Código de barras','00001234'],['CLIENTE','CLIENTE'],['MARCA','MARCA']]){const i=ampliado[0].indexOf(campo);ok(i>=3);eq(ampliado[1][i],valor);}
+ eq(original,[formato.encabezados,detalle[0].cruda]);eq(ampliado[0].slice(0,2),['MARCA','CLIENTE']);eq(ampliado[0].slice(2,5),formato.encabezados);eq(ampliado[1].slice(2,5),detalle[0].cruda);
+ for(const [campo,valor] of [['Posición','A-01-02-1'],['Código de barras','00001234'],['CLIENTE','CLIENTE'],['MARCA','MARCA']]){const i=ampliado[0].indexOf(campo);ok(i>=0);eq(ampliado[1][i],valor);}
 });
 await test('dos listas de contenido idéntico conservan identificadores distintos en sus archivos',()=>{
  const detalle=[{sku:'S',cantidad:3,fisica:3,estado:'OK',cruda:['S',3]}];
@@ -90,18 +91,18 @@ await test('vista previa usa las mismas celdas y enlaces que el Excel final, sin
 });
 await test('vista ampliada y paginada conserva las filas reales; ejemplos solo si no hay filas',()=>{
  const lista={origen:'A',formato:{encabezados:['SKU','Cantidad'],columnas:{sku:0,cantidad:1}},detalle:Array.from({length:14},(_,i)=>({sku:'S'+i,cantidad:2,fisica:1,estado:'FALTANTE',diferencia:-1,cruda:['S'+i,2]}))};
- const vista=informe.previsualizarLista(lista,lista.formato.columnas,{ampliado:true,offset:12});eq(vista.total,14);eq(vista.filas.length,2);eq(vista.filas[0].celdas[0].texto,'S12');ok(vista.encabezados.includes('Cantidad Física'));ok(!vista.ejemplo);
+ const vista=informe.previsualizarLista(lista,lista.formato.columnas,{ampliado:true,offset:12});eq(vista.total,14);eq(vista.filas.length,2);eq(vista.filas[0].celdas[vista.encabezados.indexOf('SKU')].texto,'S12');ok(vista.encabezados.includes('Cantidad Física'));ok(!vista.ejemplo);
  const vacia=informe.previsualizarLista({...lista,detalle:[]},lista.formato.columnas);ok(vacia.ejemplo);eq(vacia.filas[0].celdas[0].texto,'EJEMPLO001');eq(lista.detalle.length,14);
 });
-await test('formato ampliado protege ITEM, mantiene bloque original y elimina solo rótulos de muestra',()=>{
+await test('formato ampliado protege ITEM, antepone cliente sin duplicar marca y elimina solo rótulos de muestra',()=>{
  const encabezados=['MARCA','ITEM','Descripción','ReferenciaPedido','Factura','Cantidad','PrecioUnit','PrecioTotal','Numero de pieza reemplazo','Embarque','Cantidad Física','PALLET','CODIGO BARRA','COD/PROD','ok','Cant. Con incidencia','Tipo de incidencia','OBSERVACION','Evidencia fotografica : Dir, Url (Drive)'];
  const cruda=['ISUZU','3QF615301F','BRAKE DISC','RAISZ260926','ECUAD03658','255','4.66','466','','RB654123','','','','','','','','',''];
  const columnas={sku:1,descripcion:2,cantidad:5,depot:1,marca:1,cliente:2,fisica:10,pallet:11,codigoBarra:12,incidencia:14,observacion:17};
  const lista={origen:'RB654123',formato:{encabezados,columnas,prefijo:[{celdas:['Espacio que llenan opertivos','Espacio que llena el ejecutivo']} ]},detalle:[{sku:'3QF615301F',fisica:255,diferencia:0,estado:'OK',depot:'N/D',marca:'VENTURA',cliente:'VENTURA',cantidadIncidencia:2,incidencia:'ROTULADO ERRONEO',observacion:'Revisado',cruda}]};
  const vista=informe.previsualizarLista(lista,columnas,{ampliado:true});
- eq(vista.encabezados.slice(0,encabezados.length),encabezados);eq(vista.filas[0].numero,2);
- eq(vista.filas[0].celdas.slice(0,10).map(c=>c.texto),cruda.slice(0,10));
- eq(vista.filas[0].celdas[14].texto,'N/D');eq(vista.filas[0].celdas[15].texto,'2');eq(vista.filas[0].celdas[16].texto,'ROTULADO ERRONEO');
+ eq(vista.encabezados.slice(0,2),['MARCA','CLIENTE']);eq(vista.encabezados.filter(v=>v!=='CLIENTE').slice(0,encabezados.length),encabezados);eq(vista.filas[0].numero,2);
+ eq(vista.filas[0].celdas.filter((_,i)=>vista.encabezados[i]!=='CLIENTE').slice(0,10).map(c=>c.texto),cruda.slice(0,10));
+ eq(vista.filas[0].celdas[vista.encabezados.indexOf('ok')].texto,'N/D');eq(vista.filas[0].celdas[vista.encabezados.indexOf('Cant. Con incidencia')].texto,'2');eq(vista.filas[0].celdas[vista.encabezados.indexOf('Tipo de incidencia')].texto,'ROTULADO ERRONEO');
  eq(vista.encabezados.filter(v=>/incidencia/i.test(v)).length,2);eq(vista.encabezados.filter(v=>/drive/i.test(v)).length,1);
 });
 await test('categoría NUV DEV o SCRAP y posición viajan en el modelo de cantidades',()=>{
@@ -119,5 +120,66 @@ await test('NUV del ingreso no vuelve conformes a los PNC sin una categoría aut
  const datos={categoriaLogica:'NUV',eventos:[{id:'pnc',sku:'S',cantidad:1,pallet:'B02',estadoFisico:'PNC'}],catalogo:{S:{unidad:'CS'}}};
  let r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],datos);eq(r.tabla[1][7],'');ok(r.incidencias.some(i=>i.encabezado==='CODIGO CATEGORIA LÓGICA'));
  r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],{...datos,categoriaLogicaPnc:'DEV'});eq(r.tabla[1][7],'DEV');
+});
+await test('orden por embarque conserva celdas, enlaces, ceros y la misma vista previa que Excel',()=>{
+ const formato={hoja:'FINAL',encabezados:['ITEM','Cantidad','Total'],columnas:{sku:0,cantidad:1},prefijo:[{celdas:['Cabecera original']}]};
+ const ids=organizacion.columnasDeSalida(formato).map(c=>c.id);
+ const primero=['resultado:cliente','original:1','resultado:marca','original:0'];
+ formato.ordenSalida=[...primero,...ids.filter(id=>!primero.includes(id))];
+ const detalle=[{sku:'0001',cantidad:3,fisica:2,diferencia:-1,estado:'FALTANTE',marca:'ISUZU',cliente:'VENTURA',codigoBarra:'00001234',evidencia:'https://drive.google.com/drive/folders/uno',cruda:['0001',3,6],formulas:{2:'B3*2'},filaOriginal:3}];
+ const lista={origen:'EMB-A',formato,detalle},antes=JSON.stringify(lista),vista=informe.previsualizarLista(lista,formato.columnas,{ampliado:true});
+ const datos={recepcion:{codigo:'R'},detalle,porOrigen:[lista],adicionales:[],eventos:[],auditoria:[]};
+ const x=informe.construirLibros(datos,{version:'envio-ampliado'})[0],w=XLSX.read(x.base64,{type:'base64'}),sh=w.Sheets.FINAL;
+ eq(vista.encabezados.slice(0,4),['CLIENTE','Cantidad','MARCA','ITEM']);eq(vista.filas[0].celdas.slice(0,4).map(c=>c.texto),['VENTURA','3','ISUZU','0001']);
+ eq(vista.filas[0].celdas.map(c=>c.texto),vista.encabezados.map((_,c)=>String(sh[XLSX.utils.encode_cell({r:2,c})]?.v??'')));
+ const total=vista.encabezados.indexOf('Total');eq(sh[XLSX.utils.encode_cell({r:2,c:total})].f,'B3*2');
+ eq(sh[XLSX.utils.encode_cell({r:2,c:vista.encabezados.indexOf('Carpeta Drive del SKU')})].l.Target,detalle[0].evidencia);
+ eq(JSON.stringify(lista),antes);eq(XLSX.utils.sheet_to_json(sh,{header:1}).length,3);
+ const original=informe.construirLibros(datos,{version:'envio'})[0],wo=XLSX.read(original.base64,{type:'base64'});eq(wo.Sheets.FINAL.C3.f,'B3*2');eq(wo.Sheets.FINAL.A3.v,'0001');
+});
+await test('el orden de una lista no se aplica a otra y se puede conservar el bloque original',()=>{
+ const detalle=[{sku:'S',cantidad:2,fisica:2,estado:'OK',cruda:['S',2]}],formato={encabezados:['ITEM','Cantidad'],columnas:{sku:0,cantidad:1}};
+ const ids=organizacion.columnasDeSalida(formato).sort((a,b)=>a.indice-b.indice).map(c=>c.id);
+ const datos={recepcion:{codigo:'R'},detalle:detalle.concat(detalle),porOrigen:[{origen:'A',detalle,formato:{...formato,ordenSalida:ids}},{origen:'B',detalle,formato}],adicionales:[],eventos:[],auditoria:[]};
+ const libros=informe.construirLibros(datos,{version:'envio-ampliado'}).map(l=>{const w=XLSX.read(l.base64,{type:'base64'});return XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1})[0];});
+ eq(libros[0].slice(0,2),['ITEM','Cantidad']);eq(libros[1].slice(0,2),['MARCA','CLIENTE']);
+});
+await test('mover columnas ajusta referencias absolutas, relativas y rangos sin tocar textos ni funciones',()=>{
+ const sh=XLSX.utils.aoa_to_sheet([['Cantidad','Precio','Total'],[2,3,6]]);sh.C2.f='IF(A2="A2",$A2*B$2+$A$2+sum(a2:b2)+LOG10(A2),0)';
+ const orden=[{indice:2},{indice:0},{indice:1}],nuevo=organizacion.organizarHojaInforme(sh,orden);
+ eq(nuevo.A2.f,'IF(B2="A2",$B2*C$2+$B$2+sum(B2:C2)+LOG10(B2),0)');eq(nuevo.B2.v,2);eq(nuevo.C2.v,3);eq(sh.C2.v,6);
+});
+await test('un rango que perdería sus columnas o una referencia dinámica bloquea el archivo organizado',()=>{
+ const sh=XLSX.utils.aoa_to_sheet([['A','B','C'],[2,3,6]]),orden=[{indice:0},{indice:2},{indice:1}];
+ for(const f of ['SUM(A2:B2)','SUM(A:B)','INDIRECT("A2")','OFFSET(A2,0,1)','Otra!A2']){sh.C2.f=f;let mensaje='';try{organizacion.organizarHojaInforme(sh,orden);}catch(e){mensaje=e.message;}ok(mensaje.includes('fórmula')||mensaje.includes('referencias'));}
+});
+await test('el orden rechaza columnas repetidas, omitidas o desconocidas sin mutar el packing list',()=>{
+ const f={encabezados:['ITEM','Cantidad'],columnas:{sku:0,cantidad:1}},orden=organizacion.columnasDeSalida(f).map(c=>c.id),antes=JSON.stringify(f);
+ for(const ids of [orden.slice(1),[orden[0],...orden.slice(0,-1)],orden.map((v,i)=>i===0?'original:999':v)]){let fallo=false;try{organizacion.columnasDeSalida({...f,ordenSalida:ids});}catch{fallo=true;}ok(fallo);}
+ eq(organizacion.columnasDeSalida({...f,ordenSalida:['invalido']},{ampliado:false}).map(c=>c.titulo),f.encabezados);eq(JSON.stringify(f),antes);
+});
+await test('OK Depot se explica con fuente, comentarios y observación sin maestro ni fórmulas de búsqueda',()=>{
+ const validacionDepot={notaMaestro:'No se adjunta la hoja MAESTRO.',metodo:'Catálogo sincronizado mediante la API de stock de Depot.',actualizadoEn:'2026-10-19T08:00:00Z',porSku:{
+  S:{estado:'NO_ENCONTRADO',valor:'N/D',observacion:'Verificar en Depot; solicitar creación si corresponde antes de cargar cantidades.',nota:'No encontrado en catálogo; ausencia en stock no prueba inexistencia.',fuente:'CATALOGO',actualizadoEn:'2026-10-19T08:00:00Z'}}};
+ const formato={hoja:'PACKING',encabezados:['ITEM','Cantidad','ok','OBSERVACION'],columnas:{sku:0,cantidad:1,depot:2,observacion:3}};
+ const detalle=informe.completarIncidencias([{sku:'S',cantidad:2,fisica:2,diferencia:0,estado:'OK',observacion:'Nota del operario',cruda:['S',2,'#N/A','']}],[],{validacionDepot});
+ const x=informe.construirLibro({recepcion:{codigo:'R'},validacionDepot,detalle,porOrigen:[{origen:'A',detalle,formato}],adicionales:[],eventos:[],auditoria:[]},{version:'envio-ampliado'}),w=XLSX.read(x.base64,{type:'base64'}),sh=w.Sheets.PACKING;
+ eq(w.SheetNames,['PACKING']);ok(!w.SheetNames.includes('MAESTRO'));ok(w.Props.Comments.includes('No se adjunta'));
+ const vista=informe.previsualizarLista({detalle,formato,validacionDepot},formato.columnas,{ampliado:true}),j=vista.encabezados.indexOf('ok'),obs=vista.encabezados.indexOf('OBSERVACION');
+ eq(vista.filas[0].celdas[j].texto,'N/D');ok(vista.filas[0].celdas[j].comentario.includes('no prueba inexistencia'));
+ ok(vista.filas[0].celdas[obs].texto.includes('Nota del operario'));ok(vista.filas[0].celdas[obs].texto.includes('solicitar creación'));
+ ok(sh[XLSX.utils.encode_cell({r:0,c:j})].c[0].t.includes('API de stock'));ok(!sh[XLSX.utils.encode_cell({r:1,c:j})].f);
+});
+await test('guardar destinos de salida no elimina la protección de las columnas de origen',async()=>{
+ const anterior=globalThis.__coleccion;
+ globalThis.__coleccion={'recepciones/R51/lineas':[{id:'l',linea:1,sku:'S',cantidad:2,cruda:['S',2]}],
+  'recepciones/R51/skus':[{sku:'S',contado:2,esperado:2,pallets:{P01:2}}]};
+ try{
+  const datos=await informe.reunirInforme('R51',{codigo:'R51',formatos:{PRINCIPAL:{encabezados:['CLIENTE','Cantidad'],columnas:{sku:0,cantidad:1},salida:{}}}});
+  const f=datos.porOrigen[0].formato;eq(f.columnas.sku,0);eq(f.columnas.cantidad,1);
+  ok(organizacion.columnasDeSalida(f).some(c=>c.id==='resultado:cliente'));
+  const vista=informe.previsualizarLista(datos.porOrigen[0],f.columnas,{ampliado:true});
+  const origen=vista.columnas.findIndex(c=>c.id==='original:0');eq(vista.filas[0].celdas[origen].texto,'S');
+ }finally{globalThis.__coleccion=anterior;}
 });
 resumen();

@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import select
 from app.models import (AppInforme,AppEvento,AppIngreso,AppCopiaDrive,AppEvidencia,
-    ProductoCodigo,Producto,AppSku)
+    ProductoCodigo,AppSku)
 from app.services import app_modelo as m, ajustes, archivos
 
 
@@ -30,14 +30,14 @@ def metadatos(db,codigo):
             carpetas.setdefault(e.sku,set()).add(url)
             categorias.setdefault(e.sku,{}).setdefault(e.categoria,set()).add(url)
         else:pendientes.add(e.archivo_id)
-    depot={s:False for s in db.scalars(skus)}
-    for p in db.scalars(select(Producto).where(Producto.sku.in_(skus))):
-        depot[p.sku]=bool(p.existe_depot and not p.inactivo and p.cliente.strip().upper()==r.cliente.strip().upper())
+    from app.services.validacion_depot import validar
+    validacion=validar(db,r.cliente,list(db.scalars(skus)))
+    depot={sku:d['estado']=='OK' for sku,d in validacion['porSku'].items()}
     return {'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
         'columnas':ajustes.cliente(db,r.cliente)['columnas'],'barras':barras,'formatos':r.formatos or {},
         'evidenciasPendientes':len(pendientes),
         'versionFormatos':hashlib.sha256(json.dumps(r.formatos or {},sort_keys=True).encode()).hexdigest(),
-        'depot':depot,'carpetasCategoria':{s:{c:sorted(us) for c,us in cs.items()} for s,cs in categorias.items()},
+        'depot':depot,'validacionDepot':validacion,'carpetasCategoria':{s:{c:sorted(us) for c,us in cs.items()} for s,cs in categorias.items()},
         'carpetas':{s:sorted(urls) for s,urls in carpetas.items()}}
 
 

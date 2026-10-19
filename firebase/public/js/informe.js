@@ -4,18 +4,19 @@
  * Regla del cliente, textual: «si tenemos 22 filas debemos entregar 22 filas».
  * Por eso el archivo se construye desde la subcolección `lineas`, que conserva
  * el orden y el número de fila del archivo original, y NO desde el agregado por
- * SKU. Se añaden columnas a la derecha; no se añade ni se quita ninguna fila.
+ * SKU. El informe ampliado permite ordenar columnas; no añade ni quita filas.
  *
  * Lo que llegó sin estar en el packing list va en su propia hoja ADICIONALES, y
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-50';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261019-50';
-import { db } from './auth.js?v=20261019-50';
-import * as local from './local.js?v=20261019-50';
-import {eventosActivos} from './conteo.js?v=20261019-50';
-import { aNumero, decodificarPallets, columnasSegurasInforme, destinosInforme, prefijoInforme } from './datos.js?v=20261019-50';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-51';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261019-51';
+import { db } from './auth.js?v=20261019-51';
+import * as local from './local.js?v=20261019-51';
+import {eventosActivos} from './conteo.js?v=20261019-51';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261019-51';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261019-51';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -235,12 +236,14 @@ export async function reunirInforme(recepcionId, recepcion) {
   const origenes = [...new Set(detalle.map((l) => l.origen || 'PRINCIPAL'))];
   const porOrigen = origenes.map((origen) => ({
     origen,
-    formato: (()=>{const f=formatos[origen] || formatos[origen.replace(/\./g, '~')] || null;return f?{...f,columnas:f.salida||{...f.columnas,...meta.columnas}}:null;})(),
+    formato: (()=>{const f=formatos[origen] || formatos[origen.replace(/\./g, '~')] || null;
+      const protegidas=Object.fromEntries(Object.entries(f?.columnas||{}).filter(([k])=>!Object.hasOwn(CAMPOS_AMPLIADOS,k)));
+      return f?{...f,columnas:f.salida?{...protegidas,...f.salida}:{...f.columnas,...meta.columnas}}:null;})(),
     detalle: detalle.filter((l) => (l.origen || 'PRINCIPAL') === origen),
   }));
 
   return {
-    recepcion, detalle, porOrigen,
+    recepcion, detalle, porOrigen, validacionDepot:meta.validacionDepot,
     adicionales: adicionalesDetalle, eventos, skus, auditoria,
   };
 }
@@ -283,10 +286,9 @@ export function soloPallets(mapa) {
  * y `OBSERVACION` en blanco; el informe las rellena **en su sitio**. Devolver
  * otro formato obliga a rehacer el archivo a mano antes de subirlo.
  */
-function hojaOriginal(filas, formato, ampliado=false) {
-  formato={...formato,columnas:columnasSegurasInforme(formato,formato.columnas),prefijo:prefijoInforme(formato)};
-  if(ampliado){formato={...formato,encabezados:[...(formato.encabezados||[])],columnas:{...formato.columnas}};
-    for(const [rol,titulo] of Object.entries({fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot',posicion:'Posición',codigoBarra:'Código de barras',marca:'MARCA',cliente:'CLIENTE'}))if(formato.columnas[rol]===undefined){const existente=destinosInforme(formato,rol)[0];if(existente!==undefined)formato.columnas[rol]=existente;else{formato.columnas[rol]=formato.encabezados.length;formato.encabezados.push(titulo);}}}
+function hojaOriginal(filas, formato, ampliado=false, validacionDepot=null) {
+  const orden=columnasDeSalida(formato,{ampliado});
+  formato=prepararFormatoInforme(formato,ampliado);
   const enc = (formato?.encabezados || []).slice();
   const col = formato?.columnas || {};
   const ancho = enc.length;
@@ -317,7 +319,9 @@ function hojaOriginal(filas, formato, ampliado=false) {
   }
 
   const hoja = XLSX.utils.aoa_to_sheet(matriz);
+  if(Number.isInteger(col.depot)&&validacionDepot){const cab=hoja[XLSX.utils.encode_cell({r:prefijo.length,c:col.depot})];if(cab)cab.c=[{a:'ITSANET',t:validacionDepot.notaMaestro+'\n'+validacionDepot.metodo+'\nActualización: '+(validacionDepot.fechaActualizacion||validacionDepot.actualizadoEn||'sin confirmar')}];}
   filas.forEach((l,i)=>{const r=i+1+prefijo.length,j=col.evidencia,url=String(l.evidencia||'').split(' | ')[0];if(Number.isInteger(j)&&/^https:\/\/drive\.google\.com\//.test(url)){const cell=hoja[XLSX.utils.encode_cell({r,c:j})];if(cell)cell.l={Target:url,Tooltip:'Carpeta del SKU '+l.sku};}
+    if(Number.isInteger(col.depot)&&l.depotNota){const cell=hoja[XLSX.utils.encode_cell({r,c:col.depot})];if(cell)cell.c=[{a:'ITSANET',t:l.depotNota}];}
     for(const [c,formula] of Object.entries(l.formulas||{}))if(!Object.entries(col).some(([rol,j])=>salida.has(rol)&&j===Number(c))&&!/[!\[\]]/.test(formula)){
       const celda=hoja[XLSX.utils.encode_cell({r,c:Number(c)})];
       const delta=r+1-Number(l.filaOriginal||r+1);
@@ -329,7 +333,7 @@ function hojaOriginal(filas, formato, ampliado=false) {
     hoja['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: prefijo.length, c: 0 },
       e: { r: filas.length+prefijo.length, c: ancho - 1 } }) };
   }
-  return hoja;
+  return ampliado?organizarHojaInforme(hoja,orden):hoja;
 }
 
 /** Excel limita el nombre de hoja a 31 caracteres y prohíbe : \ / ? * [ ] */
@@ -391,13 +395,14 @@ function hojaValidada(filas) {
  * Es para analizar, transferir datos y responder a una reclamación.
  */
 export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
-                                 eventos, auditoria }, opciones = {}) {
+                                 eventos, auditoria, validacionDepot }, opciones = {}) {
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Recarga la página.');
   }
   const soloEnvio = ['envio','envio-ampliado'].includes(opciones.version);
   const libro = XLSX.utils.book_new();
   libro.Props={Company:'ITSANET',Author:recepcion.informe?.usuario||'ITSANET',Title:recepcion.codigo,Subject:(recepcion.informe?'Informe '+recepcion.informe.numero+' · '+recepcion.informe.id:'Validación de recepción')+' · Listas: '+(porOrigen||[]).map(l=>l.origen).join(', ')};
+  if(validacionDepot)libro.Props.Comments=validacionDepot.notaMaestro+' '+validacionDepot.metodo+' Actualización: '+(validacionDepot.fechaActualizacion||validacionDepot.actualizadoEn||'sin confirmar');
 
   // --- Una hoja por packing list, con SU formato y SUS filas --- //
   const listas = (porOrigen && porOrigen.length)
@@ -413,7 +418,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     XLSX.utils.book_append_sheet(
       libro,
       lista.formato?.encabezados?.length
-        ? hojaOriginal(lista.detalle, lista.formato,opciones.version==='envio-ampliado')
+        ? hojaOriginal(lista.detalle, lista.formato,opciones.version==='envio-ampliado',validacionDepot)
         : hojaValidada(lista.detalle),
       base);
 
@@ -526,13 +531,13 @@ export function previsualizarLista(lista,columnas,{ampliado=false,offset=0,limit
     for(const [rol,i] of Object.entries(formato.columnas||{}))if(['sku','descripcion','cantidad'].includes(rol))f.cruda[i]=f[rol];
     filas=[f];
   }
-  const hoja=hojaOriginal(filas,formato,ampliado),filaCabecera=prefijoInforme(formato).length;
+  const hoja=hojaOriginal(filas,formato,ampliado,lista.validacionDepot),filaCabecera=prefijoInforme(formato).length;
   const ancho=XLSX.utils.decode_range(hoja['!ref']).e.c+1;
   const celda=(r,c)=>hoja[XLSX.utils.encode_cell({r,c})]||{};
-  return {ejemplo,total:filas.length,encabezados:Array.from({length:ancho},(_,c)=>String(celda(filaCabecera,c).v??'')),
+  return {ejemplo,total:filas.length,columnas:columnasDeSalida(formato,{ampliado}),encabezados:Array.from({length:ancho},(_,c)=>String(celda(filaCabecera,c).v??'')),
     filas:filas.slice(offset,offset+limite).map((_,i)=>({numero:offset+i+filaCabecera+2,
       celdas:Array.from({length:ancho},(_,c)=>{const v=celda(offset+i+filaCabecera+1,c);return {
-        texto:String(v.w??v.v??(v.f?'='+v.f:'')),formula:v.f||'',url:v.l?.Target||''};})}))};
+        texto:String(v.w??v.v??(v.f?'='+v.f:'')),formula:v.f||'',url:v.l?.Target||'',comentario:(v.c||[]).map(c=>c.t).join('\n')};})}))};
 }
 
 export function construirLibros(datos, opciones = {}) {
@@ -598,8 +603,10 @@ export function completarIncidencias(filas,eventos,meta={}){
   }
   if(l.diferencia)tipos.push(l.diferencia<0?'FALTANTE':'SOBRANTE');
   const sinDesglose=l.calidadPorRevisar&&pnc===0;if(sinDesglose)tipos.push('PNC · cantidad por revisar');
-  return {...l,pnc:pnc?'PNC ('+pnc+')':sinDesglose?'PNC · cantidad por revisar':'',cantidadPnc:sinDesglose?null:pnc,cantidadConforme:sinDesglose?null:Number(l.fisica)-pnc,
+  const depot=meta.validacionDepot?.porSku?.[l.sku],observacion=[l.observacion,depot?.observacion].filter(Boolean).join(' | ');
+  return {...l,observacion,pnc:pnc?'PNC ('+pnc+')':sinDesglose?'PNC · cantidad por revisar':'',cantidadPnc:sinDesglose?null:pnc,cantidadConforme:sinDesglose?null:Number(l.fisica)-pnc,
    cantidadIncidencia:sinDesglose?null:novedad||Math.abs(l.diferencia||0),incidencia:tipos.join(' / ')||'OK',
-   depot:meta.depot?.[l.sku]===undefined?undefined:meta.depot[l.sku]?'ok':'N/D',marca:meta.marca||undefined,cliente:meta.cliente||undefined,codigoBarra:meta.barras?.[l.sku],evidencia:(meta.carpetasCategoria?.[l.sku]?.[pnc?'PNC':l.diferencia<0?'FALTANTE':l.diferencia>0?'SOBRANTE':'VALIDACION']||meta.carpetas?.[l.sku])?.join(' | ')};
+   depot:depot?.valor??(meta.depot?.[l.sku]===undefined?undefined:meta.depot[l.sku]?'ok':'N/D'),depotNota:depot?depot.nota+'\nFuente: '+depot.fuente+' · Actualización: '+(depot.fechaActualizacion||depot.actualizadoEn||'sin confirmar'):undefined,
+   marca:meta.marca||undefined,cliente:meta.cliente||undefined,codigoBarra:meta.barras?.[l.sku],evidencia:(meta.carpetasCategoria?.[l.sku]?.[pnc?'PNC':l.diferencia<0?'FALTANTE':l.diferencia>0?'SOBRANTE':'VALIDACION']||meta.carpetas?.[l.sku])?.join(' | ')};
  });
 }

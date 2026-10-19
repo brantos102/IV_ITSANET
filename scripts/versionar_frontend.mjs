@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export const VERSION_FRONTEND='20261019-50';
+export const VERSION_FRONTEND='20261019-51';
 export async function versionarFrontend() {
   const raiz=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../firebase/public');
   for(const carpeta of [raiz,path.join(raiz,'js')]) {

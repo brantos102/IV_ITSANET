@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 51: columnas ordenables y justificación de la validación de Depot en Excel y correo](docs/COLUMNAS_Y_VALIDACION_DEPOT_51.md).
+
 [Versión 50: cámara dentro de la ficha y recuperación del borrador del operario](docs/FOTO_OPERADOR_Y_BORRADOR_50.md).
 
 [Versión 49: correo con selección de fotos, escáner móvil y ayudas operativas](docs/CORREO_CAMARA_Y_AYUDAS_49.md).

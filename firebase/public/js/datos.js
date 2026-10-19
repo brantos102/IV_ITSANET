@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261019-50';
-import { db } from './auth.js?v=20261019-50';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261019-50';
-import * as local from './local.js?v=20261019-50';
+} from '../vendor/firebase-sdk.js?v=20261019-51';
+import { db } from './auth.js?v=20261019-51';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261019-51';
+import * as local from './local.js?v=20261019-51';
 
 /**
  * Dónde se guardan los datos.
@@ -193,9 +193,10 @@ export const ROL_COLUMNA = {
 
 const normalizarEncabezadoInforme=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
 export function destinosInforme(formato,rol){
+  const protegidas=new Set(Object.entries(formato.columnas||{}).filter(([k])=>!Object.values(ROL_COLUMNA).includes(k)).map(([,i])=>i));
   return (formato.encabezados||[]).flatMap((e,i)=>{
     const clave=normalizarEncabezadoInforme(e),salida=ROL_COLUMNA[clave];
-    if(ALIAS[clave])return [];
+    if(ALIAS[clave]||protegidas.has(i))return [];
     return (salida===rol||!salida&&formato.columnas?.[rol]===i)?[i]:[];
   });
 }

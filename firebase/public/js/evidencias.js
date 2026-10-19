@@ -1,11 +1,11 @@
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-50';
-import {organizarFotos} from './organizar-fotos.js?v=20261019-50';
-import {verImagen} from './visor-imagen.js?v=20261019-50';
-import {manualFotos} from './manual-fotos.js?v=20261019-50';
-import {pedir} from './local.js?v=20261019-50';
-import {comprimir} from './imagen.js?v=20261019-50';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-50';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-50';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-51';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-51';
+import {verImagen} from './visor-imagen.js?v=20261019-51';
+import {manualFotos} from './manual-fotos.js?v=20261019-51';
+import {pedir} from './local.js?v=20261019-51';
+import {comprimir} from './imagen.js?v=20261019-51';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-51';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-51';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});

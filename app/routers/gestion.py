@@ -219,10 +219,14 @@ def columnas_informe(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),
     f=dict(formatos[origen]);columnas=datos.get('columnas')
     permitidas={'marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot'}
     if not isinstance(columnas,dict) or set(columnas)-permitidas or any(type(v)is not int or not 0<=v<len(f.get('encabezados',[])) for v in columnas.values()) or len(set(columnas.values()))!=len(columnas):raise HTTPException(422,'Selecciona columnas distintas dentro del packing list')
-    from app.services.formato_informe import validar_columnas
+    from app.services.formato_informe import validar_columnas, validar_orden_salida
     validar_columnas(f,columnas)
+    if 'ordenSalida' in datos:
+        validar_orden_salida(f,datos['ordenSalida'])
+        if datos['ordenSalida'] is None:f.pop('ordenSalida',None)
+        else:f['ordenSalida']=datos['ordenSalida']
     f['salida']=columnas;formatos[origen]=f;r.formatos=formatos
-    ajustes.auditar(db,op.email or op.usuario,'COLUMNAS_INFORME',r.codigo,{'origen':origen,'columnas':columnas})
+    ajustes.auditar(db,op.email or op.usuario,'COLUMNAS_INFORME',r.codigo,{'origen':origen,'columnas':columnas,'ordenSalida':f.get('ordenSalida')})
     db.commit();return {'ok':True}
 
 @router.get('/recepciones/{codigo}/edicion')

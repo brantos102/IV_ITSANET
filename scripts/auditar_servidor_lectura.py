@@ -79,7 +79,7 @@ def capturar(repo):
         'cambiosLocalesPorRuta': estado.comando(['git', 'status', '--porcelain', '--untracked-files=no'], repo),
         'servicio': estado.comando(['systemctl', 'show', 'iv-itsanet', '-p', 'ActiveState', '-p', 'SubState',
             '-p', 'Result', '-p', 'NRestarts', '-p', 'MemoryCurrent', '-p', 'TasksCurrent',
-            '-p', 'WorkingDirectory', '-p', 'ActiveEnterTimestamp']),
+            '-p', 'WorkingDirectory', '-p', 'ActiveEnterTimestamp', '-p', 'UnitFileState']),
         'puertos': estado.comando(['ss', '-ltn', '( sport = :80 or sport = :443 or sport = :8443 or sport = :3002 or sport = :3306 )']),
         'memoria': {}, 'mysql': None, 'archivos': {}, 'apache': apache(), 'tls': tls(), 'avisos': []}
     try:
