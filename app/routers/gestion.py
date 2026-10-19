@@ -20,13 +20,18 @@ def correo_vista(codigo:str,entregaId:str='',origen:str='',db:Session=Depends(ge
 
 @router.get('/recepciones/{codigo}/correos-embarques')
 def plan_correos(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
-    from app.services.correos_embarque import plan
-    return plan(db,codigo)
+    from app.services.agrupacion_correo import vista
+    return vista(db,codigo)
+
+@router.post('/recepciones/{codigo}/correos-embarques/vista')
+def vista_plan_correos(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.agrupacion_correo import vista
+    return vista(db,codigo,datos)
 
 @router.put('/recepciones/{codigo}/correos-embarques')
 def guardar_plan_correos(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
-    from app.services.correos_embarque import guardar_plan
-    return guardar_plan(db,codigo,datos,op.email or op.usuario)
+    from app.services.agrupacion_correo import guardar
+    return guardar(db,codigo,datos,op.email or op.usuario)
 
 @router.put('/recepciones/{codigo}/correo')
 def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):

@@ -88,7 +88,7 @@ def documento(e, tecnico=False):
     if e.datos.get('correoManual'):
         mensajes['CANCELADA']='Envío manual declarado por el supervisor; sin confirmación de Google.' if e.datos['correoManual'].get('estado')=='DECLARADO_ENVIADO' else 'Preparado para envío manual. El envío automático está detenido.'
     gestion=hashlib.sha256(json.dumps([e.id,e.estado,e.intentos,e.error,e.datos],sort_keys=True,default=str).encode()).hexdigest()
-    return {'correos':[{'origen':c['origen'],'estado':c['estado'],'destinatarios':c['destinatarios'],'confirmadoEn':c.get('confirmadoEn')} for c in e.datos.get('correosPorOrigen',[])],
+    return {'correos':[{'origen':c['origen'],'estado':c['estado'],'nombre':c.get('nombre',c['origen']),'destinatarios':c['destinatarios'],'confirmadoEn':c.get('confirmadoEn')} for c in e.datos.get('correosPorOrigen',[])],
             'versionGestion':gestion,'archivado':bool(e.datos.get('historialOculto')),'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
@@ -148,7 +148,9 @@ def preparar(db, codigo, datos, usuario):
     destinatarios = str(datos.get('destinatarios') or '').strip()
     correos = [s.strip() for s in destinatarios.split(',') if s.strip()]
     r = m.obtener(db, codigo)
-    if len(r.origenes or [])<=1 and (len(correos) > 20 or any(not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', c) for c in correos)):
+    from app.services.agrupacion_correo import configuracion as plan_correos
+    plan_envio=plan_correos(db,r.codigo)
+    if len(r.origenes or [])<=1 and plan_envio['modo']!='EMBARQUE' and (len(correos) > 20 or any(not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', c) for c in correos)):
         raise HTTPException(422, 'Revisa los correos de destino (separados por coma)')
     destinatarios=','.join(correos)
     libros = datos.get('adjuntos')
@@ -184,7 +186,7 @@ def preparar(db, codigo, datos, usuario):
     from app.services.correo_redactado import congelar, clave_config
     informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
     lote_correos=[];asignaciones_cierre={}
-    if len(r.origenes or [])>1:
+    if len(r.origenes or [])>1 or plan_envio['modo']=='EMBARQUE':
         from app.services.correos_embarque import congelar as congelar_embarques,asignaciones
         lote_correos=congelar_embarques(db,r,datos,usuario,informe)
         asignaciones_cierre=asignaciones(db,r.codigo)
@@ -224,7 +226,7 @@ def preparar(db, codigo, datos, usuario):
         estado='CANCELADA' if manual else 'PENDIENTE', datos={
             'solicitudCierre':firma_solicitud,
             'destinatarios': destinatarios, 'informes': informes, 'fotos': fotos,
-            **({'correosPorOrigen':lote_correos,'asignacionesAdicionales':asignaciones_cierre} if lote_correos else {}),
+            **({'correosPorOrigen':lote_correos,'asignacionesAdicionales':asignaciones_cierre,'planCorreos':plan_envio} if lote_correos else {}),
             **({'correoFinal':correo_final} if correo_final else {}),
             'remitente': remitente, 'modoRemitente': modo_remitente,
             'carpetaMes': str(datos.get('carpetaMes') or '')[:100],

@@ -13,6 +13,7 @@ from app.services import app_modelo as m, ajustes, archivos
 
 
 def metadatos(db,codigo):
+    from app.services.agrupacion_correo import metadatos as agrupacion
     from app.services.drive import carpeta_sku
     r=m.obtener(db,codigo)
     ingreso=db.scalar(select(AppIngreso).where(AppIngreso.recepcion==r.codigo).with_for_update().execution_options(populate_existing=True))
@@ -33,7 +34,7 @@ def metadatos(db,codigo):
     from app.services.validacion_depot import validar
     validacion=validar(db,r.cliente,list(db.scalars(skus)))
     depot={sku:d['estado']=='OK' for sku,d in validacion['porSku'].items()}
-    return {'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
+    return {'agrupacionCorreos':agrupacion(db,codigo),'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
         'columnas':ajustes.cliente(db,r.cliente)['columnas'],'barras':barras,'formatos':r.formatos or {},
         'evidenciasPendientes':len(pendientes),
         'versionFormatos':hashlib.sha256(json.dumps(r.formatos or {},sort_keys=True).encode()).hexdigest(),
@@ -72,7 +73,8 @@ def documento(f):
     return {'id':f.id,'numero':f.numero,'tipo':f.tipo,'estado':f.estado,'usuario':f.usuario,
         'creadoEn':m._iso(f.creado_en),'sufijo':f.datos.get('sufijo'),'archivos':f.datos.get('archivos',[]),
         'confirmadoEn':f.datos.get('confirmadoEn'),'destinatarios':f.datos.get('destinatarios'),
-        'entregaId':f.datos.get('entregaId'),'descargas':f.datos.get('descargas',[]),'formato':f.datos.get('formato')}
+        'entregaId':f.datos.get('entregaId'),'descargas':f.datos.get('descargas',[]),'formato':f.datos.get('formato'),
+        'agrupacion':f.datos.get('agrupacion','PACKING_LIST'),'grupos':f.datos.get('grupos',[])}
 
 
 def historial(db,codigo):
@@ -124,7 +126,8 @@ def reservar(db,codigo,datos,usuario):
     ahora=datetime.now(ZoneInfo('America/Guayaquil'))
     numero=ultimo.numero+1 if ultimo else 1
     f=AppInforme(id=uuid4().hex,clave=clave,recepcion=r.codigo,numero=numero,tipo=tipo,estado='RESERVADO',
-        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}','formato':formato,'huellaContenido':huella_contenido(db,r)})
+        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}','formato':formato,'huellaContenido':huella_contenido(db,r),
+        'agrupacion':meta['agrupacionCorreos']['modo'],'grupos':meta['agrupacionCorreos']['grupos']})
     db.add(f);ajustes.auditar(db,usuario,'INFORME_RESERVADO',r.codigo,{'informeId':f.id,'numero':numero,'tipo':tipo});db.commit()
     return documento(f)
 
@@ -138,7 +141,11 @@ def archivar(db,codigo,ident,datos,usuario):
     if f.huella!=huella(db,r):raise HTTPException(409,'La recepción cambió mientras se preparaba el informe; genera una versión actualizada.')
     libros=datos.get('adjuntos')
     if not isinstance(libros,list) or not 1<=len(libros)<=30:raise HTTPException(422,'Se requiere un informe por packing list')
-    if f.datos.get('formato') in ('envio','envio-ampliado'):
+    if f.datos.get('agrupacion')=='EMBARQUE' and f.datos.get('formato') in ('envio','envio-ampliado'):
+        pares=[(l.get('grupo'),l.get('origen')) for l in libros]
+        esperados={(g['id'],o) for g in f.datos['grupos'] for o in g['packingLists']}
+        if len(pares)!=len(set(pares)) or set(pares)!=esperados:raise HTTPException(422,'Prepara un documento por packing list y embarque, sin omitir ni duplicar sus filas.')
+    elif f.datos.get('formato') in ('envio','envio-ampliado'):
         origenes=[l.get('origen') for l in libros]
         if len(origenes)!=len(set(origenes)) or set(origenes)!=set(r.origenes or []):
             raise HTTPException(422,'Se requiere exactamente un archivo por packing list, identificado con su origen.')
@@ -149,7 +156,7 @@ def archivar(db,codigo,ident,datos,usuario):
         a=archivos.guardar(db,r.codigo,'informe',libro,usuario,confirmar=False)
         if a.nombre != nombre:
             raise HTTPException(409,'El contenido corresponde a una generación anterior. Vuelve a generar el libro con la secuencia actual.')
-        guardados.append({'id':a.id,'nombre':a.nombre,'sha256':a.sha256,'origen':libro.get('origen'),'url':f'/api/operacion/informes/{f.id}/archivos/{a.id}'})
+        guardados.append({'id':a.id,'nombre':a.nombre,'sha256':a.sha256,'origen':libro.get('origen'),**({'grupo':libro['grupo']} if libro.get('grupo') else {}),'url':f'/api/operacion/informes/{f.id}/archivos/{a.id}'})
     f.estado='GENERADO';f.datos={**f.datos,'archivos':guardados}
     ajustes.auditar(db,usuario,'INFORME_GENERADO',r.codigo,{'informeId':f.id,'numero':f.numero,'archivos':guardados})
     db.commit();return documento(f)

@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261019-52';
-import {confirmar} from './modal.js?v=20261019-52';
+import {pedir,nuevoIdentificador} from './local.js?v=20261019-53';
+import {confirmar} from './modal.js?v=20261019-53';
 let conexion;
 const trabajos=new WeakMap();
 function abrirDb(){

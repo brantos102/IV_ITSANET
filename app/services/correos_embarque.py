@@ -47,8 +47,8 @@ def filtrar(fuente,lineas,origen,mapa):
     def corresponde(e):return (e.get('origen')==origen or not e.get('origen') and grupos.get(e.get('sku'))=={origen})
     eventos=[e for e in activos if corresponde(e)]
     ids={e['id'] for e in eventos}
-    eventos += [e for e in activos if e.get('tipo')=='CALIDAD' and e.get('eventoId') in ids and e not in eventos]
-    correcciones={e['eventoId']:e['incidencias'] for e in activos if e.get('tipo')=='CALIDAD' and e.get('eventoId')}
+    eventos += [e for e in sorted(activos,key=lambda e:(e.get('creadoEn') or '',e['id'])) if e.get('tipo')=='CALIDAD' and e.get('eventoId') in ids and e not in eventos]
+    correcciones={e['eventoId']:e['incidencias'] for e in sorted(activos,key=lambda e:(e.get('creadoEn') or '',e['id'])) if e.get('tipo')=='CALIDAD' and e.get('eventoId')}
     skus=[]
     for s in fuente['skus']:
         ls=[l for l in lineas if l['sku']==s['sku'] and (l.get('origen') or 'PRINCIPAL')==origen]
@@ -82,12 +82,15 @@ def validar_cierre(db,r):
     skus=m.leer_coleccion(db,r.codigo,'skus',actual=True)
     if any(s.get('tienePnc') and s.get('cantidadPnc') is None for s in skus):
         raise HTTPException(409,'Revisa las unidades PNC de los registros anteriores antes de separar los correos por embarque.')
-    if any(s.get('enPackingList') is False and mapa.get(s['sku']) not in r.origenes for s in skus):
+    from app.services.agrupacion_correo import configuracion,grupos as grupos_envio
+    config=configuracion(db,r.codigo)
+    destinos=[g['id'] for g in grupos_envio(lineas,r.origenes or [],config)]
+    if any(s.get('enPackingList') is False and mapa.get(s['sku']) not in destinos for s in skus):
         raise HTTPException(409,'Asigna los productos adicionales a su embarque al comenzar la finalización.')
     eventos=m.leer_coleccion(db,r.codigo,'eventos',actual=True)
     anulados={e.get('anulaA') for e in eventos if e.get('tipo')=='ANULACION'}
     for e in eventos:
-        if e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and e.get('sku') in mapa and e.get('origen') and e['origen']!=mapa[e['sku']]:
+        if config.get('modo')!='EMBARQUE' and e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and e.get('sku') in mapa and e.get('origen') and e['origen']!=mapa[e['sku']]:
             raise HTTPException(409,'La asignación del adicional '+e['sku']+' no coincide con el origen de su conteo. Corrige la asignación antes de finalizar.')
         if e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and not e.get('origen') and len(grupos.get(e.get('sku'),set()))>1:
             raise HTTPException(409,'Asigna el packing list de los conteos compartidos antes de finalizar. SKU: '+e['sku'])
@@ -97,8 +100,16 @@ def validar_cierre(db,r):
 def congelar(db,r,datos,usuario,informe,entrega_id=''):
     from app.services import correo_redactado as correo, entregas
     if not entrega_id:validar_cierre(db,r)
+    from app.services.agrupacion_correo import configuracion,grupos
+    if entrega_id:
+        from app.models import AppEntrega
+        from app.services.instantaneas import expandir
+        previo=expandir(db.get(AppEntrega,entrega_id).datos)
+        config=previo.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':previo.get('asignacionesAdicionales',{})});lineas=previo['lineas']
+    else:config=configuracion(db,r.codigo);lineas=m.leer_coleccion(db,r.codigo,'lineas',actual=True)
+    destinos=grupos(lineas,r.origenes or [],config);ids={g['id'] for g in destinos}
     revisados=datos.get('correos')
-    if not isinstance(revisados,list) or any(not isinstance(d,dict) or not isinstance(d.get('origen'),str) for d in revisados) or len(revisados)!=len(r.origenes) or {d['origen'] for d in revisados}!=set(r.origenes):
+    if not isinstance(revisados,list) or any(not isinstance(d,dict) or not isinstance(d.get('origen'),str) for d in revisados) or len(revisados)!=len(ids) or {d['origen'] for d in revisados}!=ids:
         raise HTTPException(409,'Revisa un correo separado por cada packing list antes de cerrar la recepción.')
     if not informe or informe.datos.get('formato') not in ('envio','envio-ampliado'):
         raise HTTPException(422,'Para enviar por embarque, genera un documento independiente por packing list.')
@@ -111,7 +122,8 @@ def congelar(db,r,datos,usuario,informe,entrega_id=''):
         from app.models import AppEntrega
         anteriores={c['origen']:c for c in db.get(AppEntrega,entrega_id).datos.get('correosPorOrigen',[])}
     salida=[]
-    for origen in r.origenes:
+    for grupo in destinos:
+        origen=grupo['id']
         d=next(d for d in revisados if d['origen']==origen)
         if anteriores.get(origen,{}).get('estado')=='ENTREGADA':
             salida.append(anteriores[origen]);continue
@@ -119,11 +131,11 @@ def congelar(db,r,datos,usuario,informe,entrega_id=''):
         if d.get('correoVersion')!=v['version'] or entregas.validar_destinatarios(d.get('destinatarios'))!=v['campos']['destinatarios']:
             raise HTTPException(409,'Cambió el correo de '+origen+'. Revisa nuevamente todos los correos antes de finalizar.')
         if not v['campos']['destinatarios']:raise HTTPException(422,'Completa los destinatarios de '+origen)
-        docs=[a['id'] for a in informe.datos.get('archivos',[]) if a.get('origen')==origen]
-        if len(docs)!=1:raise HTTPException(409,'Falta el documento final independiente de '+origen)
+        docs=[a['id'] for a in informe.datos.get('archivos',[]) if a.get('grupo',a.get('origen'))==origen]
+        if len(docs)!=(len(grupo['packingLists']) if config.get('modo')=='EMBARQUE' else 1):raise HTTPException(409,'Faltan documentos finales independientes de '+grupo['nombre'])
         if len(v['html'])>500000:raise HTTPException(422,'El correo de '+origen+' supera el tamaño permitido.')
         final={k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot')}
-        salida.append({'origen':origen,'destinatarios':v['campos']['destinatarios'],'correoFinal':final,'informes':docs,
+        salida.append({'origen':origen,'nombre':grupo['nombre'],'destinatarios':v['campos']['destinatarios'],'correoFinal':final,'informes':docs,
             'fotos':[f['id'] for f in v['fotos']],'estado':'PENDIENTE'})
     return salida
 
@@ -136,7 +148,8 @@ def enviar_lote(db,e,d,guardados,manifest,llamar):
     por_archivo={ident:db.get(AppArchivo,ident) for ident in d['informes']+d['fotos']}
     for item in items:
         if item.get('estado')=='ENTREGADA':continue
-        scoped=filtrar({'skus':d['skus'],'eventos':d['eventos'],'fotos':manifest},d['lineas'],item['origen'],d.get('asignacionesAdicionales',{}))
+        from app.services.agrupacion_correo import filtrar as filtrar_grupo
+        scoped=filtrar_grupo({'skus':d['skus'],'eventos':d['eventos'],'fotos':manifest},d['lineas'],item['origen'],d.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':d.get('asignacionesAdicionales',{})}))
         ids=set(item['informes']+item['fotos'])
         if any(not por_archivo.get(i) or not por_archivo[i].drive_id for i in ids):
             raise RuntimeError('Falta confirmar un documento o fotografía del embarque '+item['origen'])
@@ -149,7 +162,10 @@ def enviar_lote(db,e,d,guardados,manifest,llamar):
             'carpetaMes':d['carpetaMes'],'carpetaRecepcion':d['carpetaRecepcion'],'duracion':d.get('duracion',''),
             'informe':d.get('informe'),'exportarSheet':d.get('exportarSheet',False)}
         if payload['exportarSheet']:
-            payload.update(skus=scoped['skus'],eventos=scoped['eventos'],lineas=[l for l in d['lineas'] if (l.get('origen') or 'PRINCIPAL')==item['origen']])
+            from app.services.agrupacion_correo import embarque,grupo_id
+            por_embarque=d.get('planCorreos',{}).get('modo')=='EMBARQUE'
+            payload.update(skus=scoped['skus'],eventos=[{**ev,'tipo':'ASIGNACION_INFORME'} for ev in scoped['eventos']] if por_embarque else scoped['eventos'],
+                lineas=[l for l in d['lineas'] if (grupo_id(embarque(l,d['planCorreos']))==item['origen'] if por_embarque else (l.get('origen') or 'PRINCIPAL')==item['origen'])])
         e.proximo_en=utcnow()+timedelta(minutes=15);db.commit()
         llave=hashlib.sha256((e.id+'\x1f'+item['origen']).encode()).hexdigest()[:32]
         resultado=llamar('finalizar',llave,payload)

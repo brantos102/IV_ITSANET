@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261019-52';
-import {confirmar,elegir} from './modal.js?v=20261019-52';
+import {pedir,nuevoIdentificador} from './local.js?v=20261019-53';
+import {confirmar,elegir} from './modal.js?v=20261019-53';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base=c=>'/recepciones/'+encodeURIComponent(c)+'/informes';
@@ -16,13 +16,25 @@ export async function iniciarInforme(c,tipo,formato=null){
  }
  return api(base(c),{cuerpo:{clave:nuevoIdentificador(),tipo,formato,ultimoVisto:ultimo?.id||null}});
 }
-export async function archivarInforme(c,informe,libros){return api(base(c)+'/'+informe.id,{metodo:'PUT',cuerpo:{adjuntos:libros.map(l=>({nombre:l.nombre,base64:l.base64,origen:l.origen}))}});}
+export async function archivarInforme(c,informe,libros){return api(base(c)+'/'+informe.id,{metodo:'PUT',cuerpo:{adjuntos:libros.map(l=>({nombre:l.nombre,base64:l.base64,origen:l.origen,...(l.grupo?{grupo:l.grupo}:{})}))}});}
+/** Prepara una revisión descargable; conserva el cierre y no crea una entrega. */
+export async function prepararDocumentosPorEmbarque(c){
+ const formato=await elegir({titulo:'Preparar documentos por packing list',texto:'Se conservan el cierre, los conteos y los documentos históricos. Esta revisión prepara un Excel por embarque; no envía correos ni inicia descargas.',opciones:[
+  {valor:'envio-ampliado',titulo:'Informe ampliado · columnas configuradas'},
+  {valor:'envio',titulo:'Packing list · formato original'}]});
+ if(!formato)return null;
+ const vigente=await informeActual(c,formato);if(vigente.actual)return vigente.informe;
+ const f=await iniciarInforme(c,'DESCARGA',formato);if(!f)return null;if(f.estado==='GENERADO')return f;
+ const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261019-53'),pedir('/recepciones/'+encodeURIComponent(c))]);
+ const datos=await reunirInforme(c,recepcion);datos.recepcion={...datos.recepcion,informe:f};
+ return archivarInforme(c,f,construirLibros(datos,{version:formato}));
+}
 const descargasEnCurso=new Set();
 export async function descargarInforme(informe,{origen=null}={}){
  if(descargasEnCurso.has(informe.id))return;descargasEnCurso.add(informe.id);
  try{
   const fs=informe.archivos||[];if(!fs.length)throw Error('El informe aún no tiene documentos preparados.');
-  if(origen===null&&fs.length>1){origen=await elegir({titulo:'Descargar documentos preparados',texto:'Se conserva esta versión. Elige un packing list o un solo ZIP con todos; no se envía correo.',opciones:[{valor:'',titulo:'Todos los packing lists · un ZIP'},...fs.map(f=>({valor:f.origen,titulo:f.origen||f.nombre,detalle:f.nombre}))]});if(origen===null)return false;}
+  if(origen===null&&fs.length>1){origen=await elegir({titulo:'Descargar documentos preparados',texto:'Se conserva esta versión. Elige un packing list o un solo ZIP con todos; no se envía correo.',opciones:[{valor:'',titulo:'Todos los packing lists · un ZIP'},...([...new Set(fs.map(f=>f.grupo||f.origen))].map(id=>({valor:id,titulo:informe.grupos?.find(g=>g.id===id)?.nombre||id||'Documento',detalle:fs.filter(f=>(f.grupo||f.origen)===id).map(f=>f.nombre).join(' · ')})))]});if(origen===null)return false;}
   const r=await fetch('/api/operacion/informes/'+informe.id+'/descarga'+(origen?'?origen='+encodeURIComponent(origen):''),{credentials:'same-origin'});
   if(!r.ok)throw Error('No se pudo descargar el informe ('+r.status+'). Revisa los documentos o genera su versión actualizada.');
   const cd=r.headers.get('Content-Disposition')||'',utf=cd.match(/filename\*=UTF-8''([^;]+)/i),simple=cd.match(/filename="?([^";]+)/i);

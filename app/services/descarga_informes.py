@@ -14,7 +14,7 @@ def descargar(db, ident, origen, usuario):
     if not f:raise HTTPException(404,'Informe no encontrado')
     m.obtener(db,f.recepcion,bloquear=True)
     db.refresh(f,with_for_update=True)
-    seleccion=[a for a in f.datos.get('archivos',[]) if not origen or a.get('origen')==origen]
+    seleccion=[a for a in f.datos.get('archivos',[]) if not origen or a.get('grupo',a.get('origen'))==origen]
     if not seleccion:raise HTTPException(404,'No hay un documento para ese packing list')
     documentos=[db.get(AppArchivo,a['id']) for a in seleccion]
     if any(not a or a.recepcion!=f.recepcion or not archivos.ruta(a).is_file() for a in documentos):

@@ -11,7 +11,7 @@
  * vivo. Ambos necesitan permiso de cámara y un origen seguro (HTTPS).
  */
 
-export const VERSION_LECTOR='20261019-52';
+export const VERSION_LECTOR='20261019-53';
 
 const FORMATOS = [
   'code_128', 'code_39', 'code_93', 'codabar',
@@ -85,7 +85,7 @@ async function lectorDeVideo({foto=false,usarNativo=true}={}) {
       }
     } catch { /* Un lector nativo no compatible usa el respaldo sobre video. */ }
   }
-  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261019-52');
+  const {MultiFormatReader, DecodeHintType, BarcodeFormat, BinaryBitmap, HybridBinarizer, HTMLCanvasElementLuminanceSource} = await import('../vendor/zxing.js?v=20261019-53');
   const formatos=FORMATOS.map(f=>BarcodeFormat[f.toUpperCase()]);
   const rapido=new MultiFormatReader(),completo=new MultiFormatReader();
   rapido.setHints(new Map([[DecodeHintType.POSSIBLE_FORMATS,formatos]]));

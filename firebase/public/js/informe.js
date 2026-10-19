@@ -10,13 +10,13 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-52';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261019-52';
-import { db } from './auth.js?v=20261019-52';
-import * as local from './local.js?v=20261019-52';
-import {eventosActivos} from './conteo.js?v=20261019-52';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261019-52';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261019-52';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-53';
+import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes,limpiarNombre } from './nombres.js?v=20261019-53';
+import { db } from './auth.js?v=20261019-53';
+import * as local from './local.js?v=20261019-53';
+import {eventosActivos} from './conteo.js?v=20261019-53';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261019-53';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261019-53';
 
 const aFechaMs = (v) => (v?.toDate ? v.toDate().getTime() : 0);
 
@@ -242,9 +242,18 @@ export async function reunirInforme(recepcionId, recepcion) {
     detalle: detalle.filter((l) => (l.origen || 'PRINCIPAL') === origen),
   }));
 
+  const agrupacion=meta.agrupacionCorreos;
+  const porGrupo=agrupacion?.modo==='EMBARQUE'?agrupacion.grupos.map(g=>({id:g.id,nombre:g.nombre,
+    porOrigen:g.packingLists.map(o=>{
+      const lista=porOrigen.find(l=>l.origen===o),resultados=agrupacion.resultados.filter(x=>x.grupo===g.id&&x.origen===o);
+      const filas=lista.detalle.filter(l=>String(l.embarque||agrupacion.configuracion.embarquesPorLinea[l.id||o+'-'+l.linea]||'').trim().toUpperCase()===g.nombre);
+      const eventosGrupo=resultados.map(x=>({id:'reparto-'+o+'-'+x.sku,tipo:'CONTEO',sku:x.sku,origen:o,cantidad:x.contado,pallet:x.pallets,observacion:x.observacion,incidencias:x.incidencias}));
+      const base=repartirPorLinea(filas,Object.fromEntries(resultados.map(x=>[x.sku,x.contado]))).map(l=>({...l,formulas:{},estado:etiquetaEstado(Number(l.cantidad),l.fisica),pnc:'',calidadPorRevisar:false}));
+      return {...lista,detalle:completarIncidencias(completarRegistrosPorLista(base,eventosGrupo),eventosGrupo,meta)};
+    })})):null;
   return {
     recepcion, detalle, porOrigen, validacionDepot:meta.validacionDepot,
-    adicionales: adicionalesDetalle, eventos, skus, auditoria,
+    adicionales: adicionalesDetalle, eventos, skus, auditoria,porGrupo,
   };
 }
 
@@ -402,7 +411,9 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   const soloEnvio = ['envio','envio-ampliado'].includes(opciones.version);
   const libro = XLSX.utils.book_new();
   libro.Props={Company:'ITSANET',Author:recepcion.informe?.usuario||'ITSANET',Title:recepcion.codigo,Subject:(recepcion.informe?'Informe '+recepcion.informe.numero+' · '+recepcion.informe.id:'Validación de recepción')+' · Listas: '+(porOrigen||[]).map(l=>l.origen).join(', ')};
+  if(opciones.embarque)libro.Props.Subject+=' · Embarque: '+opciones.embarque;
   if(validacionDepot)libro.Props.Comments=validacionDepot.notaMaestro+' '+validacionDepot.metodo+' Actualización: '+(validacionDepot.fechaActualizacion||validacionDepot.actualizadoEn||'sin confirmar');
+  if(opciones.embarque)libro.Props.Comments=(libro.Props.Comments||'')+' Revisión por embarque: conserva valores de las filas de origen; las fórmulas se presentan como valores para evitar referencias a filas de otros embarques.';
 
   // --- Una hoja por packing list, con SU formato y SUS filas --- //
   const listas = (porOrigen && porOrigen.length)
@@ -541,6 +552,10 @@ export function previsualizarLista(lista,columnas,{ampliado=false,offset=0,limit
 }
 
 export function construirLibros(datos, opciones = {}) {
+  if(datos.porGrupo&&['envio','envio-ampliado'].includes(opciones.version))return datos.porGrupo.flatMap(g=>g.porOrigen.map(lista=>{
+    const libro=construirLibro({...datos,porOrigen:[lista],detalle:lista.detalle},{...opciones,embarque:g.nombre});
+    return {...libro,origen:lista.origen,grupo:g.id,nombre:nombreVersionado(nombreDeInforme(datos.recepcion)+'_PL-'+limpiarNombre(lista.origen)+'_EMB-'+limpiarNombre(g.nombre),datos.recepcion)};
+  }));
   const listas = datos.porOrigen || [];
   if (!['envio','envio-ampliado'].includes(opciones.version) || listas.length <= 1) {
     return [{...construirLibro(datos, opciones),origen:listas.length===1?listas[0].origen:undefined}];

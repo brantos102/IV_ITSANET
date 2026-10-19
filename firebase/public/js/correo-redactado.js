@@ -1,19 +1,28 @@
-import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-52';
-import {abrirEvidencias} from './evidencias.js?v=20261019-52';
-import {verImagen} from './visor-imagen.js?v=20261019-52';
-import {pedir} from './local.js?v=20261019-52';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-52';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-52';
+import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-53';
+import {abrirEvidencias} from './evidencias.js?v=20261019-53';
+import {verImagen} from './visor-imagen.js?v=20261019-53';
+import {pedir} from './local.js?v=20261019-53';
+import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-53';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-53';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Observaciones adicionales y ubicación · Depot se informa automáticamente',despedida:'Despedida',firma:'Firma'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,alEnviar=null,modoEntrega='AUTOMATICO',origen='',revisionEmbarque=false}={}){
+export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,alEnviar=null,modoEntrega='AUTOMATICO',origen='',revisionEmbarque=false,actual=false}={}){
  const ruta='/recepciones/'+encodeURIComponent(recepcion)+'/correo',params=new URLSearchParams();if(entregaId)params.set('entregaId',entregaId);if(origen)params.set('origen',origen);const query=params.size?'?'+params:'';
  let v=await api(ruta+query),sucio=false,ocupado=false;
- if(!entregaId&&!confirmarEnvio&&v.entregaDisponible)return abrirCorreo(recepcion,{entregaId:v.entregaDisponible,alEnviar,origen});
- if(v.correosSeparados&&!origen)return abrirCorreosEmbarque(recepcion,v,{entregaId,confirmarEnvio,modoEntrega,alEnviar,abrirCorreo});
+ if(!entregaId&&!confirmarEnvio&&!actual&&v.entregaDisponible){
+  if(v.entregaAgrupada){
+   const opcion=await elegir({titulo:'Recepción cerrada · correo histórico y revisión por embarque',texto:`Hay ${v.origenes.length} packing lists: ${(v.grupos||v.origenes.map(id=>({nombre:id}))).map(g=>g.nombre).join(' · ')}. El correo histórico se preparó de forma agrupada. Elige qué deseas revisar; esta acción no envía correos.`,opciones:[
+    {valor:'actual',titulo:'Revisar un correo por cada packing list',detalle:'Nuevos borradores y documentos por embarque. Conserva el cierre y el envío original.'},
+    {valor:'historico',titulo:'Ver el correo original archivado',detalle:'Consulta el contenido que se preparó en esa entrega.'}]});
+   if(!opcion)return null;
+   if(opcion==='actual')return abrirCorreo(recepcion,{actual:true,origen});
+  }
+  return abrirCorreo(recepcion,{entregaId:v.entregaDisponible,alEnviar,origen});
+ }
+ if(!origen&&(v.correosSeparados||!entregaId&&!confirmarEnvio))return abrirCorreosEmbarque(recepcion,v,{entregaId,confirmarEnvio,modoEntrega,alEnviar,abrirCorreo,actual});
  const d=document.createElement('dialog');d.className='modal-operativa correo-dialogo';
- d.innerHTML=`<header class="acciones"><div><h2>Preparar correo de recepción · ${esc(recepcion)}${origen?' · '+esc(origen):''}</h2><p class="mini" data-conexion></p></div><button class="b-sec" data-cerrar>Cerrar</button></header>
+ d.innerHTML=`<header class="acciones"><div><h2>Preparar correo de recepción · ${esc(recepcion)}${origen?' · '+esc(v.nombreGrupo||origen):''}</h2><p class="mini" data-conexion></p></div><button class="b-sec" data-cerrar>Cerrar</button></header>
  <p class="guia-modal">Revisa la redacción, elige las fotos y comprueba la vista previa. Las cantidades y novedades proceden de los registros de esta recepción.</p><details data-edicion open><summary>1. Redacción y destinatarios</summary><form class="rejilla">${Object.entries(campos).map(([k,t])=>`<label class="campo"><span>${t}</span>${['asunto','destinatarios'].includes(k)?`<input data-campo="${k}">`:`<textarea rows="3" data-campo="${k}"></textarea>`}</label>`).join('')}</form></details>
  <details open data-presentacion><summary>2. Contenido e imágenes del correo</summary><div class="rejilla"><label class="campo"><span>Fotografías incluidas</span><select data-fotos-modo><option value="NOVEDADES">Solo novedades actuales · recomendado</option><option value="ELEGIDAS">Elegir fotografías</option><option value="TODAS">Primeras fotos de la recepción</option><option value="NINGUNA">Correo sin fotografías</option></select></label><label class="correo-opcion"><input type="checkbox" data-totales> Mostrar resumen total de unidades</label></div><p class="mini">Quitar una foto del correo conserva la evidencia y su clasificación. Se incluyen hasta 12 imágenes; el archivo de evidencias y las carpetas conservan el resto.</p><div class="acciones"><button class="b-sec" data-agregar-fotos>Registrar una foto nueva</button><span class="mini" data-seleccion-fotos role="status"></span></div><div class="correo-selector-fotos" data-elegir-fotos></div></details>
  <div class="acciones"><button class="b-sec" data-actualizar>Actualizar datos</button><button class="b-sec" data-guardar>Guardar cambios y ver correo</button><button class="b-sec" data-copiar>Copiar correo completo</button><button class="b-sec" data-datos>Copiar asunto y destinatarios</button><button class="b-sec" data-descargar>Descargar correo HTML</button><a class="b-sec" data-gmail target="_blank" rel="noopener">Abrir Gmail</a></div>
@@ -24,6 +33,8 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  ${confirmarEnvio&&!revisionEmbarque?`<section class="guia-modal"><label class="campo"><span>Al usar este correo y continuar</span><select data-modo-cierre><option value="AUTOMATICO" ${modoEntrega==='MANUAL'?'disabled':''}>Cerrar y enviar desde la aplicación</option><option value="MANUAL">Cerrar y dejar el envío manual preparado</option><option value="MANUAL_ENVIADO">Cerrar: este informe ya se envió manualmente</option></select></label><p class="mini">El cierre conserva los documentos. El envío manual no depende de Google y queda identificado como declaración del supervisor.</p></section>`:''}
  <div class="acciones"><button class="b-sec" data-manual>Ya lo envié desde mi correo · registrar</button><button class="b-primario" data-enviar>${confirmarEnvio?(revisionEmbarque?'Aprobar este correo de embarque':'Usar este correo y continuar'):'Revisar y enviar desde la aplicación'}</button></div>`;
  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
+ if(actual&&v.estadoRecepcion==='CERRADA'){const nota=document.createElement('p');nota.className='guia-modal';nota.textContent='Borrador de una nueva revisión por embarque. La recepción conserva su cierre. Copiar o descargar no registra un nuevo envío; comprueba el historial antes de compartir esta revisión.';d.querySelector('header').after(nota);}
+ if(v.vistaArchivada){const nota=document.createElement('p');nota.className='guia-modal';nota.textContent='Correo de una entrega archivada. Sus documentos y resultados corresponden a esa entrega. Packing lists: '+(v.grupos||v.origenes.map(id=>({nombre:id}))).map(g=>g.nombre).join(' · ')+'.';d.querySelector('header').after(nota);}
  d.querySelector('form').onsubmit=ev=>ev.preventDefault();
  tecladoDialogo(d,{accion:'[data-guardar]',campos:'[data-campo]'});
  function pintar(){
@@ -36,7 +47,7 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
   $('[data-fotos-modo]').value=v.presentacion?.fotosModo||'NOVEDADES';$('[data-totales]').checked=v.presentacion?.mostrarTotales===true;
   $('[data-fotos-modo]').disabled=v.soloLectura;$('[data-totales]').disabled=v.soloLectura;$('[data-agregar-fotos]').hidden=v.soloLectura||v.permiteFotoNueva===false;
   const elegidas=new Set(v.fotosSeleccionadas||[]);
-  $('[data-elegir-fotos]').innerHTML=v.fotos.map(f=>`<article><button type="button" data-ver-foto="${esc(f.id)}" title="Ampliar esta fotografía"><img src="${esc(f.url)}?miniatura=1" alt="${esc(f.sku||'Foto de recepción')}" loading="lazy"></button><label><input type="checkbox" data-foto-id="${esc(f.id)}" ${elegidas.has(f.id)?'checked':''} ${v.soloLectura?'disabled':''}><span>${esc(f.vinculos?.length?[...new Set(f.vinculos.map(x=>(x.sku||'Recepción')+' · '+x.categoria))].join(' / '):(f.sku||'Recepción')+' · '+f.categoria)}<small>${esc(f.nombre)}${f.enDrive?'':' · Drive pendiente'}</small></span></label></article>`).join('')||'<p class="mini">No hay fotos guardadas. Puedes registrar una foto nueva o continuar sin imágenes.</p>';
+  $('[data-elegir-fotos]').innerHTML=v.fotos.map(f=>`<article><button type="button" data-ver-foto="${esc(f.id)}" title="Ampliar esta fotografía"><img src="${esc(f.url)}?miniatura=1" alt="${esc(f.sku||'Foto de recepción')}" loading="lazy"></button><label><input type="checkbox" data-foto-id="${esc(f.id)}" ${elegidas.has(f.id)?'checked':''} ${v.soloLectura?'disabled':''}><span>${esc(f.vinculos?.length?[...new Set(f.vinculos.map(x=>(x.sku||'Recepción')+' · '+x.categoria))].join(' / '):(f.sku||'Recepción')+' · '+f.categoria)}<small>${esc(f.nombre)}${f.enDrive?'':' · Drive pendiente'}${f.contextoCompartido?' · SKU presente en varios embarques: revisa si corresponde':''}</small></span></label></article>`).join('')||'<p class="mini">No hay fotos guardadas. Puedes registrar una foto nueva o continuar sin imágenes.</p>';
   $('[data-elegir-fotos]').querySelectorAll('[data-ver-foto]').forEach(b=>b.onclick=()=>verImagen(v.fotos.find(f=>f.id===b.dataset.verFoto)));
   $('[data-elegir-fotos]').querySelectorAll('img').forEach(img=>img.onerror=()=>{img.hidden=true;img.parentElement.textContent='Ver foto · vista previa no disponible';});
   contarFotos();
@@ -54,7 +65,7 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  d.addEventListener('input',()=>{sucio=true;$('[data-estado]').textContent='Hay cambios sin guardar. Guarda para actualizar el correo completo.';});
  async function guardar(){if(!sucio)return;const valores=Object.fromEntries(Object.keys(campos).map(k=>[k,$(`[data-campo="${k}"]`).value]));v=await api(ruta,{metodo:'PUT',cuerpo:{version:v.version,campos:valores,entregaId,origen,presentacion:{mostrarTotales:$('[data-totales]').checked,fotosModo:$('[data-fotos-modo]').value,fotosIds:$('[data-fotos-modo]').value==='ELEGIDAS'?idsFotos():[]}}});pintar();$('[data-estado]').textContent='Cambios guardados. La vista previa refleja la redacción y las fotos seleccionadas.';}
  async function prepararManual(){
-  if(v.soloLectura||confirmarEnvio)return;
+  if(v.soloLectura||confirmarEnvio||actual&&v.estadoRecepcion==='CERRADA')return;
   if(v.manual?.estado==='PREPARADO'&&v.manual.version===v.version)return;
   if(!await confirmar({titulo:'Preparar envío manual',texto:'Se detendrán los envíos automáticos pendientes de esta recepción para evitar duplicados. Copiar no envía el correo. Revisa los destinatarios y adjunta los documentos finales al enviarlo desde tu cuenta.',aceptar:'Preparar copia manual'}))throw new Error('Copia manual cancelada.');
   const r=await api(ruta+'/manual',{cuerpo:{entregaId,origen,correoVersion:v.version,accion:'PREPARAR',confirmar:true}});v.manual=r.manual;$('[data-manual]').hidden=!!origen;

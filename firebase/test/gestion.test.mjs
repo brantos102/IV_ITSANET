@@ -182,4 +182,20 @@ await test('guardar destinos de salida no elimina la protección de las columnas
   const origen=vista.columnas.findIndex(c=>c.id==='original:0');eq(vista.filas[0].celdas[origen].texto,'S');
  }finally{globalThis.__coleccion=anterior;}
 });
+
+await test('un packing list con dos embarques conserva sus filas y reparto revisado en dos Excel',async()=>{
+ const antes={location:globalThis.location,fetch:globalThis.fetch};
+ const lineas=[{id:'PRINCIPAL-1',linea:1,origen:'PRINCIPAL',sku:'S53',cantidad:3,embarque:'EMB-A',cruda:['S53',3,'EMB-A','',6],formulas:{4:'B2*2'}},{id:'PRINCIPAL-2',linea:2,origen:'PRINCIPAL',sku:'S53',cantidad:5,embarque:'EMB-B',cruda:['S53',5,'EMB-B','',10],formulas:{4:'B3*2'}}];
+ const formato={encabezados:['ITEM','Cantidad','Embarque','Cantidad Física','Total'],columnas:{sku:0,cantidad:1,embarque:2,fisica:3}};
+ const grupos=[{id:'GA',nombre:'EMB-A',packingLists:['PRINCIPAL']},{id:'GB',nombre:'EMB-B',packingLists:['PRINCIPAL']}];
+ const meta={columnas:{},formatos:{PRINCIPAL:formato},agrupacionCorreos:{modo:'EMBARQUE',configuracion:{embarquesPorLinea:{}},grupos,resultados:grupos.map(g=>({grupo:g.id,origen:'PRINCIPAL',sku:'S53',contado:4,pallets:'B01',observacion:'De '+g.nombre,incidencias:[{tipo:'MAL_ESTADO',nombre:'Mal estado',cantidad:1,pnc:true}]}))}};
+ globalThis.location={pathname:'/app/validar.html'};
+ globalThis.fetch=async url=>{const k=String(url).split('/').at(-1),d=k==='informe-metadatos'?meta:k==='lineas'?lineas:k==='skus'?[{sku:'S53',contado:8,esperado:8,pallets:{B01:8},tienePnc:true,cantidadPnc:2}]:[];return new Response(JSON.stringify(d),{status:200});};
+ try{
+  const datos=await informe.reunirInforme('REVISION53',{codigo:'REVISION53',cliente:'VENTURA',creadoEn:'2026-10-16T12:00:00Z',formatos:{PRINCIPAL:formato}});
+  const libros=informe.construirLibros(datos,{version:'envio-ampliado'});eq(libros.length,2);eq(libros.map(l=>l.grupo),['GA','GB']);eq(libros.map(l=>l.origen),['PRINCIPAL','PRINCIPAL']);
+  for(let i=0;i<2;i++){const w=XLSX.read(libros[i].base64,{type:'base64'}),sh=w.Sheets[w.SheetNames[0]],t=XLSX.utils.sheet_to_json(sh,{header:1});eq(t.length,2);eq(t[1][t[0].indexOf('Cantidad Física')],4);eq(t[1][t[0].indexOf('Embarque')],grupos[i].nombre);eq(t[1][t[0].indexOf('Total')],i===0?6:10);ok(!Object.values(sh).some(c=>c&&c.f));ok(w.Props.Subject.includes(grupos[i].nombre));eq(datos.porGrupo[i].porOrigen[0].detalle[0].cantidadPnc,1);}
+  eq(lineas[0].formulas[4],'B2*2');eq(lineas[1].cantidad,5);
+ }finally{if(antes.location===undefined)delete globalThis.location;else globalThis.location=antes.location;globalThis.fetch=antes.fetch;}
+});
 resumen();
