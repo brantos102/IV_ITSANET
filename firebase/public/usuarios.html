@@ -2,12 +2,12 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261019-54"></script>
+<script src="./js/arranque.js?v=20261019-55"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Usuarios — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261019-54">
+<link rel="stylesheet" href="./css/marca.css?v=20261019-55">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -101,14 +101,14 @@
 </div>
 
 <script type="module">
-import {pedir} from './js/local.js?v=20261019-54';
-import { mostrarAviso } from './js/notificaciones.js?v=20261019-54';
+import {pedir} from './js/local.js?v=20261019-55';
+import { mostrarAviso } from './js/notificaciones.js?v=20261019-55';
 import {
   observarSesion, traducirError, crearOperario, tipoDeAcceso,
   normalizarAlias, enviarRestablecimiento, modoLocal,
-} from './js/auth.js?v=20261019-54';
-import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261019-54';
-import { pedirDatos, confirmar } from './js/modal.js?v=20261019-54';
+} from './js/auth.js?v=20261019-55';
+import { listarUsuarios, observarUsuarios, actualizarUsuario } from './js/usuarios.js?v=20261019-55';
+import { pedirDatos, confirmar } from './js/modal.js?v=20261019-55';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null, fichas = new Map();
@@ -294,7 +294,7 @@ async function editar(uid) {
 }
 
 $('tUsuarios').addEventListener('click', async (ev) => {
-  if(ev.target.dataset.google){const u=fichas.get(ev.target.dataset.google);const d=document.createElement('dialog');d.className='modal-operativa';const panel=document.createElement('div'),b=document.createElement('button');b.className='b-sec';b.textContent='Cerrar';b.onclick=()=>d.close();d.append(b,panel);document.body.append(d);d.addEventListener('close',()=>d.remove());d.showModal();try{const m=await import('./js/mi-correo.js?v=20261019-54');await m.configurarMiCorreo(panel,aviso,{usuarioId:u.id});}catch(e){aviso(e.message,'err');d.close();}return;}
+  if(ev.target.dataset.google){const u=fichas.get(ev.target.dataset.google);const d=document.createElement('dialog');d.className='modal-operativa';const panel=document.createElement('div'),b=document.createElement('button');b.className='b-sec';b.textContent='Cerrar';b.onclick=()=>d.close();d.append(b,panel);document.body.append(d);d.addEventListener('close',()=>d.remove());d.showModal();try{const m=await import('./js/mi-correo.js?v=20261019-55');await m.configurarMiCorreo(panel,aviso,{usuarioId:u.id});}catch(e){aviso(e.message,'err');d.close();}return;}
   if(ev.target.dataset.clave){const u=fichas.get(ev.target.dataset.clave);const d=await pedirDatos({titulo:'Restablecer contraseña · '+u.nombre,texto:'La contraseña anterior está protegida con un hash y no se puede recuperar. Se cerrarán las sesiones de esta persona. Comparte la nueva contraseña por un canal privado.',campos:[{clave:'nueva',etiqueta:'Nueva contraseña (6–128 caracteres)',tipo:'password',obligatorio:true}],aceptar:'Reemplazar contraseña'});if(!d)return;try{const r=await pedir('/operadores/'+u.id+'/restablecer-clave',{base:'/api/auth',cuerpo:d});aviso(r.mensaje,'ok');}catch(e){aviso(e.message,'err');}return;}
   const porEditar = ev.target.dataset.editar;
   if (porEditar) { editar(porEditar); return; }

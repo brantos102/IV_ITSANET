@@ -22,19 +22,34 @@ def metadatos(db,codigo):
     for b in db.scalars(select(ProductoCodigo).where(ProductoCodigo.sku.in_(skus),ProductoCodigo.exportar.is_(True))
             .order_by(ProductoCodigo.creado_en,ProductoCodigo.codigo).with_for_update()):
         barras[b.sku]=b.valor
-    carpetas={};categorias={};pendientes=set()
+    carpetas={};categorias={};pendientes=set();por_origen={};por_embarque={}
+    from app.services.fotos_embarques import informacion,asignado
+    fuente_fotos=informacion(db,r.codigo)
+    pertenencias={}
+    for l in fuente_fotos[2]:pertenencias.setdefault(l['sku'],set()).add(l['origen'])
     for j,e in db.execute(select(AppCopiaDrive,AppEvidencia).select_from(AppEvidencia).outerjoin(AppCopiaDrive,AppCopiaDrive.archivo_id==AppEvidencia.archivo_id)
             .where(AppEvidencia.recepcion==r.codigo,AppEvidencia.eliminado_en.is_(None)).with_for_update().execution_options(populate_existing=True)):
         if not e.sku:continue
-        url=carpeta_sku(j,e)
+        url=carpeta_sku(j,e,db=db,fuente=fuente_fotos)
         if url:
             carpetas.setdefault(e.sku,set()).add(url)
             categorias.setdefault(e.sku,{}).setdefault(e.categoria,set()).add(url)
+            origen=e.origen or (next(iter(pertenencias[e.sku])) if len(pertenencias.get(e.sku,set()))==1 else '')
+            emb=asignado(db,e,fuente=fuente_fotos)
+            for mapa,clave in ((por_origen,origen),(por_embarque,emb)):
+                if not clave:continue
+                nodo=mapa.setdefault(clave,{'carpetas':{},'carpetasCategoria':{}})
+                nodo['carpetas'].setdefault(e.sku,set()).add(url)
+                nodo['carpetasCategoria'].setdefault(e.sku,{}).setdefault(e.categoria,set()).add(url)
         else:pendientes.add(e.archivo_id)
     from app.services.validacion_depot import validar
     validacion=validar(db,r.cliente,list(db.scalars(skus)))
     depot={sku:d['estado']=='OK' for sku,d in validacion['porSku'].items()}
-    return {'agrupacionCorreos':agrupacion(db,codigo),'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
+    enlaces={a.id:a.drive_url for a in db.scalars(select(AppArchivo).where(AppArchivo.recepcion==r.codigo,AppArchivo.tipo=='foto',AppArchivo.drive_id.is_not(None))) if a.drive_url and re.match(r'^https://drive\.google\.com/',a.drive_url)}
+    def exportar(mapa):return {k:{'carpetas':{s:sorted(us) for s,us in v['carpetas'].items()},
+        'carpetasCategoria':{s:{c:sorted(us) for c,us in cs.items()} for s,cs in v['carpetasCategoria'].items()}} for k,v in mapa.items()}
+    return {'enlacesArchivos':enlaces,'carpetasPorOrigen':exportar(por_origen),'carpetasPorEmbarque':exportar(por_embarque),
+        'agrupacionCorreos':agrupacion(db,codigo),'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
         'columnas':ajustes.cliente(db,r.cliente)['columnas'],'barras':barras,'formatos':r.formatos or {},
         'evidenciasPendientes':len(pendientes),
         'versionFormatos':hashlib.sha256(json.dumps(r.formatos or {},sort_keys=True).encode()).hexdigest(),

@@ -1,11 +1,12 @@
-import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-54';
-import {abrirEvidencias} from './evidencias.js?v=20261019-54';
-import {verImagen} from './visor-imagen.js?v=20261019-54';
-import {pedir} from './local.js?v=20261019-54';
-import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-54';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-54';
+import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-55';
+import {abrirEvidencias} from './evidencias.js?v=20261019-55';
+import {verImagen} from './visor-imagen.js?v=20261019-55';
+import {pedir} from './local.js?v=20261019-55';
+import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-55';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-55';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Observaciones adicionales y ubicación · Depot se informa automáticamente',despedida:'Despedida',firma:'Firma'};
+Object.assign(campos,{contenedor:'Identificador del contenedor · ejemplo C1',tipoContenedor:'Formato del contenedor · ejemplo 1x40',fechaOperacion:'Fecha de operación · AAAA-MM-DD',palletsTotal:'Número de pallets · ejemplo 48',ubicacion:'Ubicación de la mercadería · ejemplo CALLEKL',palletDesde:'Desde el pallet · ejemplo A01',palletHasta:'Hasta el pallet · ejemplo A09',condicionUbicacion:'Condición de ubicación · ejemplo Hasta finalizar el contenedor'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,alEnviar=null,modoEntrega='AUTOMATICO',origen='',revisionEmbarque=false,actual=false}={}){
  const ruta='/recepciones/'+encodeURIComponent(recepcion)+'/correo',params=new URLSearchParams();if(entregaId)params.set('entregaId',entregaId);if(origen)params.set('origen',origen);const query=params.size?'?'+params:'';
@@ -23,7 +24,7 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  if(!origen&&(v.correosSeparados||!entregaId&&!confirmarEnvio))return abrirCorreosEmbarque(recepcion,v,{entregaId,confirmarEnvio,modoEntrega,alEnviar,abrirCorreo,actual});
  const d=document.createElement('dialog');d.className='modal-operativa correo-dialogo';
  d.innerHTML=`<header class="acciones"><div><h2>Preparar correo de recepción · ${esc(recepcion)}${origen?' · '+esc(v.nombreGrupo||origen):''}</h2><p class="mini" data-conexion></p></div><button class="b-sec" data-cerrar>Cerrar</button></header>
- <p class="guia-modal">Revisa la redacción, elige las fotos y comprueba la vista previa. Las cantidades y novedades proceden de los registros de esta recepción.</p><details data-edicion open><summary>1. Redacción y destinatarios</summary><form class="rejilla">${Object.entries(campos).map(([k,t])=>`<label class="campo"><span>${t}</span>${['asunto','destinatarios'].includes(k)?`<input data-campo="${k}">`:`<textarea rows="3" data-campo="${k}"></textarea>`}</label>`).join('')}</form></details>
+ <p class="guia-modal">Revisa el correo de este embarque. Los datos de contenedor, fecha y ubicación son editables; se incluyen solo si los completas. Las cantidades y novedades corresponden al grupo mostrado.</p><details data-edicion open><summary>1. Redacción, destinatarios y datos operativos</summary><form class="rejilla">${Object.entries(campos).map(([k,t])=>`<label class="campo"><span>${t}</span>${!['saludo','introduccion','notas','despedida','firma','condicionUbicacion'].includes(k)?`<input ${k==='fechaOperacion'?'type="date"':''} data-campo="${k}">`:`<textarea rows="3" data-campo="${k}"></textarea>`}</label>`).join('')}</form></details>
  <details open data-presentacion><summary>2. Contenido e imágenes del correo</summary><div class="rejilla"><label class="campo"><span>Fotografías incluidas</span><select data-fotos-modo><option value="NOVEDADES">Solo novedades actuales · recomendado</option><option value="ELEGIDAS">Elegir fotografías</option><option value="TODAS">Primeras fotos de la recepción</option><option value="NINGUNA">Correo sin fotografías</option></select></label><label class="correo-opcion"><input type="checkbox" data-totales> Mostrar resumen total de unidades</label></div><p class="mini">Quitar una foto del correo conserva la evidencia y su clasificación. Se incluyen hasta 12 imágenes; el archivo de evidencias y las carpetas conservan el resto.</p><div class="acciones"><button class="b-sec" data-agregar-fotos>Registrar una foto nueva</button><span class="mini" data-seleccion-fotos role="status"></span></div><div class="correo-selector-fotos" data-elegir-fotos></div></details>
  <div class="acciones"><button class="b-sec" data-actualizar>Actualizar datos</button><button class="b-sec" data-guardar>Guardar cambios y ver correo</button><button class="b-sec" data-copiar>Copiar correo completo</button><button class="b-sec" data-datos>Copiar asunto y destinatarios</button><button class="b-sec" data-descargar>Descargar correo HTML</button><a class="b-sec" data-gmail target="_blank" rel="noopener">Abrir Gmail</a></div>
  <p class="mini">La copia incluye tablas y enlaces. En Gmail u Outlook pega el contenido y adjunta los documentos descargados debajo. Las imágenes y carpetas conservan sus permisos de Google. Copiar o abrir Gmail no confirma un envío.</p>

@@ -1,5 +1,5 @@
 /** Identidades estables: mover columnas cambia la presentación, nunca los datos de origen. */
-import {columnasSegurasInforme,destinosInforme,prefijoInforme} from './datos.js?v=20261019-54';
+import {columnasSegurasInforme,destinosInforme,prefijoInforme} from './datos.js?v=20261019-55';
 
 export const CAMPOS_AMPLIADOS={fisica:'Cantidad Física',validacion:'Validación',desface:'Diferencia',pallet:'PALLET',observacion:'OBSERVACION',cantidadIncidencia:'Cant. con incidencia',incidencia:'Tipo de incidencia',evidencia:'Carpeta Drive del SKU',depot:'OK Depot',posicion:'Posición',codigoBarra:'Código de barras',marca:'MARCA',cliente:'CLIENTE'};
 

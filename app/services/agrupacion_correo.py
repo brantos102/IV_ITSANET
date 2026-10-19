@@ -61,8 +61,8 @@ def proyecciones(f,lineas,c):
                 ns=distribuir(inc['cantidad'],disponibles)
                 pn=distribuir(inc.get('pnc',0),ns)
                 for i,n in enumerate(ns):inc_por_grupo[i][inc['tipo']]=n;pnc_por_grupo[i][inc['tipo']]=pn[i];disponibles[i]-=n
-            propuesta={g:{'cantidad':cantidades[i],'incidencias':inc_por_grupo[i],'pnc':pnc_por_grupo[i], 'observacion':notas,
-                'pallets':'-'.join(p for p,n in s.get('pallets',{}).items() if n)} for i,g in enumerate(gs)}
+            propuesta={g:{'cantidad':cantidades[i],'incidencias':inc_por_grupo[i],'pnc':pnc_por_grupo[i], 'observacion':notas if len(gs)==1 else '',
+                'pallets':'-'.join(p for p,n in s.get('pallets',{}).items() if n) if len(gs)==1 else ''} for i,g in enumerate(gs)}
             elegidos=c.get('repartos',{}).get(rid,propuesta) if len(gs)>1 else propuesta
             if len(gs)>1:
                 pendientes.append({'id':rid,'origen':o,'sku':s['sku'],'cantidad':s['contado'], 'incidencias':s.get('incidencias',[]),
@@ -102,11 +102,17 @@ def guardar(db,codigo,datos,usuario):
     if datos.get('version')!=anterior['version']:raise HTTPException(409,'Cambió la recepción o el plan de correos. Actualiza y revisa el reparto.')
     c={k:datos.get(k,configuracion(db,r.codigo).get(k)) for k in ('modo','asignaciones','embarquesPorLinea','repartos')}
     p=vista(db,r.codigo,c);f=fuente(db,r.codigo)
+    if len(p['embarques'])>1 and c['modo']!='EMBARQUE':raise HTTPException(422,'Hay varios embarques identificados. Revisa un correo y sus documentos por cada embarque.')
     vacias={linea_id(l) for l in f['lineas'] if not str(l.get('embarque') or '').strip()}
     if any(k not in vacias or not isinstance(v,str) or not 1<=len(v.strip())<=80 for k,v in c['embarquesPorLinea'].items()):raise HTTPException(422,'Asigna embarque únicamente a las filas que no lo tienen, hasta 80 caracteres.')
     if c['modo']=='EMBARQUE' and p['faltanEmbarques']:raise HTTPException(422,'Asigna el embarque de todas las filas antes de dividir el correo.')
     ids={g['id'] for g in p['grupos']}
     if set(c['asignaciones'])!={s['sku'] for s in p['adicionales']} or any(v not in ids for v in c['asignaciones'].values()):raise HTTPException(422,'Asigna cada producto adicional a un grupo de envío.')
+    anulados={e.get('anulaA') for e in f['eventos'] if e.get('tipo')=='ANULACION'}
+    for e in f['eventos']:
+        if e.get('tipo')!='CONTEO' or e.get('id') in anulados or not e.get('origen') or e.get('sku') not in c['asignaciones'] or not e.get('cantidad',0)>0:continue
+        destino=next(g for g in p['grupos'] if g['id']==c['asignaciones'][e['sku']])
+        if e['origen'] not in destino['packingLists']:raise HTTPException(422,'El packing list del conteo adicional '+e['sku']+' no pertenece al grupo elegido. Revisa su asignación.')
     if c['modo']=='EMBARQUE':
         if p['repartos'] and datos.get('repartoConfirmado') is not True:raise HTTPException(422,'Revisa y confirma cómo se reparten los SKU presentes en varios embarques.')
         if set(c['repartos'])!={s['id'] for s in p['repartos']}:raise HTTPException(422,'Completa el reparto de cada SKU compartido entre embarques.')
@@ -175,5 +181,6 @@ def filtrar(f,lineas,ident,c):
         vs=[v for v in foto.get('rutasVinculadas') or [foto] if (not v.get('origen') or v['origen'] in g['packingLists']) and (not v.get('sku') or v['sku'] in miembros) and (not v.get('embarque') or v['embarque']==g['nombre'])]
         if not vs:continue
         compartida=any(v.get('sku') and not v.get('embarque') and len({embarque(l,c) for l in lineas if l['sku']==v['sku'] and (not v.get('origen') or l.get('origen')==v['origen'])})>1 for v in vs)
-        fotos.append({**foto,'rutasVinculadas':vs,'requiereRevision':compartida})
+        fotos.append({**foto,'sku':vs[0].get('sku',''),'categoria':vs[0].get('categoria','RECEPCION'),
+            'origen':vs[0].get('origen',''),'embarque':vs[0].get('embarque'),'rutasVinculadas':vs,'requiereRevision':compartida})
     return {**filtrado,'fotos':fotos,'nombreGrupo':g['nombre'],'tipoGrupo':'EMBARQUE','packingLists':g['packingLists']}

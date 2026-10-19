@@ -198,4 +198,50 @@ await test('un packing list con dos embarques conserva sus filas y reparto revis
   eq(lineas[0].formulas[4],'B2*2');eq(lineas[1].cantidad,5);
  }finally{if(antes.location===undefined)delete globalThis.location;else globalThis.location=antes.location;globalThis.fetch=antes.fetch;}
 });
+await test('bitácora ISO y Firestore conserva fecha Ecuador; auditable no agrega AUDITORIA',()=>{
+ const datos={recepcion:{codigo:'R55'},detalle:[],adicionales:[],eventos:[
+  {sku:'S',cantidad:1,creadoEn:'2026-01-26T14:00:00Z'},
+  {sku:'T',cantidad:1,creadoEn:{seconds:1769436000}},
+  {sku:'U',cantidad:0}],auditoria:[{tipo:'NO_BORRAR_HISTORIAL'}]};
+ const libro=informe.construirLibro(datos),w=XLSX.read(libro.base64,{type:'base64'});
+ ok(!w.SheetNames.includes('AUDITORIA'));const rs=XLSX.utils.sheet_to_json(w.Sheets.BITACORA);
+ ok(rs[0].FECHA.includes('2026')&&rs[0].FECHA.includes('9:00:00'));ok(rs[1].FECHA!=='');eq(rs[2].FECHA,'Fecha no registrada');eq(datos.auditoria.length,1);
+});
+await test('cliente agrega adicionales y sobrantes en hoja separada con enlace Drive directo',()=>{
+ const url='https://drive.google.com/drive/folders/adicional55',detalle=[{sku:'SKU',cantidad:3,fisica:4,diferencia:1,estado:'SOBRANTE',evidencia:'https://drive.google.com/drive/folders/pnc55',evidenciaSobrante:url,cruda:['SKU',3]}];
+ for(const version of ['envio','envio-ampliado']){
+  const f=informe.construirLibro({recepcion:{codigo:'R'},detalle,adicionales:[{sku:'EXTRA',descripcion:'No declarado',fisica:2,evidencia:url}],eventos:[]},{version});
+  const w=XLSX.read(f.base64,{type:'base64'});eq(w.SheetNames,['VALIDADA','ADICIONALES']);const sh=w.Sheets.ADICIONALES,rs=XLSX.utils.sheet_to_json(sh);
+  eq(rs.map(r=>r.TIPO),['ADICIONAL NO DECLARADO','SOBRANTE DE SKU DECLARADO']);eq(rs[1]['CANTIDAD FISICA'],1);ok(rs[1].MOTIVO.includes('no sumar'));eq(rs[0].EVIDENCIAS,url);eq(rs[1].EVIDENCIAS,url);
+  const cols=XLSX.utils.sheet_to_json(sh,{header:1})[0];eq(sh[XLSX.utils.encode_cell({r:1,c:cols.indexOf('EVIDENCIAS')})].l.Target,url);
+ }
+});
+await test('dos embarques del mismo packing no cruzan enlaces ni adicional asignado',async()=>{
+ const antes={location:globalThis.location,fetch:globalThis.fetch};
+ const formato={encabezados:['ITEM','Cantidad','Embarque'],columnas:{sku:0,cantidad:1,embarque:2}},urls={A:'https://drive.google.com/drive/folders/embA',B:'https://drive.google.com/drive/folders/embB',X:'https://drive.google.com/drive/folders/extraA'};
+ const lineas=['A','B'].map((e,i)=>({id:'PRINCIPAL-'+(i+1),linea:i+1,sku:'S',origen:'PRINCIPAL',cantidad:3,embarque:e,cruda:['S',3,e]}));
+ const grupos=['A','B'].map(e=>({id:'G'+e,nombre:e,tipo:'EMBARQUE',packingLists:['PRINCIPAL']}));
+ const meta={columnas:{},carpetas:{S:[urls.A,urls.B],X:[urls.X]},carpetasPorEmbarque:{A:{carpetas:{S:[urls.A],X:[urls.X]}},B:{carpetas:{S:[urls.B]}}},agrupacionCorreos:{modo:'EMBARQUE',configuracion:{embarquesPorLinea:{},asignaciones:{X:'GA'}},grupos,resultados:grupos.map(g=>({grupo:g.id,origen:'PRINCIPAL',sku:'S',contado:3,incidencias:[],observacion:'Solo '+g.nombre}))}};
+ globalThis.location={pathname:'/app/validar.html'};
+ globalThis.fetch=async url=>{const k=String(url).split('/').at(-1),d=k==='informe-metadatos'?meta:k==='lineas'?lineas:k==='skus'?[{sku:'S',contado:6,pallets:{}},{sku:'X',contado:2,porOrigen:{PRINCIPAL:{A01:2}},pallets:{A01:2}}]:k==='adicionales'?[{sku:'X',descripcion:'Adicional A',motivo:'Fuera de lista'}]:[];return new Response(JSON.stringify(d),{status:200});};
+ try{
+  const d=await informe.reunirInforme('R55',{codigo:'R55',formatos:{PRINCIPAL:formato}}),ls=informe.construirLibros(d,{version:'envio-ampliado'});
+  const a=XLSX.read(ls[0].base64,{type:'base64'}),b=XLSX.read(ls[1].base64,{type:'base64'});
+  const texto=w=>JSON.stringify(w.Sheets);ok(texto(a).includes(urls.A));ok(!texto(a).includes(urls.B));ok(texto(b).includes(urls.B));ok(!texto(b).includes(urls.A));ok(!texto(b).includes(urls.X));
+  eq(XLSX.utils.sheet_to_json(a.Sheets.ADICIONALES)[0].ITEM,'X');ok(!b.SheetNames.includes('ADICIONALES'));
+ }finally{if(antes.location===undefined)delete globalThis.location;else globalThis.location=antes.location;globalThis.fetch=antes.fetch;}
+});
+
+await test('un adicional contado en dos packing lists del mismo embarque se entrega una sola vez por cantidad',async()=>{
+ const prev={location:globalThis.location,fetch:globalThis.fetch};
+ const lineas=['P1','P2'].map(origen=>({id:origen+'-1',linea:1,origen,sku:origen,cantidad:1,embarque:'E',cruda:[origen,1]}));
+ const formato={encabezados:['ITEM','Cantidad'],columnas:{sku:0,cantidad:1}};
+ const eventos=[{id:'x1',tipo:'CONTEO',sku:'EXTRA',cantidad:2,origen:'P1',observacion:'Solo P1'},{id:'x2',tipo:'CONTEO',sku:'EXTRA',cantidad:3,origen:'P2',observacion:'Solo P2'}];
+ const meta={columnas:{},agrupacionCorreos:{modo:'EMBARQUE',configuracion:{embarquesPorLinea:{},asignaciones:{EXTRA:'GE'}},grupos:[{id:'GE',tipo:'EMBARQUE',nombre:'E',packingLists:['P1','P2']}],resultados:lineas.map(l=>({grupo:'GE',origen:l.origen,sku:l.sku,contado:1,incidencias:[]}))}};
+ globalThis.location={pathname:'/app/validar.html'};
+ globalThis.fetch=async url=>{const k=String(url).split('/').at(-1),d=k==='informe-metadatos'?meta:k==='lineas'?lineas:k==='eventos'?eventos:k==='adicionales'?[{sku:'EXTRA'}]:k==='skus'?[...lineas.map(l=>({sku:l.sku,contado:1,pallets:{}})),{sku:'EXTRA',contado:5,pallets:{}}]:[];return new Response(JSON.stringify(d),{status:200});};
+ try{const d=await informe.reunirInforme('R',{codigo:'R',formatos:{P1:formato,P2:formato}}),ls=informe.construirLibros(d,{version:'envio'});eq(ls.length,2);const rs=ls.map(l=>XLSX.utils.sheet_to_json(XLSX.read(l.base64,{type:'base64'}).Sheets.ADICIONALES)[0]);eq(rs.map(r=>r['CANTIDAD FISICA']),[2,3]);eq(rs.map(r=>r.OBSERVACION),['Solo P1','Solo P2']);}
+ finally{if(prev.location===undefined)delete globalThis.location;else globalThis.location=prev.location;globalThis.fetch=prev.fetch;}
+});
+
 resumen();

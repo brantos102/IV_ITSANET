@@ -1,4 +1,4 @@
-import {operacion, abrirEvidencias, TIPOS_EVIDENCIA, esc} from './evidencias.js?v=20261019-54';
+import {operacion, abrirEvidencias, TIPOS_EVIDENCIA, esc} from './evidencias.js?v=20261019-55';
 
 /** Guía del cierre: distingue una foto por tomar de una copia todavía pendiente. */
 export async function abrirAyudaCierre({recepcion, alFinalizar, alDescargar}) {
@@ -37,14 +37,14 @@ export async function abrirAyudaCierre({recepcion, alFinalizar, alDescargar}) {
         : alFinalizar ? 'Puedes continuar con el cierre y confirmar los destinatarios. Esta revisión no ha enviado ningún correo.'
           : 'Revisa el estado de la entrega y reintenta la entrega pendiente cuando Drive esté listo. Esta revisión no ha enviado ningún correo.';
       $('[data-fotos]').innerHTML = r.archivos.map((f, i) => `<article><b>${esc(f.nombre)}</b>
-        ${f.vinculos.map(v => `<p class="mini">${esc(v.sku)} · ${esc(TIPOS_EVIDENCIA[v.tipo] || v.tipo)}${v.unidad ? ' · ' + esc(v.unidad) : ''}${v.origen ? ' · ' + esc(v.origen) : ''}</p>`).join('')}
-        <p class="mini">${f.estado === 'PROCESANDO' ? 'Copiando a Drive' : f.estado === 'COPIADA' ? 'Falta confirmar el enlace de la carpeta: solicita revisión al administrador' : f.requiereAyuda ? 'Copia sin confirmar; se conserva la foto y se reintentará' : 'Esperando copia a Drive'}</p>
+        ${f.vinculos.map(v => `<p class="mini">${esc(v.sku)} · ${esc(TIPOS_EVIDENCIA[v.tipo] || v.tipo)}${v.unidad ? ' · ' + esc(v.unidad) : ''}${v.origen ? ' · ' + esc(v.origen) : ''}${v.embarque ? ' · Embarque ' + esc(v.embarque) : ''}${v.estado==='ASIGNAR_EMBARQUE'?' · Elige su embarque en «Actualizar carpetas por embarque»':v.estado==='ACTUALIZAR_CARPETAS'?' · Carpeta anterior: pulsa «Reintentar copia»':''}</p>`).join('')}
+        <p class="mini">${f.estado === 'PROCESANDO' ? 'Copiando a Drive' : f.estado === 'COPIADA' ? 'Revisa la asignación de embarque o actualiza la carpeta desde Fotos' : f.requiereAyuda ? 'Copia sin confirmar; se conserva la foto y se reintentará' : 'Esperando copia a Drive'}</p>
         <button type="button" class="chip" data-ver="${i}">Ver fotos del producto</button></article>`).join('');
       d.querySelectorAll('[data-ver]').forEach(b => { b.onclick = async () => {
         const sku = r.archivos[Number(b.dataset.ver)].vinculos[0]?.sku || '';
         d.close();
         try { await abrirEvidencias({recepcion, sku, supervisor: true}); }
-        catch (e) { await import('./modal.js?v=20261019-54').then(m => m.avisarModal({titulo:'No se pudieron abrir las fotos',texto:esc(e.message)})); }
+        catch (e) { await import('./modal.js?v=20261019-55').then(m => m.avisarModal({titulo:'No se pudieron abrir las fotos',texto:esc(e.message)})); }
       }; });
       $('[data-pagina]').textContent = r.total ? `${pagina * 30 + 1}–${Math.min((pagina + 1) * 30, r.total)} de ${r.total}` : '';
       $('[data-anterior]').hidden = !pagina;

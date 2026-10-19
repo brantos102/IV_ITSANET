@@ -1,12 +1,12 @@
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-54';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-54';
-import {organizarFotos} from './organizar-fotos.js?v=20261019-54';
-import {verImagen} from './visor-imagen.js?v=20261019-54';
-import {manualFotos} from './manual-fotos.js?v=20261019-54';
-import {pedir} from './local.js?v=20261019-54';
-import {comprimir} from './imagen.js?v=20261019-54';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-54';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-54';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-55';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-55';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-55';
+import {verImagen} from './visor-imagen.js?v=20261019-55';
+import {manualFotos} from './manual-fotos.js?v=20261019-55';
+import {pedir} from './local.js?v=20261019-55';
+import {comprimir} from './imagen.js?v=20261019-55';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-55';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-55';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -79,7 +79,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
   $('[data-camara]').hidden=esWindows;$('[data-camara-windows]').hidden=!esWindows;
   $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
-  if(supervisor){const organizar=document.createElement('button');organizar.className='b-sec';organizar.textContent='Organizar fotos';organizar.onclick=()=>{if(!ocupado)organizarFotos(recepcion,()=>cargar()).catch(e=>$('[data-estado]').textContent=e.message);};$('[data-temporales]').parentElement.append(organizar);const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='▦';a.title='Descargar Excel de trazabilidad de fotos: SKU, tipo, autor y carpeta Drive';a.setAttribute('aria-label',a.title);a.style.cssText='flex:0 0 42px;min-width:42px;width:42px;display:grid;place-items:center';d.querySelector('.acciones').append(a);}
+  if(supervisor){const organizar=document.createElement('button');organizar.className='b-sec';organizar.textContent='Actualizar carpetas por embarque';organizar.onclick=()=>{if(!ocupado)organizarFotos(recepcion,()=>cargar()).catch(e=>$('[data-estado]').textContent=e.message);};$('[data-temporales]').parentElement.append(organizar);const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='▦';a.title='Descargar Excel de trazabilidad de fotos: SKU, tipo, autor y carpeta Drive';a.setAttribute('aria-label',a.title);a.style.cssText='flex:0 0 42px;min-width:42px;width:42px;display:grid;place-items:center';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
   $('[data-origen]').value=(rec.origenes||[]).includes(origen)?origen:'';
   $('[data-tipo]').value=tipo || (sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO');

@@ -189,10 +189,10 @@ for (const nombre of archivos) {
     const hojasEnvio = XLSX.read(envio.base64, { type: 'base64' }).SheetNames;
     const hojasAuditable = XLSX.read(auditable.base64, { type: 'base64' }).SheetNames;
 
-    eq(hojasEnvio, ['VALIDADA'], 'envío: solo el packing list');
+    eq(hojasEnvio, ['VALIDADA','ADICIONALES'], 'envío: packing list y adicionales separados');
     ok(hojasAuditable.includes('ADICIONALES'), hojasAuditable.join(','));
     ok(hojasAuditable.includes('BITACORA'));
-    ok(hojasAuditable.includes('AUDITORIA'));
+    ok(!hojasAuditable.includes('AUDITORIA'));
     ok(hojasAuditable.length > hojasEnvio.length);
 
     // Y la hoja del packing list tiene que ser idéntica en las dos.

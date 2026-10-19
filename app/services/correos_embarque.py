@@ -84,12 +84,19 @@ def validar_cierre(db,r):
         raise HTTPException(409,'Revisa las unidades PNC de los registros anteriores antes de separar los correos por embarque.')
     from app.services.agrupacion_correo import configuracion,grupos as grupos_envio
     config=configuracion(db,r.codigo)
-    destinos=[g['id'] for g in grupos_envio(lineas,r.origenes or [],config)]
+    from app.services.agrupacion_correo import embarque
+    if len({embarque(l,config) for l in lineas if embarque(l,config)})>1 and config.get('modo')!='EMBARQUE':
+        raise HTTPException(409,'La recepción contiene varios embarques. Organiza sus correos por embarque antes de finalizar.')
+    grupos_actuales=grupos_envio(lineas,r.origenes or [],config)
+    destinos=[g['id'] for g in grupos_actuales]
     if any(s.get('enPackingList') is False and mapa.get(s['sku']) not in destinos for s in skus):
         raise HTTPException(409,'Asigna los productos adicionales a su embarque al comenzar la finalización.')
     eventos=m.leer_coleccion(db,r.codigo,'eventos',actual=True)
     anulados={e.get('anulaA') for e in eventos if e.get('tipo')=='ANULACION'}
     for e in eventos:
+        if config.get('modo')=='EMBARQUE' and e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and e.get('sku') in mapa and e.get('origen'):
+            destino=next((g for g in grupos_actuales if g['id']==mapa[e['sku']]),None)
+            if destino and e['origen'] not in destino['packingLists']:raise HTTPException(409,'El packing list del adicional '+e['sku']+' no pertenece al embarque elegido. Corrige su asignación antes de finalizar.')
         if config.get('modo')!='EMBARQUE' and e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and e.get('sku') in mapa and e.get('origen') and e['origen']!=mapa[e['sku']]:
             raise HTTPException(409,'La asignación del adicional '+e['sku']+' no coincide con el origen de su conteo. Corrige la asignación antes de finalizar.')
         if e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and not e.get('origen') and len(grupos.get(e.get('sku'),set()))>1:

@@ -1,13 +1,14 @@
-import {pedir} from './local.js?v=20261019-54';
-import {elegir,pedirDatos} from './modal.js?v=20261019-54';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-54';
-import {prepararDocumentosPorEmbarque} from './informes-registro.js?v=20261019-54';
+import {pedir} from './local.js?v=20261019-55';
+import {elegir,pedirDatos} from './modal.js?v=20261019-55';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-55';
+import {prepararDocumentosPorEmbarque} from './informes-registro.js?v=20261019-55';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export async function revisarPlanCorreos(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo)+'/correos-embarques';let p=await api(ruta),ocupado=false;
  let c={modo:p.modo,asignaciones:{...p.asignaciones},embarquesPorLinea:{...p.embarquesPorLinea},repartos:Object.fromEntries(p.repartos.map(s=>[s.id,s.propuesta]))};
+ if(p.embarques.length&&c.modo!=='EMBARQUE'){c.modo='EMBARQUE';p=await api(ruta+'/vista',{cuerpo:c});c.repartos=Object.fromEntries(p.repartos.map(s=>[s.id,s.propuesta]));}
  const d=document.createElement('dialog');d.className='modal-operativa';let resolver;const resultado=new Promise(r=>resolver=r);
  function capturar(){
   d.querySelectorAll('[data-linea]').forEach(e=>c.embarquesPorLinea[e.dataset.linea]=e.value.trim());
@@ -22,7 +23,8 @@ export async function revisarPlanCorreos(codigo){
    ${porEmbarque&&p.repartos.length?`<h3>Revisa la distribución de SKU compartidos</h3><p>Son propuestas para el informe. Ajusta la cantidad, incidencias, pallets y observación de cada embarque. Las sumas deben conservar exactamente lo contado y su calidad; la bitácora permanece intacta.</p>${p.repartos.map(s=>`<details open><summary>${esc(s.origen)} · ${esc(s.sku)} · ${s.cantidad} unidades contadas</summary>${s.grupos.map(g=>{const x=c.repartos[s.id]?.[g.id]||s.propuesta[g.id],attrs=`data-r="${s.id}" data-g="${g.id}"`;return `<fieldset><legend>${esc(g.nombre)}</legend><label class="campo"><span>Cantidad física</span><input type="number" min="0" step="any" ${attrs} data-k="cantidad" value="${x.cantidad}" required></label>${s.incidencias.map(i=>`<div class="rejilla">${[['incidencias','Unidades con '+i.nombre],['pnc','De ellas PNC']].map(([k,t])=>`<label class="campo"><span>${esc(t)}</span><input type="number" min="0" step="any" ${attrs} data-k="${k}" data-tipo="${esc(i.tipo)}" value="${x[k][i.tipo]||0}" required></label>`).join('')}</div>`).join('')}<label class="campo"><span>Pallets de estas unidades</span><input ${attrs} data-k="pallets" value="${esc(x.pallets)}" maxlength="300"></label><label class="campo"><span>Observación de este embarque</span><input ${attrs} data-k="observacion" value="${esc(x.observacion)}" maxlength="300"></label></fieldset>`;}).join('')}</details>`).join('')}<label class="campo"><span><input type="checkbox" data-confirmar> Revisé y confirmo el reparto por embarque y las unidades PNC.</span></label>`:''}
    <p data-error role="alert"></p><div class="acciones"><button type="button" class="b-sec" data-cancelar>Volver a la recepción</button><button type="submit" class="b-primario">Confirmar agrupación y continuar</button></div></form>`;
   d.querySelector('[data-modo]').value=c.modo;
-  d.querySelector('[data-modo]').onchange=async ev=>{capturar();c.modo=ev.target.value;c.repartos={};await previa();};
+  if(p.embarques.length>1)d.querySelector('[data-modo] option[value="PACKING_LIST"]').disabled=true;
+  d.querySelector('[data-modo]').onchange=async ev=>{if(ev.target.value===c.modo)return;capturar();c.modo=ev.target.value;c.repartos={};await previa();};
   d.querySelectorAll('[data-todas]').forEach(e=>e.onchange=()=>{for(const l of p.filasSinEmbarque.filter(l=>l.origen===e.dataset.todas)){c.embarquesPorLinea[l.id]=e.value.trim();d.querySelector('[data-linea="'+CSS.escape(l.id)+'"]').value=e.value.trim();}});
   d.querySelector('[data-preview]')?.addEventListener('click',async()=>{capturar();await previa();});
   d.querySelector('[data-cancelar]').onclick=()=>{if(!ocupado)d.close();};

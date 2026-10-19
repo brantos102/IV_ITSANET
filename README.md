@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 55: correos operativos, adicionales con enlaces y actualización de carpetas por embarque](docs/CORREO_ADICIONALES_Y_ENLACES_55.md).
+
 [Versión 54: carpetas de evidencias por embarque, clasificación y asignación histórica](docs/FOTOS_POR_EMBARQUE_54.md).
 
 [Versión 53: elección de correos por packing list o embarque y revisión de recepciones cerradas](docs/AGRUPACION_CORREOS_Y_CERRADAS_53.md).

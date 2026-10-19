@@ -18,8 +18,38 @@ from app.services import app_modelo as m
 _verificados = {}
 
 
-def carpeta_sku(j,e):
+def ubicacion_evidencia(db, e, j, *, fuente=None):
+    """Compara el destino vigente con la última ruta confirmada por el puente.
+
+    No consulta ni mueve archivos remotos. Una copia histórica no acredita por
+    sí sola que esté organizada en el embarque que corresponde hoy.
+    """
+    from app.services.fotos_embarques import informacion, asignado, ruta
+    fuente = fuente or informacion(db, e.recepcion)
+    emb = asignado(db, e, fuente=fuente)
+    esperada = ruta(db, e, con_bulto=bool(db.get(AppArchivoIdentidad,e.archivo_id)), fuente=fuente)
+    datos = j.datos if j else {}
+    vs = datos.get('rutasVinculadas', [])
+    propias = [v for v in vs if v.get('evidenciaId') == e.id]
+    # Puentes anteriores no incluían evidenciaId. Solo aceptar una coincidencia
+    # de ruta y clasificación, nunca la carpeta de otro embarque del mismo SKU.
+    if not propias:
+        propias = [v for v in vs if v.get('sku','') == (e.sku or '') and v.get('categoria') == e.categoria]
+    actuales = [v.get('ruta',[]) for v in propias] or ([datos['ruta']] if datos.get('ruta') else [])
+    if fuente[3] and (e.sku or e.unidad_id) and emb is None:
+        estado = 'ASIGNAR_EMBARQUE'
+    elif not j or j.estado != 'COPIADA':
+        estado = 'PENDIENTE_COPIA'
+    elif fuente[3] and esperada not in actuales:
+        estado = 'ACTUALIZAR_CARPETAS'
+    else:
+        estado = 'SINCRONIZADA'
+    return {'estado':estado, 'embarque':emb, 'rutaEsperada':esperada, 'rutasRegistradas':actuales}
+
+
+def carpeta_sku(j,e,*,db=None,fuente=None):
     if not j or j.estado!='COPIADA' or not e.sku:return None
+    if db is not None and ubicacion_evidencia(db,e,j,fuente=fuente)['estado']!='SINCRONIZADA':return None
     propio=j.datos.get('vinculosPorEvidencia',{}).get(e.id,{})
     if propio.get('carpetaSkuUrl'):return propio['carpetaSkuUrl']
     # El puente anterior usa categoría|SKU; solo es inequívoco para un vínculo.
@@ -38,11 +68,17 @@ def resumen_fotos(db, codigo):
         AppCopiaDrive.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
         AppArchivo.tipo == 'foto'))
     resumen = {'guardadas': 0, 'copiadas': 0, 'pendientes': 0, 'procesando': 0, 'requierenAyuda': 0}
+    from app.services.fotos_embarques import informacion
+    fuente=informacion(db,codigo)
+    evidencias={}
+    for e in db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion==codigo,AppEvidencia.eliminado_en.is_(None))):
+        evidencias.setdefault(e.archivo_id,[]).append(e)
     for a, j in filas:
         if j and (j.estado == 'ELIMINADA' or j.datos.get('accion') == 'papelera'):
             continue
         resumen['guardadas'] += 1
-        if a.drive_id and j and j.estado == 'COPIADA':
+        organizadas=all(ubicacion_evidencia(db,e,j,fuente=fuente)['estado']=='SINCRONIZADA' for e in evidencias.get(a.id,[]))
+        if a.drive_id and j and j.estado == 'COPIADA' and organizadas:
             resumen['copiadas'] += 1
         else:
             resumen['pendientes'] += 1
@@ -56,6 +92,8 @@ def pendientes_cierre(db, codigo, offset=0, limite=30):
     from app.services.informes import metadatos, requiere_enlaces
     codigo = m.obtener(db, codigo).codigo
     meta = metadatos(db, codigo)
+    from app.services.fotos_embarques import informacion
+    fuente=informacion(db,codigo)
     filas = db.execute(select(AppArchivo, AppEvidencia, AppCopiaDrive, AppUnidadLogistica)
         .join(AppEvidencia, AppEvidencia.archivo_id == AppArchivo.id)
         .outerjoin(AppCopiaDrive, AppCopiaDrive.archivo_id == AppArchivo.id)
@@ -65,13 +103,14 @@ def pendientes_cierre(db, codigo, offset=0, limite=30):
         .order_by(AppArchivo.creado_en, AppArchivo.id, AppEvidencia.id))
     pendientes = {}
     for a, e, j, u in filas:
-        if carpeta_sku(j,e):
+        if carpeta_sku(j,e,db=db,fuente=fuente):
             continue
         f = pendientes.setdefault(a.id, {'archivoId': a.id, 'nombre': a.nombre,
             'estado': j.estado if j else 'SIN_COLA', 'intentos': j.intentos if j else 0,
             'proximoEn': m._iso(j.proximo_en) if j else None,
             'requiereAyuda': bool(j and j.error), 'vinculos': []})
         f['vinculos'].append({'sku': e.sku, 'tipo': e.tipo, 'categoria': e.categoria,
+            **ubicacion_evidencia(db,e,j,fuente=fuente),
             'origen': e.origen or '', 'unidad': f'{u.tipo} {u.numero} · {u.codigo or "Sin código"}' if u else ''})
     fotos = list(pendientes.values())
     return {'total': len(fotos), 'bloqueaCierre': requiere_enlaces(meta) and bool(fotos),
@@ -239,7 +278,7 @@ def encolar(db, archivo):
         db.add(j)
     elif j.estado == 'COPIADA' and archivo.drive_id:
         nueva = descripcion(db, archivo)
-        if nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
+        if nueva.get('ruta') != j.datos.get('ruta') or nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
             j.datos = {**nueva, 'accion': 'ubicar'}
             j.usuario, j.estado, j.proximo_en = nueva['usuario'], 'PENDIENTE', utcnow()
     return j

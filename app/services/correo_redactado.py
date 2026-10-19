@@ -5,6 +5,7 @@ No hace llamadas a Google ni almacena imágenes dentro del borrador.
 """
 import hashlib
 import json
+import re
 from html import escape
 
 from fastapi import HTTPException
@@ -15,6 +16,31 @@ from app.services.instantaneas import expandir
 
 CAMPOS = {'asunto': 250, 'destinatarios': 1500, 'saludo': 500,
           'introduccion': 5000, 'notas': 8000, 'despedida': 1000, 'firma': 1000}
+OPERATIVOS={'contenedor':80,'tipoContenedor':80,'fechaOperacion':10,'palletsTotal':8,
+    'ubicacion':200,'palletDesde':40,'palletHasta':40,'condicionUbicacion':500}
+CAMPOS.update(OPERATIVOS)
+
+
+def datos_operativos(campos,fuente):
+    c={k:campos.get(k,'') for k in OPERATIVOS}
+    if not any(c.values()):return ''
+    titulo=' · '.join(x for x in (c['contenedor'],'Pallets: '+c['palletsTotal'] if c['palletsTotal'] else '') if x)
+    texto=''
+    if c['tipoContenedor'] or c['fechaOperacion']:
+        texto='Por medio del presente, se informa que se ha concluido el proceso de recepción'
+        if c['tipoContenedor']:texto+=' del contenedor '+c['tipoContenedor']
+        if fuente.get('nombreGrupo'):texto+=' del embarque '+fuente['nombreGrupo']
+        if c['fechaOperacion']:
+            from datetime import date
+            f=date.fromisoformat(c['fechaOperacion'])
+            dias=['lunes','martes','miércoles','jueves','viernes','sábado','domingo']
+            meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+            texto+=' correspondiente al '+dias[f.weekday()]+', '+str(f.day)+' de '+meses[f.month-1]+' de '+str(f.year)
+        texto+=', para el cliente '+fuente['cliente']+', según lo programado.'
+    ubicacion='Se ubica la mercadería en '+c['ubicacion']+'.' if c['ubicacion'] else ''
+    if c['palletDesde'] or c['palletHasta']:
+        ubicacion+=' '+('Desde el pallet '+c['palletDesde'] if c['palletDesde'] else '')+(' hasta el pallet '+c['palletHasta'] if c['palletHasta'] else '')+'.'
+    return '<section style="padding:14px 16px;background:#eef5fb;border-left:4px solid #2462a4;margin:18px 0"><h3 style="margin:0 0 8px">'+escape(titulo or 'Cierre y ubicación de la mercadería')+'</h3>'+_parrafo(texto)+_parrafo(ubicacion.strip())+_parrafo(c['condicionUbicacion'])+'</section>'
 
 
 def clave_config(codigo,manual=False,origen=''):
@@ -68,6 +94,21 @@ def _fuente(db, codigo, entrega_id='',origen=''):
         permitidos=[g['id'] for g in grupos(ls,(d.get('recepcion') or {}).get('origenes',r.origenes or []) if e else (r.origenes or []),config)]
         if origen not in permitidos:raise HTTPException(422,'El packing list no pertenece a esta recepción o entrega archivada.')
         fuente=filtrar(fuente,ls,origen,config)
+        from app.models import AppEvidencia
+        from app.services.drive import carpeta_sku, ubicacion_evidencia
+        from app.services.fotos_embarques import informacion
+        fuente_fotos=informacion(db,codigo)
+        carpetas=[]
+        for foto in fuente['fotos']:
+            copia=db.get(AppCopiaDrive,foto['archivoId'])
+            if not copia or copia.estado!='COPIADA':continue
+            for v in foto.get('rutasVinculadas',[]):
+                ev=db.get(AppEvidencia,v.get('evidenciaId')) if v.get('evidenciaId') else None
+                propio=copia.datos.get('vinculosPorEvidencia',{}).get(v.get('evidenciaId'),{})
+                if not ev or ubicacion_evidencia(db,ev,copia,fuente=fuente_fotos)['estado']!='SINCRONIZADA':continue
+                url=carpeta_sku(copia,ev,db=db,fuente=fuente_fotos) if ev.sku else propio.get('carpeta')
+                if url and url not in carpetas:carpetas.append(url)
+        fuente['carpetasEvidencias']=carpetas
     return r, e, fuente, archivos
 
 
@@ -170,12 +211,13 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             '<thead><tr>' + ''.join('<th style="padding:9px 7px;background:#eaf0f8;color:#33465f;border-bottom:1px solid #d1ddeb;font-size:11px">' + c + '</th>' for c in cab) + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>')
         imagenes = [f for f in fotos if f['archivoId'] not in usadas and _novedad_foto(f, resumen, categoria)]
         return '<section style="margin:22px 0"><h3 style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ' + color + ';background:#f2f5fa;font-size:16px;color:#1e3655">' + titulo + '</h3>' + contenido + fotos_html(imagenes, categoria) + '</section>'
-    carpetas = list(dict.fromkeys(f.get('carpetaRecepcion') or f.get('carpeta', '') for f in fuente['fotos']))
+    carpetas = fuente.get('carpetasEvidencias',list(dict.fromkeys(f.get('carpetaRecepcion') or f.get('carpeta', '') for f in fuente['fotos'])))
     links = ''.join('<p style="margin:8px 0">' + _link(u, 'Consultar carpeta de evidencias →') + '</p>' for u in carpetas if u)
     html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#22334a;max-width:960px;margin:0 auto;background:#ffffff">'
-    html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(codigo) + '</h2><p style="margin:0;color:#e2ecf9">Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
+    html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(fuente.get('nombreGrupo') or fuente.get('origen') or codigo) + '</h2><p style="margin:0;color:#e2ecf9">Recepción: '+escape(codigo)+' · Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
     if fuente.get('origen'):html += '<p style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
     html += '<div style="padding:20px 18px;border:1px solid #dce5ef;border-top:0;border-radius:0 0 12px 12px">' + _parrafo(campos['saludo']) + _parrafo(campos['introduccion']) + links
+    html += datos_operativos(campos,fuente)
     if opciones['mostrarTotales']:
         html += '<p style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
     html += tabla('Sobrantes', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
@@ -227,16 +269,21 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
     f = db.get(AppConfig, clave_config(codigo,origen=origen)); guardado = f.datos if f else {}
     campos = {'asunto': 'Informe de recepción · ' + codigo, 'destinatarios': e.datos.get('destinatarios', '') if e else '',
               'saludo': 'Estimados,', 'introduccion': 'Por medio del presente, remito el informe correspondiente a la recepción ' + codigo + ' del cliente ' + r.cliente + '. Se detallan las novedades registradas durante la validación.',
-              'notas': '', 'despedida': 'Quedo atento a cualquier consulta o información adicional.\nSaludos cordiales,', 'firma': usuario}
+              'notas': '', 'despedida': 'Quedo atento a cualquier consulta o información adicional.\nSaludos cordiales,', 'firma': usuario,**{k:'' for k in OPERATIVOS}}
     campos.update({k: v for k, v in guardado.get('campos', {}).items() if k in CAMPOS})
     if origen:
         nombre=fuente.get('nombreGrupo') or origen;tipo='embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'packing list'
-        if 'asunto' not in guardado.get('campos',{}):campos['asunto']+=' · '+nombre
+        if 'asunto' not in guardado.get('campos',{}):campos['asunto']=('Informe de recepción · '+nombre+' · '+r.cliente+' · Recepción '+codigo)[:250]
         if 'introduccion' not in guardado.get('campos',{}):campos['introduccion']='Remito el informe del '+tipo+' '+nombre+' de la recepción '+codigo+' del cliente '+r.cliente+'. Se detallan exclusivamente los resultados de este grupo de envío.'
         if hijo and 'destinatarios' not in guardado.get('campos',{}):campos['destinatarios']=hijo['destinatarios']
         elif not e and 'destinatarios' not in guardado.get('campos',{}):
             general=db.get(AppConfig,clave_config(codigo))
             campos['destinatarios']=((general.datos if general else {}).get('campos') or {}).get('destinatarios','')
+        if not e:
+            general=db.get(AppConfig,clave_config(codigo))
+            compartidos=((general.datos if general else {}).get('campos') or {})
+            for k in OPERATIVOS:
+                if k not in guardado.get('campos',{}):campos[k]=compartidos.get(k,'')
     # Un envío confirmado conserva el texto que efectivamente se solicitó.
     congelado = hijo.get('correoFinal') if hijo else expandir(e.datos).get('correoFinal') if e else None
     presentacion = {**PRESENTACION, **guardado.get('presentacion', {})}
@@ -246,7 +293,7 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
         campos=congelado.get('campos',campos);final=congelado
     final={'imagenesDrive':[], 'presentacion':presentacion, 'fotosSeleccionadas':[], **final}
     g = integraciones.google(db, usuario)
-    version = _hash([53, fuente, guardado.get('revision', 0), usuario,campos])
+    version = _hash([55, fuente, guardado.get('revision', 0), usuario,campos])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}
@@ -287,12 +334,20 @@ def guardar(db, codigo, datos, usuario):
     if datos.get('version') != anterior['version']:
         raise HTTPException(409, 'La recepción o el borrador cambió. Actualiza la vista antes de guardar.')
     campos = datos.get('campos')
-    if not isinstance(campos, dict) or set(campos) != set(CAMPOS):
+    if not isinstance(campos, dict) or not set(CAMPOS)-set(OPERATIVOS)<=set(campos) or not set(campos)<=set(CAMPOS):
         raise HTTPException(422, 'Completa asunto, destinatarios y los textos del correo.')
+    campos={**{k:anterior['campos'].get(k,'') for k in OPERATIVOS},**campos}
     for k, limite in CAMPOS.items():
         if not isinstance(campos[k], str) or len(campos[k]) > limite:
             raise HTTPException(422, f'Revisa {k}: máximo {limite} caracteres.')
     campos = {k: v.strip() for k, v in campos.items()}
+    if campos['fechaOperacion']:
+        from datetime import date
+        try:
+            if not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}',campos['fechaOperacion']):raise ValueError()
+            date.fromisoformat(campos['fechaOperacion'])
+        except ValueError:raise HTTPException(422,'Fecha de operación: usa una fecha válida AAAA-MM-DD.') from None
+    if campos['palletsTotal'] and (not re.fullmatch(r'[0-9]{1,7}',campos['palletsTotal']) or int(campos['palletsTotal'])>1000000):raise HTTPException(422,'Pallets: escribe un total entero válido.')
     if not campos['asunto'] or any(c in campos['asunto'] for c in '\r\n'):
         raise HTTPException(422, 'Escribe el asunto en una sola línea.')
     campos['destinatarios'] = entregas.validar_destinatarios(campos['destinatarios'])

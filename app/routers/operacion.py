@@ -120,8 +120,19 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
         salida['destino'] = destino_drive(db, codigo)
         salida['destino']['supervisor'] = responsable(db, codigo) or salida['destino']['supervisor']
         salida['avisos'] = sorted({c.error for c in copias if c.error})
-        from app.models import AppArchivo
+        from app.models import AppArchivo, AppEvidencia
+        from app.services.drive import ubicacion_evidencia
+        from app.services.fotos_embarques import informacion
+        fuente_fotos=informacion(db,codigo)
+        ubicaciones={}
+        copias_por_id={c.archivo_id:c for c in copias}
+        for e in db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion==codigo,AppEvidencia.eliminado_en.is_(None))):
+            ubicaciones.setdefault(e.archivo_id,[]).append(ubicacion_evidencia(db,e,copias_por_id.get(e.archivo_id),fuente=fuente_fotos))
+        salida['organizacion']={
+            'sinEmbarque':sum(any(v['estado']=='ASIGNAR_EMBARQUE' for v in vs) for vs in ubicaciones.values()),
+            'carpetasDesactualizadas':sum(any(v['estado']=='ACTUALIZAR_CARPETAS' for v in vs) for vs in ubicaciones.values())}
         salida['archivos'] = [{'id': a.id, 'nombre': a.nombre, 'estado': c.estado if c else 'SIN_COLA',
+            'ubicaciones':ubicaciones.get(a.id,[]),
             'sku':c.datos.get('sku','') if c else '', 'tipo':c.datos.get('tipoEvidencia','') if c else '',
             'error': c.error if c and c.estado in ('PENDIENTE','REVISION') else None,
             'enlace': a.drive_url if a.drive_id else None,

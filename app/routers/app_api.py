@@ -385,7 +385,7 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
                 AppEvidencia.eliminado_en.is_(None))):
             metadatos.setdefault(e.archivo_id, []).append({'id':e.id,'protocolo':e.protocolo,'sku': e.sku, 'categoria': e.categoria,
                 'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen, 'embarque':asignado(db,e,fuente=fuente_embarques),
-                'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e) or ''})
+                'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e,db=db,fuente=fuente_embarques) or ''})
     for a in filas:
         f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',
              'skus': etiquetas.get(a.id, []), 'bytes': a.bytes, 'creadoEn': m._iso(a.creado_en),

@@ -34,6 +34,7 @@ def plan(db,codigo,bloquear=False):
         propuestas[a.id]=identidad.nombre(db,a,meta)
     from app.services.fotos_embarques import informacion
     fuente_embarques=informacion(db,codigo,actual=bloquear)
+    copias={j.archivo_id:j for j in db.scalars(select(AppCopiaDrive).where(AppCopiaDrive.recepcion==r.codigo))}
     filas=[]
     for a in fotos(db,r.codigo,bloquear):
         q=select(AppEvidencia).where(AppEvidencia.archivo_id==a.id,AppEvidencia.eliminado_en.is_(None)).order_by(AppEvidencia.creado_en,AppEvidencia.id)
@@ -41,8 +42,12 @@ def plan(db,codigo,bloquear=False):
         es=list(db.scalars(q))
         from app.services.fotos_embarques import ruta,asignado,contexto
         rutas=[ruta(db,e,fuente=fuente_embarques) for e in es]
+        j=copias.get(a.id)
+        estados=[drive.ubicacion_evidencia(db,e,j,fuente=fuente_embarques) for e in es]
         filas.append({'archivoId':a.id,'actual':a.nombre,'nuevo':propuestas[a.id],
             'rutas':rutas,'clasificaciones':list(dict.fromkeys(e.categoria for e in es)),
+            'ubicaciones':estados,
+            'requiereActualizar':any(x['estado']!='SINCRONIZADA' for x in estados),
             'vinculos':[{'id':e.id,'sku':e.sku or '', 'categoria':e.categoria,'embarque':asignado(db,e,fuente=fuente_embarques),
                 **contexto(db,codigo,e.sku or '',e.origen or '',e.unidad_id or '',fuente=fuente_embarques)} for e in es]})
     huella=hashlib.sha256(json.dumps(filas,ensure_ascii=True,sort_keys=True).encode()).hexdigest()

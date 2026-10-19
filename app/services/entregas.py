@@ -166,6 +166,11 @@ def preparar(db, codigo, datos, usuario):
     r = m.obtener(db, codigo, bloquear=True)
     if r.estado == 'CERRADA':
         raise HTTPException(409, 'Otro supervisor ya cerro esta recepcion; actualiza la pantalla')
+    plan_envio=plan_correos(db,r.codigo,actual=True)
+    from app.services.agrupacion_correo import embarque
+    ls=m.leer_coleccion(db,r.codigo,'lineas',actual=True)
+    if len({embarque(l,plan_envio) for l in ls if embarque(l,plan_envio)})>1 and plan_envio['modo']!='EMBARQUE':
+        raise HTTPException(409,'Revisa un correo y sus archivos por cada embarque antes de finalizar.')
     if activas(db, r.codigo):
         raise HTTPException(409, 'Esta recepción ya tiene una entrega sin resolver. Revisa Entrega del informe antes de generar otro envío.')
     from app.services.remitentes import elegir
@@ -372,6 +377,17 @@ def procesar_uno():
         db.commit()
         try:
             d = expandir(e.datos)
+            # También protege entregas preparadas antes de la actualización:
+            # COPIADA no confirma que la foto siga en el embarque vigente.
+            from app.services.drive import ubicacion_evidencia
+            from app.services.fotos_embarques import informacion
+            from app.models import AppEvidencia, AppCopiaDrive
+            fuente_fotos=informacion(db,e.recepcion)
+            if fuente_fotos[3]:
+                for ev in db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion==e.recepcion,AppEvidencia.eliminado_en.is_(None))):
+                    ubicacion=ubicacion_evidencia(db,ev,db.get(AppCopiaDrive,ev.archivo_id),fuente=fuente_fotos)
+                    if ubicacion['estado'] in ('ASIGNAR_EMBARQUE','ACTUALIZAR_CARPETAS'):
+                        raise RuntimeError('Organiza las fotos por embarque en Fotos → Actualizar carpetas por embarque. La entrega esperará su confirmación; no se envió correo.')
             if conexion_rechazada(e.error):
                 raise RuntimeError(e.error)
             remitente = d.get('remitente') or e.usuario
