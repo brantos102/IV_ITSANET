@@ -89,11 +89,11 @@ def test_bultos_y_cajas_tienen_carpetas_propias_con_recepcion_y_embarques(client
     c=preparar(cliente,db);ruta='/api/operacion/recepciones/'+c
     unidades=cliente.post(ruta+'/bultos',json={'cantidad':2}).json()['unidades'];b=unidades[0]
     r=foto(cliente,c,unidadId=b['id'],categoria='RECEPCION',tipoEvidencia='EXTERIOR_BULTO');assert r.status_code==201,r.text
-    j=db.get(AppCopiaDrive,r.json()['id']);assert j.datos['ruta']==['BULTOS','Bulto01_FOTOS46_RB654123-RB999']
+    j=db.get(AppCopiaDrive,r.json()['id']);assert j.datos['ruta']==['EMBARQUES','POR-ASIGNAR','BULTOS','Bulto01_FOTOS46_RB654123-RB999']
     caja=cliente.post(ruta+'/unidades',json={'tipo':'CAJA_MADRE','padreId':b['id'],'codigo':'CAJA-ABC'}).json()['unidades'][-1]
     f=foto(cliente,c,unidadId=caja['id'],categoria='RECEPCION',variante=2);assert f.status_code==201,f.text
     db.rollback();db.expire_all()
-    assert db.get(AppCopiaDrive,f.json()['id']).datos['ruta']==['BULTOS','Bulto01_FOTOS46_RB654123-RB999','Caja01_CAJA-ABC']
+    assert db.get(AppCopiaDrive,f.json()['id']).datos['ruta']==['EMBARQUES','POR-ASIGNAR','BULTOS','Bulto01_FOTOS46_RB654123-RB999','Caja01_CAJA-ABC']
 
 
 def test_organizar_es_previo_confirmado_idempotente_y_no_envia_correo(cliente,db):
@@ -106,7 +106,8 @@ def test_organizar_es_previo_confirmado_idempotente_y_no_envia_correo(cliente,db
     assert cliente.post(ruta+'/organizar',json={'confirmar':True,'huella':'obsoleta'}).status_code==409
     r=cliente.post(ruta+'/organizar',json={'confirmar':True,'huella':p.json()['huella']});assert r.status_code==200,r.text
     db.rollback();db.expire_all();assert db.get(AppArchivo,a.id).drive_id=='drive-imagen-original'
-    assert db.get(AppCopiaDrive,a.id).estado=='PENDIENTE' and db.get(AppCopiaDrive,a.id).datos['conservarAccesosPrevios'] is False
+    # El nuevo nivel de embarque conserva el acceso a la carpeta del informe anterior.
+    assert db.get(AppCopiaDrive,a.id).estado=='PENDIENTE' and db.get(AppCopiaDrive,a.id).datos['conservarAccesosPrevios'] is True
     assert db.query(AppArchivo).count()==1 and db.query(AppEntrega).count()==0
     assert db.scalar(select(AppRecepcion)).estado=='ABIERTA'
 

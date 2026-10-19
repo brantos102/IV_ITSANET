@@ -1,9 +1,9 @@
-import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-53';
-import {abrirEvidencias} from './evidencias.js?v=20261019-53';
-import {verImagen} from './visor-imagen.js?v=20261019-53';
-import {pedir} from './local.js?v=20261019-53';
-import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-53';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-53';
+import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-54';
+import {abrirEvidencias} from './evidencias.js?v=20261019-54';
+import {verImagen} from './visor-imagen.js?v=20261019-54';
+import {pedir} from './local.js?v=20261019-54';
+import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-54';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-54';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Observaciones adicionales y ubicación · Depot se informa automáticamente',despedida:'Despedida',firma:'Firma'};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

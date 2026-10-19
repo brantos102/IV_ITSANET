@@ -34,4 +34,22 @@ test('reclasificación explícita auditable mueve la misma foto sin atajo implí
 test('respuesta perdida y ruta cambiada recupera el archivo original',()=>{const e=entorno(),p={...e.datos,versionFotos:2,conservarAccesosPrevios:false,ruta:['FALTANTE','SKU1']};const a=e.g.archivoServidor_(clave,p);const b=e.g.archivoServidor_(clave,{...p,ruta:['PNC','SKU1'],rutasAnteriores:[p.ruta],nombre:'REC-1_RB654123_20261018_00001.jpg'});assert.equal(a.fileId,b.fileId);assert.equal([...e.archivos.values()].filter(x=>x.contenido?.length).length,1);});
 test('organización retira solo accesos antiguos al mismo archivo, conserva imágenes vecinas',()=>{const e=entorno(),p={...e.datos,ruta:['FALTANTE','SKU1']};const a=e.g.archivoServidor_(clave,p),f=e.archivos.get(a.fileId),vieja=f.padre;const vecina=e.g.archivoServidor_('c'.repeat(32)+':'+'d'.repeat(32),p);e.g.archivoServidor_(clave,{...p,fileId:a.fileId,ruta:['PNC','SKU1']});assert.equal(vieja.ficheros.filter(x=>x.target===f.id&&!x.trashed).length,1);const r=e.g.archivoServidor_(clave,{...p,fileId:a.fileId,versionFotos:2,conservarAccesosPrevios:false,ruta:['PNC','SKU1'],rutasAnteriores:[p.ruta]});assert.equal(r.accesosRetirados,1);assert.equal(vieja.ficheros.filter(x=>x.target===f.id&&!x.trashed).length,0);assert(!e.archivos.get(vecina.fileId).trashed);assert(!f.trashed);});
 test('una foto compartida conserva un solo acceso intencional con nombre identificable',()=>{const e=entorno(),p={...e.datos,versionFotos:2,conservarAccesosPrevios:false,ruta:['BULTOS','Bulto01_REC-1_RB654123'],rutasVinculadas:[{categoria:'RECEPCION',sku:'',ruta:['BULTOS','Bulto01_REC-1_RB654123']},{categoria:'RECEPCION',sku:'',ruta:['BULTOS','Bulto02_REC-1_RB654123']}]};const a=e.g.archivoServidor_(clave,p);e.g.archivoServidor_(clave,{...p,fileId:a.fileId});const enlaces=[...e.archivos.values()].filter(x=>x.target===a.fileId&&!x.trashed);assert.equal(enlaces.length,1);assert(enlaces[0].nombre.startsWith('ACCESO__'));assert.equal([...e.archivos.values()].filter(x=>x.contenido?.length).length,1);});
+test('rutas por embarque mantienen PNC, faltantes y sobrantes dentro de su carpeta',()=>{
+ const e=entorno();let n=0;
+ for(const emb of ['RB-A','RB-B'])for(const categoria of ['PNC','FALTANTE','SOBRANTE']){
+  const ruta=['EMBARQUES',emb,categoria,'SKU1'],k=String(++n).padStart(32,'0'),p={...e.datos,versionFotos:2,conservarAccesosPrevios:false,ruta,rutaSku:ruta,nombre:emb+'_'+categoria+'.jpg'};
+  const a=e.g.archivoServidor_(k+':'+k,p),b=e.g.archivoServidor_(k+':'+k,p),f=e.archivos.get(a.fileId);
+  assert.equal(a.fileId,b.fileId);assert.equal(f.padre.nombre,'SKU1');assert.equal(f.padre.padre.nombre,categoria);assert.equal(f.padre.padre.padre.nombre,emb);
+ }
+ assert.equal([...e.archivos.values()].filter(f=>f.contenido?.length).length,6);
+ const rec=e.raiz.hijos[0].hijos[0].hijos[0];assert.deepEqual(rec.hijos.map(f=>f.nombre),['EMBARQUES']);
+});
+test('una imagen compartida entre embarques confirma carpetas propias con el mismo fileId',()=>{
+ const e=entorno(),a=['EMBARQUES','RB-A','PNC','SKU1'],b=['EMBARQUES','RB-B','PNC','SKU1'];
+ const vs=[a,b].map(ruta=>({categoria:'PNC',sku:'SKU1',ruta,rutaSku:ruta})),p={...e.datos,versionFotos:2,conservarAccesosPrevios:false,ruta:a,rutaSku:a,rutasVinculadas:vs};
+ const r=e.g.archivoServidor_(clave,p),urls=[];
+ for(const v of vs){const s=e.g.archivoServidor_(clave,{...p,base64:undefined,fileId:r.fileId,rutasVinculadas:[v],conservarAccesosPrevios:true});urls.push(s.vinculosDrive['PNC|SKU1'].carpetaSkuUrl);assert.equal(s.fileId,r.fileId);}
+ assert.notEqual(urls[0],urls[1]);assert.equal([...e.archivos.values()].filter(f=>f.contenido?.length).length,1);
+ assert.equal([...e.archivos.values()].filter(f=>f.target===r.fileId&&!f.trashed).length,1);
+});
 console.log(`${pasadas} pasadas, ${falladas} falladas`);process.exitCode=falladas?1:0;

@@ -251,33 +251,41 @@ def validar_evidencia(db, codigo, datos):
         raise HTTPException(409, 'Otro supervisor cambió este bulto. Revisa su etiqueta antes de adjuntar las fotos.')
     origen = str(datos.get('origen') or '')
     if len(origen) > 40: raise HTTPException(422, 'Identificador de lista demasiado largo')
+    if 'embarqueFoto' in datos:
+        from app.services.fotos_embarques import resolver
+        resolver(db, codigo, datos)
     return {'tipo': tipo, 'categoria': categoria, 'protocolo': protocolo,
         'unidad_id': u.id if u else None, 'origen': origen or None,
         'sku': normalizar_sku(datos.get('sku'))[:80] or None}
 
 
 def vincular_evidencia(db, archivo, datos, usuario, confirmar=True):
+    from app.services import fotos_embarques
     d = validar_evidencia(db, archivo.recepcion, datos)
+    embarque = fotos_embarques.resolver(db, archivo.recepcion, datos)
     q = select(AppEvidencia).where(AppEvidencia.archivo_id == archivo.id,
         AppEvidencia.eliminado_en.is_(None), *[getattr(AppEvidencia, k) == v for k, v in d.items()])
-    e = db.scalar(q)
+    coincide = lambda e: fotos_embarques.asignado(db, e) == embarque
+    e = next((e for e in db.scalars(q) if coincide(e)), None)
     if not e and datos.get('desdeSku') is True:
         # Reutilizar una foto conocida no crea otra clasificación histórica.
-        e=db.scalar(select(AppEvidencia).where(AppEvidencia.archivo_id==archivo.id,
+        candidatas=db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id==archivo.id,
             AppEvidencia.eliminado_en.is_(None),AppEvidencia.sku==d['sku'],
             AppEvidencia.unidad_id==d['unidad_id'],AppEvidencia.origen==d['origen']))
+        e=next((e for e in candidatas if coincide(e)),None)
     creada = e is None
     if not e:
         e = AppEvidencia(id=uuid4().hex, archivo_id=archivo.id, recepcion=archivo.recepcion,
             usuario=usuario, **d)
         db.add(e)
+        fotos_embarques.registrar(db, archivo.id, e.id, embarque)
         if datos.get('desdeSku') is True and datos.get('conteoPendiente') is True:
             from app.models import AppArchivoIdentidad
             identidad=db.get(AppArchivoIdentidad,archivo.id)
             if identidad:
                 identidad.datos={**identidad.datos,'pendientesConteo':{**identidad.datos.get('pendientesConteo',{}),e.id:usuario}}
         auditoria(db, archivo.recepcion, usuario, 'EVIDENCIA_REGISTRADA',
-            {'archivoId': archivo.id, 'unidadId': d['unidad_id'], 'sku': d['sku'], 'categoria': d['categoria']})
+            {'archivoId': archivo.id, 'unidadId': d['unidad_id'], 'sku': d['sku'], 'categoria': d['categoria'], 'embarque': embarque})
         db.commit() if confirmar else db.flush()
     return creada
     return e
@@ -350,7 +358,7 @@ def actualizar_fotos_conteo(db,s,fotos,usuario,evento_id):
 def editar_evidencia(db,archivo_id,datos,usuario):
     """Corrige un vínculo de la imagen conservando el archivo y el historial."""
     from app.models import AppArchivo,AppArchivoSku,AppSku,AppCopiaDrive
-    from app.services import drive
+    from app.services import drive, fotos_embarques
     a=db.get(AppArchivo,archivo_id)
     if not a or a.tipo!='foto':raise HTTPException(404,'Foto no encontrada')
     r=m.obtener(db,a.recepcion,bloquear=True)
@@ -359,18 +367,25 @@ def editar_evidencia(db,archivo_id,datos,usuario):
     if j and (j.estado in ('PROCESANDO','ELIMINADA') or j.datos.get('accion')=='papelera'):raise HTTPException(409,'La foto se está procesando o fue retirada. Actualiza antes de editar su vínculo.')
     e=db.scalar(select(AppEvidencia).where(AppEvidencia.id==datos.get('evidenciaId'),AppEvidencia.archivo_id==a.id,AppEvidencia.eliminado_en.is_(None)).with_for_update())
     if not e:raise HTTPException(409,'El vínculo ya cambió. Actualiza la galería antes de editar.')
-    nuevo=validar_evidencia(db,a.recepcion,{**datos,'desdeSku':False})
+    from app.services.fotos_identidad import asegurar_archivo
+    asegurar_archivo(db,a)
+    datos={**datos,'desdeSku':False}
+    anterior_embarque=fotos_embarques.asignado(db,e)
+    if 'embarqueFoto' not in datos and anterior_embarque is not None:datos['embarqueFoto']=anterior_embarque
+    nuevo=validar_evidencia(db,a.recepcion,datos)
+    nuevo_embarque=fotos_embarques.resolver(db,a.recepcion,datos)
     if nuevo['sku'] and not db.scalar(select(AppSku.id).where(AppSku.recepcion==a.recepcion,AppSku.sku==nuevo['sku'])):raise HTTPException(422,'SKU: selecciona un código registrado en esta recepción o deja vacío para una foto de recepción.')
     if nuevo['origen'] and nuevo['origen'] not in (r.origenes or []):raise HTTPException(422,'Embarque: selecciona una lista de esta recepción o deja el vínculo vacío.')
     anterior={k:getattr(e,k) for k in nuevo}
-    if anterior==nuevo:return {'ok':True,'mensaje':'La foto ya tiene estos datos.'}
+    if anterior==nuevo and anterior_embarque==nuevo_embarque:return {'ok':True,'mensaje':'La foto ya tiene estos datos.'}
     sku_anterior=e.sku;e.eliminado_en=utcnow()
     nueva=AppEvidencia(id=uuid4().hex,archivo_id=a.id,recepcion=a.recepcion,usuario=usuario,**nuevo)
     db.add(nueva);db.flush()
+    fotos_embarques.registrar(db,a.id,nueva.id,nuevo_embarque)
     if sku_anterior and not db.scalar(select(AppEvidencia.id).where(AppEvidencia.archivo_id==a.id,AppEvidencia.sku==sku_anterior,AppEvidencia.eliminado_en.is_(None))):
         vinculo=db.get(AppArchivoSku,(a.id,sku_anterior))
         if vinculo:db.delete(vinculo)
     if nuevo['sku'] and not db.get(AppArchivoSku,(a.id,nuevo['sku'])):db.add(AppArchivoSku(archivo_id=a.id,sku=nuevo['sku']))
     drive.encolar(db,a)
-    auditoria(db,a.recepcion,usuario,'EVIDENCIA_CORREGIDA',{'archivoId':a.id,'vinculoAnterior':e.id,'vinculoNuevo':nueva.id,'antes':anterior,'despues':nuevo})
+    auditoria(db,a.recepcion,usuario,'EVIDENCIA_CORREGIDA',{'archivoId':a.id,'vinculoAnterior':e.id,'vinculoNuevo':nueva.id,'antes':{**anterior,'embarque':anterior_embarque},'despues':{**nuevo,'embarque':nuevo_embarque}})
     db.commit();return {'ok':True,'mensaje':'Vínculo corregido. Se conserva la imagen y se actualiza su ubicación en Drive.'}

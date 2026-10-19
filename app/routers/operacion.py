@@ -50,6 +50,14 @@ def plan_fotos(codigo: str, db: Session = Depends(get_db), _: Operador = Depends
     return plan(db,codigo)
 
 
+@router.get('/recepciones/{codigo}/fotos/embarques')
+def embarques_fotos(codigo: str, sku: str = '', origen: str = '', unidadId: str = '',
+                    db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services.fotos_embarques import contexto
+    try:return contexto(db, codigo, sku, origen, unidadId)
+    except m.ErrorApp as exc:raise HTTPException(404,str(exc)) from None
+
+
 @router.post('/recepciones/{codigo}/fotos/organizar')
 def organizar_fotos(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
     from app.services.fotos_organizacion import programar

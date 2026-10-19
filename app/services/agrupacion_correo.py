@@ -3,14 +3,17 @@ import hashlib
 import json
 import math
 from fastapi import HTTPException
+from sqlalchemy import select
 from app.models import AppConfig
 from app.services import app_modelo as m,ajustes
 
 
 def firma(valor):return hashlib.sha256(json.dumps(valor,sort_keys=True,default=str).encode()).hexdigest()
-def configuracion(db,codigo):
+def configuracion(db,codigo,*,actual=False):
     from app.services.correos_embarque import clave
-    f=db.get(AppConfig,clave(codigo));return {'modo':'PACKING_LIST','asignaciones':{},'embarquesPorLinea':{},'repartos':{},**(f.datos if f else {})}
+    llave=clave(codigo)
+    f=db.scalar(select(AppConfig).where(AppConfig.clave==llave).with_for_update().execution_options(populate_existing=True)) if actual else db.get(AppConfig,llave)
+    return {'modo':'PACKING_LIST','asignaciones':{},'embarquesPorLinea':{},'repartos':{},**(f.datos if f else {})}
 def linea_id(l):return str(l.get('id') or str(l.get('origen') or 'PRINCIPAL')+'-'+str(l['linea']))
 def embarque(l,c):return str(l.get('embarque') or c.get('embarquesPorLinea',{}).get(linea_id(l)) or '').strip().upper()
 def grupo_id(emb):return 'EMB-'+hashlib.sha256(emb.encode()).hexdigest()[:20]
@@ -169,8 +172,8 @@ def filtrar(f,lineas,ident,c):
     filtrado=por_lista({**f,'eventos':eventos,'fotos':[]},ls,ident,c.get('asignaciones',{}))
     miembros={s['sku'] for s in filtrado['skus']};fotos=[]
     for foto in f.get('fotos',[]):
-        vs=[v for v in foto.get('rutasVinculadas') or [foto] if (not v.get('origen') or v['origen'] in g['packingLists']) and (not v.get('sku') or v['sku'] in miembros)]
+        vs=[v for v in foto.get('rutasVinculadas') or [foto] if (not v.get('origen') or v['origen'] in g['packingLists']) and (not v.get('sku') or v['sku'] in miembros) and (not v.get('embarque') or v['embarque']==g['nombre'])]
         if not vs:continue
-        compartida=any(v.get('sku') and len({embarque(l,c) for l in lineas if l['sku']==v['sku'] and (not v.get('origen') or l.get('origen')==v['origen'])})>1 for v in vs)
+        compartida=any(v.get('sku') and not v.get('embarque') and len({embarque(l,c) for l in lineas if l['sku']==v['sku'] and (not v.get('origen') or l.get('origen')==v['origen'])})>1 for v in vs)
         fotos.append({**foto,'rutasVinculadas':vs,'requiereRevision':compartida})
     return {**filtrado,'fotos':fotos,'nombreGrupo':g['nombre'],'tipoGrupo':'EMBARQUE','packingLists':g['packingLists']}

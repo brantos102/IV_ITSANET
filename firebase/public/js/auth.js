@@ -2,21 +2,21 @@
  * Autenticación con Google corporativo y alta automática del operario.
  */
 import { initializeApp, deleteApp }
-  from '../vendor/firebase-sdk.js?v=20261019-53';
+  from '../vendor/firebase-sdk.js?v=20261019-54';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   getRedirectResult, signOut, onAuthStateChanged,
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   updatePassword, updateProfile, EmailAuthProvider, reauthenticateWithCredential,
   sendPasswordResetEmail,
-} from '../vendor/firebase-sdk.js?v=20261019-53';
+} from '../vendor/firebase-sdk.js?v=20261019-54';
 import {
   initializeFirestore, doc, getDoc, setDoc, serverTimestamp,
   persistentLocalCache, persistentMultipleTabManager, writeBatch,
-} from '../vendor/firebase-sdk.js?v=20261019-53';
+} from '../vendor/firebase-sdk.js?v=20261019-54';
 
-import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js?v=20261019-53';
-import * as local from './local.js?v=20261019-53';
+import { firebaseConfig, DOMINIO, USAR_PISTA_HD, DATABASE_ID } from './config.js?v=20261019-54';
+import * as local from './local.js?v=20261019-54';
 
 /**
  * Dónde se resuelve el acceso.
@@ -563,7 +563,7 @@ async function asegurarAlias(usuario, sugerencia = '', tipoAcceso = 'GOOGLE') {
  *   Recibe { usuario, perfil, error } — `usuario` null si no hay sesión.
  */
 export function observarSesion(alCambiar, { pedirUsuario } = {}) {
-  if (modoLocal()) return local.observarSesion(estado=>{import('./barra-supervision.js?v=20261019-53').then(m=>m.iniciarBarra(estado)).catch(()=>{});return alCambiar(estado);});
+  if (modoLocal()) return local.observarSesion(estado=>{import('./barra-supervision.js?v=20261019-54').then(m=>m.iniciarBarra(estado)).catch(()=>{});return alCambiar(estado);});
   return onAuthStateChanged(auth, async (usuario) => {
     if (!usuario) return alCambiar({ usuario: null, perfil: null });
 

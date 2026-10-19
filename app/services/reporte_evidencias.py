@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.config import BASE_DIR
 from app.models import AppArchivo, AppArchivoIdentidad, AppEvidencia, AppIngreso, AppUnidadLogistica
 from app.services import app_modelo as m
+from app.services.fotos_embarques import asignado
 
 
 def generar(db, codigo, informe=None):
@@ -28,7 +29,7 @@ def generar(db, codigo, informe=None):
     hoja['D1']='TRAZABILIDAD DE EVIDENCIAS · ITSANET';hoja['D1'].font=Font(bold=True,size=14,color='1D4ED8')
     hoja['D2']=f'{r.codigo} · {r.cliente}';hoja['D2'].data_type='s';hoja['D3']='Origen: base de datos del servidor'
     columnas=['CLIENTE','MARCA','RECEPCION','SKU','CLASIFICACION','TIPO','PROTOCOLO','BULTO',
-        'CODIGO BULTO','CAJA MADRE','CODIGO CAJA','PACKING LIST','FECHA ECUADOR','USUARIO','ARCHIVO ID','ENLACE DRIVE','PALLET BULTO','OBSERVACION BULTO','NOMBRE ARCHIVO','NOMBRE ORIGINAL','SECUENCIAL']
+        'CODIGO BULTO','CAJA MADRE','CODIGO CAJA','PACKING LIST','FECHA ECUADOR','USUARIO','ARCHIVO ID','ENLACE DRIVE','PALLET BULTO','OBSERVACION BULTO','NOMBRE ARCHIVO','NOMBRE ORIGINAL','SECUENCIAL','EMBARQUE']
     for i,nombre in enumerate(columnas,1):
         c=hoja.cell(5,i,nombre);c.font=Font(bold=True,color='FFFFFF');c.fill=PatternFill('solid',fgColor='1D4ED8')
     filas=db.execute(select(AppEvidencia,AppArchivo).join(AppArchivo,AppArchivo.id==AppEvidencia.archivo_id)
@@ -42,11 +43,11 @@ def generar(db, codigo, informe=None):
             u.codigo if u and u.tipo=='CAJA_MADRE' else '',e.origen,fecha.astimezone(ZoneInfo('America/Guayaquil')).strftime('%d/%m/%Y %H:%M:%S'),
             e.usuario,a.id,a.drive_url or 'Pendiente de copia a Drive',(b.datos or {}).get('pallet','') if b else '',(b.datos or {}).get('observacion','') if b else '']
         identidad=db.get(AppArchivoIdentidad,a.id)
-        valores.extend([a.nombre,identidad.nombre_original if identidad else '',identidad.secuencia if identidad else ''])
+        valores.extend([a.nombre,identidad.nombre_original if identidad else '',identidad.secuencia if identidad else '',asignado(db,e) or 'Sin asignar / general'])
         hoja.append(valores)
         for c in hoja[hoja.max_row]:
             if isinstance(c.value,str):c.data_type='s'
-    hoja.freeze_panes='A6';hoja.auto_filter.ref=f'A5:U{max(5,hoja.max_row)}'
+    hoja.freeze_panes='A6';hoja.auto_filter.ref=f'A5:V{max(5,hoja.max_row)}'
     for columna in hoja.columns:hoja.column_dimensions[columna[0].column_letter].width=24
     hoja.column_dimensions['P'].width=60
     salida=BytesIO();libro.save(salida);return salida.getvalue()

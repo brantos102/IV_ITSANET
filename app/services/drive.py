@@ -20,6 +20,11 @@ _verificados = {}
 
 def carpeta_sku(j,e):
     if not j or j.estado!='COPIADA' or not e.sku:return None
+    propio=j.datos.get('vinculosPorEvidencia',{}).get(e.id,{})
+    if propio.get('carpetaSkuUrl'):return propio['carpetaSkuUrl']
+    # El puente anterior usa categoría|SKU; solo es inequívoco para un vínculo.
+    claves=[v for v in j.datos.get('rutasVinculadas',[]) if v.get('categoria')==e.categoria and v.get('sku')==e.sku]
+    if len({tuple(v.get('ruta',[])) for v in claves})>1:return None
     vinculo=j.datos.get('vinculosDrive',{}).get(e.categoria+'|'+e.sku,{})
     if vinculo.get('carpetaSkuUrl'):return vinculo['carpetaSkuUrl']
     if j.datos.get('sku')==e.sku and (j.datos.get('categoria') or (j.datos.get('ruta') or [None])[0])==e.categoria:
@@ -164,17 +169,25 @@ def descripcion(db, archivo, evidencia=None):
     if anterior and anterior.datos.get('usuarioDriveFijado'):
         d['usuarioDriveFijado']=anterior.datos['usuarioDriveFijado'];d['usuario']=d['usuarioDriveFijado']
     identidad=db.get(AppArchivoIdentidad,archivo.id)
+    if identidad and not db.is_modified(identidad,include_collections=True):
+        # Otro operario puede haber añadido un vínculo mientras Google copiaba
+        # el archivo. Releer el mapa antes de confirmar sus rutas.
+        db.refresh(identidad)
+    from app.services.fotos_embarques import informacion
+    fuente_embarques=informacion(db,archivo.recepcion)
     def ruta(v):
-        from app.services.fotos_identidad import ruta_bulto
-        bulto=ruta_bulto(db,v) if identidad else []
-        return bulto+(ruta_evidencia(v) if v and v.sku else []) if bulto else ruta_evidencia(v)
+        from app.services.fotos_embarques import ruta as ruta_embarque
+        return ruta_embarque(db,v,con_bulto=bool(identidad),fuente=fuente_embarques)
+    from app.services.fotos_embarques import asignado as leer_asignado
+    def asignado(db,e):return leer_asignado(db,e,fuente=fuente_embarques)
     d['ruta'] = ruta(e)
     d['sku'] = e.sku if e else ''
     d['origen'] = e.origen if e else ''
+    d['embarque'] = asignado(db,e)
     d['categoria'] = e.categoria if e else 'GENERAL'
     d['rutaSku'] = ruta(e) if e and e.sku else []
-    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen):
-        {'categoria':v.categoria,'sku':v.sku or '', 'origen':v.origen or '', 'ruta':ruta(v),
+    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen,asignado(db,v)):
+        {'evidenciaId':v.id,'categoria':v.categoria,'sku':v.sku or '', 'origen':v.origen or '', 'embarque':asignado(db,v),'ruta':ruta(v),
          'rutaSku':ruta(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
         for v in es}.values())
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
@@ -189,8 +202,32 @@ def descripcion(db, archivo, evidencia=None):
             # ni eliminar archivos ajenos. El puente trata únicamente atajos.
             previas=[anterior.datos.get('ruta',[])]+[v.get('ruta',[]) for v in anterior.datos.get('rutasVinculadas',[])]+anterior.datos.get('rutasIntentadas',[])
             d['rutasAnteriores']=[list(r) for r in sorted(set(tuple(r) for r in previas if r))]
+            if anterior.datos.get('ruta') and anterior.datos['ruta']!=d['ruta'] and (
+                anterior.datos.get('embarque')!=d.get('embarque') or
+                anterior.datos['ruta'][:1] not in (['EMBARQUES'],['GENERALES']) and d['ruta'][:1] in (['EMBARQUES'],['GENERALES'])):
+                # Mantener accesos a carpetas que ya fueron incluidas en informes.
+                d['conservarAccesosPrevios']=True
         d['rutasIntentadas']=[list(r) for r in sorted(set(tuple(r) for r in [d['ruta']]+d.get('rutasAnteriores',[]) if r))]
     return d
+
+
+def vinculos_por_evidencia(aid,datos,respuesta):
+    """Compatibilidad con el puente instalado: categoría|SKU puede repetirse.
+
+    Si una misma foto tiene dos destinos con esa clave, consultar cada vínculo
+    con el mismo fileId confirma sus carpetas sin volver a subir el binario.
+    """
+    salida={};vs=datos.get('rutasVinculadas',[])
+    for v in vs:
+        if not v.get('evidenciaId'):continue
+        k=v['categoria']+'|'+v['sku'];r=respuesta
+        if len({tuple(x['ruta']) for x in vs if x['categoria']+'|'+x['sku']==k})>1:
+            p={k:x for k,x in datos.items() if k!='base64'}
+            p.update(fileId=respuesta['fileId'],rutasVinculadas=[v],conservarAccesosPrevios=True)
+            r=entregas.llamar('archivo',aid+':'+aid,p)
+            if r.get('fileId')!=respuesta['fileId']:raise RuntimeError('Drive no confirmó la misma imagen al consultar su embarque.')
+        salida[v['evidenciaId']]=r.get('vinculosDrive',{}).get(k,{})
+    return salida
 
 
 def encolar(db, archivo):
@@ -246,10 +283,11 @@ def procesar_uno():
                         raise RuntimeError('Drive no confirmó el archivo')
                     if a.drive_id and ident != a.drive_id:
                         raise RuntimeError('Drive devolvió otro archivo al actualizar su carpeta; revisa antes de continuar.')
+                    vinculos=vinculos_por_evidencia(aid,d,r)
                     a.drive_id, a.drive_url = ident, 'https://drive.google.com/file/d/' + ident + '/view'
                     if r.get('nombre'):a.nombre=str(r['nombre'])[:190]
                     j.datos = {**{k:v for k,v in j.datos.items() if k != 'accion'}, 'carpeta': r.get('carpeta', ''), 'carpetaRecepcionUrl': r.get('carpetaRecepcionUrl', ''),
-                        'carpetaSkuUrl': r.get('carpetaSkuUrl', ''),'vinculosDrive':r.get('vinculosDrive',{})}
+                        'carpetaSkuUrl': r.get('carpetaSkuUrl', ''),'vinculosDrive':r.get('vinculosDrive',{}),'vinculosPorEvidencia':vinculos}
                 j.estado = 'COPIADA'
             j.error = None
             db.commit()

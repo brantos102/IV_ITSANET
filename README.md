@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 54: carpetas de evidencias por embarque, clasificación y asignación histórica](docs/FOTOS_POR_EMBARQUE_54.md).
+
 [Versión 53: elección de correos por packing list o embarque y revisión de recepciones cerradas](docs/AGRUPACION_CORREOS_Y_CERRADAS_53.md).
 
 [Versión 52: un correo por packing list, revisión del cierre y descarga vigente en ZIP o por embarque](docs/CORREOS_POR_EMBARQUE_Y_DESCARGAS_52.md).

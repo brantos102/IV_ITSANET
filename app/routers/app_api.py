@@ -374,6 +374,8 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
     resultado = []
     from app.models import AppEvidencia, AppCopiaDrive, AppArchivoIdentidad
     from app.services.drive import carpeta_sku
+    from app.services.fotos_embarques import asignado, informacion
+    fuente_embarques=informacion(db,r.codigo) if filas else None
     metadatos = {}
     identidades={i.archivo_id:i for i in db.scalars(select(AppArchivoIdentidad).where(AppArchivoIdentidad.archivo_id.in_([a.id for a in filas])))} if filas else {}
     if filas:
@@ -382,7 +384,7 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
         for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_([a.id for a in filas]),
                 AppEvidencia.eliminado_en.is_(None))):
             metadatos.setdefault(e.archivo_id, []).append({'id':e.id,'protocolo':e.protocolo,'sku': e.sku, 'categoria': e.categoria,
-                'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen,
+                'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen, 'embarque':asignado(db,e,fuente=fuente_embarques),
                 'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e) or ''})
     for a in filas:
         f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',

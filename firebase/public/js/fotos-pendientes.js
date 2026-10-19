@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261019-53';
-import {confirmar} from './modal.js?v=20261019-53';
+import {pedir,nuevoIdentificador} from './local.js?v=20261019-54';
+import {confirmar} from './modal.js?v=20261019-54';
 let conexion;
 const trabajos=new WeakMap();
 function abrirDb(){
@@ -27,7 +27,7 @@ export async function abrirFotosPendientes(recepcion,{alGuardar=()=>{}}={}){
  document.body.append(d);d.showModal();let ocupado=false;
  async function pintar(){const raiz=d.querySelector('[data-lista]');raiz.replaceChildren();let filas;try{filas=await listar(actor,recepcion);}catch{raiz.textContent='No se pudo consultar el almacenamiento local. Mantén abiertas las selecciones sin guardar y conserva sus archivos originales.';return;}
   if(!filas.length){raiz.textContent='No hay fotos pendientes de esta cuenta para '+recepcion+'.';return;}
-  for(const j of filas){const p=j.payload,card=document.createElement('article'),img=document.createElement('img'),titulo=document.createElement('p'),nota=document.createElement('p');img.src='data:'+p.tipo+';base64,'+p.base64;img.alt=p.nombre;img.style.cssText='width:130px;height:100px;object-fit:contain';titulo.textContent=p.nombre;nota.className='mini';nota.textContent=[p.tipoEvidencia,p.sku&&'SKU '+p.sku,p.unidadId&&'Unidad '+p.unidadId,p.origen&&'Lista '+p.origen].filter(Boolean).join(' · ');card.append(img,titulo,nota);
+  for(const j of filas){const p=j.payload,card=document.createElement('article'),img=document.createElement('img'),titulo=document.createElement('p'),nota=document.createElement('p');img.src='data:'+p.tipo+';base64,'+p.base64;img.alt=p.nombre;img.style.cssText='width:130px;height:100px;object-fit:contain';titulo.textContent=p.nombre;nota.className='mini';nota.textContent=[p.tipoEvidencia,p.sku&&'SKU '+p.sku,p.unidadId&&'Unidad '+p.unidadId,p.origen&&'Lista '+p.origen,p.embarqueFoto&&'Embarque '+p.embarqueFoto].filter(Boolean).join(' · ');card.append(img,titulo,nota);
    const boton=(texto,fn)=>{const b=document.createElement('button');b.type='button';b.className='b-sec';b.textContent=texto;b.onclick=async()=>{if(ocupado)return;ocupado=true;d.querySelectorAll('button').forEach(x=>x.disabled=true);try{await fn();}catch(e){d.querySelector('[data-estado]').textContent=e.message;}finally{ocupado=false;d.querySelectorAll('button').forEach(x=>x.disabled=false);}};card.append(b);};
    boton('Reintentar guardado',async()=>{if(await actorFotos()!==actor)throw new Error('La sesión cambió. Entra con la cuenta original.');await pedir(`/recepciones/${encodeURIComponent(recepcion)}/archivos/foto`,{cuerpo:p});await borrar(j.id);d.querySelector('[data-estado]').textContent='Foto confirmada en el servidor; copia a Drive en segundo plano.';await alGuardar();await pintar();});
    boton('Descargar copia temporal',()=>descargar(j));

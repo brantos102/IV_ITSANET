@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261019-53';
-import {confirmar,elegir} from './modal.js?v=20261019-53';
+import {pedir,nuevoIdentificador} from './local.js?v=20261019-54';
+import {confirmar,elegir} from './modal.js?v=20261019-54';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base=c=>'/recepciones/'+encodeURIComponent(c)+'/informes';
@@ -25,7 +25,7 @@ export async function prepararDocumentosPorEmbarque(c){
  if(!formato)return null;
  const vigente=await informeActual(c,formato);if(vigente.actual)return vigente.informe;
  const f=await iniciarInforme(c,'DESCARGA',formato);if(!f)return null;if(f.estado==='GENERADO')return f;
- const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261019-53'),pedir('/recepciones/'+encodeURIComponent(c))]);
+ const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261019-54'),pedir('/recepciones/'+encodeURIComponent(c))]);
  const datos=await reunirInforme(c,recepcion);datos.recepcion={...datos.recepcion,informe:f};
  return archivarInforme(c,f,construirLibros(datos,{version:formato}));
 }
