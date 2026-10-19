@@ -1,4 +1,4 @@
-import {tecladoDialogo} from './modal.js?v=20261019-51';
+import {tecladoDialogo} from './modal.js?v=20261019-52';
 /** Zebra ZD421, 203 dpi. Formato de impresión 10 × 5. */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function validarEtiqueta(d) {
@@ -121,7 +121,7 @@ export function abrirEtiqueta(datos) {
   tecladoDialogo(dialogo,{accion:'[data-imprimir]',campos:'[name]'});
   dialogo.showModal(); actualizar();
   let pedirPuente=null,claveTrabajo=null,firmaTrabajo=null;
-  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261019-51').then(async({pedir})=>{
+  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261019-52').then(async({pedir})=>{
     pedirPuente=pedir;
     const p=await pedir('/preferencias',{base:'/api/operacion'});
     const lista=dialogo.querySelector('[data-estacion]');lista.replaceChildren();

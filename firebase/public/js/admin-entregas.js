@@ -1,8 +1,8 @@
-import {verImagen} from './visor-imagen.js?v=20261019-51';
-import {abrirCorreo} from './correo-redactado.js?v=20261019-51';
-import {pedir} from './local.js?v=20261019-51';
-import {pedirDatos,confirmar} from './modal.js?v=20261019-51';
-import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261019-51';
+import {verImagen} from './visor-imagen.js?v=20261019-52';
+import {abrirCorreo} from './correo-redactado.js?v=20261019-52';
+import {pedir} from './local.js?v=20261019-52';
+import {pedirDatos,confirmar} from './modal.js?v=20261019-52';
+import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261019-52';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -76,6 +76,7 @@ export function pintarEntregas(contenedor, entregas, {aviso, actualizar, operati
     const dibujar=(e,padre)=>{
       const fila=document.createElement('article');fila.style.marginBlock='16px';
       const p=document.createElement('p');p.textContent=`${referencia(e)} · ${fecha(e)} · ${e.correoManual?(e.correoManual.estado==='DECLARADO_ENVIADO'?'MANUAL · ENVÍO DECLARADO':'MANUAL · POR ENVIAR'):e.estado} · De: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'}`;fila.append(p);
+      if(e.correos?.length){const lista=document.createElement('ul');for(const c of e.correos){const li=document.createElement('li');li.textContent=c.origen+' · '+c.estado+' · '+c.destinatarios;lista.append(li);}fila.append(lista);}
       const m=document.createElement('p');m.className='mini';m.textContent=(e.mensaje || '')+(e.ayuda?' '+e.ayuda:'')+(e.intentos?' · Intentos: '+e.intentos:'')+(e.proximoIntento&&e.estado==='PENDIENTE'?' · Próximo intento: '+new Date(e.proximoIntento).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'');if(e.correoManual)m.textContent=(e.correoManual.estado==='DECLARADO_ENVIADO'?'Envío manual declarado por '+e.correoManual.usuario+'; sin acuse de Google.':'Preparado para envío manual. El envío automático está detenido.');fila.append(m);
       const urls=document.createElement('div');urls.innerHTML=enlace(e.resultado?.carpeta,'Abrir Drive')+' '+enlace(e.resultado?.sheet,'Abrir Sheets');fila.append(urls);
       if(['PENDIENTE','REVISION'].includes(e.estado)){

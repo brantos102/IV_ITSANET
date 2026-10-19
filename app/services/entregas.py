@@ -88,7 +88,8 @@ def documento(e, tecnico=False):
     if e.datos.get('correoManual'):
         mensajes['CANCELADA']='Envío manual declarado por el supervisor; sin confirmación de Google.' if e.datos['correoManual'].get('estado')=='DECLARADO_ENVIADO' else 'Preparado para envío manual. El envío automático está detenido.'
     gestion=hashlib.sha256(json.dumps([e.id,e.estado,e.intentos,e.error,e.datos],sort_keys=True,default=str).encode()).hexdigest()
-    return {'versionGestion':gestion,'archivado':bool(e.datos.get('historialOculto')),'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
+    return {'correos':[{'origen':c['origen'],'estado':c['estado'],'destinatarios':c['destinatarios'],'confirmadoEn':c.get('confirmadoEn')} for c in e.datos.get('correosPorOrigen',[])],
+            'versionGestion':gestion,'archivado':bool(e.datos.get('historialOculto')),'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
                 else mensajes.get(e.estado, 'Comprobando entrega.')),
@@ -146,13 +147,14 @@ def preparar(db, codigo, datos, usuario):
     """Archiva primero; cierre y cola se confirman en una sola transaccion."""
     destinatarios = str(datos.get('destinatarios') or '').strip()
     correos = [s.strip() for s in destinatarios.split(',') if s.strip()]
-    if len(correos) > 20 or any(not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', c) for c in correos):
+    r = m.obtener(db, codigo)
+    if len(r.origenes or [])<=1 and (len(correos) > 20 or any(not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', c) for c in correos)):
         raise HTTPException(422, 'Revisa los correos de destino (separados por coma)')
+    destinatarios=','.join(correos)
     libros = datos.get('adjuntos')
-    if not isinstance(libros, list) or not 1 <= len(libros) <= 30:
+    if not datos.get('informeId') and (not isinstance(libros, list) or not 1 <= len(libros) <= 30):
         raise HTTPException(422, 'Se requiere un informe por packing list')
     firma_solicitud=hashlib.sha256(json.dumps([usuario,datos],sort_keys=True,default=str).encode()).hexdigest()
-    r = m.obtener(db, codigo)
     if r.estado == 'CERRADA':
         anteriores = recientes(db, 1, recepcion=r.codigo)
         anterior = anteriores[0] if anteriores else None
@@ -174,14 +176,21 @@ def preparar(db, codigo, datos, usuario):
         raise HTTPException(422,'Confirma que revisaste Enviados e indica cómo se enviaron los documentos (10–300 caracteres).')
     manual = modo_entrega in ('MANUAL','MANUAL_ENVIADO')
     if manual:
-        if not datos.get('correoVersion') or not destinatarios:
+        if not (datos.get('correoVersion') or datos.get('correos')) or not destinatarios:
             raise HTTPException(422,'Revisa el correo y completa los destinatarios antes de preparar el envío manual.')
         remitente, modo_remitente = usuario, 'PERSONAL'
     else:
         remitente, modo_remitente = elegir(db, r.codigo, datos, usuario)
     from app.services.correo_redactado import congelar, clave_config
-    correo_final = congelar(db, r.codigo, datos, usuario)
     informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
+    lote_correos=[];asignaciones_cierre={}
+    if len(r.origenes or [])>1:
+        from app.services.correos_embarque import congelar as congelar_embarques,asignaciones
+        lote_correos=congelar_embarques(db,r,datos,usuario,informe)
+        asignaciones_cierre=asignaciones(db,r.codigo)
+        destinatarios=','.join(dict.fromkeys(c for item in lote_correos for c in item['destinatarios'].split(',')))
+        correo_final=None
+    else:correo_final = congelar(db, r.codigo, datos, usuario)
     if datos.get('informeId'):
         from app.services.informes import huella
         if not informe or informe.recepcion != r.codigo or informe.usuario != usuario or informe.tipo not in (('CORREO','DESCARGA') if manual else ('CORREO',)):
@@ -191,6 +200,8 @@ def preparar(db, codigo, datos, usuario):
         informes = [a['id'] for a in informe.datos.get('archivos', [])]
         if not informes:
             raise HTTPException(422, 'Archiva los informes antes de finalizar')
+        if any(not (a:=db.get(AppArchivo,ident)) or a.recepcion!=r.codigo or not (a.drive_id or archivos.ruta(a).is_file()) for ident in informes):
+            raise HTTPException(409,'Falta un documento archivado. Genera el informe actualizado antes de cerrar.')
     else:
         informes = [archivos.guardar(db, r.codigo, 'informe', l, usuario, confirmar=False).id for l in libros]
     skus = m.leer_coleccion(db, r.codigo, 'skus', actual=True)
@@ -212,7 +223,8 @@ def preparar(db, codigo, datos, usuario):
         clave=hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest(),
         estado='CANCELADA' if manual else 'PENDIENTE', datos={
             'solicitudCierre':firma_solicitud,
-            'destinatarios': ','.join(correos), 'informes': informes, 'fotos': fotos,
+            'destinatarios': destinatarios, 'informes': informes, 'fotos': fotos,
+            **({'correosPorOrigen':lote_correos,'asignacionesAdicionales':asignaciones_cierre} if lote_correos else {}),
             **({'correoFinal':correo_final} if correo_final else {}),
             'remitente': remitente, 'modoRemitente': modo_remitente,
             'carpetaMes': str(datos.get('carpetaMes') or '')[:100],
@@ -233,8 +245,10 @@ def preparar(db, codigo, datos, usuario):
     if manual:
         registro={'estado':'DECLARADO_ENVIADO' if declarado else 'PREPARADO','usuario':usuario,'fecha':utcnow().isoformat(),'entregaId':e.id,
                   **({'motivo':motivo} if declarado else {}),
-                  'version':datos['correoVersion'],'destinatarios':destinatarios,'asunto':correo_final['asunto']}
+                  'version':datos.get('correoVersion',''),'destinatarios':destinatarios,'asunto':correo_final['asunto'] if correo_final else 'Correos por packing list · '+r.codigo}
         e.datos={**e.datos,'correoManual':registro}
+        if declarado and lote_correos:
+            e.datos={**e.datos,'correosPorOrigen':[{**c,'estado':'MANUAL_DECLARADO'} for c in lote_correos]}
         from app.models import AppConfig
         f=db.get(AppConfig,clave_config(r.codigo,manual=True)) or AppConfig(clave=clave_config(r.codigo,manual=True))
         f.datos=registro;f.usuario=usuario;db.add(f)
@@ -362,7 +376,7 @@ def procesar_uno():
             estado = llamar('estado', e.id, {**d.get('destino', {}), 'usuario': remitente})
             if str(estado.get('remitente') or '').strip().lower() != remitente.strip().lower():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
-            if d.get('correoFinal') and 'correoEditable' not in estado.get('capacidades',[]):
+            if (d.get('correoFinal') or d.get('correosPorOrigen')) and 'correoEditable' not in estado.get('capacidades',[]):
                 raise RuntimeError('El puente tiene archivos de versiones diferentes. Actualiza Proxy.gs y Servidor.gs y publica una nueva versión del mismo /exec para enviar el correo revisado.')
             from app.services.drive import manifiesto
             # Las fotos finales pueden agregarse después del cierre. Incluirlas
@@ -377,7 +391,7 @@ def procesar_uno():
                         'evidenciasAnteriores': [*d.get('evidenciasAnteriores', []), anterior]}
                 e.datos = compactar(d)
                 db.commit()
-            if d['fotos'] and not d.get('informeEvidencias'):
+            if d['fotos'] and not d.get('informeEvidencias') and not d.get('correosPorOrigen'):
                 imagenes=[db.get(AppArchivo,aid) for aid in d['fotos']]
                 if all(a and a.drive_id for a in imagenes):
                     from app.services.reporte_evidencias import generar
@@ -417,7 +431,7 @@ def procesar_uno():
                         raise RuntimeError('Google no confirmo un identificador de archivo valido')
                     a.drive_id, a.drive_url = drive_id, 'https://drive.google.com/file/d/' + drive_id + '/view'
                     db.commit()
-                guardados.append(copia)
+                guardados.append({**copia,'nombre':a.nombre,'tipoArchivo':a.tipo})
                 # La imagen no ocupa MySQL ni queda duplicada tras confirmar Drive.
                 if a.tipo == 'foto':
                     try:
@@ -438,7 +452,10 @@ def procesar_uno():
             else:
                 for campo in ('skus', 'lineas', 'eventos'):
                     payload.pop(campo, None)
-            resultado = llamar('finalizar', e.id, payload)
+            if d.get('correosPorOrigen'):
+                from app.services.correos_embarque import enviar_lote
+                resultado=enviar_lote(db,e,d,guardados,manifest,llamar)
+            else:resultado = llamar('finalizar', e.id, payload)
             if d.get('modoRemitente') in ('PERSONAL','RESPONSABLE') and d.get('destinatarios'):
                 normalizar=lambda v:{c.strip().lower() for c in str(v or '').split(',') if c.strip()}
                 if normalizar(resultado.get('enviadoA')) != normalizar(d['destinatarios']):

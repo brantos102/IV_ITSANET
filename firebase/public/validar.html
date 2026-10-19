@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261019-51"></script>
+<script src="./js/arranque.js?v=20261019-52"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261019-51">
+<link rel="stylesheet" href="./css/marca.css?v=20261019-52">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261019-51" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261019-51" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261019-52" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261019-52" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -321,49 +321,50 @@
 </dialog>
 
 <script type="module">
-import {abrirCorreo} from './js/correo-redactado.js?v=20261019-51';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261019-51';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261019-51';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261019-51';
-import { mostrarAviso } from './js/notificaciones.js?v=20261019-51';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261019-51';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261019-51';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261019-51';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261019-51';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261019-51';
+import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261019-52';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261019-52';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261019-52';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261019-52';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261019-52';
+import { mostrarAviso } from './js/notificaciones.js?v=20261019-52';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261019-52';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261019-52';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261019-52';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261019-52';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261019-52';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261019-51';
+import { pedir as pedirLocal } from './js/local.js?v=20261019-52';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261019-51';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes} from './js/informes-registro.js?v=20261019-51';
-import { observarSesion } from './js/auth.js?v=20261019-51';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261019-52';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261019-52';
+import { observarSesion } from './js/auth.js?v=20261019-52';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261019-51';
+} from './js/datos.js?v=20261019-52';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261019-51';
+} from './js/conteo.js?v=20261019-52';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261019-51';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261019-51';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261019-51';
-import { conectarGlosario } from './js/glosario.js?v=20261019-51';
-import { parecidos } from './js/sugerir.js?v=20261019-51';
-import { publicarAvance } from './js/barra-supervision.js?v=20261019-51';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261019-51';
+} from './js/informe.js?v=20261019-52';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261019-52';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261019-52';
+import { conectarGlosario } from './js/glosario.js?v=20261019-52';
+import { parecidos } from './js/sugerir.js?v=20261019-52';
+import { publicarAvance } from './js/barra-supervision.js?v=20261019-52';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261019-52';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261019-51';
-import { Proxy } from './js/proxy.js?v=20261019-51';
-import { modoLocal } from './js/local.js?v=20261019-51';
+} from './js/csv.js?v=20261019-52';
+import { Proxy } from './js/proxy.js?v=20261019-52';
+import { modoLocal } from './js/local.js?v=20261019-52';
 
-import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261019-51';
-import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261019-51';
-import {verImagen} from './js/visor-imagen.js?v=20261019-51';
+import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261019-52';
+import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261019-52';
+import {verImagen} from './js/visor-imagen.js?v=20261019-52';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -523,7 +524,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261019-51');
+      const l=await import('./js/local.js?v=20261019-52');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -1829,7 +1830,7 @@ $('tBitacora').addEventListener('click', async (ev) => {
  * list»: dos botones genéricos que obligan a traducir mentalmente cuál es cuál,
  * y se elegía mal justo en el paso que genera lo que se le manda al cliente.
  */
-const elegirVersion = (titulo) => elegir({
+const elegirVersion = (titulo,porEmbarque=false) => elegir({
   titulo,
   texto: 'Las dos traen las mismas filas del packing list. Cambia lo que va además.',
   opciones: [
@@ -1838,10 +1839,10 @@ const elegirVersion = (titulo) => elegir({
       titulo: 'Para enviar al cliente',
       detalle: 'Solo las hojas del packing list, con el mismo formato que llegó. '
              + 'Es la que se sube al sistema.' },
-    { valor: 'auditable',
+    ...(!porEmbarque?[{ valor: 'auditable',
       titulo: 'Auditable',
       detalle: 'Añade adicionales, bitácora, auditoría y el detalle por pallet. '
-             + 'Para reclamar, analizar o transferir datos.' },
+             + 'Para reclamar, analizar o transferir datos.' }]:[]),
   ],
 });
 
@@ -1859,22 +1860,26 @@ $('bHistorialInformes').onclick=async()=>{try{const hs=await historialInformes(R
  for(const h of hs){const p=document.createElement('p');p.textContent=`R${String(h.numero).padStart(4,'0')} · ${h.estado} · ${h.usuario} · ${fechaCompleta(h.creadoEn)} · ${h.descargas?.length||0} descargas solicitadas${h.confirmadoEn?' · Entrega confirmada: '+fechaCompleta(h.confirmadoEn):''}`;if(h.archivos?.length){const b=document.createElement('button');b.textContent='Descargar esta versión';b.className='b-sec';b.onclick=async()=>{b.disabled=true;try{await descargarInforme(h);}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}};p.append(b);}dialogo.append(p);if(h.descargas?.length){const detalle=document.createElement('details'),titulo=document.createElement('summary');titulo.textContent='Quién solicitó las descargas';detalle.append(titulo);for(const x of h.descargas){const linea=document.createElement('p');linea.className='mini';linea.textContent=x.usuario+' · '+fechaCompleta(x.fecha);detalle.append(linea);}dialogo.append(detalle);}}
  document.body.append(dialogo);dialogo.addEventListener('close',()=>dialogo.remove());dialogo.showModal();
  }catch(e){aviso(e.message,'err');}};
+let descargaEnCurso=false;
 $('bExportar').addEventListener('click', async () => {
+  if(descargaEnCurso)return;descargaEnCurso=true;
+  try{
   limpiarAvisos();
   const versionElegida = await elegirVersion('Descargar un avance');
   if (!versionElegida) return;
   $('bExportar').disabled = true;
   const d = aviso('Armando el informe…', 'info');
   try {
+    if(modoLocal()){const actual=await informeActual(RECEPCION,versionElegida);if(actual.actual){d.remove();if(!await descargarInforme(actual.informe))return;aviso('Informe actualizado descargado. Se reutilizaron los documentos vigentes; no se creó otra versión ni se envió correo.','ok');return;}}
     const informe=modoLocal()?await iniciarInforme(RECEPCION,'DESCARGA',versionElegida):null;
     if(modoLocal()&&!informe)return;
     const datos = await reunirInforme(RECEPCION, recepcion);
     if(informe)datos.recepcion={...datos.recepcion,informe};
-    const libros = construirLibros(datos, { version: versionElegida });
-    const archivado=informe?await archivarInforme(RECEPCION,informe,libros):null;
+    const libros = informe?.estado==='GENERADO'?[]:construirLibros(datos, { version: versionElegida });
+    const archivado=informe?(informe.estado==='GENERADO'?informe:await archivarInforme(RECEPCION,informe,libros)):null;
     d.remove();
-    if(archivado)await descargarInforme(archivado);else libros.forEach(descargarLibro);
-    const libro = { filas: libros.reduce((a, l) => a + l.filas, 0),
+    if(archivado){if(!await descargarInforme(archivado))return;}else libros.forEach(descargarLibro);
+    const libro = { filas: libros.length?libros.reduce((a, l) => a + l.filas, 0):datos.detalle.length,
                     nombre: libros.map((l) => l.nombre).join(', ') };
 
     const r = resumir(skus);
@@ -1896,6 +1901,7 @@ $('bExportar').addEventListener('click', async () => {
   } finally {
     $('bExportar').disabled = false;
   }
+  }finally{descargaEnCurso=false;}
 });
 
 /**
@@ -1938,8 +1944,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261019-51').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261019-51').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261019-52').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261019-52').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;
@@ -2047,6 +2053,7 @@ $('bCerrar').addEventListener('click', async () => {
       'warn', 'No se puede cerrar todavía');
   }
 
+  if(modoLocal()){try{if(!await revisarPlanCorreos(RECEPCION))return;}catch(e){aviso(e.message,'err','No se pudo revisar el cierre por embarque');return;}}
   if (modoLocal()) {
     try {
       const pendientes = await pedirOperacion(`/recepciones/${encodeURIComponent(RECEPCION)}/pendientes-cierre?limite=1`);
@@ -2074,7 +2081,7 @@ $('bCerrar').addEventListener('click', async () => {
 
   // Antes esto no se preguntaba y la variable «version» ni siquiera existía:
   // cerrar lanzaba un error y la recepción no llegaba a cerrarse nunca.
-  const version = await elegirVersion('¿Qué informe se genera?');
+  const version = await elegirVersion('¿Qué informe se genera?',modoLocal()&&(recepcion.origenes?.length||0)>1);
   if (!version) return;
 
   let recientes = [];
@@ -2108,6 +2115,8 @@ $('bCerrar').addEventListener('click', async () => {
   const modoRemitente = modoLocal() ? (envio.seleccion||'PERSONAL') : null;
   if(modoLocal()){try{const ruta=`/recepciones/${encodeURIComponent(RECEPCION)}/correo`,v=await pedirOperacion(ruta);await pedirOperacion(ruta,{metodo:'PUT',cuerpo:{version:v.version,campos:{...v.campos,destinatarios:destinatarios.trim()}}});}catch(e){aviso(e.message,'err');return;}}
 
+  if(modoLocal()&&(recepcion.origenes?.length||0)>1){try{for(const origen of recepcion.origenes){const ruta=`/recepciones/${encodeURIComponent(RECEPCION)}/correo`,v=await pedirOperacion(ruta+'?origen='+encodeURIComponent(origen));if(!v.campos.destinatarios)await pedirOperacion(ruta,{metodo:'PUT',cuerpo:{origen,version:v.version,campos:{...v.campos,destinatarios:destinatarios.trim()}}});}}catch(e){aviso(e.message,'err');return;}}
+
   if(modoLocal()&&modoEntrega!=='MANUAL'&&destinatarios.trim()){try{await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/comprobar-envio`,{cuerpo:{correoEditable:true,remitenteConfirmado:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo}});}catch(e){if(!await confirmar({titulo:'Google no confirmó la conexión',texto:esc(e.message)+'<p>Puedes preparar el correo manual con sus documentos finales. No se programará el envío automático.</p>',aceptar:'Continuar con envío manual',cancelar:'Volver'}))return;modoEntrega='MANUAL';}}
 
   let correoRevisado=null;
@@ -2126,24 +2135,24 @@ $('bCerrar').addEventListener('click', async () => {
     // Un archivo POR packing list: si la recepción consolidó dos listas, salen
     // dos archivos, cada uno con las filas de la suya. Quien recibe cada uno
     // espera el suyo, no un libro con las dos hojas que tenga que separar.
-    const libros = construirLibros(datos, { version });
+    const libros = informe?.estado==='GENERADO'?[]:construirLibros(datos, { version });
     const filas = libros.reduce((a, l) => a + l.filas, 0);
     const destino = destinoEnDrive(recepcion);
     d.remove();
 
     if (modoLocal()) {
       d = aviso('Guardando informes y preparando la entrega al ejecutivo…', 'info');
-      const archivado=await archivarInforme(RECEPCION,informe,libros);
+      const archivado=informe.estado==='GENERADO'?informe:await archivarInforme(RECEPCION,informe,libros);
       correoRevisado=await abrirCorreo(RECEPCION,{confirmarEnvio:true,modoEntrega});
       if(!correoRevisado){d.remove();return;}
       modoEntrega=correoRevisado.modoEntrega;
       const entrega = await finalizarConEntrega(RECEPCION, {
         informeId:informe.id,confirmarEnviadoManual:correoRevisado.confirmarEnviadoManual,motivoManual:correoRevisado.motivoManual,
-        destinatarios: correoRevisado.destinatarios.trim(), correoVersion:correoRevisado.correoVersion, modoRemitente, modoEntrega,
+        correos:correoRevisado.correos,destinatarios: correoRevisado.destinatarios.trim(), correoVersion:correoRevisado.correoVersion, modoRemitente, modoEntrega,
         remitenteConfirmado: modoEntrega.startsWith('MANUAL')?usuario.email:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo, ...destino,
         eventos: datos.eventos.map((e) => e.id), exportarSheet,
         duracion: duracionDe(recepcion),
-        adjuntos: libros.map((l) => ({ base64: l.base64, nombre: l.nombre })),
+        adjuntos: [],
         resumen: {
           unidadesEsperadas: r.unidadesEsperadas, unidadesFisicas: r.unidadesFisicas,
           exactitud: r.exactitud, ok: r.ok, faltante: r.faltante,
@@ -2152,7 +2161,7 @@ $('bCerrar').addEventListener('click', async () => {
       });
       recepcion.estado = 'CERRADA';
       aplicarEstado();
-      try{await descargarInforme(archivado);}catch(e){aviso('La recepción ya se finalizó. '+e.message+'; puedes descargar desde el historial.','warn');}
+      const descargar=document.createElement('button');descargar.className='b-sec';descargar.textContent='Descargar documentos finales';descargar.onclick=()=>descargarInforme(archivado).catch(e=>aviso(e.message,'err'));aviso('Documentos finales conservados. Descárgalos cuando los necesites desde Informes.','ok').append(descargar);
       d.remove();
       if(modoEntrega==='MANUAL_ENVIADO'){aviso('Recepción cerrada. Envío manual declarado y documentos conservados; no se programó correo automático.','ok','Cierre completado');return;}
       if(modoEntrega==='MANUAL'){aviso('Recepción cerrada y documentos finales guardados. No se programó correo automático. Copia el correo, adjunta los documentos y registra después el envío manual.','info','Preparado para envío manual');await abrirCorreo(RECEPCION,{entregaId:entrega.id});return;}

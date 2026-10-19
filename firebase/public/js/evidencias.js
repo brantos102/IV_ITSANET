@@ -1,11 +1,11 @@
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-51';
-import {organizarFotos} from './organizar-fotos.js?v=20261019-51';
-import {verImagen} from './visor-imagen.js?v=20261019-51';
-import {manualFotos} from './manual-fotos.js?v=20261019-51';
-import {pedir} from './local.js?v=20261019-51';
-import {comprimir} from './imagen.js?v=20261019-51';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-51';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-51';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-52';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-52';
+import {verImagen} from './visor-imagen.js?v=20261019-52';
+import {manualFotos} from './manual-fotos.js?v=20261019-52';
+import {pedir} from './local.js?v=20261019-52';
+import {comprimir} from './imagen.js?v=20261019-52';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-52';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-52';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -37,7 +37,7 @@ export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=
   return urls;
 }
 
-export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo='',supervisor=false}) {
+export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo='',supervisor=false,origen=''}) {
   const [ingreso,rec]=await Promise.all([operacion(`/recepciones/${encodeURIComponent(recepcion)}/ingreso`),pedir(`/recepciones/${encodeURIComponent(recepcion)}`)]);
   const final=tipo==='ESTADO_FINAL',panoramica=tipo==='PANORAMICA'&&!sku&&categoria==='RECEPCION';
   if(sku&&categoria==='GENERAL')categoria='VALIDACION';
@@ -74,6 +74,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   $('[data-camara-windows]').onclick=ev=>{if(ocupado){ev.preventDefault();return;}$('[data-estado]').textContent='Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a esta evidencia.';};
   if(supervisor){const organizar=document.createElement('button');organizar.className='b-sec';organizar.textContent='Organizar fotos';organizar.onclick=()=>{if(!ocupado)organizarFotos(recepcion,()=>cargar()).catch(e=>$('[data-estado]').textContent=e.message);};$('[data-temporales]').parentElement.append(organizar);const a=document.createElement('a');a.href=`/api/operacion/recepciones/${encodeURIComponent(recepcion)}/evidencias.xlsx`;a.className='b-sec';a.textContent='▦';a.title='Descargar Excel de trazabilidad de fotos: SKU, tipo, autor y carpeta Drive';a.setAttribute('aria-label',a.title);a.style.cssText='flex:0 0 42px;min-width:42px;width:42px;display:grid;place-items:center';d.querySelector('.acciones').append(a);}
   $('[data-categoria]').value=categoria;
+  $('[data-origen]').value=(rec.origenes||[]).includes(origen)?origen:'';
   $('[data-tipo]').value=tipo || (sku ? 'ITEM_NOVEDAD' : 'EXTERIOR_BULTO');
   if(sku){
     $('[data-tipo]').closest('label').hidden=true;$('[data-categoria]').closest('details').hidden=true;

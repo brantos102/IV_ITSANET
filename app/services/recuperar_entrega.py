@@ -19,6 +19,8 @@ def _grupo(db, codigo, bloquear=False):
 
 
 def _validar(db, e, grupo, *, manual_confirmado=False):
+    if (e.datos.get('correoManual') or {}).get('estado')=='DECLARADO_ENVIADO':
+        raise HTTPException(409,'El supervisor ya declaró el envío manual. Se conserva el historial y no se reenvían estos documentos.')
     d = expandir(e.datos)
     r = m.obtener(db, e.recepcion)
     if r.estado != 'CERRADA':
@@ -79,7 +81,7 @@ def recuperar(db, ident, datos, usuario):
     vista(db, ident, usuario, modo_solicitado)
     e = db.get(AppEntrega, ident)
     codigo = e.recepcion
-    destinatarios=entregas.validar_destinatarios(datos.get('destinatarios',e.datos.get('destinatarios','')))
+    destinatarios=entregas.validar_destinatarios(datos.get('destinatarios',e.datos.get('destinatarios',''))) if not e.datos.get('correosPorOrigen') else e.datos.get('destinatarios','')
     if 'destinatarios' in datos and not destinatarios:raise HTTPException(422,'Indica al menos un destinatario para enviar los documentos finales.')
     correo, modo = remitentes.elegir(db, codigo, {'modoRemitente': modo_solicitado,
         'remitenteConfirmado': datos.get('remitenteConfirmado', '')}, usuario)
@@ -124,9 +126,20 @@ def recuperar(db, ident, datos, usuario):
         'destinatariosAnteriores':e.datos.get('destinatarios',''),'destinatarios':destinatarios}
     completo = expandir(e.datos)
     from app.services.correo_redactado import congelar
-    correo_final = congelar(db,codigo,datos,usuario,ident)
+    lote={}
+    if e.datos.get('correosPorOrigen'):
+        from app.services.correos_embarque import congelar as congelar_lote
+        items=congelar_lote(db,m.obtener(db,codigo),datos,usuario,db.get(AppInforme,e.datos['informeId']),ident)
+        # Un cambio de remitente no modifica mensajes ya confirmados.
+        if any(c.get('estado')=='ENTREGADA' for c in items) and correo!=(e.datos.get('remitente') or e.usuario):
+            raise HTTPException(409,'Conserva la cuenta remitente que inició este lote; algunos embarques ya están confirmados.')
+        lote={'correosPorOrigen':items,'correoManual':None}
+        if e.datos.get('correoManual'):recuperacion['preparacionManualAnterior']=e.datos['correoManual']
+        destinatarios=','.join(dict.fromkeys(v for c in items for v in c['destinatarios'].split(',')))
+        correo_final=None
+    else:correo_final = congelar(db,codigo,datos,usuario,ident)
     e.datos = compactar({**completo, 'remitente': correo, 'modoRemitente': modo,'destinatarios':destinatarios,'confirmarConCuenta':correo,
-        **({'correoFinal':correo_final} if correo_final else {}),
+        **({'correoFinal':correo_final} if correo_final else {}),**lote,
         'destino': {k: v for k, v in destino.items() if k != 'supervisor'},
         'resumen': entregas.resumen_final(completo['skus'], completo['eventos']),
         'revisionMotivo': None, 'recuperaciones': [*e.datos.get('recuperaciones', []), recuperacion]})

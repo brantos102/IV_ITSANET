@@ -14,9 +14,19 @@ from app.services import ajustes, calidad, app_modelo as m
 router=APIRouter(prefix='/api/operacion',tags=['gestion'])
 
 @router.get('/recepciones/{codigo}/correo')
-def correo_vista(codigo:str,entregaId:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+def correo_vista(codigo:str,entregaId:str='',origen:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
     from app.services.correo_redactado import vista
-    return vista(db,codigo,op.email or op.usuario,entregaId)
+    return vista(db,codigo,op.email or op.usuario,entregaId,origen)
+
+@router.get('/recepciones/{codigo}/correos-embarques')
+def plan_correos(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correos_embarque import plan
+    return plan(db,codigo)
+
+@router.put('/recepciones/{codigo}/correos-embarques')
+def guardar_plan_correos(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correos_embarque import guardar_plan
+    return guardar_plan(db,codigo,datos,op.email or op.usuario)
 
 @router.put('/recepciones/{codigo}/correo')
 def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
@@ -181,6 +191,16 @@ def reintentar_drive(codigo: str, db: Session = Depends(get_db), op=Depends(ajus
 def historial_informes(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('exportarInformes'))):
     from app.services.informes import historial
     return historial(db,codigo)
+
+@router.get('/recepciones/{codigo}/informe-actual')
+def informe_actual(codigo:str,formato:str='envio-ampliado',db:Session=Depends(get_db),_=Depends(ajustes.requiere('exportarInformes'))):
+    from app.services.informes import actual
+    return actual(db,codigo,formato)
+
+@router.get('/informes/{ident}/descarga')
+def descargar_conjunto(ident:str,origen:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('exportarInformes'))):
+    from app.services.descarga_informes import descargar
+    return descargar(db,ident,origen,op.email or op.usuario)
 
 @router.post('/recepciones/{codigo}/informes')
 def reservar_informe(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('exportarInformes'))):

@@ -7,7 +7,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import select
-from app.models import (AppInforme,AppEvento,AppIngreso,AppCopiaDrive,AppEvidencia,
+from app.models import (AppInforme,AppEvento,AppIngreso,AppCopiaDrive,AppEvidencia,AppArchivo,
     ProductoCodigo,AppSku)
 from app.services import app_modelo as m, ajustes, archivos
 
@@ -45,6 +45,27 @@ def huella(db,r):
     eventos=list(db.scalars(select(AppEvento.id).where(AppEvento.recepcion==r.codigo).order_by(AppEvento.id).with_for_update()))
     d={'eventos':eventos,'formatos':r.formatos,'estado':r.estado,'metadatos':metadatos(db,r.codigo)}
     return hashlib.sha256(json.dumps(d,sort_keys=True,default=str,separators=(',',':')).encode()).hexdigest()
+
+
+def huella_contenido(db,r):
+    eventos=list(db.scalars(select(AppEvento.id).where(AppEvento.recepcion==r.codigo,
+        AppEvento.tipo.not_in(['CIERRE','EXPORT','AUDITORIA'])).order_by(AppEvento.id)))
+    d={'eventos':eventos,'cliente':r.cliente,'descripcion':r.descripcion,'formatos':r.formatos,'metadatos':metadatos(db,r.codigo)}
+    return hashlib.sha256(json.dumps(d,sort_keys=True,default=str,separators=(',',':')).encode()).hexdigest()
+
+
+def actual(db,codigo,formato):
+    if formato not in ('envio','envio-ampliado','auditable'):raise HTTPException(422,'Formato inválido')
+    r=m.obtener(db,codigo)
+    candidatos=list(db.scalars(select(AppInforme).where(AppInforme.recepcion==r.codigo)
+        .order_by(AppInforme.numero.desc()).limit(100)))
+    huella_actual=huella_contenido(db,r)
+    for f in candidatos:
+        if f.datos.get('formato')==formato and f.datos.get('huellaContenido')==huella_actual and f.datos.get('archivos'):
+            documentos=[db.get(AppArchivo,a['id']) for a in f.datos['archivos']]
+            if documentos and all(a and a.recepcion==r.codigo and archivos.ruta(a).is_file() for a in documentos):
+                return {'actual':True,'informe':documento(f)}
+    return {'actual':False,'informe':None}
 
 
 def documento(f):
@@ -103,7 +124,7 @@ def reservar(db,codigo,datos,usuario):
     ahora=datetime.now(ZoneInfo('America/Guayaquil'))
     numero=ultimo.numero+1 if ultimo else 1
     f=AppInforme(id=uuid4().hex,clave=clave,recepcion=r.codigo,numero=numero,tipo=tipo,estado='RESERVADO',
-        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}','formato':formato})
+        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}','formato':formato,'huellaContenido':huella_contenido(db,r)})
     db.add(f);ajustes.auditar(db,usuario,'INFORME_RESERVADO',r.codigo,{'informeId':f.id,'numero':numero,'tipo':tipo});db.commit()
     return documento(f)
 

@@ -1,9 +1,10 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261019-51';
-import {confirmar,elegir} from './modal.js?v=20261019-51';
+import {pedir,nuevoIdentificador} from './local.js?v=20261019-52';
+import {confirmar,elegir} from './modal.js?v=20261019-52';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base=c=>'/recepciones/'+encodeURIComponent(c)+'/informes';
 export const historialInformes=c=>api(base(c));
+export const informeActual=(c,formato)=>api('/recepciones/'+encodeURIComponent(c)+'/informe-actual?formato='+encodeURIComponent(formato));
 export async function iniciarInforme(c,tipo,formato=null){
  const historial=await historialInformes(c),ultimo=historial[0];
  if(ultimo){const fecha=new Date(ultimo.creadoEn).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}),descarga=ultimo.descargas?.at(-1);
@@ -16,6 +17,17 @@ export async function iniciarInforme(c,tipo,formato=null){
  return api(base(c),{cuerpo:{clave:nuevoIdentificador(),tipo,formato,ultimoVisto:ultimo?.id||null}});
 }
 export async function archivarInforme(c,informe,libros){return api(base(c)+'/'+informe.id,{metodo:'PUT',cuerpo:{adjuntos:libros.map(l=>({nombre:l.nombre,base64:l.base64,origen:l.origen}))}});}
-export async function descargarInforme(informe){
- for(const f of informe.archivos){const r=await fetch(f.url,{credentials:'same-origin'});if(!r.ok)throw Error('No se pudo descargar '+f.nombre);const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=f.nombre;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}
+const descargasEnCurso=new Set();
+export async function descargarInforme(informe,{origen=null}={}){
+ if(descargasEnCurso.has(informe.id))return;descargasEnCurso.add(informe.id);
+ try{
+  const fs=informe.archivos||[];if(!fs.length)throw Error('El informe aún no tiene documentos preparados.');
+  if(origen===null&&fs.length>1){origen=await elegir({titulo:'Descargar documentos preparados',texto:'Se conserva esta versión. Elige un packing list o un solo ZIP con todos; no se envía correo.',opciones:[{valor:'',titulo:'Todos los packing lists · un ZIP'},...fs.map(f=>({valor:f.origen,titulo:f.origen||f.nombre,detalle:f.nombre}))]});if(origen===null)return false;}
+  const r=await fetch('/api/operacion/informes/'+informe.id+'/descarga'+(origen?'?origen='+encodeURIComponent(origen):''),{credentials:'same-origin'});
+  if(!r.ok)throw Error('No se pudo descargar el informe ('+r.status+'). Revisa los documentos o genera su versión actualizada.');
+  const cd=r.headers.get('Content-Disposition')||'',utf=cd.match(/filename\*=UTF-8''([^;]+)/i),simple=cd.match(/filename="?([^";]+)/i);
+  const nombre=utf?decodeURIComponent(utf[1]):simple?.[1]||fs[0].nombre;
+  const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=nombre;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  return true;
+ }finally{descargasEnCurso.delete(informe.id);}
 }

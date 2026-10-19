@@ -170,10 +170,11 @@ def descripcion(db, archivo, evidencia=None):
         return bulto+(ruta_evidencia(v) if v and v.sku else []) if bulto else ruta_evidencia(v)
     d['ruta'] = ruta(e)
     d['sku'] = e.sku if e else ''
+    d['origen'] = e.origen if e else ''
     d['categoria'] = e.categoria if e else 'GENERAL'
     d['rutaSku'] = ruta(e) if e and e.sku else []
     d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen):
-        {'categoria':v.categoria,'sku':v.sku or '', 'ruta':ruta(v),
+        {'categoria':v.categoria,'sku':v.sku or '', 'origen':v.origen or '', 'ruta':ruta(v),
          'rutaSku':ruta(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
         for v in es}.values())
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,

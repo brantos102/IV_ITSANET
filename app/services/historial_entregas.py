@@ -31,15 +31,30 @@ def declarar(db,ident,datos,usuario):
     v=vista(db,r.codigo,usuario,ident)
     if datos.get('correoVersion')!=v['version']:
         raise HTTPException(409,'El correo revisado cambió o corresponde a otro usuario. Actualiza antes de declarar el envío manual.')
+    items=[]
+    if e.datos.get('correosPorOrigen'):
+        revisados=datos.get('correos')
+        pendientes={c['origen'] for c in e.datos['correosPorOrigen'] if c['estado']!='ENTREGADA'}
+        if not isinstance(revisados,list) or len(revisados)!=len(pendientes) or any(not isinstance(c,dict) or not isinstance(c.get('origen'),str) for c in revisados) or {c['origen'] for c in revisados}!=pendientes:
+            raise HTTPException(422,'Confirma por separado cada correo de embarque pendiente antes de declarar el envío manual.')
+        for c in e.datos['correosPorOrigen']:
+            if c['estado']=='ENTREGADA':items.append(c);continue
+            actual=vista(db,r.codigo,usuario,ident,c['origen'])
+            revisado=next(x for x in revisados if x['origen']==c['origen'])
+            if revisado.get('confirmarEnviado') is not True or revisado.get('correoVersion')!=actual['version']:
+                raise HTTPException(409,'Verifica Enviados y actualiza el correo de '+c['origen'])
+            items.append({**c,'estado':'MANUAL_DECLARADO','destinatarios':actual['campos']['destinatarios'],
+                'correoFinal':{k:actual[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot')}})
     registro={'estado':'DECLARADO_ENVIADO','usuario':usuario,'fecha':utcnow().isoformat(),
         'motivo':motivo,'version':v['version'],'entregaId':ident,
         'destinatarios':e.datos.get('destinatarios',''),'asunto':v['asunto']}
+    if items:registro['destinatarios']=','.join(dict.fromkeys(v for c in items for v in c['destinatarios'].split(',')))
     for g in grupo:
         if g.estado in ('PENDIENTE','REVISION'):
             g.estado='CANCELADA';g.datos={**g.datos,'anulacion':{'usuario':usuario,'fecha':registro['fecha'],
                 'motivo':'Correo ya enviado manualmente; automático detenido. '+motivo}}
     final=expandir(e.datos).get('correoFinal') or {k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive')}
-    e.datos={**e.datos,'correoManual':registro,'correoFinal':final}
+    e.datos={**e.datos,'correoManual':registro,**({'correosPorOrigen':items,'destinatarios':registro['destinatarios']} if items else {'correoFinal':final})}
     if e.datos.get('informeId'):
         f=db.get(AppInforme,e.datos['informeId'])
         if f:f.estado='MANUAL_DECLARADO'
