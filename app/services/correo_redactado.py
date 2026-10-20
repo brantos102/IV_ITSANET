@@ -90,28 +90,13 @@ def _fuente(db, codigo, entrega_id='',origen=''):
             and (d.get('correoManual') or {}).get('estado')!='DECLARADO_ENVIADO'):
         from app.services.validacion_depot import validar
         fuente['validacionDepot']=validar(db,r.cliente,[s['sku'] for s in skus])
+    from app.services.agrupacion_correo import configuracion,grupos,filtrar
+    ls=d.get('lineas',[]) if e else m.leer_coleccion(db,codigo,'lineas',actual=True)
+    config=d.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':d.get('asignacionesAdicionales',{})}) if e else configuracion(db,codigo)
     if origen:
-        from app.services.agrupacion_correo import configuracion,grupos,filtrar
-        ls=d.get('lineas',[]) if e else m.leer_coleccion(db,codigo,'lineas',actual=True)
-        config=d.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':d.get('asignacionesAdicionales',{})}) if e else configuracion(db,codigo)
         permitidos=[g['id'] for g in grupos(ls,(d.get('recepcion') or {}).get('origenes',r.origenes or []) if e else (r.origenes or []),config)]
         if origen not in permitidos:raise HTTPException(422,'El packing list no pertenece a esta recepción o entrega archivada.')
         fuente=filtrar(fuente,ls,origen,config)
-        from app.models import AppEvidencia
-        from app.services.drive import carpeta_sku, ubicacion_evidencia
-        from app.services.fotos_embarques import informacion
-        fuente_fotos=informacion(db,codigo)
-        carpetas=[]
-        for foto in fuente['fotos']:
-            copia=db.get(AppCopiaDrive,foto['archivoId'])
-            if not copia or copia.estado!='COPIADA':continue
-            for v in foto.get('rutasVinculadas',[]):
-                ev=db.get(AppEvidencia,v.get('evidenciaId')) if v.get('evidenciaId') else None
-                propio=copia.datos.get('vinculosPorEvidencia',{}).get(v.get('evidenciaId'),{})
-                if not ev or ubicacion_evidencia(db,ev,copia,fuente=fuente_fotos)['estado']!='SINCRONIZADA':continue
-                url=carpeta_sku(copia,ev,db=db,fuente=fuente_fotos) if ev.sku else propio.get('carpeta')
-                if url and url not in carpetas:carpetas.append(url)
-        fuente['carpetasEvidencias']=carpetas
     if not e:
         from app.services import contenedores
         embarques=None
@@ -122,6 +107,8 @@ def _fuente(db, codigo, entrega_id='',origen=''):
                 (config.get('modo')=='EMBARQUE' and grupo_id(embarque(l,config))==origen) or
                 (config.get('modo') not in ('RECEPCION','EMBARQUE') and (l.get('origen') or 'PRINCIPAL')==origen)}
         fuente['contenedores']=contenedores.para_embarques(db,codigo,embarques)
+    from app.services.enlaces_correo import enlaces
+    fuente['enlacesCarpetas']=enlaces(db,codigo,ls,config,origen)
     return r, e, fuente, archivos
 
 
@@ -224,9 +211,8 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             '<thead><tr>' + ''.join('<th style="padding:9px 7px;background:#eaf0f8;color:#33465f;border-bottom:1px solid #d1ddeb;font-size:11px">' + c + '</th>' for c in cab) + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>')
         imagenes = [f for f in fotos if f['archivoId'] not in usadas and _novedad_foto(f, resumen, categoria)]
         return '<section style="margin:22px 0"><h3 style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ' + color + ';background:#f2f5fa;font-size:16px;color:#1e3655">' + titulo + '</h3>' + contenido + fotos_html(imagenes, categoria) + '</section>'
-    carpetas = fuente.get('carpetasEvidencias',list(dict.fromkeys(f.get('carpetaRecepcion') or f.get('carpeta', '') for f in fuente['fotos'])))
-    links = ''.join('<p style="margin:8px 0">' + _link(u, 'Consultar carpeta de evidencias →') + '</p>' for u in carpetas if u)
-    if not links and fuente.get('carpetaGeneral'):links='<p>'+_link(fuente['carpetaGeneral'],'Abrir carpeta general de la recepción →')+'</p>'
+    links=''.join('<p style="margin:6px 0">'+_link(v['url'],v['texto'])+'</p>' for v in fuente.get('enlacesCarpetas',[]))
+    if links:links='<section style="padding:12px 16px;background:#eef4fb;border-radius:8px;margin:16px 0"><b>Evidencias en Drive</b>'+links+'</section>'
     html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#22334a;max-width:960px;margin:0 auto;background:#ffffff">'
     html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(fuente.get('nombreGrupo') or fuente.get('origen') or codigo) + '</h2><p style="margin:0;color:#e2ecf9">Recepción: '+escape(codigo)+' · Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
     if fuente.get('origen'):html += '<p style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
@@ -319,7 +305,7 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     if not congelado or not (e and (e.estado in ('ENTREGADA','PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA')):
         final['respuestaGmail']=respuesta if not respuesta_otra else None
     g = integraciones.google(db, usuario)
-    version = _hash([57, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
+    version = _hash([59, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}

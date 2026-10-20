@@ -54,9 +54,10 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables','carpetasCorreo'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
         typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'].concat(accionEnviarInforme_.versionServidor>=3?['correoEditable']:[]) : []) };
   }
+  if(p.operacion==='carpetasCorreo')return carpetasCorreoServidor_(p.datos||{});
   if(p.operacion==='gmailBuscar'||p.operacion==='gmailMensaje') {
     if(typeof gmailConsultarServidor_!=='function')throw new Error('Publica Gmail.gs antes de consultar el buzón.');
     return gmailConsultarServidor_(p.operacion,p.datos||{});
@@ -344,4 +345,19 @@ function fotosCorreoServidor_(archivos, manifiesto, seleccion) {
     } catch (e) { /* La foto completa permanece enlazada en Drive. */ }
     return foto;
   });
+}
+
+/** Resolver solo carpetas existentes de una recepción; nunca crea ni mueve. */
+function carpetasCorreoServidor_(p){
+  if(!/^[A-Za-z0-9_-]{5,128}$/.test(String(p.carpetaRecepcionId||''))||!Array.isArray(p.rutas)||p.rutas.length>512)throw new Error('Consulta de carpetas inválida.');
+  p.rutas.forEach(function(r){if(!Array.isArray(r)||r.length>3||r.some(function(x){return typeof x!=='string'||!x.trim()||x.length>180;})||r.length&&!(r[0]==='EMBARQUES'&&r.length>=2||r.length===1&&['PNC','SOBRANTE','FALTANTE'].indexOf(r[0])>=0)||r.length===3&&['PNC','SOBRANTE','FALTANTE'].indexOf(r[2])<0)throw new Error('Ruta de carpeta de correo inválida.');});
+  var recepcion=DriveApp.getFolderById(p.carpetaRecepcionId),carpetas=[],prefijos={'[]':recepcion};
+  function resolver(r){
+    var k=JSON.stringify(r);if(Object.prototype.hasOwnProperty.call(prefijos,k))return prefijos[k];
+    var padre=resolver(r.slice(0,-1)),c=null;
+    if(padre){var encontrados=padre.getFoldersByName(r[r.length-1]);if(encontrados.hasNext())c=encontrados.next();}
+    prefijos[k]=c;return c;
+  }
+  p.rutas.forEach(function(r){var c=resolver(r);if(c)carpetas.push({ruta:r,url:c.getUrl()});});
+  return {exito:true,carpeta:recepcion.getUrl(),carpetas:carpetas};
 }

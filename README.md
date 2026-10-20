@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 59: enlaces de Drive claros por recepción, embarque y categoría](docs/ENLACES_DRIVE_DEL_CORREO_59.md).
+
 [Versión 58: miniaturas acotadas y diagnóstico de consulta Gmail para supervisores](docs/MINIATURAS_Y_CONSULTA_GMAIL_58.md).
 
 [Versión 57: respuesta al hilo original de Gmail, contenedores y revisión de embarques](docs/CORREO_GMAIL_CONTENEDORES_Y_LECTURA_57.md).

@@ -38,6 +38,11 @@ def correo_vista(codigo:str,entregaId:str='',origen:str='',db:Session=Depends(ge
     from app.services.correo_redactado import vista
     return vista(db,codigo,op.email or op.usuario,entregaId,origen)
 
+@router.post('/recepciones/{codigo}/correo/enlaces-drive')
+def actualizar_enlaces_correo(codigo:str,db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.enlaces_correo import actualizar
+    return actualizar(db,codigo,op.email or op.usuario)
+
 @router.get('/recepciones/{codigo}/correos-embarques')
 def plan_correos(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
     from app.services.agrupacion_correo import vista

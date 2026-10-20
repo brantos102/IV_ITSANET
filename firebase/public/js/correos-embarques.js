@@ -1,7 +1,7 @@
-import {pedir} from './local.js?v=20261019-58';
-import {elegir,pedirDatos} from './modal.js?v=20261019-58';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-58';
-import {prepararDocumentosPorEmbarque} from './informes-registro.js?v=20261019-58';
+import {pedir} from './local.js?v=20261019-59';
+import {elegir,pedirDatos} from './modal.js?v=20261019-59';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-59';
+import {prepararDocumentosPorEmbarque} from './informes-registro.js?v=20261019-59';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 

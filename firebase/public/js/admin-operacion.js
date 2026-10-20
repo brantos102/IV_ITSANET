@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261019-58';
-import {operacion,esc} from './evidencias.js?v=20261019-58';
-import {pedirDatos,confirmar} from './modal.js?v=20261019-58';
+import {pedir} from './local.js?v=20261019-59';
+import {operacion,esc} from './evidencias.js?v=20261019-59';
+import {pedirDatos,confirmar} from './modal.js?v=20261019-59';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;

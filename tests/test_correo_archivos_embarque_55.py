@@ -30,7 +30,7 @@ def test_correo_datos_contenedor_fecha_y_ubicacion_editables_por_embarque(client
     assert db.query(AppEntrega).count()==0
 
 
-def test_hojas_y_correo_reciben_solo_links_propios_del_sku_y_adicional(cliente,db,multi):
+def test_hojas_conservan_links_sku_y_correo_no_enumera_sus_carpetas(cliente,db,multi):
     m.registrar_conteo(db,multi,'sup',{'id':'extra55','sku':'EXTRA55','cantidad':2,'pallet':'A01',
         'origen':'PRINCIPAL','motivo':'Fuera de packing list','confirmarSobrante':True})
     ruta,p,d=plan(cliente,multi)
@@ -52,8 +52,9 @@ def test_hojas_y_correo_reciben_solo_links_propios_del_sku_y_adicional(cliente,d
     db.rollback()
     q='/api/operacion/recepciones/'+multi+'/correo'
     a=cliente.get(q,params={'origen':ga}).json();b=cliente.get(q,params={'origen':gb}).json()
-    assert esperados['MISMO','EMB-A'] in a['html'] and esperados['MISMO','EMB-B'] not in a['html']
-    assert esperados['MISMO','EMB-B'] in b['html'] and esperados['EXTRA55','EMB-A'] not in b['html']
+    # El correo usa carpetas contenedoras; el Excel conserva el enlace directo por SKU.
+    assert all(url not in a['html'] for url in esperados.values())
+    assert all(url not in b['html'] for url in esperados.values())
     assert 'EXTRA55' not in b['html']
 
 

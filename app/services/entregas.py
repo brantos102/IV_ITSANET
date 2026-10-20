@@ -323,7 +323,7 @@ def llamar_conexion(operacion, clave, datos, destino):
     # La consulta de estado no sube archivos ni envía correo. Debe devolver
     # un diagnóstico antes de agotar el tiempo del proxy público.
     timeout = (httpx.Timeout(12,connect=5) if operacion=='miniatura' else
-        httpx.Timeout(25,connect=8) if operacion in ('estado','gmailBuscar','gmailMensaje') else 120)
+        httpx.Timeout(25,connect=8) if operacion in ('estado','gmailBuscar','gmailMensaje','carpetasCorreo') else 120)
     with httpx.Client(timeout=timeout, follow_redirects=True) as cliente:
         try:
             respuesta = cliente.post(destino['url'],

@@ -1,12 +1,12 @@
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261019-58';
-import {verImagen} from './visor-imagen.js?v=20261019-58';
-import {pedir} from './local.js?v=20261019-58';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261019-58';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261019-58';
-import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261019-58';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261019-58';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261019-58';
-import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-58';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261019-59';
+import {verImagen} from './visor-imagen.js?v=20261019-59';
+import {pedir} from './local.js?v=20261019-59';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261019-59';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261019-59';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261019-59';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261019-59';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261019-59';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-59';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {

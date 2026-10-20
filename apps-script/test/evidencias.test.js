@@ -52,4 +52,11 @@ test('una imagen compartida entre embarques confirma carpetas propias con el mis
  assert.notEqual(urls[0],urls[1]);assert.equal([...e.archivos.values()].filter(f=>f.contenido?.length).length,1);
  assert.equal([...e.archivos.values()].filter(f=>f.target===r.fileId&&!f.trashed).length,1);
 });
+test('índice de correo resuelve padres y categorías existentes sin crear ni mover fotos',()=>{
+ const e=entorno(),p={...e.datos,ruta:['EMBARQUES','EMB-A','PNC','SKU1'],rutaSku:['EMBARQUES','EMB-A','PNC','SKU1']};
+ const foto=e.g.archivoServidor_(clave,p),f=e.archivos.get(foto.fileId),padre=f.padre,n=e.archivos.size;
+ const r=e.g.carpetasCorreoServidor_({carpetaRecepcionId:foto.carpetaRecepcionUrl.split('/').pop(),rutas:[[],['EMBARQUES','EMB-A'],['EMBARQUES','EMB-A','PNC'],['EMBARQUES','EMB-A','FALTANTE'],['EMBARQUES','EMB-B']]});
+ assert.equal(r.carpetas.length,3);assert.equal(r.carpetas[1].url,padre.padre.padre.getUrl());assert.equal(r.carpetas[2].url,padre.padre.getUrl());assert.equal(f.padre,padre);assert.equal(e.archivos.size,n);assert.equal(padre.padre.padre.hijos.length,1);assert.equal(padre.padre.padre.padre.hijos.length,1);
+ assert.throws(()=>e.g.carpetasCorreoServidor_({carpetaRecepcionId:foto.carpetaRecepcionUrl.split('/').pop(),rutas:[['PNC','SKU1']]}),/inválida/);
+});
 console.log(`${pasadas} pasadas, ${falladas} falladas`);process.exitCode=falladas?1:0;
