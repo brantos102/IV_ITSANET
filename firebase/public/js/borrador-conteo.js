@@ -1,5 +1,5 @@
 /** Borrador local por cuenta/recepción/pestaña. Nunca envía ni registra unidades. */
-import {nuevoIdentificador} from './local.js?v=20261019-57';
+import {nuevoIdentificador} from './local.js?v=20261019-58';
 let conexion;
 function abrir(){
  if(!globalThis.indexedDB)return Promise.reject(new Error('No hay almacenamiento local de fotos en este navegador.'));

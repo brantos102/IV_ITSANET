@@ -25,6 +25,7 @@ const SUITES = [
   ['Operacion — fechas locales y etiquetas Zebra', 'firebase/test/operacion.test.mjs'],
   ['Gestión — incidencias y columnas del informe', 'firebase/test/gestion.test.mjs'],
   ['Ingreso — formatos variables y copias de etiquetas', 'firebase/test/ingreso.test.mjs'],
+  ['Navegador — miniaturas privadas y concurrencia acotada', 'firebase/test/miniaturas.test.mjs'],
   ['Navegador — páginas: sintaxis, imports y referencias', 'firebase/test/paginas.test.mjs'],
   ['Formato — el informe devuelve el packing list igual', 'firebase/test/formato.test.mjs'],
   ['Referencia — motor de conteo', 'firebase/functions/test/conteo.test.js'],

@@ -2,8 +2,24 @@
 function gmailApiServidor_(ruta, opciones) {
   var respuesta = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/me/' + ruta,
     Object.assign({headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true}, opciones||{}));
-  if(respuesta.getResponseCode()>=300)throw new Error('Gmail no autorizó esta operación. Reautoriza los permisos de Gmail y comprueba que Gmail API esté habilitada en el proyecto Google. No repitas un envío sin revisar Enviados.');
-  return JSON.parse(respuesta.getContentText());
+  return gmailRespuestaServidor_(respuesta);
+}
+function gmailRespuestaServidor_(respuesta){
+  var codigo=respuesta.getResponseCode(),r;
+  try{r=JSON.parse(respuesta.getContentText());}catch(e){throw new Error('GMAIL_RESPUESTA: Google no devolvió una respuesta Gmail válida.');}
+  if(codigo>=300){
+    // Clasificar sin reenviar el cuerpo de Google, tokens, URLs ni correos.
+    var error=JSON.stringify(r.error||{}).toLowerCase(),motivo='GMAIL_CONEXION';
+    if(error.indexOf('service_disabled')>=0||error.indexOf('accessnotconfigured')>=0||error.indexOf('has not been used')>=0||error.indexOf('is disabled')>=0)motivo='GMAIL_API_DESACTIVADA';
+    else if(error.indexOf('scope')>=0)motivo='GMAIL_PERMISOS';
+    else if(error.indexOf('domainpolicy')>=0||error.indexOf('domain_policy')>=0)motivo='GMAIL_POLITICA';
+    else if(codigo===401)motivo='GMAIL_AUTORIZACION';
+    else if(codigo===429||error.indexOf('ratelimit')>=0||error.indexOf('quota')>=0)motivo='GMAIL_CUOTA';
+    else if(codigo===403)motivo='GMAIL_PERMISOS';
+    else if(codigo===400&&error.indexOf('precondition')>=0)motivo='GMAIL_BUZON';
+    throw new Error(motivo+': Google no confirmó la operación Gmail.');
+  }
+  return r;
 }
 
 function verificarGmailServidor() {
@@ -29,7 +45,9 @@ function gmailConsultarServidor_(operacion, datos) {
     var q=String(datos.busqueda||'').trim();
     if(!q||q.length>250)throw new Error('Escribe una búsqueda de hasta 250 caracteres.');
     var lista=gmailApiServidor_('messages?maxResults=15&q='+encodeURIComponent(q+' -in:trash -in:spam'));
-    return {exito:true,mensajes:(lista.messages||[]).map(function(m){return gmailFicha_(gmailApiServidor_('messages/'+gmailId_(m.id)+'?format=metadata'));}),hayMas:!!lista.nextPageToken};
+    var consultas=(lista.messages||[]).slice(0,15).map(function(m){return {url:'https://gmail.googleapis.com/gmail/v1/users/me/messages/'+gmailId_(m.id)+'?format=metadata',headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true};});
+    var mensajes=consultas.length?UrlFetchApp.fetchAll(consultas).map(function(r){return gmailFicha_(gmailRespuestaServidor_(r));}):[];
+    return {exito:true,mensajes:mensajes,hayMas:!!lista.nextPageToken};
   }
   var m=gmailApiServidor_('messages/'+gmailId_(datos.mensajeId)+'?format=full'),ficha=gmailFicha_(m),textos=[];
   function partes(p){

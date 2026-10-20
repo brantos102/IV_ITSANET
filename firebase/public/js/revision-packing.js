@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261019-57';
-import {confirmar} from './modal.js?v=20261019-57';
+import {pedir} from './local.js?v=20261019-58';
+import {confirmar} from './modal.js?v=20261019-58';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function revisarPackingGuardado(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo)+'/revisar-packing',v=await pedir(ruta,{base:'/api/operacion'}),d=document.createElement('dialog');d.className='modal-operativa';

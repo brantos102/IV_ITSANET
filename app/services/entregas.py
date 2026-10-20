@@ -273,6 +273,17 @@ class RevisionEntrega(Exception):
 def _error_google(respuesta):
     """Traducir solo categorías conocidas; nunca reenviar textos con secretos."""
     mensaje = str(respuesta.get('mensaje') or respuesta.get('error') or '').lower()
+    gmail={
+        'GMAIL_API_DESACTIVADA':'Habilita Gmail API en el proyecto Google Cloud asociado al Apps Script de tu cuenta. Conserva el /exec y la clave HMAC.',
+        'GMAIL_PERMISOS':'Faltan permisos de Gmail en tu cuenta Google. Añade gmail.readonly y gmail.send al manifiesto, ejecuta verificarGmailServidor y publica una Nueva versión del mismo /exec.',
+        'GMAIL_POLITICA':'La política de Google Workspace bloquea Gmail para esta aplicación. TI debe autorizarla para tu cuenta.',
+        'GMAIL_AUTORIZACION':'Google no confirmó tu autorización Gmail. Ejecuta verificarGmailServidor con tu cuenta y acepta los permisos.',
+        'GMAIL_BUZON':'La cuenta Google ejecutora no tiene un buzón Gmail habilitado. TI debe revisar su servicio o licencia de Gmail.',
+        'GMAIL_CUOTA':'Google limitó temporalmente las consultas Gmail. Espera antes de volver a buscar; no se envió correo.',
+        'GMAIL_RESPUESTA':'El puente no devolvió una respuesta Gmail válida. Revisa su publicación y vuelve a consultar.',
+        'GMAIL_CONEXION':'Google no confirmó el acceso Gmail. Verifica la cuenta, Gmail API y los permisos de tu despliegue.'}
+    for codigo,texto in gmail.items():
+        if codigo.lower()+':' in mensaje:return codigo+': '+texto
     if 'proxy.gs' in mensaje or 'servidor.gs' in mensaje:
         return 'El puente tiene archivos de versiones diferentes. ADMIN debe actualizar Proxy.gs y Servidor.gs juntos y publicar una nueva versión del mismo despliegue /exec. Se conserva la clave guardada.'
     if 'firma' in mensaje or 'hmac' in mensaje:
@@ -311,7 +322,8 @@ def llamar_conexion(operacion, clave, datos, destino):
     # Solo el servidor contacta Google; nunca se envia esta clave al navegador.
     # La consulta de estado no sube archivos ni envía correo. Debe devolver
     # un diagnóstico antes de agotar el tiempo del proxy público.
-    timeout = httpx.Timeout(25, connect=8) if operacion == 'estado' else 120
+    timeout = (httpx.Timeout(12,connect=5) if operacion=='miniatura' else
+        httpx.Timeout(25,connect=8) if operacion in ('estado','gmailBuscar','gmailMensaje') else 120)
     with httpx.Client(timeout=timeout, follow_redirects=True) as cliente:
         try:
             respuesta = cliente.post(destino['url'],

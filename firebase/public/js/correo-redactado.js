@@ -1,11 +1,12 @@
-import {editarContenedores} from './contenedores.js?v=20261019-57';
-import {elegirHiloGmail} from './gmail-hilos.js?v=20261019-57';
-import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-57';
-import {abrirEvidencias} from './evidencias.js?v=20261019-57';
-import {verImagen} from './visor-imagen.js?v=20261019-57';
-import {pedir} from './local.js?v=20261019-57';
-import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-57';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-57';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261019-58';
+import {editarContenedores} from './contenedores.js?v=20261019-58';
+import {elegirHiloGmail} from './gmail-hilos.js?v=20261019-58';
+import {abrirCorreosEmbarque} from './correos-embarques.js?v=20261019-58';
+import {abrirEvidencias} from './evidencias.js?v=20261019-58';
+import {verImagen} from './visor-imagen.js?v=20261019-58';
+import {pedir} from './local.js?v=20261019-58';
+import {confirmar,pedirDatos,elegir,tecladoDialogo} from './modal.js?v=20261019-58';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-58';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const campos={asunto:'Asunto',destinatarios:'Para · correos separados por coma',saludo:'Saludo',introduccion:'Presentación',notas:'Observaciones adicionales y ubicación · Depot se informa automáticamente',despedida:'Despedida',firma:'Firma'};
 Object.assign(campos,{contenedor:'Identificador del contenedor · ejemplo C1',tipoContenedor:'Formato del contenedor · ejemplo 1x40',fechaOperacion:'Fecha de operación · AAAA-MM-DD',palletsTotal:'Número de pallets · ejemplo 48',ubicacion:'Ubicación de la mercadería · ejemplo CALLEKL',palletDesde:'Desde el pallet · ejemplo A01',palletHasta:'Hasta el pallet · ejemplo A09',condicionUbicacion:'Condición de ubicación · ejemplo Hasta finalizar el contenedor'});
@@ -41,22 +42,24 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  d.querySelector('form').onsubmit=ev=>ev.preventDefault();
  tecladoDialogo(d,{accion:'[data-guardar]',campos:'[data-campo]'});
  function pintar(){
+  limpiarMiniaturas(d);
   gmailPendiente=undefined;const hilo=v.respuestaGmail;$('[data-hilo]').textContent=hilo?'Respuesta al hilo: '+hilo.asunto+' · Cuenta: '+hilo.cuenta:v.respuestaOtraCuenta?'El hilo elegido pertenece a otro supervisor. Selecciona uno de tu cuenta o prepara un correo nuevo.':'Se enviará un correo nuevo. Puedes vincular el mensaje original del packing list.';
   for(const selector of ['[data-hilo-elegir]','[data-hilo-quitar]','[data-contenedores]'])$(selector).disabled=v.soloLectura||v.vistaArchivada;
   for(const [k,t] of Object.entries(campos)){const input=$(`[data-campo="${k}"]`);input.value=v.campos[k]||'';input.disabled=v.soloLectura;input.setAttribute('aria-label',t);}
   $('[data-campo=asunto]').readOnly=!!v.respuestaGmail;
   $('[data-conexion]').textContent=`De: ${v.remitente} · ${v.conexionConfigurada?'Conexión guardada; se comprobará al enviar.':'Sin conexión Google guardada. Puedes copiar el correo y enviarlo manualmente.'}`;
   $('[data-sobre]').innerHTML='<p><b>Para:</b> '+esc(v.campos.destinatarios||'Sin destinatarios')+'</p><p><b>Asunto:</b> '+esc(v.asunto)+'</p>';
-  const vista=new DOMParser().parseFromString(v.html,'text/html');vista.querySelectorAll('img[data-archivo]').forEach(img=>{img.src='/api/app/archivos/'+img.dataset.archivo+'?miniatura=1';img.onclick=()=>verImagen({url:'/api/app/archivos/'+img.dataset.archivo,nombre:img.alt});});$('[data-vista]').replaceChildren(...[...vista.body.children].map(e=>document.importNode(e,true)));$('[data-vista]').querySelectorAll('img[data-archivo]').forEach(img=>img.onclick=()=>verImagen({url:'/api/app/archivos/'+img.dataset.archivo,nombre:img.alt}));
+  const vista=new DOMParser().parseFromString(v.html,'text/html');vista.querySelectorAll('img[data-archivo]').forEach(img=>{img.removeAttribute('src');img.onclick=()=>verImagen({url:'/api/app/archivos/'+img.dataset.archivo,nombre:img.alt});});$('[data-vista]').replaceChildren(...[...vista.body.children].map(e=>document.importNode(e,true)));$('[data-vista]').querySelectorAll('img[data-archivo]').forEach(img=>{const url='/api/app/archivos/'+img.dataset.archivo;img.onclick=()=>verImagen({url,nombre:img.alt});img.onerror=()=>{img.hidden=true;const enlace=document.createElement('a');enlace.href=url;enlace.target='_blank';enlace.rel='noopener';enlace.textContent='Abrir foto original · vista previa no disponible';img.after(enlace);};cargarMiniatura(img,url);});
   $('[data-gmail]').href=v.respuestaGmail?'https://mail.google.com/mail/?authuser='+encodeURIComponent(v.respuestaGmail.cuenta)+'#all/'+encodeURIComponent(v.respuestaGmail.threadId):'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(v.campos.destinatarios)+'&su='+encodeURIComponent(v.asunto);
   $('[data-gmail]').textContent=v.respuestaGmail?'Abrir hilo original en Gmail':'Abrir Gmail';
   $('[data-archivos]').innerHTML=v.archivos.length?v.archivos.map(a=>`<p><a class="b-sec" href="${esc(a.url)}" download>${esc(a.nombre)}</a></p>`).join(''):'<p>Genera el informe desde Informes → Descargar informe para revisar sus archivos. No se adjuntan archivos automáticamente al copiar el correo.</p>';
   $('[data-fotos-modo]').value=v.presentacion?.fotosModo||'NOVEDADES';$('[data-totales]').checked=v.presentacion?.mostrarTotales===true;
   $('[data-fotos-modo]').disabled=v.soloLectura;$('[data-totales]').disabled=v.soloLectura;$('[data-agregar-fotos]').hidden=v.soloLectura||v.permiteFotoNueva===false;
   const elegidas=new Set(v.fotosSeleccionadas||[]);
-  $('[data-elegir-fotos]').innerHTML=v.fotos.map(f=>`<article><button type="button" data-ver-foto="${esc(f.id)}" title="Ampliar esta fotografía"><img src="${esc(f.url)}?miniatura=1" alt="${esc(f.sku||'Foto de recepción')}" loading="lazy"></button><label><input type="checkbox" data-foto-id="${esc(f.id)}" ${elegidas.has(f.id)?'checked':''} ${v.soloLectura?'disabled':''}><span>${esc(f.vinculos?.length?[...new Set(f.vinculos.map(x=>(x.sku||'Recepción')+' · '+x.categoria))].join(' / '):(f.sku||'Recepción')+' · '+f.categoria)}<small>${esc(f.nombre)}${f.enDrive?'':' · Drive pendiente'}${f.contextoCompartido?' · SKU presente en varios embarques: revisa si corresponde':''}</small></span></label></article>`).join('')||'<p class="mini">No hay fotos guardadas. Puedes registrar una foto nueva o continuar sin imágenes.</p>';
+  $('[data-elegir-fotos]').innerHTML=v.fotos.map(f=>`<article><button type="button" data-ver-foto="${esc(f.id)}" title="Ampliar esta fotografía"><img data-miniatura="${esc(f.url)}" alt="${esc(f.sku||'Foto de recepción')}" loading="lazy"></button><label><input type="checkbox" data-foto-id="${esc(f.id)}" ${elegidas.has(f.id)?'checked':''} ${v.soloLectura?'disabled':''}><span>${esc(f.vinculos?.length?[...new Set(f.vinculos.map(x=>(x.sku||'Recepción')+' · '+x.categoria))].join(' / '):(f.sku||'Recepción')+' · '+f.categoria)}<small>${esc(f.nombre)}${f.enDrive?'':' · Drive pendiente'}${f.contextoCompartido?' · SKU presente en varios embarques: revisa si corresponde':''}</small></span></label></article>`).join('')||'<p class="mini">No hay fotos guardadas. Puedes registrar una foto nueva o continuar sin imágenes.</p>';
   $('[data-elegir-fotos]').querySelectorAll('[data-ver-foto]').forEach(b=>b.onclick=()=>verImagen(v.fotos.find(f=>f.id===b.dataset.verFoto)));
   $('[data-elegir-fotos]').querySelectorAll('img').forEach(img=>img.onerror=()=>{img.hidden=true;img.parentElement.textContent='Ver foto · vista previa no disponible';});
+  $('[data-elegir-fotos]').querySelectorAll('img[data-miniatura]').forEach(img=>cargarMiniatura(img,img.dataset.miniatura));
   contarFotos();
   $('[data-guardar]').hidden=v.soloLectura;$('[data-edicion]').open=!v.soloLectura;
   $('[data-manual]').hidden=!!origen||confirmarEnvio||v.soloLectura||(!entregaId&&v.manual?.estado!=='PREPARADO');
@@ -102,6 +105,6 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  if(confirmarEnvio&&!revisionEmbarque)$('[data-modo-cierre]').value=modoEntrega;
  $('[data-cerrar]').onclick=async()=>{if(ocupado)return;if(sucio&&!await confirmar({titulo:'¿Cerrar sin guardar?',texto:'Los cambios de redacción no guardados se perderán.',aceptar:'Cerrar sin guardar'}))return;d.close();};
  d.addEventListener('cancel',ev=>{if(sucio||ocupado){ev.preventDefault();if(!ocupado)$('[data-cerrar]').click();}});
- d.addEventListener('close',()=>{resolver(null);d.remove();},{once:true});
+ d.addEventListener('close',()=>{resolver(null);limpiarMiniaturas(d);d.remove();},{once:true});
  return confirmarEnvio?resultado:d;
 }

@@ -1,11 +1,12 @@
-import {verImagen} from './visor-imagen.js?v=20261019-57';
-import {pedir} from './local.js?v=20261019-57';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261019-57';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261019-57';
-import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261019-57';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261019-57';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261019-57';
-import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-57';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261019-58';
+import {verImagen} from './visor-imagen.js?v=20261019-58';
+import {pedir} from './local.js?v=20261019-58';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261019-58';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261019-58';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261019-58';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261019-58';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261019-58';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-58';
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -54,7 +55,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   function inicio(){
     apagar();u=null;conflicto=false;estado('');
     const bs=bultos(),completos=bs.filter(b=>b.concluido).length;
-    $('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><b>${completos} de ${bs.length || recepcion.bultos || 1} bultos registrados</b><button class="b-sec" data-total>Corregir total</button></div>
+    limpiarMiniaturas($('[data-cuerpo]'));$('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><b>${completos} de ${bs.length || recepcion.bultos || 1} bultos registrados</b><button class="b-sec" data-total>Corregir total</button></div>
       <div class="acciones"><button class="b-sec" data-etiquetas>Etiquetas de bultos</button><button class="b-sec" data-finales>Fotos del estado final</button></div>
       <div class="rejilla ingreso-opciones"><label class="campo"><span>Marca</span><input data-marca placeholder="Isuzu, Geely…" value="${esc(ingreso.marca || '')}"></label>
       <label class="campo"><span>Protocolo de fotos</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">Cotidiano / panorámicas</option><option value="SIN_FOTOS">Sin registro fotográfico</option></select></label></div>
@@ -128,9 +129,9 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   }
   async function galeria(){
     const r=await pedir(`${ruta}/imagenes?unidadId=${encodeURIComponent(u.id)}&limite=100`);
-    $('[data-galeria]').replaceChildren();
+    limpiarMiniaturas($('[data-galeria]'));$('[data-galeria]').replaceChildren();
     for(const f of r.archivos){const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
-      const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.alt='Evidencia del bulto '+u.numero;img.loading='lazy';a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};$('[data-galeria]').append(a);}
+      const img=document.createElement('img');cargarMiniatura(img,f.url);img.alt='Evidencia del bulto '+u.numero;img.loading='lazy';a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};$('[data-galeria]').append(a);}
     $('[data-galeria-nota]').textContent=r.total>100 ? `Se muestran las últimas 100 de ${r.total}. Todas se conservan en la galería de recepción.` : `${r.total} imágenes de este bulto y sus cajas.`;
   }
   async function mostrarBulto(){
@@ -138,7 +139,7 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     await refrescar();if(ingreso.protocolo==='SIN_FOTOS'){inicio();return;}u=bultos()[indice];if(!u){inicio();return;}
     leyendo=false;versiones=new Map(ingreso.unidades.map(x=>[x.id,x.version]));
     const hijos=ingreso.unidades.filter(x=>x.padreId===u.id);
-    $('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><h2>Bulto ${u.numero} de ${bultos().length}</h2><button class="b-sec" data-resumen>Resumen</button></div>
+    limpiarMiniaturas($('[data-cuerpo]'));$('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><h2>Bulto ${u.numero} de ${bultos().length}</h2><button class="b-sec" data-resumen>Resumen</button></div>
       <p class="guia-modal">1 · Identifica el bulto si tiene código madre. 2 · Selecciona el tipo de foto y guárdala. 3 · Revisa las fotos guardadas y continúa al siguiente bulto.</p><p data-etiqueta class="etiqueta-madre"></p><div class="camara-bulto"><video data-video playsinline muted></video><p data-error-camara class="mini" hidden></p><button class="b-sec" data-activar>Activar cámara</button></div>
       <div class="acciones ingreso-herramientas"><button class="b-sec" data-escanear>↻ Escanear etiqueta</button><button class="b-sec" data-manual>Escribir código</button></div>
       <label class="campo"><span>Fotos de</span><select data-tipo>${['EXTERIOR_BULTO','ABIERTO_CON_PACKING','ETIQUETA_CAJA','DANO_EMBALAJE','PACKING_INICIAL','PANORAMICA','ADICIONAL'].map(k=>`<option value="${k}">${esc(TIPOS_EVIDENCIA[k])}</option>`).join('')}</select></label>
@@ -200,6 +201,6 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
   }
   $('[data-cerrar]').onclick=cerrar;
   d.addEventListener('cancel',ev=>{ev.preventDefault();cerrar();});
-  d.addEventListener('close',()=>{apagar();window.visualViewport?.removeEventListener('resize',viewport);d.remove();});
+  d.addEventListener('close',()=>{apagar();window.visualViewport?.removeEventListener('resize',viewport);limpiarMiniaturas(d);d.remove();});
   inicio();return d;
 }

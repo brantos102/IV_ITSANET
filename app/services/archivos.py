@@ -3,6 +3,10 @@ import base64
 import binascii
 import hashlib
 import os
+import logging
+import threading
+import time
+from collections import OrderedDict
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,6 +19,21 @@ from app.models import AppArchivo, AppRecepcion, AppArchivoSku
 from app.services.normalize import normalizar_sku
 
 LIMITE = 12 * 1024 * 1024
+_miniaturas_en_curso = threading.BoundedSemaphore(2)
+_fallos_miniaturas = OrderedDict()
+_bloqueo_miniaturas = threading.Lock()
+
+
+def _miniatura_en_pausa(clave):
+    with _bloqueo_miniaturas:
+        return _fallos_miniaturas.get(clave, 0) > time.monotonic()
+
+
+def _pausar_miniatura(clave):
+    with _bloqueo_miniaturas:
+        _fallos_miniaturas[clave] = time.monotonic() + 30
+        _fallos_miniaturas.move_to_end(clave)
+        while len(_fallos_miniaturas) > 256: _fallos_miniaturas.popitem(last=False)
 
 
 def ruta(archivo: AppArchivo) -> Path:
@@ -179,15 +198,35 @@ def miniatura_drive(db, archivo):
     carpeta=DATA_DIR / 'app_miniaturas'
     destino=carpeta / archivo.id
     if destino.is_file():return destino.read_bytes()
+    if ruta(archivo).is_file():
+        conservar_miniatura(archivo)
+        if destino.is_file():return destino.read_bytes()
     copia=db.get(AppCopiaDrive,archivo.id)
     if not copia or not archivo.drive_id:raise HTTPException(404,'Imagen sin copia confirmada en Drive')
+    # Conservar solo valores simples y devolver la conexión MySQL antes de
+    # esperar a Google. Una vista previa no puede bloquear conteos ni Gmail.
+    ident, usuario, file_id = archivo.id, copia.usuario, archivo.drive_id
+    clave=(str(DATA_DIR),ident); puente=(str(DATA_DIR),'puente',usuario)
+    db.rollback()
+    if _miniatura_en_pausa(clave) or _miniatura_en_pausa(puente):
+        raise HTTPException(503,'Vista previa temporalmente no disponible. Abre el original en Drive.')
+    if not _miniaturas_en_curso.acquire(blocking=False):
+        raise HTTPException(503,'Las vistas previas están ocupadas. Abre el original en Drive.')
     try:
-        respuesta=entregas.llamar('miniatura',archivo.id,{'usuario':copia.usuario,'fileId':archivo.drive_id})
+        respuesta=entregas.llamar('miniatura',ident,{'usuario':usuario,'fileId':file_id})
         contenido=respuesta.get('base64') or ''
         if len(contenido)>400000:raise ValueError('miniatura demasiado grande')
         bruto=base64.b64decode(contenido,validate=True)
         if not (bruto.startswith((b'\xff\xd8\xff',b'\x89PNG\r\n\x1a\n')) or bruto.startswith(b'RIFF') and bruto[8:12]==b'WEBP'):raise ValueError('formato de miniatura no válido')
-    except (RuntimeError,ValueError,binascii.Error):
-        raise HTTPException(502,'No se pudo cargar la vista previa privada. Actualiza el puente Google o abre la imagen en Drive.') from None
-    guardar_miniatura(archivo.id,bruto)
+    except Exception as exc:
+        import httpx
+        if not isinstance(exc,(RuntimeError,ValueError,binascii.Error,httpx.HTTPError)):raise
+        _pausar_miniatura(clave)
+        if isinstance(exc,httpx.HTTPError) or isinstance(exc,RuntimeError) and any(p in str(exc).lower() for p in ('puente','despliegue','hmac','clave compartida','no autoriz')):
+            _pausar_miniatura(puente)
+        logging.getLogger('iv_itsanet.miniaturas').warning('Vista previa no disponible archivo=%s causa=%s; el original no se modifica',ident,type(exc).__name__)
+        raise HTTPException(503,'Vista previa temporalmente no disponible. Abre el original en Drive; no vuelvas a subir la foto.') from None
+    finally:
+        _miniaturas_en_curso.release()
+    guardar_miniatura(ident,bruto)
     return bruto

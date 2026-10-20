@@ -82,8 +82,10 @@ export async function pedir(ruta, opciones = {}) {
       headers: opciones.cuerpo ? { 'Content-Type': 'application/json' } : {},
       method: opciones.metodo || (opciones.cuerpo ? 'POST' : 'GET'),
       body: opciones.cuerpo ? JSON.stringify(opciones.cuerpo) : undefined,
+      signal: opciones.signal,
     });
   } catch (e) {
+    if(e.name==='AbortError')throw e; // Solo las consultas que lo solicitan son cancelables.
     throw new ErrorServidor(
       'No hay conexión con el servidor. Comprueba la red del almacén.',
       'SIN_RED',

@@ -414,11 +414,18 @@ def archivo_local(archivo_id: str, miniatura: bool = False, db: Session = Depend
     copia = db.get(AppCopiaDrive, archivo_id)
     if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
         raise HTTPException(410, 'Evidencia retirada por supervisión; se conserva su trazabilidad')
-    if not archivos.ruta(a).is_file():
-        if a.drive_id and a.tipo=='foto' and miniatura:
+    if miniatura and a.tipo=='foto':
+        try:
             bruto=archivos.miniatura_drive(db,a)
-            mime='image/png' if bruto.startswith(b'\x89PNG') else 'image/webp' if bruto.startswith(b'RIFF') else 'image/jpeg'
-            return Response(bruto,media_type=mime,headers={'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'})
+        except HTTPException as exc:
+            if exc.status_code not in (404,502,503):raise
+            # La miniatura es opcional: no presentar un 502 como si se hubiera
+            # perdido el registro o fallado el envío del correo.
+            return Response(status_code=204,headers={'Cache-Control':'private, no-store',
+                'X-ITSANET-Miniatura':'no-disponible','Retry-After':'30'})
+        mime='image/png' if bruto.startswith(b'\x89PNG') else 'image/webp' if bruto.startswith(b'RIFF') else 'image/jpeg'
+        return Response(bruto,media_type=mime,headers={'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'})
+    if not archivos.ruta(a).is_file():
         if a.drive_id:
             return RedirectResponse(f'https://drive.google.com/uc?export=view&id={a.drive_id}', headers={'Cache-Control': 'private, no-store'})
         raise HTTPException(404, 'Archivo no encontrado')

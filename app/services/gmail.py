@@ -1,5 +1,7 @@
 """Consulta explícita de la cuenta propia; no replica el buzón en MySQL."""
 import re
+import logging
+import httpx
 from uuid import uuid4
 from fastapi import HTTPException
 from app.services import mi_correo, integraciones, entregas
@@ -19,7 +21,19 @@ def consultar(db, op, operacion, datos):
             raise HTTPException(409, 'Para responder hilos, añade Gmail.gs y los permisos Gmail de lectura y envío, ejecuta verificarGmailServidor y publica una Nueva versión de tu /exec. El envío de correos nuevos sigue disponible.')
         r = entregas.llamar_conexion(operacion, uuid4().hex, {'usuario': email, **datos}, conexion)
     except HTTPException: raise
-    except Exception:
+    except RuntimeError as exc:
+        mensaje=str(exc)
+        encontrado=re.match(r'^(GMAIL_[A-Z_]+): (.+)$',mensaje)
+        if encontrado:
+            raise HTTPException(409,{'codigo':encontrado[1],'mensaje':encontrado[2]}) from None
+        raise HTTPException(502,mensaje+' Esta consulta no envía correo.') from None
+    except httpx.TimeoutException:
+        raise HTTPException(504,{'codigo':'GMAIL_TIEMPO','mensaje':'La consulta Gmail agotó el tiempo de espera. Puedes cerrar y volver a buscar; no se envió correo ni se modificó el buzón.'}) from None
+    except httpx.RequestError as exc:
+        logging.getLogger('iv_itsanet.gmail').warning('Consulta Gmail sin conexión causa=%s',type(exc).__name__)
+        raise HTTPException(502,{'codigo':'GMAIL_RED','mensaje':'El servidor no pudo conectar con Google. Revisa salida HTTPS, DNS y la publicación del puente; no cambies la clave HMAC por este aviso. No se envió correo.'}) from None
+    except Exception as exc:
+        logging.getLogger('iv_itsanet.gmail').warning('Consulta Gmail no confirmada causa=%s',type(exc).__name__)
         raise HTTPException(502, 'Gmail no confirmó la consulta. Revisa los permisos y la publicación de tu cuenta; no se envió ningún correo.') from None
     return {**r, 'cuenta': email}
 

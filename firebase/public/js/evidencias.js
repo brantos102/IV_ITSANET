@@ -1,13 +1,14 @@
-import {elegirDestinoFoto} from './destino-foto.js?v=20261019-57';
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-57';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-57';
-import {organizarFotos} from './organizar-fotos.js?v=20261019-57';
-import {verImagen} from './visor-imagen.js?v=20261019-57';
-import {manualFotos} from './manual-fotos.js?v=20261019-57';
-import {pedir} from './local.js?v=20261019-57';
-import {comprimir} from './imagen.js?v=20261019-57';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-57';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-57';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261019-58';
+import {elegirDestinoFoto} from './destino-foto.js?v=20261019-58';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-58';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-58';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-58';
+import {verImagen} from './visor-imagen.js?v=20261019-58';
+import {manualFotos} from './manual-fotos.js?v=20261019-58';
+import {pedir} from './local.js?v=20261019-58';
+import {comprimir} from './imagen.js?v=20261019-58';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-58';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-58';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -130,14 +131,14 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     if(consultando){filtroPendiente=filtroPendiente||reset;return;}
     consultando=true;
     try {
-    if(reset){offset=0;$('[data-imagenes]').replaceChildren();}
+    if(reset){offset=0;limpiarMiniaturas($('[data-imagenes]'));$('[data-imagenes]').replaceChildren();}
     const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent($('[data-filtro-sku]').value.trim())}&contexto=false&categoriaEvidencia=${encodeURIComponent($('[data-filtro-categoria]').value)}&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':panoramica?'&tipoEvidencia=PANORAMICA':''}`);
     resumenSku=r.sincronizacion;
     for(const [i,f] of r.archivos.entries()) {
       if(final && !(f.evidencias || []).some(e=>e.tipo==='ESTADO_FINAL'))continue;
       const card=document.createElement('article');
       const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
-      const img=document.createElement('img');img.src=f.url+'?miniatura=1';img.loading='lazy';img.alt=f.nombre;a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};card.append(a);
+      const img=document.createElement('img');cargarMiniatura(img,f.url);img.loading='lazy';img.alt=f.nombre;a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};card.append(a);
       const p=document.createElement('p');p.className='mini';p.textContent=`${offset+i+1}/${r.total} · ${f.nombre} · ${f.almacen}`;card.append(p);
       const registro=document.createElement('p');registro.className='mini';registro.textContent=`Registro ${f.secuencia?'#'+String(f.secuencia).padStart(5,'0')+' · ':''}${f.registradaPor||''} · ${f.creadoEn?new Date(f.creadoEn).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):''}`;card.append(registro);
       const tags=document.createElement('p');tags.className='mini';tags.textContent=(f.evidencias || []).map(e=>`${e.categoria}${sku&&e.sku===sku&&e.categoria!==categoria?' · Histórica':''}${e.sku?' · '+e.sku:''} · ${TIPOS_EVIDENCIA[e.tipo] || e.tipo}${e.origen ? ' · Packing list '+e.origen : ''}${e.embarque?' · Embarque '+e.embarque:' · General / sin embarque asignado'}`).join(' / ');card.append(tags);
@@ -221,6 +222,6 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   const temporizador=supervisor?setInterval(()=>{if(d.open&&!document.hidden&&!ocupado&&!consultando)
     actualizarDrive(true).catch(e=>{if(d.open)$('[data-estado-drive]').textContent=e.message;});},5000):null;
   const antesDeSalir=ev=>{if(ocupado||elegidas.length){ev.preventDefault();ev.returnValue='';}};window.addEventListener('beforeunload',antesDeSalir);
-  d.addEventListener('cancel',ev=>{ev.preventDefault();cerrar();});d.addEventListener('close',()=>{window.removeEventListener('beforeunload',antesDeSalir);liberarVistas();clearInterval(temporizador);d.remove();});
+  d.addEventListener('cancel',ev=>{ev.preventDefault();cerrar();});d.addEventListener('close',()=>{window.removeEventListener('beforeunload',antesDeSalir);liberarVistas();clearInterval(temporizador);limpiarMiniaturas(d);d.remove();});
   try{await cargar();}catch(e){$('[data-estado]').textContent=e.message;}return d;
 }
