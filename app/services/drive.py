@@ -62,12 +62,15 @@ def carpeta_sku(j,e,*,db=None,fuente=None):
     return None
 
 
-def resumen_fotos(db, codigo):
+def resumen_fotos(db, codigo, *, ids=None):
     """Estado de todas las fotos guardadas, también panorámicas y finales."""
-    filas = db.execute(select(AppArchivo, AppCopiaDrive).outerjoin(AppCopiaDrive,
-        AppCopiaDrive.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
-        AppArchivo.tipo == 'foto'))
     resumen = {'guardadas': 0, 'copiadas': 0, 'pendientes': 0, 'procesando': 0, 'requierenAyuda': 0}
+    if ids is not None and not ids:return resumen
+    consulta = select(AppArchivo, AppCopiaDrive).outerjoin(AppCopiaDrive,
+        AppCopiaDrive.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
+        AppArchivo.tipo == 'foto')
+    if ids is not None:consulta=consulta.where(AppArchivo.id.in_(ids))
+    filas=db.execute(consulta)
     from app.services.fotos_embarques import informacion
     fuente=informacion(db,codigo)
     evidencias={}

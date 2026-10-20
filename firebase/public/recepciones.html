@@ -2,17 +2,17 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261019-56"></script>
+<script src="./js/arranque.js?v=20261019-57"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261019-56">
+<link rel="stylesheet" href="./css/marca.css?v=20261019-57">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261019-56"></script>
-<script src="./vendor/JsBarcode.all.min.js?v=20261019-56"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261019-57"></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261019-57"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -96,7 +96,7 @@
       <label class="campo"><span>Código SKU *</span><select id="mapSku"></select></label>
       <label class="campo"><span>Cantidad declarada *</span><select id="mapCantidad"></select></label>
       <label class="campo"><span>Descripción</span><select id="mapDescripcion"></select></label>
-      <label class="campo"><span>Embarque</span><select id="mapEmbarque"></select></label></div>
+      <label class="campo"><span>Embarque</span><select id="mapEmbarque"></select></label><label class="campo"><span>Contenedor del producto</span><select id="mapContenedor"></select></label></div>
     <button id="bAplicarFormato" class="b-sec">Aplicar formato y volver a analizar</button>
     <button id="bGuardarFormato" class="b-sec oculto">Guardar formato del cliente</button>
   </details>
@@ -153,27 +153,28 @@
 </div>
 
 <script type="module">
-import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261019-56';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261019-56';
-import {configurarClientes} from './js/clientes-operacion.js?v=20261019-56';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261019-56';
-import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261019-56';
-import { mostrarAviso } from './js/notificaciones.js?v=20261019-56';
-import { observarSesion, modoLocal } from './js/auth.js?v=20261019-56';
+import {prepararSeleccionContenedores} from './js/packing-contenedores.js?v=20261019-57';
+import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261019-57';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261019-57';
+import {configurarClientes} from './js/clientes-operacion.js?v=20261019-57';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261019-57';
+import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261019-57';
+import { mostrarAviso } from './js/notificaciones.js?v=20261019-57';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261019-57';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261019-56';
-import { Proxy } from './js/proxy.js?v=20261019-56';
-import { resumir } from './js/conteo.js?v=20261019-56';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261019-56';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261019-56';
-import { leerCodigos } from './js/codigos.js?v=20261019-56';
-import { pedir } from './js/local.js?v=20261019-56';
-import { abrirIngreso } from './js/ingreso.js?v=20261019-56';
-import {editarRecepcion} from './js/editar-recepcion.js?v=20261019-56';
-import { operacion } from './js/evidencias.js?v=20261019-56';
+} from './js/datos.js?v=20261019-57';
+import { Proxy } from './js/proxy.js?v=20261019-57';
+import { resumir } from './js/conteo.js?v=20261019-57';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261019-57';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261019-57';
+import { leerCodigos } from './js/codigos.js?v=20261019-57';
+import { pedir } from './js/local.js?v=20261019-57';
+import { abrirIngreso } from './js/ingreso.js?v=20261019-57';
+import {editarRecepcion} from './js/editar-recepcion.js?v=20261019-57';
+import { operacion } from './js/evidencias.js?v=20261019-57';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -353,6 +354,12 @@ $('fArchivo').addEventListener('change', async (ev) => {
         <tbody>${muestra}</tbody></table></div>
       <p class="mini" style="margin-top:8px">Primeras 5 líneas de ${resultadoArchivo.lineas.length}.</p>`;
     $('bSubir').disabled = false;
+    prepararSeleccionContenedores(resultadoArchivo,$('vistaPrevia'),seleccion=>{
+      resultadoArchivo=seleccion;$('bSubir').disabled=!seleccion;
+      if(seleccion&&(!$('fOrigen').value.trim()||$('fOrigen').dataset.automatico===$('fOrigen').value)){
+        const detectado=seleccion.embarques.join(', ').slice(0,40);$('fOrigen').value=detectado;$('fOrigen').dataset.automatico=detectado;
+      }
+    });
 
     // El mismo archivo reenviado por correo, renombrado con la fecha o guardado
     // dos veces acaba validándose dos veces. Se mira el contenido, no el nombre:
@@ -375,7 +382,7 @@ $('fArchivo').addEventListener('change', async (ev) => {
 });
 
 function actualizarOpcionesColumnas(encabezados,mapa={}){
- for(const [id,rol] of [['mapSku','sku'],['mapCantidad','cantidad'],['mapDescripcion','descripcion'],['mapEmbarque','embarque']]){
+ for(const [id,rol] of [['mapSku','sku'],['mapCantidad','cantidad'],['mapDescripcion','descripcion'],['mapEmbarque','embarque'],['mapContenedor','contenedor']]){
   const sel=$(id),anterior=sel.value;sel.replaceChildren(new Option(['sku','cantidad'].includes(rol)?'Selecciona la columna obligatoria':'Sin columna',''));
   encabezados.forEach((t,i)=>sel.append(new Option(XLSX.utils.encode_col(i)+' · '+t,XLSX.utils.encode_col(i))));
   const detectado=Object.entries(mapa).find(([,v])=>v===rol)?.[0];sel.value=detectado!==undefined?XLSX.utils.encode_col(Number(detectado)):anterior;
@@ -391,7 +398,7 @@ $('bAplicarFormato').onclick=()=>{
   try{
     const columnas={};
     for(const id of ['mapSku','mapCantidad'])if(!$(id).value){$(id).focus();throw Error('Selecciona la columna de '+(id==='mapSku'?'SKU':'cantidad')+' antes de aplicar el formato.');}
-    for(const [id,campo] of [['mapSku','sku'],['mapCantidad','cantidad'],['mapDescripcion','descripcion'],['mapEmbarque','embarque']]){
+    for(const [id,campo] of [['mapSku','sku'],['mapCantidad','cantidad'],['mapDescripcion','descripcion'],['mapEmbarque','embarque'],['mapContenedor','contenedor']]){
       const col=$(id).value.trim().toUpperCase();if(!col)continue;
       if(!/^[A-Z]{1,3}$/.test(col))throw new Error('Usa letras de columna: A, B, AA…');
       const indice=XLSX.utils.decode_col(col);if(columnas[indice])throw new Error('Dos campos no pueden usar la misma columna.');columnas[indice]=campo;

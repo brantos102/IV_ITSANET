@@ -1,0 +1,38 @@
+// Protocolo y MIME reales con Google simulado. No usa cuentas ni correos reales.
+const fs=require('fs'),vm=require('vm'),path=require('path'),crypto=require('crypto');
+let pasadas=0,falladas=0;
+const ok=(v,m='Condición falsa')=>{if(!v)throw Error(m);};
+function test(n,f){try{f();pasadas++;}catch(e){falladas++;console.log('FALLA '+n+': '+e.stack);}}
+function entorno(){
+ const secreto='clave-simulada-'.repeat(4),props=new Map([['SERVIDOR_HMAC',secreto]]),archivos=new Map(),llamadas=[];let nuevos=0,fallar=false;
+ const blob=(b,t='text/plain',n='')=>({getBytes:()=>Buffer.from(b),getContentType:()=>t,getName:()=>n,getDataAsString:()=>Buffer.from(b).toString()});
+ const carpeta={getName:()=> 'Pruebas',getId:()=> 'carpeta-prueba',getFilesByName(n){const f=archivos.get(n);return {hasNext:()=>!!f,next:()=>f};},createFile(b){let contenido=b.getDataAsString();const f={getBlob:()=>blob(contenido),setContent:v=>contenido=v};archivos.set(b.getName(),f);return f;},getUrl:()=> 'https://drive.google.com/folders/prueba'};
+ const mensaje={id:'abcdef0123456789',threadId:'fedcba9876543210',snippet:'Resumen',payload:{mimeType:'multipart/mixed',headers:[
+  {name:'Subject',value:'Packing · contenedor recibido'},{name:'From',value:'Cliente <ejecutivo@example.test>'},
+  {name:'To',value:'supervisor@example.test'},{name:'Message-ID',value:'<original@cliente.test>'},{name:'References',value:'<anterior@cliente.test>'}],parts:[
+  {mimeType:'text/plain',body:{data:Buffer.from('Texto original <script>no ejecutar</script>').toString('base64url')}},
+  {mimeType:'text/html',body:{data:Buffer.from('<script>no ejecutar</script>').toString('base64url')}},
+  {mimeType:'application/xlsx',filename:'packing.xlsx'}]}};
+ const g={Buffer,PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k),setProperty:(k,v)=>props.set(k,v)})},CacheService:{getScriptCache:()=>({})},
+  Session:{getEffectiveUser:()=>({getEmail:()=> 'supervisor@example.test'})},LockService:{getScriptLock:()=>({waitLock(){},releaseLock(){}})},
+  ScriptApp:{getOAuthToken:()=> 'token-simulado',requireAllScopes(){},AuthMode:{FULL:'FULL'}},
+  MailApp:{sendEmail(){nuevos++;},getRemainingDailyQuota:()=>100},DriveApp:{getFolderById:()=>carpeta},
+  Utilities:{Charset:{UTF_8:'UTF-8'},getUuid:()=>crypto.randomUUID(),base64Encode:v=>Buffer.from(v).toString('base64'),base64EncodeWebSafe:v=>Buffer.from(v).toString('base64url'),base64Decode:v=>Buffer.from(v,'base64'),base64DecodeWebSafe:v=>Buffer.from(v,'base64url'),newBlob:blob,computeHmacSha256Signature:(v,k)=>[...crypto.createHmac('sha256',k).update(v).digest()]},
+  UrlFetchApp:{fetch(url,op){llamadas.push({url,op});if(url.endsWith('messages/send')&&fallar)throw Error('Confirmación interrumpida');let r=url.endsWith('messages/send')?{id:'123456789abcdef0',threadId:mensaje.threadId}:url.includes('messages?')?{messages:[{id:mensaje.id}],nextPageToken:'hay-mas'}:mensaje;return {getResponseCode:()=>200,getContentText:()=>JSON.stringify(r)};}}};
+ vm.createContext(g);for(const f of ['Proxy.gs','Servidor.gs','Gmail.gs'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../proxy',f),'utf8'),g);
+ g.carpetaRecepcionServidor_=()=>carpeta;g.carpetaDe_=()=>carpeta;g.raizServidor_=()=>carpeta;
+ const peticion=(operacion,datos={})=>{const payload=JSON.stringify({operacion,fecha:Date.now()/1000,clave:'a'.repeat(32),datos:{usuario:'supervisor@example.test',...datos}});return {payload,firma:crypto.createHmac('sha256',secreto).update(payload).digest('hex')};};
+ const seleccion={id:mensaje.id,threadId:mensaje.threadId,cuenta:'supervisor@example.test'};
+ const final={asunto:'Re: '+g.gmailFicha_(mensaje).asunto,html:'<p>Reporte revisado</p>',texto:'Reporte revisado',remitente:'supervisor@example.test',respuestaGmail:seleccion};
+ return {g,llamadas,mensaje,seleccion,final,peticion,fallar:()=>fallar=true,nuevos:()=>nuevos};
+}
+test('buscar Gmail usa API de la cuenta ejecutora y devuelve solo lista acotada',()=>{const e=entorno();const r=e.g.entregaServidor_(e.peticion('gmailBuscar',{busqueda:'RB-prueba'}));ok(r.mensajes.length===1&&r.hayMas);ok(e.llamadas.every(c=>c.url.startsWith('https://gmail.googleapis.com/gmail/v1/users/me/')));ok(e.llamadas.every(c=>!c.op.method));ok(e.nuevos()===0);});
+test('lector devuelve texto y nombres de adjuntos sin ejecutar HTML ni descargar binarios',()=>{const e=entorno();const r=e.g.gmailConsultarServidor_('gmailMensaje',{mensajeId:e.mensaje.id});ok(r.mensaje.texto.startsWith('Texto original'));ok(r.mensaje.adjuntos[0]==='packing.xlsx');ok(!r.mensaje.html);ok(e.llamadas.length===1);});
+test('hilo de otra cuenta e identificadores arbitrarios se bloquean antes del envío',()=>{const e=entorno();for(const s of [{...e.seleccion,cuenta:'ajeno@example.test'},{...e.seleccion,id:'../../profile'}]){let error=false;try{e.g.gmailPrepararRespuesta_(s,{subject:e.final.asunto},'supervisor@example.test');}catch{error=true;}ok(error);}ok(!e.llamadas.some(c=>c.op.method==='post'));});
+test('MIME conserva encabezados del hilo, Unicode y adjuntos del informe propio',()=>{const e=entorno();const p=e.g.gmailPrepararRespuesta_(e.seleccion,{subject:e.final.asunto,to:'ejecutivo@example.test',body:'Reporte',htmlBody:'<p>Reporte</p>',attachments:[e.g.Utilities.newBlob('CONTENIDO PROPIO','application/xlsx','Validacion_R0001.xlsx')]},'supervisor@example.test');const raw=Buffer.from(p.raw,'base64url').toString();ok(p.threadId===e.mensaje.threadId);ok(raw.includes('In-Reply-To: <original@cliente.test>'));ok(raw.includes('<anterior@cliente.test>'));ok(raw.includes('Validacion_R0001.xlsx'));ok(raw.includes(Buffer.from('CONTENIDO PROPIO').toString('base64')));ok(!raw.includes('packing.xlsx'));});
+test('cambiar asunto o mensaje de otro hilo bloquea la respuesta',()=>{const e=entorno();for(const [s,o] of [[e.seleccion,{subject:'Asunto ajeno'}],[{...e.seleccion,threadId:'abcdef0000000000'},{subject:e.final.asunto}]]){let error=false;try{e.g.gmailPrepararRespuesta_(s,o,'supervisor@example.test');}catch{error=true;}ok(error);}ok(!e.llamadas.some(c=>c.op.method==='post'));});
+test('respuesta confirmada se envía una vez por Gmail y nunca usa MailApp',()=>{const e=entorno();const p=e.peticion('finalizar',{codigo:'PRUEBA',destinatarios:'ejecutivo@example.test',archivos:[],correoFinal:e.final});const a=e.g.entregaServidor_(p),b=e.g.entregaServidor_(p);ok(a.estado==='ENTREGADA'&&b.estado==='ENTREGADA');ok(a.gmail.threadId===e.mensaje.threadId);ok(e.llamadas.filter(c=>c.url.endsWith('messages/send')).length===1);ok(e.nuevos()===0);});
+test('confirmación de Gmail interrumpida queda en revisión sin reintentar automáticamente',()=>{const e=entorno();e.fallar();const p=e.peticion('finalizar',{codigo:'PRUEBA',destinatarios:'ejecutivo@example.test',archivos:[],correoFinal:e.final});let fallo=false;try{e.g.entregaServidor_(p);}catch{fallo=true;}ok(fallo);ok(e.g.entregaServidor_(p).revision);ok(e.llamadas.filter(c=>c.url.endsWith('messages/send')).length===1);ok(e.nuevos()===0);});
+test('sin hilo seleccionado se mantiene el envío existente por MailApp',()=>{const e=entorno();const final={...e.final,respuestaGmail:null};e.g.entregaServidor_(e.peticion('finalizar',{codigo:'PRUEBA',destinatarios:'ejecutivo@example.test',archivos:[],correoFinal:final}));ok(e.nuevos()===1);ok(!e.llamadas.length);});
+test('solo se anuncia respuesta Gmail si todos los archivos del puente son compatibles',()=>{const e=entorno();ok(e.g.entregaServidor_(e.peticion('estado')).capacidades.includes('gmailHilos'));e.g.accionEnviarInforme_.versionServidor=3;ok(!e.g.entregaServidor_(e.peticion('estado')).capacidades.includes('gmailHilos'));});
+console.log(`${pasadas} pasadas, ${falladas} falladas`);process.exitCode=falladas?1:0;

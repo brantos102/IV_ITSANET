@@ -258,4 +258,16 @@ await test('auditable muestra resumen de ambas listas y enlaces de adicionales s
  ok(!w.SheetNames.includes('AUDITORIA'));eq(XLSX.utils.sheet_to_json(w.Sheets.RESUMEN).map(r=>r['PACKING LIST']),['PRINCIPAL - RAISZ04453','OTRA']);
  eq(XLSX.utils.sheet_to_json(w.Sheets.RESUMEN).map(r=>r.CONTADO),[1,2]);eq(XLSX.utils.sheet_to_json(w.Sheets.ADICIONALES)[0].EVIDENCIAS,url);
 });
+
+await test('cada archivo por embarque incluye solo sus contenedores y rangos',()=>{
+ const contenedores=[{id:'C1',numero:'ABCU1234567',desde:'E01',hasta:'E60',total:60,posicion:'CALLEKL',embarques:['EMB-A']},{id:'C2',numero:'DEFU7654321',desde:'E61',hasta:'E96',total:36,posicion:'PISO',embarques:['EMB-B']}];
+ const porGrupo=['EMB-A','EMB-B'].map((nombre,i)=>({id:'g'+i,nombre,porOrigen:[{origen:'PRINCIPAL',detalle:[{sku:'SKU'+i,cantidad:1,fisica:1,diferencia:0,embarque:nombre}]}]}));
+ const libros=informe.construirLibros({recepcion:{codigo:'RECEPCION-57',cliente:'PRUEBA',informe:{sufijo:'_R0001'}},porGrupo,detalle:porGrupo.flatMap(g=>g.porOrigen[0].detalle),adicionales:[],eventos:[],contenedores},{version:'envio'});
+ eq(libros.length,2);for(const [i,l] of libros.entries()){const w=XLSX.read(l.base64,{type:'base64'});const filas=XLSX.utils.sheet_to_json(w.Sheets.CONTENEDORES);eq(filas.length,1);eq(filas[0].CONTENEDOR,contenedores[i].numero);ok(l.nombre.startsWith('Validacion_PRUEBA_'));ok(l.nombre.endsWith('_R0001.xlsx'));}ok(libros[0].nombre!==libros[1].nombre);
+});
+await test('dos packing lists del mismo embarque conservan nombres distintos aunque el código se repita',()=>{
+ const porOrigen=['PRINCIPAL','EMB-A'].map(origen=>({origen,detalle:[{sku:'X',cantidad:1,fisica:1,diferencia:0,embarque:'EMB-A'}]}));
+ const libros=informe.construirLibros({recepcion:{codigo:'CLIENTE-EMB-A-19-10-2026',cliente:'PRUEBA',informe:{sufijo:'_R0001'}},porGrupo:[{id:'grupo',nombre:'EMB-A',porOrigen}],detalle:porOrigen.flatMap(l=>l.detalle),adicionales:[],eventos:[]},{version:'envio'});
+ eq(new Set(libros.map(l=>l.nombre)).size,2);ok(libros.every(l=>l.nombre.length<100));ok(libros[0].nombre.includes('_PL01_'));
+});
 resumen();

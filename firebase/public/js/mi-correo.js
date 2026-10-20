@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261019-56';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261019-56';
+import {pedir} from './local.js?v=20261019-57';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261019-57';
 export async function configurarMiCorreo(panel,aviso,{usuarioId=null}={}){
  const ruta=usuarioId?`/integraciones/usuarios/${usuarioId}/google`:'/integraciones/mi-google';
  const datos=await pedir(ruta);
@@ -11,5 +11,6 @@ export async function configurarMiCorreo(panel,aviso,{usuarioId=null}={}){
   try{const r=await pedir(ruta,{metodo:'PUT',cuerpo:{url:$('[data-mi-exec]').value,secreto:$('[data-mi-clave]').value}});$('[data-mi-clave]').value='';$('[data-mi-estado]').textContent=r.mensaje;aviso(r.mensaje+' Revisa tus entregas pendientes y confirma el envío de los documentos finales.','ok');}
   catch(e){$('[data-mi-estado]').textContent=e.message;aviso(e.message,'err');}finally{b.disabled=false;}};
  if(usuarioId){panel.querySelector('h2').textContent='Conexión Google del supervisor';$('[data-mi-remitente]').previousElementSibling.textContent='Remitente vinculado a esta ficha';$('[data-mi-entregas]').hidden=true;$('[data-mi-remitente]').closest('label').querySelector('.mini').textContent='Configuración de esta ficha por ADMIN. La persona propietaria autoriza Google una sola vez; no se necesita su contraseña de Gmail.';}
+ const ayuda=document.createElement('p');ayuda.className='guia-modal';ayuda.textContent='Responder al correo original de Gmail es opcional: TI debe añadir Gmail.gs, los permisos gmail.readonly y gmail.send del manifiesto appsscript-gmail.json y ejecutar verificarGmailServidor con tu cuenta. Después publica una Nueva versión del mismo /exec y verifica esta conexión. No se requiere tu contraseña de Gmail ni instalar claves en tu equipo. El envío de correos nuevos conserva su configuración actual.';panel.append(ayuda);
  panel.classList.remove('oculto');
 }

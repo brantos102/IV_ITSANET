@@ -339,11 +339,8 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
             AppEvidencia.recepcion == r.codigo, AppEvidencia.unidad_id.in_(ids_unidades), AppEvidencia.eliminado_en.is_(None))))
     if sku:
         normal = normalizar_sku(sku)
-        ids = set(db.scalars(select(AppArchivoSku.archivo_id).join(AppArchivo, AppArchivo.id == AppArchivoSku.archivo_id)
-            .where(AppArchivoSku.sku == normal, AppArchivo.recepcion == r.codigo)))
-        # Evidencias anteriores a esta actualización siguen ligadas por la bitácora.
-        for ev in db.scalars(select(AppEvento).where(AppEvento.recepcion == r.codigo, AppEvento.sku == normal)):
-            ids.update(str(url).split('/api/app/archivos/')[-1].split('?')[0] for url in (ev.datos or {}).get('fotos', []))
+        from app.services.fotos_sku import ids_sku
+        ids = ids_sku(db, r.codigo, normal)
         if contexto:
             from app.models import AppEvidencia, AppUnidadLogistica
             todas = list(db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion == r.codigo,
@@ -399,7 +396,9 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
         resultado.append(f)
     entrega = next((e for e in entregas.recientes(db, 30, recepcion=r.codigo)
         if (e.resultado or {}).get('carpeta')), None)
-    return {'total': total, 'archivos': resultado,
+    from app.services.drive import resumen_fotos
+    ids_filtrados = set(db.scalars(consulta.with_only_columns(AppArchivo.id))) if sku else None
+    return {'total': total, 'archivos': resultado, 'sincronizacion': resumen_fotos(db, r.codigo, ids=ids_filtrados) if sku else None,
             'carpetaDrive': (entrega.resultado.get('carpetaFotos') or entrega.resultado.get('carpeta')) if entrega else ''}
 
 

@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261019-56';
-import { db } from './auth.js?v=20261019-56';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261019-56';
-import * as local from './local.js?v=20261019-56';
+} from '../vendor/firebase-sdk.js?v=20261019-57';
+import { db } from './auth.js?v=20261019-57';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261019-57';
+import * as local from './local.js?v=20261019-57';
 
 /**
  * Dónde se guardan los datos.
@@ -155,6 +155,7 @@ export const ETIQUETA_ESTADO = {
 /** Alias de encabezado → campo. Se compara sin acentos y en mayúsculas. */
 const ALIAS = {
   ITEM: 'sku', SKU: 'sku', CODIGO: 'sku', PARTE: 'sku', PRODUCTO: 'sku',
+  NUMERODEPIEZA:'sku', 'NUMERO DE PIEZA':'sku',
   'NUMERO DE PARTE': 'sku', 'PART NUMBER': 'sku', 'COD PRODUCTO': 'sku',
   DESCRIPCION: 'descripcion', DESCRIPTION: 'descripcion', DETALLE: 'descripcion',
   REFERENCIAPEDIDO: 'referencia', 'REFERENCIA PEDIDO': 'referencia',
@@ -162,6 +163,7 @@ const ALIAS = {
   FACTURA: 'factura', INVOICE: 'factura',
   CANTIDAD: 'cantidad', QTY: 'cantidad', QUANTITY: 'cantidad', CANT: 'cantidad',
   EMBARQUE: 'embarque', SHIPMENT: 'embarque', BL: 'embarque',
+  'NOMBRE CONTENEDOR': 'contenedor', NOMBRECONTENEDOR:'contenedor', CONTENEDOR:'contenedor', 'NUMERO CONTENEDOR':'contenedor', CONTAINER:'contenedor',
   PRECIOUNIT: 'precioUnit', 'PRECIO UNIT': 'precioUnit',
   PRECIOTOTAL: 'precioTotal', 'PRECIO TOTAL': 'precioTotal',
 };
@@ -214,6 +216,20 @@ export const prefijoInforme=formato=>(formato.prefijo||[]).filter(f=>!(f.celdas|
 
 const COLUMNAS_RESULTADO = new Set(Object.keys(ROL_COLUMNA));
 
+/** Selección explícita de contenedores recibidos; conserva las filas originales. */
+export function seleccionarContenedoresPacking(resultado,numeros){
+  if(!Array.isArray(numeros))throw Error('Selecciona los contenedores recibidos.');
+  const elegidos=new Set(numeros),disponibles=new Set(resultado.lineas.map(l=>l.contenedor||''));
+  if([...elegidos].some(n=>!disponibles.has(n)))throw Error('Un contenedor seleccionado no pertenece al archivo.');
+  const seleccionadas=resultado.lineas.filter(l=>elegidos.has(l.contenedor||''));
+  const lineas=seleccionadas.map(l=>seleccionadas.length<resultado.lineas.length&&Object.keys(l.formulas||{}).length
+    ?{...l,formulasOrigen:l.formulas,formulas:{}}:l);
+  if(!lineas.length)throw Error('Selecciona al menos un contenedor con productos.');
+  const porSku={};for(const l of lineas)porSku[l.sku]=(porSku[l.sku]||0)+l.cantidad;
+  return {...resultado,lineas,porSku,skusUnicos:Object.keys(porSku).length,unidades:lineas.reduce((n,l)=>n+l.cantidad,0),
+    embarques:[...new Set(lineas.map(l=>l.embarque).filter(Boolean))]};
+}
+
 const sinAcentos = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '');
 const clave = (t) => sinAcentos(limpiar(t)).toUpperCase();
 
@@ -231,6 +247,16 @@ function mapearEncabezado(fila) {
   if (explicita) for (const i of Object.keys(mapa)) {
     if (mapa[i] === 'sku' && clave(fila[i]) === 'ITEM') delete mapa[i];
   }
+  return priorizarColumnas(mapa,fila);
+}
+function priorizarColumnas(mapa,fila){
+  // Una tabla lateral puede repetir FACTURA, DETALLE o BL. Nunca sobrescribir
+  // las columnas de la tabla de productos con un resumen independiente.
+  const prioridad=(i,c)=>c==='embarque'&&['EMBARQUE','SHIPMENT'].includes(clave(fila[i]))?2:
+    c==='descripcion'&&['DESCRIPCION','DESCRIPTION'].includes(clave(fila[i]))?2:1;
+  const elegidas={};
+  for(const [i,c] of Object.entries(mapa))if(elegidas[c]===undefined||prioridad(i,c)>prioridad(elegidas[c],c))elegidas[c]=i;
+  for(const i of Object.keys(mapa))if(elegidas[mapa[i]]!==i)delete mapa[i];
   return mapa;
 }
 
@@ -261,7 +287,12 @@ export function leerPackingList(arrayBuffer, opciones = {}) {
 
     for (let i = 0; i < Math.min(filas.length, opciones.encabezado || 25); i++) {
       if(opciones.encabezado && i!==opciones.encabezado-1)continue;
-      const mapa = opciones.columnas || mapearEncabezado(filas[i]);
+      const automatico=mapearEncabezado(filas[i]);
+      const mapa = opciones.columnas ? priorizarColumnas({...opciones.columnas},filas[i]) : automatico;
+      if(!Object.values(mapa).includes('contenedor')){
+        const indice=Object.keys(automatico).find(k=>automatico[k]==='contenedor');
+        if(indice!==undefined&&!mapa[indice])mapa[indice]='contenedor';
+      }
       const campos = new Set(Object.values(mapa));
       if (!campos.has('sku') || !campos.has('cantidad')) {
         // La fila con más celdas con texto es la que más se parece a una
@@ -334,6 +365,7 @@ export function leerPackingList(arrayBuffer, opciones = {}) {
           referencia: limpiar(d.referencia).slice(0, 80),
           factura: limpiar(d.factura).slice(0, 80),
           embarque: limpiar(d.embarque).slice(0, 80),
+          contenedor: limpiar(d.contenedor).toUpperCase().slice(0,20),
           cantidad,
           precioUnit: aNumero(d.precioUnit) || null,
           precioTotal: aNumero(d.precioTotal) || null,

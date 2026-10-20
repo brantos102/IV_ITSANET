@@ -10,14 +10,14 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-56';
-import { nombreDeInforme, carpetaDeRecepcion, carpetaDeMes,limpiarNombre } from './nombres.js?v=20261019-56';
-import { db } from './auth.js?v=20261019-56';
-import * as local from './local.js?v=20261019-56';
-import {eventosActivos} from './conteo.js?v=20261019-56';
-import {fechaDe} from './fechas.js?v=20261019-56';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261019-56';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261019-56';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-57';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261019-57';
+import { db } from './auth.js?v=20261019-57';
+import * as local from './local.js?v=20261019-57';
+import {eventosActivos} from './conteo.js?v=20261019-57';
+import {fechaDe} from './fechas.js?v=20261019-57';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261019-57';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261019-57';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 
@@ -294,7 +294,7 @@ export async function reunirInforme(recepcionId, recepcion) {
       return {...lista,detalle:completarIncidencias(completarRegistrosPorLista(base,eventosGrupo),eventosGrupo,propia).map(l=>evidenciasDeFila(l,propia))};
     })})):null;
   return {
-    recepcion, detalle, porOrigen, validacionDepot:meta.validacionDepot,
+    recepcion, detalle, porOrigen, contenedores:meta.contenedores||[], validacionDepot:meta.validacionDepot,
     adicionales: adicionalesDetalle, eventos, skus,porGrupo,modoAgrupacion:agrupacion?.modo||'PACKING_LIST',enlacesArchivos:meta.enlacesArchivos||{},
   };
 }
@@ -445,7 +445,7 @@ function hojaValidada(filas) {
  * Es para analizar, transferir datos y responder a una reclamación.
  */
 export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
-                                 eventos, validacionDepot, enlacesArchivos={} }, opciones = {}) {
+                                 eventos, validacionDepot, contenedores=[], enlacesArchivos={} }, opciones = {}) {
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Recarga la página.');
   }
@@ -506,6 +506,9 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
 
   }
 
+  const embarquesDocumento=new Set(detalle.map(l=>l.embarque).filter(Boolean));
+  const distribucion=contenedores.filter(c=>opciones.embarque?c.embarques.includes(opciones.embarque):c.embarques.some(b=>embarquesDocumento.has(b))||!embarquesDocumento.size&&!c.embarques.length);
+  if(distribucion.length){const hoja=XLSX.utils.json_to_sheet(distribucion.map(c=>({'IDENTIFICADOR':c.id,'CONTENEDOR':c.numero,'EMBARQUES':c.embarques.join(', '),'DESDE EL BULTO':c.desde,'HASTA EL BULTO':c.hasta,'TOTAL BULTOS':c.total??'','POSICION FINAL':c.posicion})));hoja['!cols']=[15,22,30,20,20,18,40].map(wch=>({wch}));let nombre='CONTENEDORES';while(libro.SheetNames.includes(nombre))nombre+=' 2';XLSX.utils.book_append_sheet(libro,hoja,nombre);}
   if (soloEnvio) {
     return {
       base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64', compression:true }),
@@ -547,7 +550,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
 }
 
 const nombreArchivo = (recepcion, sufijo) =>
-  nombreVersionado(nombreDeInforme(recepcion, { auditable: sufijo === 'auditable' }),recepcion);
+  nombreVersionado(nombreInformeOperativo(recepcion, { auditable: sufijo === 'auditable' }),recepcion);
 function nombreVersionado(nombre,rec,lista=''){
   if(!rec.informe)return nombre;
   const final=lista+rec.informe.sufijo+'.xlsx';
@@ -589,10 +592,10 @@ export function previsualizarLista(lista,columnas,{ampliado=false,offset=0,limit
 
 export function construirLibros(datos, opciones = {}) {
   if(datos.modoAgrupacion==='RECEPCION'&&['envio','envio-ampliado'].includes(opciones.version)){const l=construirLibro(datos,opciones);return [{...l,origen:'RECEPCION',grupo:'RECEPCION'}];}
-  if(datos.porGrupo&&['envio','envio-ampliado'].includes(opciones.version))return datos.porGrupo.flatMap(g=>g.porOrigen.map(lista=>{
+  if(datos.porGrupo&&['envio','envio-ampliado'].includes(opciones.version))return datos.porGrupo.flatMap(g=>g.porOrigen.map((lista,indice)=>{
     const adicionales=adicionalesDelDocumento(datos,g.id,lista.origen,g.porOrigen.map(l=>l.origen));
     const libro=construirLibro({...datos,porOrigen:[lista],detalle:lista.detalle,adicionales},{...opciones,embarque:g.nombre});
-    return {...libro,origen:lista.origen,grupo:g.id,nombre:nombreVersionado(nombreDeInforme(datos.recepcion)+'_PL-'+limpiarNombre(lista.origen)+'_EMB-'+limpiarNombre(g.nombre),datos.recepcion)};
+    return {...libro,origen:lista.origen,grupo:g.id,nombre:nombreVersionado(nombreInformeOperativo(datos.recepcion,{origen:g.porOrigen.length>1?lista.origen:'',embarque:g.nombre}),datos.recepcion,g.porOrigen.length>1?'_PL'+String(indice+1).padStart(2,'0'):'')};
   }));
   const listas = datos.porOrigen || [];
   if (!['envio','envio-ampliado'].includes(opciones.version) || listas.length <= 1) {
@@ -605,7 +608,7 @@ export function construirLibros(datos, opciones = {}) {
     return {
       ...libro,
       origen: lista.origen,
-      nombre: nombreVersionado(nombreDeInforme(datos.recepcion, { origen: lista.origen }),datos.recepcion,'_L'+String(indice+1).padStart(2,'0')),
+      nombre: nombreVersionado(nombreInformeOperativo(datos.recepcion, { origen: lista.origen }),datos.recepcion,'_L'+String(indice+1).padStart(2,'0')),
     };
   });
 }

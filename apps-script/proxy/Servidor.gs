@@ -54,8 +54,12 @@ function entregaServidor_(peticion) {
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
     return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables'].concat(
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
         typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'].concat(accionEnviarInforme_.versionServidor>=3?['correoEditable']:[]) : []) };
+  }
+  if(p.operacion==='gmailBuscar'||p.operacion==='gmailMensaje') {
+    if(typeof gmailConsultarServidor_!=='function')throw new Error('Publica Gmail.gs antes de consultar el buzón.');
+    return gmailConsultarServidor_(p.operacion,p.datos||{});
   }
   if(p.operacion==='miniatura'){
     if(!/^[A-Za-z0-9_-]{5,128}$/.test(p.datos.fileId||''))throw new Error('Imagen no válida.');
@@ -285,6 +289,7 @@ function finalizarServidor_(id, p) {
     tablaServidor_(libro, 'BITACORA', ['id', 'tipo', 'sku', 'cantidad', 'pallet', 'posicionReal', 'origen', 'operadorEmail', 'creadoEn', 'observacion', 'fotos'], p.eventos || []);
     sheet = libro.getUrl();
   }
+  var resultadoCorreo=null;
   if (p.destinatarios) {
     if(typeof accionEnviarInforme_!=='function' || !(accionEnviarInforme_.versionServidor>=2))throw new Error('Actualiza Proxy.gs y Servidor.gs juntos y publica una nueva version del despliegue /exec.');
     var destinatarios = p.destinatarios.split(',');
@@ -294,7 +299,7 @@ function finalizarServidor_(id, p) {
       return { nombre: a.nombre.replace(/\.xlsx$/i, ''), base64: Utilities.base64Encode(DriveApp.getFileById(a.fileId).getBlob().getBytes()) };
     });
     var fotos = fotosCorreoServidor_(p.archivos || [], p.manifiesto || [], p.correoFinal&&p.correoFinal.imagenesDrive);
-    accionEnviarInforme_({ recepcion: p.codigo, destinatarios: p.destinatarios,
+    resultadoCorreo=accionEnviarInforme_({ recepcion: p.codigo, destinatarios: p.destinatarios,
       duracion: p.duracion, resumen: p.resumen, adjuntos: adjuntos, informe: p.informe,
       cliente:p.cliente, marca:p.marca, cerradoPor:p.solicitadoPor, entregaId:id,
       carpetaUrl: carpeta.getUrl(), sheetUrl: sheet,
@@ -306,7 +311,7 @@ function finalizarServidor_(id, p) {
   }
   acuse = { exito: true, id: id, carpeta: carpeta.getUrl(), sheet: sheet,
     carpetaFotos: (p.archivos || []).some(function(a) { return a.tipoArchivo === 'foto'; }) ? (p.cliente ? carpeta.getUrl() : carpetaDe_(carpeta, 'imagenes').getUrl()) : '',
-    enviadoA: p.destinatarios || '', remitente: remitente, estado: 'ENTREGADA', confirmadoEn: new Date().toISOString() };
+    enviadoA: p.destinatarios || '', remitente: remitente, gmail:resultadoCorreo?resultadoCorreo.gmail||null:null, estado: 'ENTREGADA', confirmadoEn: new Date().toISOString() };
   archivo.setContent(JSON.stringify(acuse));
   return acuse;
 }

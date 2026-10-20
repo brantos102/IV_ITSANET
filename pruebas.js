@@ -16,6 +16,7 @@ const SUITES = [
   ['Apps Script — lógica de la app anterior', 'apps-script/test/run-tests.js'],
   ['Apps Script — credenciales y token por cliente', 'apps-script/test/clientes.test.js'],
   ['Apps Script — puente autenticado del servidor', 'apps-script/test/servidor.test.js'],
+  ['Apps Script — lectura propia de Gmail y respuesta idempotente', 'apps-script/test/gmail.test.js'],
   ['Apps Script — carpetas y trazabilidad de evidencias', 'apps-script/test/evidencias.test.js'],
   ['Apps Script — contrato de Depot', 'apps-script/test/proxy.test.js'],
   ['Navegador — acceso, normalización e informe', 'firebase/test/app.test.mjs'],

@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 57: respuesta al hilo original de Gmail, contenedores y revisión de embarques](docs/CORREO_GMAIL_CONTENEDORES_Y_LECTURA_57.md).
+
 [Versión 56: informes limpios, fotos por lote, escaneo y cierre desde Recepciones](docs/MEJORAS_OPERATIVAS_Y_REPORTES_56.md).
 
 [Versión 55: correos operativos, adicionales con enlaces y actualización de carpetas por embarque](docs/CORREO_ADICIONALES_Y_ENLACES_55.md).

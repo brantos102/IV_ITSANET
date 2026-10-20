@@ -1,13 +1,13 @@
-import {elegirDestinoFoto} from './destino-foto.js?v=20261019-56';
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-56';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-56';
-import {organizarFotos} from './organizar-fotos.js?v=20261019-56';
-import {verImagen} from './visor-imagen.js?v=20261019-56';
-import {manualFotos} from './manual-fotos.js?v=20261019-56';
-import {pedir} from './local.js?v=20261019-56';
-import {comprimir} from './imagen.js?v=20261019-56';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-56';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-56';
+import {elegirDestinoFoto} from './destino-foto.js?v=20261019-57';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-57';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-57';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-57';
+import {verImagen} from './visor-imagen.js?v=20261019-57';
+import {manualFotos} from './manual-fotos.js?v=20261019-57';
+import {pedir} from './local.js?v=20261019-57';
+import {comprimir} from './imagen.js?v=20261019-57';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-57';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-57';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -71,7 +71,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     <p data-estado-drive role="status"></p><div class="acciones"><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><button class="b-sec" data-actualizar>↻ Actualizar</button><button class="b-sec" data-reintentar ${supervisor?'':'hidden'}>Reintentar pendientes de Drive</button></div>
     <div data-carpetas></div><div class="rejilla"><label class="campo"><span>Filtrar fotografías por clasificación</span><select data-filtro-categoria><option value="">Todas</option>${['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>`<option>${c}</option>`).join('')}</select></label><label class="campo"><span>SKU de las fotografías</span><input data-filtro-sku value="${esc(sku)}" placeholder="Todos los códigos"></label><button data-filtrar class="b-sec">Aplicar filtro</button></div><p data-resumen-galeria class="mini" role="status"></p><div data-imagenes class="galeria-imagenes"></div><button data-mas class="b-sec">Ver más</button>`;
   document.body.append(d); d.showModal();d.querySelector('h2').parentElement.after(manualFotos(ingreso));
-  const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false;
+  const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false,resumenSku=null;
   d.firstElementChild.classList.add('modal-cabecera');
   const captura=document.createElement('section');captura.className='fotos-captura';captura.tabIndex=0;captura.setAttribute('aria-label','Arrastra fotografías aquí');captura.innerHTML='<h3>1. Seleccionar fotos nuevas</h3><p class="mini">Arrastra aquí una o varias imágenes. Antes de guardar puedes elegir el destino de cada foto.</p><p class="mini">Elige el tipo de foto, abre la cámara o la galería y pulsa Guardar fotos seleccionadas. Cámara y Galería seleccionan fotos nuevas; Guardar fotos seleccionadas las registra. Las fotos ya guardadas se consultan debajo.</p>';
   $('[data-tipo]').closest('label').before(captura);
@@ -91,6 +91,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     const destino=document.createElement('p');destino.className='mini';destino.textContent=`${producto.descripcion||''} · Fotos en ${categoria==='VALIDACION'?sku:categoria+'/'+sku}. Las fotos nuevas toman el estado actual; las anteriores conservan su clasificación histórica.`;
     d.querySelector('h2').parentElement.after(destino);$('[data-recomendacion]').hidden=true;
     $('[data-protocolo]').value='GENERAL';
+    const todas=document.createElement('button');todas.className='b-sec';todas.textContent='Ver fotos de la recepción completa';todas.onclick=()=>{d.close();abrirEvidencias({recepcion,supervisor}).catch(e=>console.error(e.message));};$('[data-estado-drive]').after(todas);
   }
   if(sku||final){
     const filtros=$('[data-filtro-sku]').closest('.rejilla'),detalles=document.createElement('details');
@@ -130,7 +131,8 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
     consultando=true;
     try {
     if(reset){offset=0;$('[data-imagenes]').replaceChildren();}
-    const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent($('[data-filtro-sku]').value.trim())}&contexto=${!$('[data-filtro-categoria]').value}&categoriaEvidencia=${encodeURIComponent($('[data-filtro-categoria]').value)}&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':panoramica?'&tipoEvidencia=PANORAMICA':''}`);
+    const r=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/imagenes?sku=${encodeURIComponent($('[data-filtro-sku]').value.trim())}&contexto=false&categoriaEvidencia=${encodeURIComponent($('[data-filtro-categoria]').value)}&offset=${offset}&limite=24${final?'&tipoEvidencia=ESTADO_FINAL':panoramica?'&tipoEvidencia=PANORAMICA':''}`);
+    resumenSku=r.sincronizacion;
     for(const [i,f] of r.archivos.entries()) {
       if(final && !(f.evidencias || []).some(e=>e.tipo==='ESTADO_FINAL'))continue;
       const card=document.createElement('article');
@@ -175,11 +177,11 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       if(!d.open)return;
       const revision=JSON.stringify([estado.sincronizacion,estado.carpetas]);
       const cambio=revisionDrive && revisionDrive!==revision;revisionDrive=revision;
-      const s=estado.sincronizacion;
-      if(s){$('[data-estado-drive]').textContent=`Recepción completa: ${s.guardadas} fotos guardadas · ${s.copiadas} confirmadas en Drive · ${s.pendientes} pendientes (${s.procesando} en proceso).`+
+      const s=sku?resumenSku:estado.sincronizacion;
+      if(s){$('[data-estado-drive]').textContent=`${sku?'SKU '+sku:'Recepción completa'}: ${s.guardadas} fotos guardadas · ${s.copiadas} confirmadas en Drive · ${s.pendientes} pendientes (${s.procesando} en proceso).`+
         (s.requierenAyuda?' Hay fotos que requieren revisión. El supervisor responsable debe verificar una vez su conexión en Mi cuenta y correo; después reintenta las fotos.':'');
-        $('[data-reintentar]').hidden=!s.pendientes;}
-      $('[data-carpetas]').replaceChildren();for(const url of new Set(estado.carpetas || [])){
+        $('[data-reintentar]').hidden=!!sku||!s.pendientes;}
+      $('[data-carpetas]').replaceChildren();for(const url of new Set(sku?[]:(estado.carpetas || []))){
         if(!/^https:\/\/drive\.google\.com\//.test(url))continue;
         const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='Abrir carpeta de la recepción';a.className='b-sec';$('[data-carpetas]').append(a);
       }

@@ -2,9 +2,7 @@
 import hashlib
 import json
 import re
-from datetime import datetime
 from uuid import uuid4
-from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import select
 from app.models import (AppInforme,AppEvento,AppIngreso,AppCopiaDrive,AppEvidencia,AppArchivo,
@@ -53,7 +51,8 @@ def metadatos(db,codigo):
     enlaces={a.id:a.drive_url for a in db.scalars(select(AppArchivo).where(AppArchivo.recepcion==r.codigo,AppArchivo.tipo=='foto',AppArchivo.drive_id.is_not(None))) if a.drive_url and re.match(r'^https://drive\.google\.com/',a.drive_url)}
     def exportar(mapa):return {k:{'carpetas':{s:sorted(us) for s,us in v['carpetas'].items()},
         'carpetasCategoria':{s:{c:sorted(us) for c,us in cs.items()} for s,cs in v['carpetasCategoria'].items()}} for k,v in mapa.items()}
-    return {'versionInforme':56,'enlacesArchivos':enlaces,'carpetasPorOrigen':exportar(por_origen),'carpetasPorEmbarque':exportar(por_embarque),
+    from app.services.contenedores import vista as contenedores
+    return {'versionInforme':57,'contenedores':contenedores(db,codigo)['filas'],'enlacesArchivos':enlaces,'carpetasPorOrigen':exportar(por_origen),'carpetasPorEmbarque':exportar(por_embarque),
         'agrupacionCorreos':agrupacion(db,codigo),'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
         'columnas':ajustes.cliente(db,r.cliente)['columnas'],'barras':barras,'formatos':r.formatos or {},
         'evidenciasPendientes':len(pendientes),
@@ -143,10 +142,9 @@ def reservar(db,codigo,datos,usuario):
         n = meta['evidenciasPendientes']
         raise HTTPException(409, {'codigo': 'EVIDENCIAS_PENDIENTES', 'pendientes': n,
             'mensaje': f'{n} foto(s) ya guardadas esperan confirmación de Drive. No necesitas tomarlas otra vez. Revisa las fotos pendientes o descarga un avance mientras se completa la copia.'})
-    ahora=datetime.now(ZoneInfo('America/Guayaquil'))
     numero=ultimo.numero+1 if ultimo else 1
     f=AppInforme(id=uuid4().hex,clave=clave,recepcion=r.codigo,numero=numero,tipo=tipo,estado='RESERVADO',
-        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}_{ahora:%Y%m%d-%H%M%S}','formato':formato,'huellaContenido':huella_contenido(db,r),
+        usuario=usuario,huella=huella(db,r),datos={'sufijo':f'_R{numero:04d}','formato':formato,'huellaContenido':huella_contenido(db,r),
         'agrupacion':meta['agrupacionCorreos']['modo'],'grupos':meta['agrupacionCorreos']['grupos']})
     db.add(f);ajustes.auditar(db,usuario,'INFORME_RESERVADO',r.codigo,{'informeId':f.id,'numero':numero,'tipo':tipo});db.commit()
     return documento(f)

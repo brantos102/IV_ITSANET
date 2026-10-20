@@ -44,7 +44,7 @@ def declarar(db,ident,datos,usuario):
             if revisado.get('confirmarEnviado') is not True or revisado.get('correoVersion')!=actual['version']:
                 raise HTTPException(409,'Verifica Enviados y actualiza el correo de '+c['origen'])
             items.append({**c,'estado':'MANUAL_DECLARADO','destinatarios':actual['campos']['destinatarios'],
-                'correoFinal':{k:actual[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot')}})
+                'correoFinal':{k:actual[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail')}})
     registro={'estado':'DECLARADO_ENVIADO','usuario':usuario,'fecha':utcnow().isoformat(),
         'motivo':motivo,'version':v['version'],'entregaId':ident,
         'destinatarios':e.datos.get('destinatarios',''),'asunto':v['asunto']}

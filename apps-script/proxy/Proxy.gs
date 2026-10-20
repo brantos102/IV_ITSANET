@@ -550,12 +550,22 @@ function accionEnviarInforme_(p, usuario, antesDeEnviar) {
   });
   if (bytes>20971520) throw new Error('Los adjuntos superan 20 MB. Revisa los informes antes de enviar.');
   // Validar y preparar todo antes de registrar el intento irreversible de MailApp.
+  var respuestaGmail=null;
+  if(p.correoFinal&&p.correoFinal.respuestaGmail){
+    if(typeof gmailPrepararRespuesta_!=='function')throw new Error('Publica Gmail.gs y autoriza Gmail antes de responder este hilo.');
+    respuestaGmail=gmailPrepararRespuesta_(p.correoFinal.respuestaGmail,opciones,usuario.email);
+  }
   if (antesDeEnviar) antesDeEnviar();
-  MailApp.sendEmail(opciones);
-  return {exito:true,enviadoA:p.destinatarios,adjuntos:nombres,cuotaRestante:MailApp.getRemainingDailyQuota()};
+  var enviadoGmail=null;
+  if(respuestaGmail){
+    enviadoGmail=gmailApiServidor_('messages/send',{method:'post',contentType:'application/json',payload:JSON.stringify(respuestaGmail)});
+    if(!enviadoGmail.id||enviadoGmail.threadId!==respuestaGmail.threadId)throw new Error('Gmail no confirmó el hilo esperado. Revisa Enviados antes de repetir.');
+  }
+  else MailApp.sendEmail(opciones);
+  return {exito:true,enviadoA:p.destinatarios,adjuntos:nombres,cuotaRestante:MailApp.getRemainingDailyQuota(),gmail:enviadoGmail?{mensajeId:enviadoGmail.id,threadId:enviadoGmail.threadId}:null};
 }
 
-accionEnviarInforme_.versionServidor = 3;
+accionEnviarInforme_.versionServidor = 4;
 
 // ========================================================================== //
 // Mapeo

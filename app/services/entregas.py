@@ -396,6 +396,9 @@ def procesar_uno():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
             if (d.get('correoFinal') or d.get('correosPorOrigen')) and 'correoEditable' not in estado.get('capacidades',[]):
                 raise RuntimeError('El puente tiene archivos de versiones diferentes. Actualiza Proxy.gs y Servidor.gs y publica una nueva versión del mismo /exec para enviar el correo revisado.')
+            respuestas=[d.get('correoFinal') or {}]+[c.get('correoFinal') or {} for c in d.get('correosPorOrigen',[]) if c.get('estado')!='ENTREGADA']
+            if any(c.get('respuestaGmail') for c in respuestas) and 'gmailHilos' not in estado.get('capacidades',[]):
+                raise RuntimeError('Este correo responde a un hilo Gmail. Actualiza Proxy.gs, Servidor.gs y Gmail.gs, autoriza Gmail y publica una Nueva versión. No se envió como correo nuevo.')
             from app.services.drive import manifiesto
             # Las fotos finales pueden agregarse después del cierre. Incluirlas
             # antes de preparar el correo, sin alterar los informes de conteo.
@@ -475,6 +478,9 @@ def procesar_uno():
                 from app.services.correos_embarque import enviar_lote
                 resultado=enviar_lote(db,e,d,guardados,manifest,llamar)
             else:resultado = llamar('finalizar', e.id, payload)
+            respuesta=(d.get('correoFinal') or {}).get('respuestaGmail')
+            if respuesta and (not (resultado.get('gmail') or {}).get('mensajeId') or (resultado.get('gmail') or {}).get('threadId')!=respuesta['threadId']):
+                raise RevisionEntrega('Gmail no confirmó la respuesta en el hilo seleccionado. Revisa Enviados antes de repetir; no se reenviará automáticamente.')
             if d.get('modoRemitente') in ('PERSONAL','RESPONSABLE') and d.get('destinatarios'):
                 normalizar=lambda v:{c.strip().lower() for c in str(v or '').split(',') if c.strip()}
                 if normalizar(resultado.get('enviadoA')) != normalizar(d['destinatarios']):

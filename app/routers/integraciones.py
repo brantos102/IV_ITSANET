@@ -163,6 +163,15 @@ def mi_google(db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
     from app.services.mi_correo import estado
     return estado(db,op)
 
+@router.get('/mi-google/gmail')
+def buscar_gmail(busqueda:str='',mensajeId:str='',db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.gmail import consultar
+    if mensajeId:
+        if not __import__('re').fullmatch(r'[a-f0-9]{8,64}',mensajeId):raise HTTPException(422,'Mensaje Gmail inválido.')
+        return consultar(db,op,'gmailMensaje',{'mensajeId':mensajeId})
+    if not busqueda.strip() or len(busqueda)>250:raise HTTPException(422,'Escribe una búsqueda de hasta 250 caracteres.')
+    return consultar(db,op,'gmailBuscar',{'busqueda':busqueda})
+
 
 @router.put('/mi-google')
 def guardar_mi_google(datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):

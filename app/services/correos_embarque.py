@@ -135,14 +135,15 @@ def congelar(db,r,datos,usuario,informe,entrega_id=''):
         d=next(d for d in revisados if d['origen']==origen)
         if anteriores.get(origen,{}).get('estado')=='ENTREGADA':
             salida.append(anteriores[origen]);continue
-        v=correo.vista(db,r.codigo,usuario,entrega_id,origen)
+        v=correo.vista(db,r.codigo,usuario,entrega_id,origen,actual=True)
+        if v.get('respuestaOtraCuenta'):raise HTTPException(409,'Selecciona el hilo Gmail de '+grupo['nombre']+' desde tu propia cuenta antes de enviar.')
         if d.get('correoVersion')!=v['version'] or entregas.validar_destinatarios(d.get('destinatarios'))!=v['campos']['destinatarios']:
             raise HTTPException(409,'Cambió el correo de '+origen+'. Revisa nuevamente todos los correos antes de finalizar.')
         if not v['campos']['destinatarios']:raise HTTPException(422,'Completa los destinatarios de '+origen)
         docs=[a['id'] for a in informe.datos.get('archivos',[]) if a.get('grupo',a.get('origen'))==origen]
         if len(docs)!=(len(grupo['packingLists']) if config.get('modo')=='EMBARQUE' else 1):raise HTTPException(409,'Faltan documentos finales independientes de '+grupo['nombre'])
         if len(v['html'])>500000:raise HTTPException(422,'El correo de '+origen+' supera el tamaño permitido.')
-        final={k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot')}
+        final={k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail')}
         salida.append({'origen':origen,'nombre':grupo['nombre'],'destinatarios':v['campos']['destinatarios'],'correoFinal':final,'informes':docs,
             'fotos':[f['id'] for f in v['fotos']],'estado':'PENDIENTE'})
     return salida
@@ -180,7 +181,10 @@ def enviar_lote(db,e,d,guardados,manifest,llamar):
         normalizar=lambda v:{c.strip().lower() for c in str(v or '').split(',') if c.strip()}
         if normalizar(resultado.get('enviadoA'))!=normalizar(item['destinatarios']) or str(resultado.get('remitente') or '').lower()!=payload['usuario'].lower():
             raise RevisionEntrega('No se confirmó el correo de '+item['origen']+'. Revisa Enviados antes de reintentar; los embarques confirmados se conservan.')
-        item.update(estado='ENTREGADA',confirmadoEn=resultado.get('confirmadoEn') or m._iso(utcnow()),resultado={k:resultado.get(k) for k in ('enviadoA','remitente','carpeta','sheet')})
+        respuesta=item['correoFinal'].get('respuestaGmail')
+        if respuesta and (not (resultado.get('gmail') or {}).get('mensajeId') or (resultado.get('gmail') or {}).get('threadId')!=respuesta['threadId']):
+            raise RevisionEntrega('Gmail no confirmó la respuesta en el hilo de '+item['nombre']+'. Revisa Enviados antes de repetir.')
+        item.update(estado='ENTREGADA',confirmadoEn=resultado.get('confirmadoEn') or m._iso(utcnow()),resultado={k:resultado.get(k) for k in ('enviadoA','remitente','carpeta','sheet','gmail')})
         # Copiar las filas evita mutar el JSON ya persistido antes de que
         # SQLAlchemy compare el cambio del siguiente acuse.
         e.datos={**e.datos,'correosPorOrigen':[dict(c) for c in items]};db.commit()

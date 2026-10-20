@@ -13,6 +13,26 @@ from app.services import ajustes, calidad, app_modelo as m
 
 router=APIRouter(prefix='/api/operacion',tags=['gestion'])
 
+@router.get('/recepciones/{codigo}/revisar-packing')
+def revisar_packing(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.revision_packing import vista
+    return vista(db,codigo)
+
+@router.put('/recepciones/{codigo}/revisar-packing')
+def corregir_lectura_packing(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.revision_packing import aplicar
+    return aplicar(db,codigo,datos,op.email or op.usuario)
+
+@router.get('/recepciones/{codigo}/contenedores')
+def contenedores_vista(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.contenedores import vista
+    return vista(db,codigo)
+
+@router.put('/recepciones/{codigo}/contenedores')
+def contenedores_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.contenedores import guardar
+    return guardar(db,codigo,datos,op.email or op.usuario)
+
 @router.get('/recepciones/{codigo}/correo')
 def correo_vista(codigo:str,entregaId:str='',origen:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
     from app.services.correo_redactado import vista
@@ -36,7 +56,11 @@ def guardar_plan_correos(codigo:str,datos:dict=Body(...),db:Session=Depends(get_
 @router.put('/recepciones/{codigo}/correo')
 def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
     from app.services.correo_redactado import guardar
-    return guardar(db,codigo,datos,op.email or op.usuario)
+    respuesta=None
+    if datos.get('gmailMensajeId'):
+        from app.services.gmail import seleccionar
+        respuesta=seleccionar(db,op,datos['gmailMensajeId'])
+    return guardar(db,codigo,datos,op.email or op.usuario,respuesta_gmail=respuesta)
 
 @router.post('/recepciones/{codigo}/correo/manual')
 def correo_manual(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):

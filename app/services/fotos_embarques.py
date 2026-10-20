@@ -76,7 +76,9 @@ def asignado(db, e, *, fuente=None):
     identidad = db.get(AppArchivoIdentidad, e.archivo_id)
     mapa = (identidad.datos or {}).get('embarquesPorEvidencia', {}) if identidad else {}
     if e.id in mapa:
-        return mapa[e.id]
+        elegido=mapa[e.id]
+        if elegido=='':return ''  # General es una decisión explícita.
+        return elegido if elegido in contexto(db,e.recepcion,e.sku or '',e.origen or '',e.unidad_id or '',fuente=fuente)['candidatos'] else None
     return contexto(db, e.recepcion, e.sku or '', e.origen or '', e.unidad_id or '',fuente=fuente)['sugerido'] or None
 
 

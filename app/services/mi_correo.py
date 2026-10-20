@@ -32,7 +32,9 @@ def _firma(f):
 def estado(db,op):
     email=cuenta(db,op);f=_propia(db,email);d=f.datos if f else {}
     return {'correo':email,'url':d.get('url',''),'secretoConfigurado':bool(d.get('credencial')),
-        'verificadoEn':d.get('verificadoEn'),'envioHabilitado':operacion.configuracion(db)['correo']['permitirPersonal']}
+        'verificadoEn':d.get('verificadoEn'),'capacidades':d.get('capacidades',[]),
+        'gmailDisponible':'gmailHilos' in d.get('capacidades',[]),
+        'envioHabilitado':operacion.configuracion(db)['correo']['permitirPersonal']}
 
 
 def guardar(db,op,datos,autor=None):
@@ -71,7 +73,7 @@ def guardar(db,op,datos,autor=None):
     if _firma(f)!=firma:raise HTTPException(409,'La conexión cambió mientras se comprobaba. Actualiza antes de guardar.')
     actor=autor or email
     svc.guardar_google(db,{'supervisor':email,'url':url,'secreto':secreto},actor,confirmar=False)
-    f=_propia(db,email);f.datos={**f.datos,'verificadoEn':utcnow().isoformat()}
+    f=_propia(db,email);f.datos={**f.datos,'verificadoEn':utcnow().isoformat(),'capacidades':r.get('capacidades',[])}
     ajustes.auditar(db,actor,'CORREO_PROPIO_AUTORIZADO',email,{'remitente':email,'configuradoPorAdmin':bool(autor)});db.commit()
     return {**estado(db,actual),'carpeta':r.get('carpeta',''),
         'mensaje':f'Conexión verificada y guardada para {email}. No se envió correo. La clave queda guardada para los siguientes envíos.'}

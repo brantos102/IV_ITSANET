@@ -88,6 +88,17 @@ export function nombreDeInforme(rec, opciones = {}) {
   return partes.join('_');
 }
 
+/** Archivos nuevos: propósito, cliente, recepción y grupo, sin repetir el embarque. */
+export function nombreInformeOperativo(rec,{origen='',embarque='',auditable=false}={}){
+  const codigo=limpiarNombre(rec?.codigo)||'SIN-CODIGO';
+  const partes=[auditable?'Auditoria':'Validacion',(limpiarNombre(rec?.cliente)||'SIN-CLIENTE').slice(0,24),codigo];
+  for(const [prefijo,valor] of [['EMB',embarque],['PL',origen]]){
+    const limpio=limpiarNombre(valor);
+    if(limpio&&limpio!=='PRINCIPAL'&&!partes.some(p=>p.toUpperCase().includes(limpio.toUpperCase())))partes.push(prefijo+'-'+limpio);
+  }
+  return partes.join('_');
+}
+
 /**
  * El nombre de una foto: el código y su número.
  *

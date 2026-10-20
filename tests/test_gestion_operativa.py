@@ -124,7 +124,7 @@ def test_informe_secuencia_conflicto_y_descarga_auditada(cliente,db,monkeypatch,
     monkeypatch.setattr(archivos,'DATA_DIR',tmp_path)
     codigo=recepcion(db);ruta=f'/api/operacion/recepciones/{codigo}/informes'
     f=cliente.post(ruta,json={'clave':'generacion-uno','tipo':'DESCARGA','ultimoVisto':None});assert f.status_code==200,f.text
-    f=f.json();assert f['numero']==1 and '_R0001_' in f['sufijo']
+    f=f.json();assert f['numero']==1 and f['sufijo']=='_R0001' and f['creadoEn']
     assert cliente.post(ruta,json={'clave':'generacion-dos','tipo':'DESCARGA','ultimoVisto':None}).status_code==409
     w=Workbook();w.active.append(['SKU','CONTADO']);w.active.append(['SKU1',0]);b=io.BytesIO();w.save(b)
     adjunto={'nombre':'informe'+f['sufijo']+'.xlsx','base64':base64.b64encode(b.getvalue()).decode()}

@@ -112,6 +112,16 @@ def _fuente(db, codigo, entrega_id='',origen=''):
                 url=carpeta_sku(copia,ev,db=db,fuente=fuente_fotos) if ev.sku else propio.get('carpeta')
                 if url and url not in carpetas:carpetas.append(url)
         fuente['carpetasEvidencias']=carpetas
+    if not e:
+        from app.services import contenedores
+        embarques=None
+        if origen:
+            from app.services.agrupacion_correo import embarque, grupo_id
+            embarques={embarque(l,config) for l in ls if
+                config.get('modo')=='RECEPCION' or
+                (config.get('modo')=='EMBARQUE' and grupo_id(embarque(l,config))==origen) or
+                (config.get('modo') not in ('RECEPCION','EMBARQUE') and (l.get('origen') or 'PRINCIPAL')==origen)}
+        fuente['contenedores']=contenedores.para_embarques(db,codigo,embarques)
     return r, e, fuente, archivos
 
 
@@ -222,6 +232,15 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
     if fuente.get('origen'):html += '<p style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
     html += '<div style="padding:20px 18px;border:1px solid #dce5ef;border-top:0;border-radius:0 0 12px 12px">' + _parrafo(campos['saludo']) + _parrafo(campos['introduccion']) + links
     html += datos_operativos(campos,fuente)
+    if fuente.get('contenedores'):
+        html+='<section style="margin:18px 0;padding:14px;background:#eef5fb;border-left:4px solid #2462a4"><h3 style="margin:0 0 8px">Distribución y ubicación por contenedor</h3>'
+        for c in fuente['contenedores']:
+            texto=c['id']+' · '+c['numero']
+            if len(c['embarques'])>1:texto+=' · Contenedor compartido: '+', '.join(c['embarques'])
+            if c.get('total') is not None:texto+=' · Bultos totales: '+str(c['total'])+' · '+c['desde']+' hasta '+c['hasta']
+            if c.get('posicion'):texto+=' · Posición final: '+c['posicion']
+            html+=_parrafo(texto)
+        html+='</section>'
     if opciones['mostrarTotales']:
         html += '<p style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
     html += tabla('Sobrantes y adicionales', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
@@ -264,15 +283,18 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             'presentacion': opciones, 'fotosSeleccionadas': [f['archivoId'] for f in fotos], 'validacionDepot':depot}
 
 
-def vista(db, codigo, usuario, entrega_id='',origen=''):
+def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     r, e, fuente, archivos = _fuente(db, codigo, entrega_id,origen)
     codigo=r.codigo
     hijo=next((c for c in e.datos.get('correosPorOrigen',[]) if c['origen']==origen),None) if e else None
-    f = db.get(AppConfig, clave_config(codigo,origen=origen)); guardado = f.datos if f else {}
+    f = db.scalar(select(AppConfig).where(AppConfig.clave==clave_config(codigo,origen=origen)).with_for_update().execution_options(populate_existing=True)) if actual else db.get(AppConfig, clave_config(codigo,origen=origen))
+    guardado = f.datos if f else {}
     campos = {'asunto': 'Informe de recepción · ' + codigo, 'destinatarios': e.datos.get('destinatarios', '') if e else '',
               'saludo': 'Estimados,', 'introduccion': 'Por medio del presente, remito el informe correspondiente a la recepción ' + codigo + ' del cliente ' + r.cliente + '. Se detallan las novedades registradas durante la validación.',
               'notas': '', 'despedida': 'Quedo atento a cualquier consulta o información adicional.\nSaludos cordiales,', 'firma': usuario,**{k:'' for k in OPERATIVOS}}
     campos.update({k: v for k, v in guardado.get('campos', {}).items() if k in CAMPOS})
+    respuesta=guardado.get('respuestaGmail')
+    respuesta_otra=bool(respuesta and respuesta.get('cuenta')!=usuario)
     if origen:
         nombre=fuente.get('nombreGrupo') or origen;tipo='embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'packing list'
         if 'asunto' not in guardado.get('campos',{}):campos['asunto']=('Informe de recepción · '+nombre+' · '+r.cliente+' · Recepción '+codigo)[:250]
@@ -293,9 +315,11 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
     declarado=bool(e and (e.datos.get('correoManual') or {}).get('estado')=='DECLARADO_ENVIADO')
     if congelado and (e.estado in ('ENTREGADA','PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA'):
         campos=congelado.get('campos',campos);final=congelado
-    final={'imagenesDrive':[], 'presentacion':presentacion, 'fotosSeleccionadas':[], **final}
+    final={'imagenesDrive':[], 'presentacion':presentacion, 'fotosSeleccionadas':[], 'respuestaGmail':None, **final}
+    if not congelado or not (e and (e.estado in ('ENTREGADA','PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA')):
+        final['respuestaGmail']=respuesta if not respuesta_otra else None
     g = integraciones.google(db, usuario)
-    version = _hash([56, fuente, guardado.get('revision', 0), usuario,campos])
+    version = _hash([57, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}
@@ -313,6 +337,7 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
             'entregaAgrupada':bool(ultima and not ultima[0].datos.get('correosPorOrigen')),
             'entregaDisponible':ultima[0].id if ultima and not entrega_id and r.estado=='CERRADA' else '',
             'conexionConfigurada': bool(g['url'] and g['secreto']),
+            'respuestaOtraCuenta':respuesta_otra,
             'soloLectura': bool(e and e.estado in ('ENTREGADA', 'PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA'),
             'archivos': [{'id': a.id, 'nombre': a.nombre, 'url': '/api/app/archivos/' + a.id} for a in archivos],
             'limiteFotos':MAX_FOTOS, 'permiteFotoNueva':r.estado!='CERRADA',
@@ -326,11 +351,11 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
             'modificadoPor': guardado.get('usuario'), 'modificadoEn': guardado.get('fecha')}
 
 
-def guardar(db, codigo, datos, usuario):
+def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None):
     codigo=m.obtener(db, codigo, bloquear=True).codigo
     entrega_id = str(datos.get('entregaId') or '')
     origen=str(datos.get('origen') or '')
-    anterior = vista(db, codigo, usuario, entrega_id,origen)
+    anterior = vista(db, codigo, usuario, entrega_id,origen,actual=True)
     if anterior['soloLectura']:
         raise HTTPException(409, 'Este correo ya está en proceso o confirmado. Su texto se conserva en el historial.')
     if datos.get('version') != anterior['version']:
@@ -353,9 +378,21 @@ def guardar(db, codigo, datos, usuario):
     if not campos['asunto'] or any(c in campos['asunto'] for c in '\r\n'):
         raise HTTPException(422, 'Escribe el asunto en una sola línea.')
     campos['destinatarios'] = entregas.validar_destinatarios(campos['destinatarios'])
+    previo=db.get(AppConfig,clave_config(codigo,origen=origen))
+    respuesta=(previo.datos if previo else {}).get('respuestaGmail')
+    if 'gmailMensajeId' in datos:
+        if datos['gmailMensajeId']:
+            if not respuesta_gmail or respuesta_gmail.get('id')!=datos['gmailMensajeId'] or respuesta_gmail.get('cuenta')!=usuario:
+                raise HTTPException(422,'Selecciona el mensaje desde tu cuenta Gmail antes de guardar.')
+            respuesta=respuesta_gmail
+        else:respuesta=None
+    if respuesta:
+        if respuesta.get('cuenta')!=usuario:raise HTTPException(409,'Otro supervisor seleccionó su hilo Gmail. Elige un mensaje de tu cuenta o cambia explícitamente a correo nuevo.')
+        campos['asunto']='Re: '+re.sub(r'^(?:re:\s*)+', '',respuesta['asunto'],flags=re.I)
+        if len(campos['asunto'])>250:raise HTTPException(422,'El asunto original de Gmail supera 250 caracteres; usa el envío manual.')
     f = db.get(AppConfig, clave_config(codigo,origen=origen)) or AppConfig(clave=clave_config(codigo,origen=origen))
     presentacion=validar_presentacion(datos.get('presentacion', anterior['presentacion']), [f['id'] for f in anterior['fotos']])
-    f.datos = {'campos': campos, 'presentacion':presentacion, 'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat()}
+    f.datos = {'campos': campos, 'presentacion':presentacion, 'respuestaGmail':respuesta,'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat()}
     f.usuario = usuario; db.add(f)
     ajustes.auditar(db, usuario, 'CORREO_BORRADOR_GUARDADO', codigo, {'revision': f.datos['revision']})
     db.commit()
@@ -367,7 +404,8 @@ def congelar(db, codigo, datos, usuario, entrega_id=''):
         raise HTTPException(409,'Revisa los correos independientes por embarque antes de programar esta entrega.')
     if not datos.get('correoVersion'):
         return None  # Compatibilidad con clientes anteriores.
-    v = vista(db, codigo, usuario, entrega_id)
+    v = vista(db, codigo, usuario, entrega_id,actual=True)
+    if v.get('respuestaOtraCuenta'):raise HTTPException(409,'Selecciona el hilo Gmail desde tu propia cuenta antes de enviar.')
     if datos['correoVersion'] != v['version']:
         raise HTTPException(409, 'Cambió la recepción o el correo. Revisa nuevamente el correo final antes de enviar.')
     if entregas.validar_destinatarios(datos.get('destinatarios')) != v['campos']['destinatarios']:
@@ -378,7 +416,7 @@ def congelar(db, codigo, datos, usuario, entrega_id=''):
             raise HTTPException(409,'Confirma las fotos en Drive antes del correo automático o elige envío manual. No se cerró ni se envió la recepción.')
     if len(v['html'])>500000:
         raise HTTPException(422,'El correo supera el tamaño permitido. Reduce los textos o envía las novedades extensas en los documentos finales.')
-    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot') if k in v}
+    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail') if k in v}
 
 
 def manual(db,codigo,datos,usuario):
@@ -422,7 +460,7 @@ def manual(db,codigo,datos,usuario):
             anterior.estado='CANCELADA'
             anterior.datos={**anterior.datos,'anulacion':{'usuario':usuario,'fecha':registro['fecha'],'motivo':'Preparado para envío manual; automático detenido.'}}
     if e:
-        final={k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot')}
+        final={k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail')}
         if e.datos.get('correosPorOrigen'):
             items=[{**c,'correoFinal':final,'destinatarios':v['campos']['destinatarios']} if c['origen']==origen else c for c in e.datos['correosPorOrigen']]
             e.datos={**e.datos,'correoManual':registro,'correosPorOrigen':items,

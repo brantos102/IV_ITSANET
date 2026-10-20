@@ -48,4 +48,21 @@ await test('B02 conserva el bulto correcto y rechaza una etiqueta de otro bulto'
  const id='a'.repeat(32);eq(interpretarEtiquetaDeBulto(']C1B02',id,'B02',['B01','B02']),{interna:true,pallet:'B02'});
  let fallo=false;try{interpretarEtiquetaDeBulto('B01',id,'B02',['B01','B02']);}catch(e){fallo=e.message.includes('otro bulto');}ok(fallo);
 });
+
+await test('tabla lateral de facturas y BL no reemplaza las columnas de productos',()=>{
+ const b=libro([['Numerodepieza','Descripción','ReferenciaPedido','Factura','Cantidad','PrecioUnit','PrecioTotal','Nombre Contenedor','Embarque','','FACTURA','NUMERO CONTENEDOR','BL','DETALLE'],
+  ['00123','Producto A','PED',123,3,1,3,'ABCU1234567','EMB-A','',999,'AJENO0000000','BL-AJENO','RESUMEN AJENO'],
+  ['00456','Producto B','PED',456,5,1,5,'DEFU7654321','EMB-B','',888,'OTRO0000000','BL-OTRO','RESUMEN OTRO']]);
+ const r=leer(b);eq(r.embarques,['EMB-A','EMB-B']);eq(r.lineas.map(l=>[l.sku,l.factura,l.descripcion,l.contenedor]),[['00123','123','Producto A','ABCU1234567'],['00456','456','Producto B','DEFU7654321']]);eq(r.unidades,8);
+ // Los perfiles anteriores podían contener dos índices para el mismo campo.
+ const guardado=leer(b,{hoja:'CLIENTE NUEVO',encabezado:1,columnas:{0:'sku',1:'descripcion',3:'factura',4:'cantidad',8:'embarque',10:'factura',12:'embarque',13:'descripcion'}});
+ eq(guardado.embarques,r.embarques);eq(guardado.lineas[0].contenedor,'ABCU1234567');eq(guardado.lineas[0].factura,'123');
+});
+await test('seleccionar contenedores recibidos recalcula cantidades sin duplicar líneas ni mutar el origen',async()=>{
+ const {seleccionarContenedoresPacking}=await cargar('datos.js');
+ const r=leer(libro([['SKU','Cantidad','Nombre Contenedor','Embarque'],['MISMO',3,'ABCU1234567','EMB-A'],['MISMO',5,'DEFU7654321','EMB-B']]));
+ r.lineas[1].formulas={5:'SUM(B2:B3)'};
+ const elegido=seleccionarContenedoresPacking(r,['DEFU7654321']);eq(elegido.lineas[0].formulas,{});eq(elegido.lineas[0].formulasOrigen,{5:'SUM(B2:B3)'});eq(r.lineas[1].formulas,{5:'SUM(B2:B3)'});eq(elegido.unidades,5);eq(elegido.porSku,{MISMO:5});eq(elegido.embarques,['EMB-B']);eq(elegido.lineas[0].filaOriginal,3);eq(r.lineas.length,2);eq(r.unidades,8);
+ for(const ids of [[],['AJENO']]){let error=false;try{seleccionarContenedoresPacking(r,ids);}catch{error=true;}ok(error);}
+});
 resumen();
