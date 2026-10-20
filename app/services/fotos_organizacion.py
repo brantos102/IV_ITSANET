@@ -45,13 +45,14 @@ def plan(db,codigo,bloquear=False):
         j=copias.get(a.id)
         estados=[drive.ubicacion_evidencia(db,e,j,fuente=fuente_embarques) for e in es]
         filas.append({'archivoId':a.id,'actual':a.nombre,'nuevo':propuestas[a.id],
+            'url':'/api/app/archivos/'+a.id,'driveUrl':a.drive_url or '',
             'rutas':rutas,'clasificaciones':list(dict.fromkeys(e.categoria for e in es)),
             'ubicaciones':estados,
             'requiereActualizar':any(x['estado']!='SINCRONIZADA' for x in estados),
-            'vinculos':[{'id':e.id,'sku':e.sku or '', 'categoria':e.categoria,'embarque':asignado(db,e,fuente=fuente_embarques),
+            'vinculos':[{'id':e.id,'origen':e.origen,'unidadId':e.unidad_id,'tipo':e.tipo,'protocolo':e.protocolo,'sku':e.sku or '', 'categoria':e.categoria,'embarque':asignado(db,e,fuente=fuente_embarques),
                 **contexto(db,codigo,e.sku or '',e.origen or '',e.unidad_id or '',fuente=fuente_embarques)} for e in es]})
     huella=hashlib.sha256(json.dumps(filas,ensure_ascii=True,sort_keys=True).encode()).hexdigest()
-    return {'total':len(filas),'huella':huella,'archivos':filas}
+    return {'estadoRecepcion':r.estado,'total':len(filas),'huella':huella,'archivos':filas}
 
 
 def programar(db,codigo,usuario,datos):

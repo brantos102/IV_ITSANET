@@ -18,10 +18,10 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261019-55';
-import { db } from './auth.js?v=20261019-55';
-import * as local from './local.js?v=20261019-55';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261019-55';
+} from '../vendor/firebase-sdk.js?v=20261019-56';
+import { db } from './auth.js?v=20261019-56';
+import * as local from './local.js?v=20261019-56';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261019-56';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {

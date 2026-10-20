@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 56: informes limpios, fotos por lote, escaneo y cierre desde Recepciones](docs/MEJORAS_OPERATIVAS_Y_REPORTES_56.md).
+
 [Versión 55: correos operativos, adicionales con enlaces y actualización de carpetas por embarque](docs/CORREO_ADICIONALES_Y_ENLACES_55.md).
 
 [Versión 54: carpetas de evidencias por embarque, clasificación y asignación histórica](docs/FOTOS_POR_EMBARQUE_54.md).

@@ -269,6 +269,7 @@ def test_catalogo_programado_una_ejecucion_por_turno(cliente,db,monkeypatch):
     llamadas=[]
     def sincronizar(db,**kw):llamadas.append(kw);return {'productos':7}
     monkeypatch.setattr(depot,'sincronizar_maestro',sincronizar)
+    operacion.guardar_config(db,{'catalogo':{'activo':True,'horas':[8,10,15],'zona':'America/Guayaquil'}},'sup')
     for hora,total in [(13,1),(13,1),(15,2),(15,2),(20,3),(21,3)]:
         tareas.sincronizar_turno(datetime(2026,10,15,hora,tzinfo=timezone.utc))
         assert len(llamadas)==total

@@ -512,7 +512,7 @@ def una(codigo: str, db: Session = Depends(get_db),
         r = m.obtener(db, codigo)
     except m.ErrorApp as exc:
         raise _traducir(exc) from exc
-    return m.doc_recepcion(r, m.operarios_de(db, r.codigo))
+    return {**m.doc_recepcion(r, m.operarios_de(db, r.codigo)),'nombresListas':m.nombres_listas(db,[r.codigo]).get(r.codigo,{})}
 
 
 @router.delete("/recepciones/{codigo}")

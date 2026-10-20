@@ -151,6 +151,11 @@ def sincronizar_depot(
     db: Session = Depends(get_db),
     op: Operador = Depends(requiere_supervisor),
 ):
+    from app.services.catalogo_actualizacion import ejecutar
+    return ejecutar(db,op.email or op.usuario,lambda:_sincronizar_depot(cliente,db,op),(cliente or 'TODOS').upper())
+
+
+def _sincronizar_depot(cliente,db,op):
     """Baja el maestro de productos desde Depot y actualiza el espejo local.
 
     Lo que antes exigía exportar un Excel del WMS y subirlo a mano. El Excel

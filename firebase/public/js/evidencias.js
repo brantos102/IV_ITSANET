@@ -1,12 +1,13 @@
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-55';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-55';
-import {organizarFotos} from './organizar-fotos.js?v=20261019-55';
-import {verImagen} from './visor-imagen.js?v=20261019-55';
-import {manualFotos} from './manual-fotos.js?v=20261019-55';
-import {pedir} from './local.js?v=20261019-55';
-import {comprimir} from './imagen.js?v=20261019-55';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-55';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-55';
+import {elegirDestinoFoto} from './destino-foto.js?v=20261019-56';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261019-56';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261019-56';
+import {organizarFotos} from './organizar-fotos.js?v=20261019-56';
+import {verImagen} from './visor-imagen.js?v=20261019-56';
+import {manualFotos} from './manual-fotos.js?v=20261019-56';
+import {pedir} from './local.js?v=20261019-56';
+import {comprimir} from './imagen.js?v=20261019-56';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261019-56';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261019-56';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -20,8 +21,9 @@ export const TIPOS_EVIDENCIA = {
 };
 
 /** Lote secuencial sin máximo de imágenes. Cada archivo conserva su resultado al reintentar. */
-export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=>{}, cache=new Map()) {
+export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=>{}, cache=new Map(),destinos=null) {
   if(!archivos.length)return [];
+  if(destinos?.size){const urls=[];for(let i=0;i<archivos.length;i++){const f=archivos[i];urls.push(...await cargarEvidencias(recepcion,[f],{...datos,...(destinos.get(f)||{}),desdeSku:destinos.has(f)?false:datos.desdeSku},()=>{},cache));alAvanzar(i+1,archivos.length);}return urls;}
   const urls=[],actor=await actorFotos(),entrada=JSON.stringify([actor,recepcion,datos]);
   if(cache.contextoFotos?.entrada===entrada)datos=cache.contextoFotos.datos;
   else{datos=await elegirEmbarqueFotos(recepcion,datos);cache.contextoFotos={entrada,datos};}
@@ -49,6 +51,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   const final=tipo==='ESTADO_FINAL',panoramica=tipo==='PANORAMICA'&&!sku&&categoria==='RECEPCION';
   if(sku&&categoria==='GENERAL')categoria='VALIDACION';
   if(final){sku='';categoria='RECEPCION';}
+  const destinos=new Map();
   let producto=null;
   if(sku){producto=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/estado-sku/${encodeURIComponent(sku)}`);
     if(!producto)throw Error('No se encontró este SKU en la recepción. Actualiza antes de cargar sus fotos.');
@@ -70,7 +73,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   document.body.append(d); d.showModal();d.querySelector('h2').parentElement.after(manualFotos(ingreso));
   const $=s=>d.querySelector(s);let elegidas=[],cache=new Map(),offset=0,ocupado=false,consultando=false,consultandoDrive=false,revisionDrive='',filtroPendiente=false;
   d.firstElementChild.classList.add('modal-cabecera');
-  const captura=document.createElement('section');captura.className='fotos-captura';captura.innerHTML='<h3>1. Seleccionar fotos nuevas</h3><p class="mini">Elige el tipo de foto, abre la cámara o la galería y pulsa Guardar fotos seleccionadas. Cámara y Galería seleccionan fotos nuevas; Guardar fotos seleccionadas las registra. Las fotos ya guardadas se consultan debajo.</p>';
+  const captura=document.createElement('section');captura.className='fotos-captura';captura.tabIndex=0;captura.setAttribute('aria-label','Arrastra fotografías aquí');captura.innerHTML='<h3>1. Seleccionar fotos nuevas</h3><p class="mini">Arrastra aquí una o varias imágenes. Antes de guardar puedes elegir el destino de cada foto.</p><p class="mini">Elige el tipo de foto, abre la cámara o la galería y pulsa Guardar fotos seleccionadas. Cámara y Galería seleccionan fotos nuevas; Guardar fotos seleccionadas las registra. Las fotos ya guardadas se consultan debajo.</p>';
   $('[data-tipo]').closest('label').before(captura);
   for(const el of [...d.children]){if(el===captura)continue;if(el.contains($('[data-tipo]'))||el.tagName==='DETAILS'&&!el.classList.contains('manual-fotos')||el.contains($('[data-camara]'))||el.matches('[data-captura],[data-archivos],[data-seleccion],[data-estado]'))captura.append(el);}
   const guardadas=document.createElement('h3');guardadas.textContent='2. Fotografías guardadas';$('[data-estado-drive]').before(guardadas);
@@ -111,9 +114,12 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
   const pintar=()=>{$('[data-subir]').disabled=ocupado||!elegidas.length;liberarVistas();$('[data-seleccion]').replaceChildren();elegidas.forEach((f,i)=>{
     const card=document.createElement('figure'),img=document.createElement('img'),b=document.createElement('button');img.src=URL.createObjectURL(f);vistas.push(img.src);img.alt=f.name;
     b.className='b-sec';b.textContent=`Quitar foto ${i+1}`;b.title=f.name;b.disabled=ocupado;
-    const nombre=document.createElement('figcaption');nombre.textContent=f.name;card.append(img,nombre,b);
-    b.onclick=()=>{elegidas.splice(i,1);pintar();};$('[data-seleccion]').append(card);
+    const nombre=document.createElement('figcaption');nombre.textContent=f.name;const destino=document.createElement('button');destino.type='button';destino.className='b-sec';destino.disabled=ocupado;destino.textContent=destinos.has(f)?'Destino: '+(destinos.get(f).embarqueFoto||'General'):'Elegir destino de esta foto';destino.onclick=async()=>{const valor=await elegirDestinoFoto(recepcion,destinos.get(f)||{sku,origen,categoria,tipoEvidencia:$('[data-tipo]').value},f.name);if(valor){destinos.set(f,valor);pintar();}};card.append(img,nombre,destino,b);
+    b.onclick=()=>{destinos.delete(f);elegidas.splice(i,1);pintar();};$('[data-seleccion]').append(card);
   });};
+  captura.addEventListener('dragover',ev=>{if(ocupado)return;ev.preventDefault();captura.classList.add('zona-arrastre-activa');});
+  captura.addEventListener('dragleave',()=>captura.classList.remove('zona-arrastre-activa'));
+  captura.addEventListener('drop',ev=>{ev.preventDefault();captura.classList.remove('zona-arrastre-activa');if(ocupado||rec.estado==='CERRADA'&&!final)return;const fs=[...ev.dataTransfer.files].filter(f=>f.type.startsWith('image/'));elegidas.push(...fs);pintar();});
   for(const [boton,input] of [['camara','captura'],['galeria','archivos']]) {
     $(`[data-${boton}]`).onclick=async()=>{if(ocupado)return;if(boton==='galeria')return $(`[data-${input}]`).click();const foto=await tomarFotoEnPagina({titulo:sku?'Foto del producto · '+sku:'Foto de recepción',alUsarNativa:()=>$(`[data-${input}]`).click()});if(foto){elegidas.push(foto);pintar();}};
     $(`[data-${input}]`).onchange=ev=>{elegidas.push(...ev.target.files);ev.target.value='';pintar();};
@@ -136,7 +142,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       const filtroSku=$('[data-filtro-sku]').value.trim().toUpperCase(),filtroCategoria=$('[data-filtro-categoria]').value,vistos=new Set();
       for(const e of f.evidencias||[]){if(!e.carpetaDrive || filtroSku&&e.sku!==filtroSku || filtroCategoria&&e.categoria!==filtroCategoria || vistos.has(e.carpetaDrive) || !/^https:\/\/drive\.google\.com\//.test(e.carpetaDrive))continue;
         vistos.add(e.carpetaDrive);const link=document.createElement('a');link.href=e.carpetaDrive;link.target='_blank';link.rel='noopener';link.textContent=`Carpeta ${e.sku} · ${e.categoria}`;link.className='b-sec';card.append(link);}
-      img.onerror=()=>{img.hidden=true;a.textContent='Abrir imagen en Drive (requiere permiso de Google)';};
+      img.onerror=()=>{img.hidden=true;a.textContent=f.driveUrl?'✓ Foto guardada en Drive · Abrir original':'Foto guardada · Abrir vista completa';};
       if(supervisor&&rec.estado!=='CERRADA'){
         const editar=document.createElement('button');editar.className='b-sec';editar.textContent='Editar vínculo';editar.onclick=async()=>{
           const es=f.evidencias||[];if(!es.length)return;
@@ -147,7 +153,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
             {clave:'categoria',etiqueta:'Clasificación',tipo:'lista',valor:e.categoria,opciones:['RECEPCION','VALIDACION','FALTANTE','SOBRANTE','PNC','GENERAL'].map(c=>({valor:c,titulo:c}))},
             {clave:'tipoEvidencia',etiqueta:'Tipo de foto',tipo:'lista',valor:e.tipo,opciones:Object.entries(TIPOS_EVIDENCIA).map(([valor,titulo])=>({valor,titulo}))},
             {clave:'origen',etiqueta:'Packing list',tipo:'lista',valor:e.origen||'',opciones:[{valor:'',titulo:'Sin vínculo de packing list'},...(rec.origenes||[]).map(o=>({valor:o,titulo:o}))]},
-            ...(destinos.embarques.length?[{clave:'embarqueFoto',etiqueta:'Embarque de la fotografía',tipo:'lista',valor:e.embarque||destinos.sugerido||'',opciones:[{valor:'',titulo:'General · solo para fotos de recepción'},...destinos.embarques.map(v=>({valor:v,titulo:v}))]}]:[])]});if(!v)return;
+            ...(destinos.embarques.length?[{clave:'embarqueFoto',etiqueta:'Embarque de la fotografía',tipo:'lista',valor:e.embarque||destinos.sugerido||'',opciones:[{valor:'',titulo:'General · compartida entre embarques'},...destinos.embarques.map(v=>({valor:v,titulo:v}))]}]:[])]});if(!v)return;
           editar.disabled=true;try{const r=await operacion('/evidencias/'+f.id,{metodo:'PUT',cuerpo:{...v,evidenciaId:e.id,unidadId:e.unidadId||'',protocolo:e.protocolo||'GENERAL'}});$('[data-estado]').textContent=r.mensaje;await cargar();}catch(err){$('[data-estado]').textContent=err.message;}finally{editar.disabled=false;}
         };card.append(editar);
       }
@@ -173,7 +179,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       if(s){$('[data-estado-drive]').textContent=`Recepción completa: ${s.guardadas} fotos guardadas · ${s.copiadas} confirmadas en Drive · ${s.pendientes} pendientes (${s.procesando} en proceso).`+
         (s.requierenAyuda?' Hay fotos que requieren revisión. El supervisor responsable debe verificar una vez su conexión en Mi cuenta y correo; después reintenta las fotos.':'');
         $('[data-reintentar]').hidden=!s.pendientes;}
-      $('[data-carpetas]').replaceChildren();for(const url of estado.carpetas || []){
+      $('[data-carpetas]').replaceChildren();for(const url of new Set(estado.carpetas || [])){
         if(!/^https:\/\/drive\.google\.com\//.test(url))continue;
         const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='Abrir carpeta de la recepción';a.className='b-sec';$('[data-carpetas]').append(a);
       }
@@ -191,8 +197,8 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
       const urls=await cargarEvidencias(recepcion,elegidas,{sku,desdeSku:!!sku,categoria:$('[data-categoria]').value,
         tipoEvidencia:$('[data-tipo]').value,protocolo:$('[data-protocolo]').value,
         unidadId:$('[data-unidad]').value,origen:$('[data-origen]').value},
-        (n,t)=>{$('[data-estado]').textContent=`Guardando ${n} de ${t}…`;},cache);
-      elegidas=[];cache=new Map();await cargar();
+        (n,t)=>{$('[data-estado]').textContent=`Guardando ${n} de ${t}…`;},cache,destinos);
+      elegidas=[];destinos.clear();cache=new Map();await cargar();
       $('[data-estado]').textContent=`${new Set(urls).size} imágenes únicas guardadas; copia a Drive en segundo plano.`;
     }catch(e){$('[data-estado]').textContent=e.message+' Puedes reintentar: las imágenes confirmadas no se repiten.';}
     finally{ocupado=false;pintar();controles.forEach(e=>e.disabled=false);if(final||panoramica){$('[data-tipo]').disabled=true;$('[data-categoria]').disabled=true;}if(panoramica)$('[data-unidad]').disabled=true;$('[data-subir]').disabled=!elegidas.length;$('[data-cerrar]').disabled=false;}

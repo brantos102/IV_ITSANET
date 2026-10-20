@@ -85,7 +85,7 @@ def validar_cierre(db,r):
     from app.services.agrupacion_correo import configuracion,grupos as grupos_envio
     config=configuracion(db,r.codigo)
     from app.services.agrupacion_correo import embarque
-    if len({embarque(l,config) for l in lineas if embarque(l,config)})>1 and config.get('modo')!='EMBARQUE':
+    if len({embarque(l,config) for l in lineas if embarque(l,config)})>1 and config.get('modo')!='EMBARQUE' and not config.get('consolidadoConfirmado'):
         raise HTTPException(409,'La recepción contiene varios embarques. Organiza sus correos por embarque antes de finalizar.')
     grupos_actuales=grupos_envio(lineas,r.origenes or [],config)
     destinos=[g['id'] for g in grupos_actuales]
@@ -94,6 +94,7 @@ def validar_cierre(db,r):
     eventos=m.leer_coleccion(db,r.codigo,'eventos',actual=True)
     anulados={e.get('anulaA') for e in eventos if e.get('tipo')=='ANULACION'}
     for e in eventos:
+        if config.get('modo')=='RECEPCION':continue
         if config.get('modo')=='EMBARQUE' and e.get('id') not in anulados and e.get('tipo')=='CONTEO' and e.get('cantidad',0)>0 and e.get('sku') in mapa and e.get('origen'):
             destino=next((g for g in grupos_actuales if g['id']==mapa[e['sku']]),None)
             if destino and e['origen'] not in destino['packingLists']:raise HTTPException(409,'El packing list del adicional '+e['sku']+' no pertenece al embarque elegido. Corrige su asignación antes de finalizar.')
@@ -172,7 +173,7 @@ def enviar_lote(db,e,d,guardados,manifest,llamar):
             from app.services.agrupacion_correo import embarque,grupo_id
             por_embarque=d.get('planCorreos',{}).get('modo')=='EMBARQUE'
             payload.update(skus=scoped['skus'],eventos=[{**ev,'tipo':'ASIGNACION_INFORME'} for ev in scoped['eventos']] if por_embarque else scoped['eventos'],
-                lineas=[l for l in d['lineas'] if (grupo_id(embarque(l,d['planCorreos']))==item['origen'] if por_embarque else (l.get('origen') or 'PRINCIPAL')==item['origen'])])
+                lineas=[l for l in d['lineas'] if (grupo_id(embarque(l,d['planCorreos']))==item['origen'] if por_embarque else d.get('planCorreos',{}).get('modo')=='RECEPCION' or (l.get('origen') or 'PRINCIPAL')==item['origen'])])
         e.proximo_en=utcnow()+timedelta(minutes=15);db.commit()
         llave=hashlib.sha256((e.id+'\x1f'+item['origen']).encode()).hexdigest()[:32]
         resultado=llamar('finalizar',llave,payload)

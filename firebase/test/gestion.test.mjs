@@ -158,17 +158,17 @@ await test('el orden rechaza columnas repetidas, omitidas o desconocidas sin mut
  for(const ids of [orden.slice(1),[orden[0],...orden.slice(0,-1)],orden.map((v,i)=>i===0?'original:999':v)]){let fallo=false;try{organizacion.columnasDeSalida({...f,ordenSalida:ids});}catch{fallo=true;}ok(fallo);}
  eq(organizacion.columnasDeSalida({...f,ordenSalida:['invalido']},{ampliado:false}).map(c=>c.titulo),f.encabezados);eq(JSON.stringify(f),antes);
 });
-await test('OK Depot se explica con fuente, comentarios y observación sin maestro ni fórmulas de búsqueda',()=>{
+await test('OK Depot mantiene valor sin comentarios técnicos ni contaminar observaciones',()=>{
  const validacionDepot={notaMaestro:'No se adjunta la hoja MAESTRO.',metodo:'Catálogo sincronizado mediante la API de stock de Depot.',actualizadoEn:'2026-10-19T08:00:00Z',porSku:{
   S:{estado:'NO_ENCONTRADO',valor:'N/D',observacion:'Verificar en Depot; solicitar creación si corresponde antes de cargar cantidades.',nota:'No encontrado en catálogo; ausencia en stock no prueba inexistencia.',fuente:'CATALOGO',actualizadoEn:'2026-10-19T08:00:00Z'}}};
  const formato={hoja:'PACKING',encabezados:['ITEM','Cantidad','ok','OBSERVACION'],columnas:{sku:0,cantidad:1,depot:2,observacion:3}};
  const detalle=informe.completarIncidencias([{sku:'S',cantidad:2,fisica:2,diferencia:0,estado:'OK',observacion:'Nota del operario',cruda:['S',2,'#N/A','']}],[],{validacionDepot});
  const x=informe.construirLibro({recepcion:{codigo:'R'},validacionDepot,detalle,porOrigen:[{origen:'A',detalle,formato}],adicionales:[],eventos:[],auditoria:[]},{version:'envio-ampliado'}),w=XLSX.read(x.base64,{type:'base64'}),sh=w.Sheets.PACKING;
- eq(w.SheetNames,['PACKING']);ok(!w.SheetNames.includes('MAESTRO'));ok(w.Props.Comments.includes('No se adjunta'));
+ eq(w.SheetNames,['PACKING']);ok(!w.SheetNames.includes('MAESTRO'));ok(!w.Props.Comments);
  const vista=informe.previsualizarLista({detalle,formato,validacionDepot},formato.columnas,{ampliado:true}),j=vista.encabezados.indexOf('ok'),obs=vista.encabezados.indexOf('OBSERVACION');
- eq(vista.filas[0].celdas[j].texto,'N/D');ok(vista.filas[0].celdas[j].comentario.includes('no prueba inexistencia'));
- ok(vista.filas[0].celdas[obs].texto.includes('Nota del operario'));ok(vista.filas[0].celdas[obs].texto.includes('solicitar creación'));
- ok(sh[XLSX.utils.encode_cell({r:0,c:j})].c[0].t.includes('API de stock'));ok(!sh[XLSX.utils.encode_cell({r:1,c:j})].f);
+ eq(vista.filas[0].celdas[j].texto,'N/D');eq(vista.filas[0].celdas[j].comentario,'');
+ ok(vista.filas[0].celdas[obs].texto.includes('Nota del operario'));ok(!vista.filas[0].celdas[obs].texto.includes('solicitar creación'));
+ ok(!sh[XLSX.utils.encode_cell({r:0,c:j})].c);ok(!sh[XLSX.utils.encode_cell({r:1,c:j})].f);
 });
 await test('guardar destinos de salida no elimina la protección de las columnas de origen',async()=>{
  const anterior=globalThis.__coleccion;
@@ -244,4 +244,18 @@ await test('un adicional contado en dos packing lists del mismo embarque se entr
  finally{if(prev.location===undefined)delete globalThis.location;else globalThis.location=prev.location;globalThis.fetch=prev.fetch;}
 });
 
+await test('recepción consolidada reúne dos packing lists y adicionales con su enlace en un solo libro',()=>{
+ const url='https://drive.google.com/drive/folders/extra56';
+ const listas=['P1','P2'].map((origen,i)=>({origen,detalle:[{sku:'SKU'+i,cantidad:2,fisica:2,diferencia:0,estado:'OK',origen,evidencia:'https://drive.google.com/drive/folders/'+origen}]}));
+ const datos={recepcion:{codigo:'R56'},modoAgrupacion:'RECEPCION',porOrigen:listas,detalle:listas.flatMap(l=>l.detalle),adicionales:[{sku:'EXTRA56',fisica:3,grupo:'RECEPCION',evidencia:url}],eventos:[]};
+ const libros=informe.construirLibros(datos,{version:'envio-ampliado'});eq(libros.length,1);eq(libros[0].grupo,'RECEPCION');
+ const w=XLSX.read(libros[0].base64,{type:'base64'});eq(w.SheetNames,['P1','P2','ADICIONALES']);
+ eq(XLSX.utils.sheet_to_json(w.Sheets.ADICIONALES)[0].EVIDENCIAS,url);ok(JSON.stringify(w.Sheets.P1).includes('SKU0'));ok(JSON.stringify(w.Sheets.P2).includes('SKU1'));ok(!JSON.stringify(w).includes('No se adjunta'));
+});
+await test('auditable muestra resumen de ambas listas y enlaces de adicionales sin hoja AUDITORIA',()=>{
+ const listas=['PRINCIPAL','OTRA'].map((origen,i)=>({origen,detalle:[{sku:'S'+i,cantidad:i+1,fisica:i+1,diferencia:0,origen}]})),url='https://drive.google.com/drive/folders/adicional56';
+ const w=XLSX.read(informe.construirLibro({recepcion:{codigo:'R',nombresListas:{PRINCIPAL:'PRINCIPAL - RAISZ04453'}},porOrigen:listas,detalle:listas.flatMap(l=>l.detalle),adicionales:[{sku:'X',fisica:1,evidencia:url}],eventos:[]},{version:'auditable'}).base64,{type:'base64'});
+ ok(!w.SheetNames.includes('AUDITORIA'));eq(XLSX.utils.sheet_to_json(w.Sheets.RESUMEN).map(r=>r['PACKING LIST']),['PRINCIPAL - RAISZ04453','OTRA']);
+ eq(XLSX.utils.sheet_to_json(w.Sheets.RESUMEN).map(r=>r.CONTADO),[1,2]);eq(XLSX.utils.sheet_to_json(w.Sheets.ADICIONALES)[0].EVIDENCIAS,url);
+});
 resumen();

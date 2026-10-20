@@ -169,7 +169,7 @@ def preparar(db, codigo, datos, usuario):
     plan_envio=plan_correos(db,r.codigo,actual=True)
     from app.services.agrupacion_correo import embarque
     ls=m.leer_coleccion(db,r.codigo,'lineas',actual=True)
-    if len({embarque(l,plan_envio) for l in ls if embarque(l,plan_envio)})>1 and plan_envio['modo']!='EMBARQUE':
+    if len({embarque(l,plan_envio) for l in ls if embarque(l,plan_envio)})>1 and plan_envio['modo']!='EMBARQUE' and not plan_envio.get('consolidadoConfirmado'):
         raise HTTPException(409,'Revisa un correo y sus archivos por cada embarque antes de finalizar.')
     if activas(db, r.codigo):
         raise HTTPException(409, 'Esta recepción ya tiene una entrega sin resolver. Revisa Entrega del informe antes de generar otro envío.')
@@ -191,7 +191,7 @@ def preparar(db, codigo, datos, usuario):
     from app.services.correo_redactado import congelar, clave_config
     informe = db.get(AppInforme, datos.get('informeId')) if datos.get('informeId') else None
     lote_correos=[];asignaciones_cierre={}
-    if len(r.origenes or [])>1 or plan_envio['modo']=='EMBARQUE':
+    if len(r.origenes or [])>1 or plan_envio['modo'] in ('EMBARQUE','RECEPCION'):
         from app.services.correos_embarque import congelar as congelar_embarques,asignaciones
         lote_correos=congelar_embarques(db,r,datos,usuario,informe)
         asignaciones_cierre=asignaciones(db,r.codigo)
@@ -452,6 +452,7 @@ def procesar_uno():
                 guardados.append({**copia,'nombre':a.nombre,'tipoArchivo':a.tipo})
                 # La imagen no ocupa MySQL ni queda duplicada tras confirmar Drive.
                 if a.tipo == 'foto':
+                    archivos.conservar_miniatura(a)
                     try:
                         archivos.ruta(a).unlink(missing_ok=True)
                     except OSError:

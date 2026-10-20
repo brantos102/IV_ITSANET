@@ -1,14 +1,14 @@
-import {pedir} from './local.js?v=20261019-55';
-import {elegir,pedirDatos} from './modal.js?v=20261019-55';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-55';
-import {prepararDocumentosPorEmbarque} from './informes-registro.js?v=20261019-55';
+import {pedir} from './local.js?v=20261019-56';
+import {elegir,pedirDatos} from './modal.js?v=20261019-56';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261019-56';
+import {prepararDocumentosPorEmbarque} from './informes-registro.js?v=20261019-56';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 export async function revisarPlanCorreos(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo)+'/correos-embarques';let p=await api(ruta),ocupado=false;
  let c={modo:p.modo,asignaciones:{...p.asignaciones},embarquesPorLinea:{...p.embarquesPorLinea},repartos:Object.fromEntries(p.repartos.map(s=>[s.id,s.propuesta]))};
- if(p.embarques.length&&c.modo!=='EMBARQUE'){c.modo='EMBARQUE';p=await api(ruta+'/vista',{cuerpo:c});c.repartos=Object.fromEntries(p.repartos.map(s=>[s.id,s.propuesta]));}
+ if(p.embarques.length&&c.modo==='PACKING_LIST'&&!p.consolidadoConfirmado){c.modo='EMBARQUE';p=await api(ruta+'/vista',{cuerpo:c});c.repartos=Object.fromEntries(p.repartos.map(s=>[s.id,s.propuesta]));}
  const d=document.createElement('dialog');d.className='modal-operativa';let resolver;const resultado=new Promise(r=>resolver=r);
  function capturar(){
   d.querySelectorAll('[data-linea]').forEach(e=>c.embarquesPorLinea[e.dataset.linea]=e.value.trim());
@@ -17,19 +17,18 @@ export async function revisarPlanCorreos(codigo){
  }
  function pintar(){
   const porEmbarque=c.modo==='EMBARQUE';
-  d.innerHTML=`<h2>Organizar correos de la recepción</h2><p>Un packing list es un archivo y puede contener varios embarques. Elige cómo desea el supervisor separar los correos. Se conserva el cierre completo de la recepción.</p><label class="campo"><span>Preparar y revisar</span><select data-modo><option value="PACKING_LIST">Un correo por cada packing list</option><option value="EMBARQUE">Un correo por cada embarque</option></select></label><p>${p.grupos.length} correos propuestos: ${p.grupos.map(g=>esc(g.nombre)).join(' · ')||'asigna primero los embarques'}</p><form>
+  d.innerHTML=`<h2>Organizar correos de la recepción</h2><p>Un packing list es un archivo y puede contener varios embarques. Elige cómo desea el supervisor separar los correos. Se conserva el cierre completo de la recepción.</p><label class="campo"><span>Preparar y revisar</span><select data-modo><option value="PACKING_LIST">Un correo por cada packing list</option><option value="EMBARQUE">Un correo por cada embarque</option><option value="RECEPCION">Un correo consolidado de toda la recepción</option></select></label><p>${p.grupos.length} correos propuestos: ${p.grupos.map(g=>esc(g.nombre)).join(' · ')||'asigna primero los embarques'}</p><form>
    ${porEmbarque&&p.filasSinEmbarque.length?`<details open><summary>Filas sin embarque en el archivo · ${p.filasSinEmbarque.length}</summary><p>Indica el embarque de estas filas. La asignación se usa en esta revisión y conserva el packing list original.</p>${[...new Set(p.filasSinEmbarque.map(l=>l.origen))].map(o=>`<label class="campo"><span>Aplicar un embarque a las filas sin dato de ${esc(o)}</span><input data-todas="${esc(o)}" placeholder="Escribe el código y sal del campo"></label>`).join('')}${p.filasSinEmbarque.map(l=>`<label class="campo"><span>${esc(l.origen)} · fila ${l.linea} · ${esc(l.sku)}</span><input data-linea="${esc(l.id)}" value="${esc(c.embarquesPorLinea[l.id]||'')}" maxlength="80" required></label>`).join('')}<button type="button" class="b-sec" data-preview>Revisar embarques asignados</button></details>`:''}
    ${p.adicionales.length?'<h3>Productos adicionales</h3>':''}${p.adicionales.map(s=>`<label class="campo"><span>${esc(s.sku)} · ${esc(s.descripcion)}</span><select data-extra="${esc(s.sku)}" required><option value="">Selecciona su grupo</option>${p.grupos.map(g=>`<option value="${esc(g.id)}" ${c.asignaciones[s.sku]===g.id?'selected':''}>${esc(g.nombre)}</option>`).join('')}</select></label>`).join('')}
    ${porEmbarque&&p.repartos.length?`<h3>Revisa la distribución de SKU compartidos</h3><p>Son propuestas para el informe. Ajusta la cantidad, incidencias, pallets y observación de cada embarque. Las sumas deben conservar exactamente lo contado y su calidad; la bitácora permanece intacta.</p>${p.repartos.map(s=>`<details open><summary>${esc(s.origen)} · ${esc(s.sku)} · ${s.cantidad} unidades contadas</summary>${s.grupos.map(g=>{const x=c.repartos[s.id]?.[g.id]||s.propuesta[g.id],attrs=`data-r="${s.id}" data-g="${g.id}"`;return `<fieldset><legend>${esc(g.nombre)}</legend><label class="campo"><span>Cantidad física</span><input type="number" min="0" step="any" ${attrs} data-k="cantidad" value="${x.cantidad}" required></label>${s.incidencias.map(i=>`<div class="rejilla">${[['incidencias','Unidades con '+i.nombre],['pnc','De ellas PNC']].map(([k,t])=>`<label class="campo"><span>${esc(t)}</span><input type="number" min="0" step="any" ${attrs} data-k="${k}" data-tipo="${esc(i.tipo)}" value="${x[k][i.tipo]||0}" required></label>`).join('')}</div>`).join('')}<label class="campo"><span>Pallets de estas unidades</span><input ${attrs} data-k="pallets" value="${esc(x.pallets)}" maxlength="300"></label><label class="campo"><span>Observación de este embarque</span><input ${attrs} data-k="observacion" value="${esc(x.observacion)}" maxlength="300"></label></fieldset>`;}).join('')}</details>`).join('')}<label class="campo"><span><input type="checkbox" data-confirmar> Revisé y confirmo el reparto por embarque y las unidades PNC.</span></label>`:''}
-   <p data-error role="alert"></p><div class="acciones"><button type="button" class="b-sec" data-cancelar>Volver a la recepción</button><button type="submit" class="b-primario">Confirmar agrupación y continuar</button></div></form>`;
+   ${c.modo==='RECEPCION'||c.modo==='PACKING_LIST'&&p.embarques.length>1?'<label class="campo"><span><input type="checkbox" data-consolidado required> Confirmo el correo consolidado con todos los embarques y documentos indicados.</span></label>':''}<p data-error role="alert"></p><div class="acciones"><button type="button" class="b-sec" data-cancelar>Volver a la recepción</button><button type="submit" class="b-primario">Confirmar agrupación y continuar</button></div></form>`;
   d.querySelector('[data-modo]').value=c.modo;
-  if(p.embarques.length>1)d.querySelector('[data-modo] option[value="PACKING_LIST"]').disabled=true;
   d.querySelector('[data-modo]').onchange=async ev=>{if(ev.target.value===c.modo)return;capturar();c.modo=ev.target.value;c.repartos={};await previa();};
   d.querySelectorAll('[data-todas]').forEach(e=>e.onchange=()=>{for(const l of p.filasSinEmbarque.filter(l=>l.origen===e.dataset.todas)){c.embarquesPorLinea[l.id]=e.value.trim();d.querySelector('[data-linea="'+CSS.escape(l.id)+'"]').value=e.value.trim();}});
   d.querySelector('[data-preview]')?.addEventListener('click',async()=>{capturar();await previa();});
   d.querySelector('[data-cancelar]').onclick=()=>{if(!ocupado)d.close();};
   d.querySelector('form').onsubmit=async ev=>{ev.preventDefault();if(ocupado)return;ocupado=true;capturar();try{
-   const nuevo=await api(ruta,{metodo:'PUT',cuerpo:{...c,version:p.version,repartoConfirmado:!!d.querySelector('[data-confirmar]')?.checked}});resolver(nuevo);d.close();
+   const nuevo=await api(ruta,{metodo:'PUT',cuerpo:{...c,version:p.version,repartoConfirmado:!!d.querySelector('[data-confirmar]')?.checked,confirmarConsolidado:!!d.querySelector('[data-consolidado]')?.checked}});resolver(nuevo);d.close();
   }catch(e){d.querySelector('[data-error]').textContent=e.message;}finally{ocupado=false;}};
  }
  async function previa(){if(ocupado)return;ocupado=true;try{p=await api(ruta+'/vista',{cuerpo:c});c.repartos=Object.fromEntries(p.repartos.map(s=>[s.id,s.propuesta]));pintar();}catch(e){d.querySelector('[data-error]').textContent=e.message;}finally{ocupado=false;}}
@@ -37,7 +36,7 @@ export async function revisarPlanCorreos(codigo){
 }
 
 export async function abrirCorreosEmbarque(recepcion,v,{entregaId,confirmarEnvio,modoEntrega,alEnviar,abrirCorreo,actual=false}){
- const unidad=v.modoAgrupacion==='EMBARQUE'?'embarque':'packing list';
+ const unidad=v.modoAgrupacion==='RECEPCION'?'recepción':v.modoAgrupacion==='EMBARQUE'?'embarque':'packing list';
  const nombre=id=>v.grupos?.find(g=>g.id===id)?.nombre||id;
  const confirmados=new Set(v.correos.filter(c=>['ENTREGADA','MANUAL_DECLARADO'].includes(c.estado)).map(c=>c.origen));
  if(confirmarEnvio){

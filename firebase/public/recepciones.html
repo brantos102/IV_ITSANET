@@ -2,17 +2,17 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261019-55"></script>
+<script src="./js/arranque.js?v=20261019-56"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261019-55">
+<link rel="stylesheet" href="./css/marca.css?v=20261019-56">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261019-55"></script>
-<script src="./vendor/JsBarcode.all.min.js?v=20261019-55"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261019-56"></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261019-56"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -84,8 +84,7 @@
     <label class="campo"><span>Embarque / nombre de la lista (editable)</span>
       <input id="fOrigen" placeholder="RB48529" autocapitalize="characters"
              spellcheck="false">
-      <span class="mini">Una recepción puede consolidar varias. Cada una entrega
-        su propio archivo final, con sus filas.</span></label>
+      <span class="mini">Detecta los embarques de todas las filas de la hoja elegida. Puedes editar el nombre y separar sus códigos con comas. El supervisor elige correo por lista, embarque o recepción consolidada.</span></label>
     <label class="campo" style="grid-column:span 2"><span>Archivo .xlsx</span>
       <input type="file" id="fArchivo" accept=".xlsx,.xlsm,.xls"></label>
   </div>
@@ -154,26 +153,27 @@
 </div>
 
 <script type="module">
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261019-55';
-import {configurarClientes} from './js/clientes-operacion.js?v=20261019-55';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261019-55';
-import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261019-55';
-import { mostrarAviso } from './js/notificaciones.js?v=20261019-55';
-import { observarSesion, modoLocal } from './js/auth.js?v=20261019-55';
+import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261019-56';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261019-56';
+import {configurarClientes} from './js/clientes-operacion.js?v=20261019-56';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261019-56';
+import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261019-56';
+import { mostrarAviso } from './js/notificaciones.js?v=20261019-56';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261019-56';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261019-55';
-import { Proxy } from './js/proxy.js?v=20261019-55';
-import { resumir } from './js/conteo.js?v=20261019-55';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261019-55';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261019-55';
-import { leerCodigos } from './js/codigos.js?v=20261019-55';
-import { pedir } from './js/local.js?v=20261019-55';
-import { abrirIngreso } from './js/ingreso.js?v=20261019-55';
-import {editarRecepcion} from './js/editar-recepcion.js?v=20261019-55';
-import { operacion } from './js/evidencias.js?v=20261019-55';
+} from './js/datos.js?v=20261019-56';
+import { Proxy } from './js/proxy.js?v=20261019-56';
+import { resumir } from './js/conteo.js?v=20261019-56';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261019-56';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261019-56';
+import { leerCodigos } from './js/codigos.js?v=20261019-56';
+import { pedir } from './js/local.js?v=20261019-56';
+import { abrirIngreso } from './js/ingreso.js?v=20261019-56';
+import {editarRecepcion} from './js/editar-recepcion.js?v=20261019-56';
+import { operacion } from './js/evidencias.js?v=20261019-56';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -225,9 +225,9 @@ observarSesion(async (e) => {
 $('bEntregasSupervisor').onclick=()=>abrirEntregas(aviso).catch(e=>aviso(e.message,'err'));
 
 document.addEventListener('click',async ev=>{
- const editar=ev.target.closest('[data-editar]'),drive=ev.target.closest('[data-drive]');if(!editar&&!drive)return;
- const b=editar||drive;b.disabled=true;
- try{if(editar){if(await editarRecepcion(b.dataset.editar)){aviso('Recepción actualizada.','ok');await cargarListado();}}
+ const editar=ev.target.closest('[data-editar]'),drive=ev.target.closest('[data-drive]'),cerrar=ev.target.closest('[data-cerrar-externo]');if(!editar&&!drive&&!cerrar)return;
+ const b=editar||drive||cerrar;b.disabled=true;
+ try{if(cerrar){const r=await cerrarDesdeRecepciones(b.dataset.cerrarExterno);if(r){aviso(r.mensaje,'ok');await cargarListado();}}else if(editar){if(await editarRecepcion(b.dataset.editar)){aviso('Recepción actualizada.','ok');await cargarListado();}}
  else await abrirDriveRecepcion(b.dataset.drive,aviso);
  }catch(e){aviso(e.message,'err','Revisa los datos indicados');}finally{b.disabled=false;}
 });
@@ -329,7 +329,7 @@ $('fArchivo').addEventListener('change', async (ev) => {
     actualizarOpcionesColumnas(resultadoArchivo.encabezados,resultadoArchivo.mapaEntrada);
 
     if(!$('fOrigen').value.trim()||$('fOrigen').dataset.automatico===$('fOrigen').value){
-      const detectado=resultadoArchivo.embarques.join('-').slice(0,40);if(detectado){$('fOrigen').value=detectado;$('fOrigen').dataset.automatico=detectado;}
+      const detectado=resultadoArchivo.embarques.join(', ').slice(0,40);if(detectado){$('fOrigen').value=detectado;$('fOrigen').dataset.automatico=detectado;}
     }
 
     const muestra = resultadoArchivo.lineas.slice(0, 5).map((l) => `
@@ -670,8 +670,8 @@ function pintarListado() {
       return `<tr${vacia ? ' style="background:rgba(245,158,11,.06)"' : ''}>
         <td class="id">${esc(r.codigo)}<br><span class="mini">${
           [r.cliente, (r.origenes || []).length > 1
-            ? `${r.origenes.length} listas: ${r.origenes.join(' · ')}`
-            : (r.origenes || [])[0]].filter(Boolean).join(' — ')}</span></td>
+            ? `${r.origenes.length} listas: ${r.origenes.map(o=>r.nombresListas?.[o]||o).join(' · ')}`
+            : r.nombresListas?.[(r.origenes||[])[0]]||(r.origenes || [])[0]].filter(Boolean).join(' — ')}</span></td>
         <td><span class="pastilla ${vacia ? 'p-warn' : clase}">
           ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
         <td class="num">${t.skus ?? 0}</td>
@@ -680,7 +680,7 @@ function pintarListado() {
         <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}" style="width:${Number(r.seguimiento?.avance)||0}%"></i></div><span class="mini" id="av_${esc(r.id)}">${r.seguimiento?.avance ?? 0}% revisado</span>${puedeConsolidar?`<div class="mini">${(r.equipoActivo||[]).map(o=>esc(o.nombre)).join(" · ")}</div>`:""}</td>
         <td>${puedeConsolidar
           ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
-               ${vacia ? 'Cargar packing list' : '+ Embarque'}</button>${modoLocal() ? `<details class="acciones-recepcion-lista"><summary>Gestionar</summary><button class="b-sec" data-ingreso="${esc(r.id)}">Bultos y fotos</button><button class="b-sec" data-editar="${esc(r.id)}">Editar recepción / embarques</button><button class="b-sec" data-drive="${esc(r.id)}" title="Abrir carpeta Drive de la recepción" aria-label="Abrir carpeta Drive">▱ Drive</button></details>` : ''}`
+               ${vacia ? 'Cargar packing list' : '+ Embarque'}</button>${modoLocal() ? `<details class="acciones-recepcion-lista"><summary>Gestionar</summary>${r.estado!=='CERRADA'&&!vacia&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-cerrar-externo="${esc(r.id)}">Cerrar · correos ya enviados</button>`:''}<button class="b-sec" data-ingreso="${esc(r.id)}">Bultos y fotos</button><button class="b-sec" data-editar="${esc(r.id)}">Editar recepción / embarques</button><button class="b-sec" data-drive="${esc(r.id)}" title="Abrir carpeta Drive de la recepción" aria-label="Abrir carpeta Drive">▱ Drive</button></details>` : ''}`
           : vacia ? '<span class="mini">sin packing list</span>' : ''}</td>
         <td>${vacia ? '' : `<a href="./validar.html?r=${encodeURIComponent(r.id)}">
           <button class="b-primario">Validar →</button></a>`}</td>

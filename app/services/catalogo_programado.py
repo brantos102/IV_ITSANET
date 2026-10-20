@@ -95,6 +95,12 @@ def sincronizar_turno(ahora=None):
         else:
             t = db.scalar(select(AppConfig).where(AppConfig.clave == clave).with_for_update().execution_options(populate_existing=True))
             if t.datos.get('estado') == 'COMPLETADA' or t.datos.get('hasta', '') > ahora.isoformat(): return False
+        from app.services.catalogo_actualizacion import reservar,terminar
+        from fastapi import HTTPException
+        try:token,previo=reservar(db,'PROGRAMADO',ahora=ahora)
+        except HTTPException:return False
+        if previo is not None:return False
+        t=db.get(AppConfig,clave)
         t.datos = {'estado': 'PROCESANDO', 'hasta': (ahora + timedelta(minutes=15)).isoformat()}
         db.commit()
         errores, total = [], 0
@@ -109,6 +115,7 @@ def sincronizar_turno(ahora=None):
             'clientesConError': len(errores), 'hasta': (ahora + timedelta(minutes=15)).isoformat() if errores else '',
             'ejecutadoEn': utcnow().isoformat()}
         db.commit()
+        terminar(db,token,{'productos':total,'errores':errores} if not errores else None,ahora=ahora)
         return True
 
 

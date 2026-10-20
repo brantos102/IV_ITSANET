@@ -10,6 +10,19 @@ from app.models import AppSku, Producto
 from app.services.codigos import buscar
 from app.services.normalize import normalizar_sku
 
+
+def distancia(a,b):
+    """Edición con transposición adyacente; solo ordena sugerencias revisables."""
+    filas=[list(range(len(b)+1))]
+    for i,x in enumerate(a,1):
+        fila=[i]
+        for j,y in enumerate(b,1):
+            n=min(filas[-1][j]+1,fila[-1]+1,filas[-1][j-1]+(x!=y))
+            if i>1 and j>1 and x==b[j-2] and a[i-2]==y:n=min(n,filas[-2][j-2]+1)
+            fila.append(n)
+        filas.append(fila)
+    return filas[-1][-1]
+
 CLAVES = {'sku', 'partnumber', 'partno', 'pn', 'numerodepieza', 'numeropieza', 'codigo', 'codigoproducto'}
 
 
@@ -100,15 +113,17 @@ def _similares(db, piezas, recepcion):
     candidatos = set(db.scalars(select(Producto.sku).where(condicion(Producto.sku))
         .order_by(Producto.sku).limit(9)))
     if recepcion:
-        candidatos.update(db.scalars(select(AppSku.sku).where(AppSku.recepcion == recepcion,
-            condicion(AppSku.sku)).order_by(AppSku.sku).limit(9)))
+        # La lista de esta recepción tiene prioridad. Incluye dos movimientos
+        # de dígitos, sin descargar el catálogo completo ni aceptar el cambio.
+        for sku in db.scalars(select(AppSku.sku).where(AppSku.recepcion==recepcion,AppSku.en_packing_list.is_(True))):
+            if any(abs(len(sku)-len(p))<=2 and distancia(p,sku)<=2 for p in piezas[:4]):candidatos.add(sku)
     return candidatos
 
 
 def _detalles(db, candidatos, recepcion):
     productos = {p.sku:p for p in db.scalars(select(Producto).where(Producto.sku.in_(candidatos)))}
     en_lista = set(db.scalars(select(AppSku.sku).where(AppSku.recepcion == recepcion,
-        AppSku.sku.in_(candidatos)))) if recepcion else set()
+        AppSku.en_packing_list.is_(True),AppSku.sku.in_(candidatos)))) if recepcion else set()
     return [{'sku':s, 'descripcion':productos[s].descripcion or '' if s in productos else '',
         'cliente':productos[s].cliente if s in productos else '',
         'enCatalogo':s in productos, 'existeDepot':bool(productos[s].existe_depot) if s in productos else False,
@@ -153,7 +168,9 @@ def resolver(db, raw, recepcion=None):
     # Dígitos diferentes no se depuran. Se presentan como sugerencia, jamás equivalencia automática.
     if not candidatos:
         candidatos = _similares(db, piezas, recepcion)
-    candidatos = sorted(candidatos)[:8]
+    en_lista=set(db.scalars(select(AppSku.sku).where(AppSku.recepcion==recepcion,AppSku.en_packing_list.is_(True),AppSku.sku.in_(candidatos)))) if recepcion else set()
+    candidatos = sorted(candidatos,key=lambda s:(s not in en_lista,
+        not any(sorted(s)==sorted(p) for p in piezas[:4]),min((distancia(p,s) for p in piezas[:4]),default=100),s))[:8]
     return {'sku': piezas[0] if len(piezas) == 1 and not compuesta else None, 'resuelto': False,
         'confirmar': bool(candidatos), 'candidatos': candidatos,
         'detallesCandidatos': _detalles(db, candidatos, recepcion),

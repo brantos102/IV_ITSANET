@@ -242,7 +242,17 @@ def listar_recepciones(db: Session, max_filas: int = 50,
     from app.services.seguimiento import resumenes
     filas = list(db.execute(q).scalars().all())
     metricas = resumenes(db, [r.codigo for r in filas])
-    return [{**doc_recepcion(r), **metricas.get(r.codigo, {})} for r in filas]
+    nombres=nombres_listas(db,[r.codigo for r in filas])
+    return [{**doc_recepcion(r), 'nombresListas':nombres.get(r.codigo,{}), **metricas.get(r.codigo, {})} for r in filas]
+
+
+def nombres_listas(db,codigos):
+    """Identificación ligera; no descargar las celdas originales de los Excel."""
+    if not codigos:return {}
+    embs={}
+    for codigo,origen,emb in db.execute(select(AppLinea.recepcion,AppLinea.origen,AppLinea.extra['embarque'].as_string()).where(AppLinea.recepcion.in_(codigos)).distinct()):
+        if emb:embs.setdefault(codigo,{}).setdefault(origen,set()).add(str(emb))
+    return {codigo:{o:o+' - '+', '.join(sorted(es)) if o=='PRINCIPAL' else o for o,es in os.items()} for codigo,os in embs.items()}
 
 
 def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0, *, actual: bool = False) -> list[dict]:
@@ -281,6 +291,10 @@ def crear_recepcion(db: Session, datos: dict, usuario: str | None) -> dict:
     if db.get(AppRecepcion, codigo) is not None:
         raise ErrorApp(f"Ya existe una recepción con el código {codigo}.", "DUPLICADA")
 
+    from app.models import AppConfig
+    fichas=db.get(AppConfig,'clientes_fichas')
+    ficha=(fichas.datos or {}).get(limpiar(datos.get('cliente')).upper(),{}) if fichas else {}
+    if ficha.get('eliminado'):raise ErrorApp('El cliente fue eliminado de la lista activa. Selecciona un cliente vigente.','CLIENTE_ELIMINADO')
     r = AppRecepcion(
         codigo=codigo,
         cliente=limpiar(datos.get("cliente")).upper() or "VENTURA",

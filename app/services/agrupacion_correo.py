@@ -21,7 +21,16 @@ def reparto_id(origen,sku):return hashlib.sha256((origen+'\x1f'+sku).encode()).h
 
 
 def grupos(lineas,origenes,c):
-    if c.get('modo')!='EMBARQUE':return [{'id':o,'nombre':o,'tipo':'PACKING_LIST','packingLists':[o]} for o in origenes]
+    if c.get('modo')=='RECEPCION':
+        nombres=', '.join(dict.fromkeys(embarque(l,c) for l in lineas if embarque(l,c)))
+        return [{'id':'RECEPCION','nombre':'Recepción completa'+(' · '+nombres if nombres else ''),'tipo':'RECEPCION','packingLists':list(origenes)}]
+    if c.get('modo')!='EMBARQUE':
+        resultado=[]
+        for o in origenes:
+            nombres=list(dict.fromkeys(embarque(l,c) for l in lineas if (l.get('origen') or 'PRINCIPAL')==o and embarque(l,c)))
+            nombre=o+' - '+', '.join(nombres) if o=='PRINCIPAL' and nombres else o
+            resultado.append({'id':o,'nombre':nombre,'tipo':'PACKING_LIST','packingLists':[o]})
+        return resultado
     salida={}
     for l in lineas:
         emb=embarque(l,c)
@@ -78,17 +87,17 @@ def proyecciones(f,lineas,c):
     return filas,pendientes
 
 
-def vista(db,codigo,datos=None):
-    r=m.obtener(db,codigo);f=fuente(db,r.codigo);guardada=configuracion(db,r.codigo)
+def vista(db,codigo,datos=None,*,actual=False):
+    r=m.obtener(db,codigo);f=fuente(db,r.codigo);guardada=configuracion(db,r.codigo,actual=actual)
     c={**guardada,**{k:v for k,v in (datos or {}).items() if k in ('modo','asignaciones','embarquesPorLinea','repartos')}}
-    if c['modo'] not in ('PACKING_LIST','EMBARQUE'):raise HTTPException(422,'Elige un correo por packing list o por embarque.')
+    if c['modo'] not in ('PACKING_LIST','EMBARQUE','RECEPCION'):raise HTTPException(422,'Elige un correo por packing list, embarque o recepción consolidada.')
     if any(not isinstance(c.get(k),dict) for k in ('asignaciones','embarquesPorLinea','repartos')):raise HTTPException(422,'Revisa las asignaciones del plan de correos.')
     for rs in c['repartos'].values():
         if not isinstance(rs,dict) or any(not isinstance(x,dict) or not numero(x.get('cantidad')) or any(not isinstance(x.get(k),dict) or any(not numero(n) for n in x[k].values()) for k in ('incidencias','pnc')) for x in rs.values()):raise HTTPException(422,'Reparto de cantidades o calidad inválido.')
     gs=grupos(f['lineas'],r.origenes or [],c)
     faltan=[{'id':linea_id(l),'origen':l.get('origen') or 'PRINCIPAL','linea':l['linea'],'sku':l['sku']} for l in f['lineas'] if not embarque(l,c)]
     _,repartos=proyecciones(f,f['lineas'],c) if c['modo']=='EMBARQUE' and not faltan else ([],[])
-    return {'modo':c['modo'],'origenes':r.origenes or [],'grupos':gs,'embarques':list(dict.fromkeys(embarque(l,c) for l in f['lineas'] if embarque(l,c))),
+    return {'modo':c['modo'],'consolidadoConfirmado':c.get('consolidadoConfirmado',False),'origenes':r.origenes or [],'grupos':gs,'embarques':list(dict.fromkeys(embarque(l,c) for l in f['lineas'] if embarque(l,c))),
         'version':firma([r.formatos,f,guardada]),'asignaciones':c['asignaciones'],'embarquesPorLinea':c['embarquesPorLinea'],
         'faltanEmbarques':faltan,'filasSinEmbarque':[{'id':linea_id(l),'origen':l.get('origen') or 'PRINCIPAL','linea':l['linea'],'sku':l['sku']} for l in f['lineas'] if not str(l.get('embarque') or '').strip()],'repartos':repartos,
         'adicionales':[{'sku':s['sku'],'descripcion':s.get('descripcion','')} for s in f['skus'] if s.get('enPackingList') is False]}
@@ -98,11 +107,15 @@ def numero(n):return type(n) in (int,float) and math.isfinite(n) and n>=0
 
 def guardar(db,codigo,datos,usuario):
     from app.services.correos_embarque import clave
-    r=m.obtener(db,codigo,bloquear=True);anterior=vista(db,r.codigo)
+    r=m.obtener(db,codigo,bloquear=True)
+    vigente=configuracion(db,r.codigo,actual=True)
+    anterior=vista(db,r.codigo,actual=True)
     if datos.get('version')!=anterior['version']:raise HTTPException(409,'Cambió la recepción o el plan de correos. Actualiza y revisa el reparto.')
-    c={k:datos.get(k,configuracion(db,r.codigo).get(k)) for k in ('modo','asignaciones','embarquesPorLinea','repartos')}
-    p=vista(db,r.codigo,c);f=fuente(db,r.codigo)
-    if len(p['embarques'])>1 and c['modo']!='EMBARQUE':raise HTTPException(422,'Hay varios embarques identificados. Revisa un correo y sus documentos por cada embarque.')
+    c={k:datos.get(k,vigente.get(k)) for k in ('modo','asignaciones','embarquesPorLinea','repartos')}
+    p=vista(db,r.codigo,c,actual=True);f=fuente(db,r.codigo)
+    if c['modo']=='RECEPCION' or len(p['embarques'])>1 and c['modo']=='PACKING_LIST':
+        if datos.get('confirmarConsolidado') is not True:raise HTTPException(422,'Confirma que deseas consolidar estos embarques en el mismo correo.')
+        c['consolidadoConfirmado']=True
     vacias={linea_id(l) for l in f['lineas'] if not str(l.get('embarque') or '').strip()}
     if any(k not in vacias or not isinstance(v,str) or not 1<=len(v.strip())<=80 for k,v in c['embarquesPorLinea'].items()):raise HTTPException(422,'Asigna embarque únicamente a las filas que no lo tienen, hasta 80 caracteres.')
     if c['modo']=='EMBARQUE' and p['faltanEmbarques']:raise HTTPException(422,'Asigna el embarque de todas las filas antes de dividir el correo.')
@@ -147,7 +160,9 @@ def reparto_vigente(c,pendientes):
 
 def metadatos(db,codigo):
     r=m.obtener(db,codigo);c=configuracion(db,r.codigo)
-    if c['modo']!='EMBARQUE':return {'modo':'PACKING_LIST','configuracion':c,'grupos':grupos([],r.origenes or [],c)}
+    if c['modo']!='EMBARQUE':
+        from app.services.fotos_embarques import informacion
+        return {'modo':c['modo'],'configuracion':c,'grupos':grupos(informacion(db,r.codigo)[2],r.origenes or [],c)}
     f=fuente(db,r.codigo)
     if any(not embarque(l,c) for l in f['lineas']):raise HTTPException(409,'Completa la asignación de embarques antes de preparar sus documentos.')
     filas,rs=proyecciones(f,f['lineas'],c)
@@ -157,10 +172,14 @@ def metadatos(db,codigo):
 
 def filtrar(f,lineas,ident,c):
     from app.services.correos_embarque import filtrar as por_lista
+    if c.get('modo')=='RECEPCION':
+        if ident!='RECEPCION':raise HTTPException(422,'Grupo consolidado inválido')
+        return {**f,'origen':ident,'nombreGrupo':'Recepción completa','tipoGrupo':'RECEPCION','packingLists':list(dict.fromkeys(l.get('origen') or 'PRINCIPAL' for l in lineas))}
     if c.get('modo')!='EMBARQUE':
         mapa=dict(c.get('asignaciones',{}))
         if {l.get('origen') or 'PRINCIPAL' for l in lineas}=={ident}:mapa.update({s['sku']:ident for s in f['skus'] if s.get('enPackingList') is False})
-        return por_lista(f,lineas,ident,mapa)
+        grupo=next((g for g in grupos(lineas,[ident],c) if g['id']==ident),None)
+        return {**por_lista(f,lineas,ident,mapa),'nombreGrupo':grupo['nombre'] if grupo else ident,'tipoGrupo':'PACKING_LIST'}
     gs=grupos(lineas,[],c);g=next((g for g in gs if g['id']==ident),None)
     if not g:raise HTTPException(422,'El embarque no pertenece a este plan de correos.')
     filas,pendientes=proyecciones(f,lineas,c)
@@ -180,7 +199,7 @@ def filtrar(f,lineas,ident,c):
     for foto in f.get('fotos',[]):
         vs=[v for v in foto.get('rutasVinculadas') or [foto] if (not v.get('origen') or v['origen'] in g['packingLists']) and (not v.get('sku') or v['sku'] in miembros) and (not v.get('embarque') or v['embarque']==g['nombre'])]
         if not vs:continue
-        compartida=any(v.get('sku') and not v.get('embarque') and len({embarque(l,c) for l in lineas if l['sku']==v['sku'] and (not v.get('origen') or l.get('origen')==v['origen'])})>1 for v in vs)
+        compartida=any(v.get('sku') and v.get('embarque') is None and len({embarque(l,c) for l in lineas if l['sku']==v['sku'] and (not v.get('origen') or l.get('origen')==v['origen'])})>1 for v in vs)
         fotos.append({**foto,'sku':vs[0].get('sku',''),'categoria':vs[0].get('categoria','RECEPCION'),
             'origen':vs[0].get('origen',''),'embarque':vs[0].get('embarque'),'rutasVinculadas':vs,'requiereRevision':compartida})
     return {**filtrado,'fotos':fotos,'nombreGrupo':g['nombre'],'tipoGrupo':'EMBARQUE','packingLists':g['packingLists']}

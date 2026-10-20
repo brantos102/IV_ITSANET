@@ -20,7 +20,7 @@ def preparar(cliente, db, codigo='FOTOS54'):
 def test_un_packing_dos_embarques_separan_tres_categorias_y_no_alteran_conteos(cliente,db):
     c=preparar(cliente,db)
     p=cliente.get('/api/operacion/recepciones/'+c+'/fotos/embarques?sku=COMUN&origen=PRINCIPAL').json()
-    assert p['candidatos']==['RB-A','RB-B'] and not p['sugerido'] and not p['permiteGeneral']
+    assert p['candidatos']==['RB-A','RB-B'] and not p['sugerido'] and p['permiteGeneral']
     for n,(emb,cat) in enumerate((('RB-A','FALTANTE'),('RB-B','SOBRANTE'),('RB-B','PNC')),1):
         db.rollback()
         r=foto(cliente,c,variante=n,sku='COMUN',origen='PRINCIPAL',embarqueFoto=emb,categoria=cat,tipoEvidencia='ITEM_NOVEDAD')

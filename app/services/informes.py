@@ -36,7 +36,12 @@ def metadatos(db,codigo):
             categorias.setdefault(e.sku,{}).setdefault(e.categoria,set()).add(url)
             origen=e.origen or (next(iter(pertenencias[e.sku])) if len(pertenencias.get(e.sku,set()))==1 else '')
             emb=asignado(db,e,fuente=fuente_fotos)
-            for mapa,clave in ((por_origen,origen),(por_embarque,emb)):
+            destinos=[(por_origen,origen),(por_embarque,emb)]
+            if emb=='':
+                from app.services.fotos_embarques import contexto
+                destinos.extend((por_origen,o) for o in pertenencias.get(e.sku,[]) if not e.origen)
+                destinos.extend((por_embarque,b) for b in contexto(db,r.codigo,e.sku,e.origen or '',e.unidad_id or '',fuente=fuente_fotos)['candidatos'])
+            for mapa,clave in destinos:
                 if not clave:continue
                 nodo=mapa.setdefault(clave,{'carpetas':{},'carpetasCategoria':{}})
                 nodo['carpetas'].setdefault(e.sku,set()).add(url)
@@ -48,7 +53,7 @@ def metadatos(db,codigo):
     enlaces={a.id:a.drive_url for a in db.scalars(select(AppArchivo).where(AppArchivo.recepcion==r.codigo,AppArchivo.tipo=='foto',AppArchivo.drive_id.is_not(None))) if a.drive_url and re.match(r'^https://drive\.google\.com/',a.drive_url)}
     def exportar(mapa):return {k:{'carpetas':{s:sorted(us) for s,us in v['carpetas'].items()},
         'carpetasCategoria':{s:{c:sorted(us) for c,us in cs.items()} for s,cs in v['carpetasCategoria'].items()}} for k,v in mapa.items()}
-    return {'enlacesArchivos':enlaces,'carpetasPorOrigen':exportar(por_origen),'carpetasPorEmbarque':exportar(por_embarque),
+    return {'versionInforme':56,'enlacesArchivos':enlaces,'carpetasPorOrigen':exportar(por_origen),'carpetasPorEmbarque':exportar(por_embarque),
         'agrupacionCorreos':agrupacion(db,codigo),'marca':(ingreso.datos or {}).get('marca','') if ingreso else '', 'cliente':r.cliente,
         'columnas':ajustes.cliente(db,r.cliente)['columnas'],'barras':barras,'formatos':r.formatos or {},
         'evidenciasPendientes':len(pendientes),
@@ -156,7 +161,9 @@ def archivar(db,codigo,ident,datos,usuario):
     if f.huella!=huella(db,r):raise HTTPException(409,'La recepción cambió mientras se preparaba el informe; genera una versión actualizada.')
     libros=datos.get('adjuntos')
     if not isinstance(libros,list) or not 1<=len(libros)<=30:raise HTTPException(422,'Se requiere un informe por packing list')
-    if f.datos.get('agrupacion')=='EMBARQUE' and f.datos.get('formato') in ('envio','envio-ampliado'):
+    if f.datos.get('agrupacion')=='RECEPCION' and f.datos.get('formato') in ('envio','envio-ampliado'):
+        if len(libros)!=1 or libros[0].get('grupo')!='RECEPCION' or libros[0].get('origen')!='RECEPCION':raise HTTPException(422,'Se requiere un documento consolidado que incluya todos los packing lists.')
+    elif f.datos.get('agrupacion')=='EMBARQUE' and f.datos.get('formato') in ('envio','envio-ampliado'):
         pares=[(l.get('grupo'),l.get('origen')) for l in libros]
         esperados={(g['id'],o) for g in f.datos['grupos'] for o in g['packingLists']}
         if len(pares)!=len(set(pares)) or set(pares)!=esperados:raise HTTPException(422,'Prepara un documento por packing list y embarque, sin omitir ni duplicar sus filas.')

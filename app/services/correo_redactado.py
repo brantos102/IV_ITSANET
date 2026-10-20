@@ -79,7 +79,10 @@ def _fuente(db, codigo, entrega_id='',origen=''):
         copia=db.get(AppCopiaDrive,ident)
         unicas[ident]={**foto,'carpetaRecepcion':(copia.datos or {}).get('carpetaRecepcionUrl','') if copia else ''}
     fotos=sorted(unicas.values(),key=lambda foto:(db.get(AppArchivo,foto['archivoId']).creado_en,foto['archivoId']))
-    fuente = {'cliente': r.cliente, 'descripcion': r.descripcion, 'skus': skus,
+    from app.models import AppEvento
+    carpeta_confirmada=db.scalar(select(AppEvento).where(AppEvento.recepcion==codigo,AppEvento.tipo=='AUDITORIA',AppEvento.motivo=='CARPETA_DRIVE_VERIFICADA').order_by(AppEvento.creado_en.desc(),AppEvento.id.desc()).limit(1))
+    carpeta_general=(carpeta_confirmada.datos or {}).get('carpeta','') if carpeta_confirmada else next((f.get('carpetaRecepcion') for f in fotos if f.get('carpetaRecepcion')),'')
+    fuente = {'carpetaGeneral':carpeta_general,'cliente': r.cliente, 'descripcion': r.descripcion, 'skus': skus,
               'eventos': eventos, 'fotos': fotos, 'entrega': entrega_id}
     if e:
         fuente['validacionDepot']=((hijo or {}).get('correoFinal') or d.get('correoFinal') or {}).get('validacionDepot')
@@ -213,6 +216,7 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
         return '<section style="margin:22px 0"><h3 style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ' + color + ';background:#f2f5fa;font-size:16px;color:#1e3655">' + titulo + '</h3>' + contenido + fotos_html(imagenes, categoria) + '</section>'
     carpetas = fuente.get('carpetasEvidencias',list(dict.fromkeys(f.get('carpetaRecepcion') or f.get('carpeta', '') for f in fuente['fotos'])))
     links = ''.join('<p style="margin:8px 0">' + _link(u, 'Consultar carpeta de evidencias →') + '</p>' for u in carpetas if u)
+    if not links and fuente.get('carpetaGeneral'):links='<p>'+_link(fuente['carpetaGeneral'],'Abrir carpeta general de la recepción →')+'</p>'
     html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#22334a;max-width:960px;margin:0 auto;background:#ffffff">'
     html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(fuente.get('nombreGrupo') or fuente.get('origen') or codigo) + '</h2><p style="margin:0;color:#e2ecf9">Recepción: '+escape(codigo)+' · Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
     if fuente.get('origen'):html += '<p style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
@@ -220,15 +224,14 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
     html += datos_operativos(campos,fuente)
     if opciones['mostrarTotales']:
         html += '<p style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
-    html += tabla('Sobrantes', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
+    html += tabla('Sobrantes y adicionales', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
     html += tabla('Faltantes', [s for s in resumen['discrepancias'] if s['diferencia'] < 0], 'FALTANTE', '#d79315')
     html += tabla('Producto no conforme (PNC) y novedades físicas', resumen['novedades'], 'PNC', '#cf5252', True)
     if not resumen['discrepancias'] and not resumen['novedades']:
         html += '<p style="padding:14px;background:#eff9f4;border-left:4px solid #20a277">Sin diferencias de cantidad ni novedades físicas registradas.</p>'
     depot=fuente.get('validacionDepot')
-    if depot:
-        html += '<section style="margin:22px 0;padding:14px;border:1px solid #dce5ef;border-radius:8px"><h3 style="margin:0 0 8px;color:#1e3655;font-size:16px">Observaciones de validación en Depot</h3>'
-        html += _parrafo(depot['notaMaestro'])+_parrafo(depot['metodo'])
+    if depot and any(depot['porSku'].get(s['sku'],{}).get('estado','OK')!='OK' for s in fuente['skus']):
+        html += '<section style="margin:22px 0;padding:14px;border:1px solid #dce5ef;border-radius:8px"><h3 style="margin:0 0 8px;color:#1e3655;font-size:16px">Productos por verificar en Depot</h3>'
         if depot.get('actualizadoEn'):html += _parrafo('Actualización del catálogo: '+(depot.get('fechaActualizacion') or depot['actualizadoEn']))
         pendientes=[s for s in fuente['skus'] if depot['porSku'].get(s['sku'],{}).get('estado','OK')!='OK']
         if pendientes:
@@ -237,7 +240,6 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
                 d=depot['porSku'][s['sku']]
                 html += '<li style="margin-bottom:10px"><b>'+escape(s['sku'])+'</b>'+(' · '+escape(s['descripcion']) if s.get('descripcion') else '')+'<br>'+escape(d['observacion'])+'</li>'
             html += '</ul>'
-            if any(depot['porSku'][s['sku']]['estado']=='NO_ENCONTRADO' for s in pendientes):html += _parrafo('La ausencia en la consulta de stock no confirma inexistencia en el maestro de Depot. La creación debe solicitarse después de verificar el registro.')
         else:html += _parrafo('Los productos de esta recepción figuran en el catálogo consultado para el cliente.')
         html += '</section>'
     otras = [f for f in fotos if f['archivoId'] not in usadas]
@@ -293,7 +295,7 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
         campos=congelado.get('campos',campos);final=congelado
     final={'imagenesDrive':[], 'presentacion':presentacion, 'fotosSeleccionadas':[], **final}
     g = integraciones.google(db, usuario)
-    version = _hash([55, fuente, guardado.get('revision', 0), usuario,campos])
+    version = _hash([56, fuente, guardado.get('revision', 0), usuario,campos])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}
@@ -304,7 +306,7 @@ def vista(db, codigo, usuario, entrega_id='',origen=''):
     resumen=entregas.resumen_final(fuente['skus'], fuente['eventos'])
     return {'campos': campos, 'version': version, 'revision': guardado.get('revision', 0), **final,
             'origen':origen,'nombreGrupo':fuente.get('nombreGrupo') or origen,'origenes':origenes,'grupos':gs,'modoAgrupacion':config.get('modo','PACKING_LIST'),'packingLists':packing_lists,
-            'correosSeparados':(len(origenes)>1 or config.get('modo')=='EMBARQUE') and (not e or bool(e.datos.get('correosPorOrigen'))),
+            'correosSeparados':(len(origenes)>1 or config.get('modo') in ('EMBARQUE','RECEPCION')) and (not e or bool(e.datos.get('correosPorOrigen'))),
             'correos':[{k:c.get(k) for k in ('origen','destinatarios','estado','nombre')} for c in e.datos.get('correosPorOrigen',[])] if e else [],
             'estadoRecepcion':r.estado,'vistaArchivada':bool(e),
             'entregaHistoricaDisponible':ultima[0].id if ultima and not entrega_id else '',

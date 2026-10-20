@@ -39,6 +39,8 @@ export function ayudaDeAccion(texto){const t=String(texto||'').replace(/\s+/g,' 
 let activo=false;
 export function iniciarAyudas(){
  if(activo||typeof document==='undefined')return;activo=true;
+ document.addEventListener('toggle',ev=>{const el=ev.target;if(!el.matches?.('details.menu-recepcion,details.nav-menu,details.acciones-recepcion-lista')||!el.open)return;for(const otro of document.querySelectorAll('details.menu-recepcion[open],details.nav-menu[open],details.acciones-recepcion-lista[open]'))if(otro!==el&&!otro.contains(el)&&!el.contains(otro))otro.open=false;},true);
+ document.addEventListener('click',ev=>{for(const el of document.querySelectorAll('details.menu-recepcion[open],details.nav-menu[open],details.acciones-recepcion-lista[open]'))if(!el.contains(ev.target)||ev.target.closest('button,a'))el.open=false;});
  const selector='button,summary,a.b-sec,a.b-primario,input[type=submit]';
  const aplicar=raiz=>{const elementos=[...(raiz.matches?.(selector)?[raiz]:[]),...raiz.querySelectorAll(selector)];for(const e of elementos){if(e.title&&!e.dataset.ayudaAutomatica)continue;const nombre=e.getAttribute('aria-label')||e.textContent||e.value,ayuda=e.dataset.ayuda||ayudaDeAccion(nombre);if(ayuda){e.title=ayuda;e.dataset.ayudaAutomatica='1';}}};
  aplicar(document);let programado=false;const pendientes=new Set();

@@ -52,7 +52,7 @@ def contexto(db, codigo, sku='', origen='', unidad_id='', *, fuente=None, actual
     candidatos = (sorted({embarque(l, c) for l in propias if embarque(l, c)}) or todos) if filtrar else todos
     return {'embarques': todos, 'candidatos': candidatos,
         'sugerido': candidatos[0] if len(candidatos) == 1 else '',
-        'permiteGeneral': not sku and not unidad_id, 'origenes': r.origenes or []}
+        'permiteGeneral': True, 'origenes': r.origenes or []}
 
 
 def resolver(db, codigo, datos):
@@ -102,5 +102,5 @@ def ruta(db, e, *, con_bulto=True, fuente=None):
         return ['EMBARQUES', carpeta] + base
     if e and contexto(db, e.recepcion,fuente=fuente)['embarques']:
         # Nunca repartir una foto histórica ambigua entre embarques por intuición.
-        return (['EMBARQUES', 'POR-ASIGNAR'] if e.sku or e.unidad_id else ['GENERALES']) + base
+        return (['EMBARQUES', 'POR-ASIGNAR'] if emb is None and (e.sku or e.unidad_id) else ['GENERALES']) + base
     return base

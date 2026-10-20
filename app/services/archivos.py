@@ -137,6 +137,41 @@ def guardar(db, codigo: str, tipo: str, datos: dict, usuario: str, confirmar=Tru
     return archivo
 
 
+def conservar_miniatura(archivo):
+    """Vista privada local antes de liberar el original confirmado en Drive."""
+    from PIL import Image,ImageOps
+    import io
+    original=ruta(archivo)
+    destino=DATA_DIR/'app_miniaturas'/archivo.id
+    if destino.is_file() or not original.is_file():return
+    try:
+        with Image.open(original) as imagen:
+            imagen=ImageOps.exif_transpose(imagen);imagen.thumbnail((960,960))
+            salida=io.BytesIO();imagen.convert('RGB').save(salida,format='JPEG',quality=76,optimize=True)
+        guardar_miniatura(archivo.id,salida.getvalue())
+    except (OSError,ValueError,Image.DecompressionBombError):
+        # El original ya está confirmado en Drive. Una miniatura no cambia el
+        # acuse de guardado ni provoca otra subida de la misma evidencia.
+        return
+
+
+def guardar_miniatura(ident,bruto):
+    carpeta=DATA_DIR/'app_miniaturas';carpeta.mkdir(parents=True,exist_ok=True)
+    destino=carpeta/ident
+    escribir_durable(destino,bruto,reemplazar=True)
+    total=0
+    filas=[]
+    for p in carpeta.iterdir():
+        try:
+            if len(p.name)==32:filas.append((p.stat().st_mtime,p))
+        except FileNotFoundError:pass
+    for _,p in sorted(filas,reverse=True):
+        try:
+            total+=p.stat().st_size
+            if total>20*1024*1024:p.unlink(missing_ok=True)
+        except FileNotFoundError:pass
+
+
 def miniatura_drive(db, archivo):
     """Miniaturas privadas y acotadas en disco; los originales viven en Drive."""
     from app.models import AppCopiaDrive
@@ -154,21 +189,5 @@ def miniatura_drive(db, archivo):
         if not (bruto.startswith((b'\xff\xd8\xff',b'\x89PNG\r\n\x1a\n')) or bruto.startswith(b'RIFF') and bruto[8:12]==b'WEBP'):raise ValueError('formato de miniatura no válido')
     except (RuntimeError,ValueError,binascii.Error):
         raise HTTPException(502,'No se pudo cargar la vista previa privada. Actualiza el puente Google o abre la imagen en Drive.') from None
-    carpeta.mkdir(parents=True,exist_ok=True)
-    temporal=carpeta / (archivo.id+'.'+uuid4().hex+'.tmp')
-    try:
-        with temporal.open('xb') as f:os.chmod(temporal,0o600);f.write(bruto)
-        temporal.replace(destino)
-    finally:temporal.unlink(missing_ok=True)
-    archivos=[]
-    for p in carpeta.iterdir():
-        try:
-            if len(p.name)==32:archivos.append((p.stat().st_mtime,p))
-        except FileNotFoundError:pass
-    total=0
-    for _,p in sorted(archivos,reverse=True):
-        try:
-            total+=p.stat().st_size
-            if total>20*1024*1024:p.unlink(missing_ok=True)
-        except FileNotFoundError:pass
+    guardar_miniatura(archivo.id,bruto)
     return bruto

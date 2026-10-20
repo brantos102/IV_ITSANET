@@ -77,7 +77,7 @@ def clientes_operacion(db:Session=Depends(get_db),_=Depends(usuario_actual)):
     f=db.get(AppConfig,'clientes_fichas');fichas=f.datos if f else {}
     return [{'id':n,'reglas':ajustes.cliente(db,n),'nombre':fichas.get(n,{}).get('nombre',n),
              'unificarCon':fichas.get(n,{}).get('unificarCon',''),
-             'oculto':fichas.get(n,{}).get('oculto',False),'version':fichas.get(n,{}).get('version',0)} for n in sorted(nombres)]
+             'oculto':fichas.get(n,{}).get('oculto',False),'eliminado':fichas.get(n,{}).get('eliminado',False),'version':fichas.get(n,{}).get('version',0)} for n in sorted(nombres)]
 
 @router.put('/clientes-fichas')
 def editar_cliente_ficha(datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
@@ -97,11 +97,20 @@ def editar_cliente_ficha(datos:dict=Body(...),db:Session=Depends(get_db),op=Depe
         raise HTTPException(422,'Elige un cliente destino activo, sin otra unificación.')
     if (destino or datos.get('oculto')) and any(c.get('unificarCon')==ident for c in fichas.values()):
         raise HTTPException(409,'Otros clientes apuntan a este destino. Corrige esas unificaciones primero.')
-    fichas[ident]={'nombre':nombre,'unificarCon':destino,'oculto':datos.get('oculto',False),'version':anterior.get('version',0)+1}
+    fichas[ident]={'nombre':nombre,'unificarCon':destino,'oculto':datos.get('oculto',False),'eliminado':datos.get('eliminado',anterior.get('eliminado',False)) is True,'version':anterior.get('version',0)+1}
     f=f or AppConfig(clave='clientes_fichas');f.datos=fichas;f.usuario=op.email or op.usuario;db.add(f)
     ajustes.auditar(db,f.usuario,'CLIENTE_FICHA_EDITADA',ident,{'anterior':anterior,'actual':fichas[ident],'historicosModificados':False})
     db.commit()
     return fichas[ident]
+
+
+@router.delete('/clientes-fichas')
+def eliminar_cliente_ficha(datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
+    actual=next((c for c in clientes_operacion(db,op) if c['id']==datos.get('id')),None)
+    if not actual:raise HTTPException(404,'Cliente no encontrado')
+    if datos.get('confirmar') is not True:raise HTTPException(422,'Confirma la eliminación del cliente de la lista activa.')
+    return editar_cliente_ficha({'id':actual['id'],'nombre':actual['nombre'],'unificarCon':actual['unificarCon'],
+        'oculto':True,'eliminado':True,'version':datos.get('version')},db,op)
 
 @router.put('/clientes-operacion/{nombre:path}')
 def guardar_cliente_operativo(nombre:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
@@ -268,3 +277,15 @@ def editar_recepcion(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),
 def retirar_embarque(codigo:str,origen:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('gestionarClientes'))):
     from app.services.recepcion_edicion import retirar
     return retirar(db,codigo,origen,datos,op.email or op.usuario)
+
+
+@router.get('/recepciones/{codigo}/cierre-externo')
+def vista_cierre_externo(codigo:str,db:Session=Depends(get_db),_=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.cierre_externo import vista
+    return vista(db,codigo)
+
+
+@router.post('/recepciones/{codigo}/cierre-externo')
+def registrar_cierre_externo(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.cierre_externo import cerrar
+    return cerrar(db,codigo,datos,op.email or op.usuario)

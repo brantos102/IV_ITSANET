@@ -14,7 +14,7 @@ from app.services.normalize import normalizar_sku
 
 DEFECTO = {'evidencias': {'exterioresMin': 3, 'exterioresObjetivo': 6,
     'packingMin': 1, 'abiertosMin': 2, 'panoramicasMin': 6, 'bloquear': False},
-    'catalogo': {'activo': True, 'horas': [8, 10, 15], 'zona': 'America/Guayaquil'},
+    'catalogo': {'activo': False, 'horas': [8, 10, 15], 'zona': 'America/Guayaquil'},
     'repositorios': [], 'impresoras': [], 'maxCopias': 500,
     'correo': {'responsable': '', 'permitirPersonal': True}}
 TIPOS = {'EXTERIOR_BULTO', 'PACKING_INICIAL', 'ABIERTO_CON_PACKING',
