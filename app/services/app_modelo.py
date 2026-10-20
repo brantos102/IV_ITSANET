@@ -16,7 +16,9 @@ Las cuatro que no se pueden perder:
 3. **La clave de idempotencia.** El identificador del evento lo pone el
    handheld. Si la red se corta después de escribir, repetir el escaneo no
    cuenta dos veces.
-4. **Nada se edita ni se borra.** Una anulación es otro evento, compensatorio.
+4. **Las cantidades no se editan ni borran.** Una anulación es otro evento,
+   compensatorio. La posición final puede completarse sin alterar unidades,
+   con registro de auditoría de su valor anterior y responsable.
 """
 from __future__ import annotations
 

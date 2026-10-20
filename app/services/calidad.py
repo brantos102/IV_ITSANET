@@ -22,7 +22,16 @@ def validar(db,p,cantidad):
         n=f.get('cantidad');pnc=f.get('pnc',t['pnc'])
         if isinstance(n,bool) or not isinstance(n,(int,float)) or not math.isfinite(n) or n<=0 or type(pnc)is not bool:
             raise HTTPException(422,'Indica una cantidad positiva por incidencia')
-        salida.append({'tipo':f['tipo'],'cantidad':n,'pnc':pnc,'nombre':t['nombre']})
+        detalle={'tipo':f['tipo'],'cantidad':n,'pnc':pnc,'nombre':t['nombre']}
+        if 'pallet' in f:
+            from app.services.app_modelo import normalizar_pallet
+            import re
+            pallet=normalizar_pallet(f['pallet'])
+            if not re.fullmatch(r'[A-Z0-9]+(?:\.[A-Z0-9]+)*',pallet) or len(pallet)>40:raise HTTPException(422,'Indica el pallet específico de la novedad, sin agrupar varios pallets.')
+            principal=normalizar_pallet(p.get('pallet'))
+            if principal and pallet not in principal.split('-'):raise HTTPException(422,'El pallet de la novedad debe pertenecer a este conteo. Registra por separado las unidades de otro pallet.')
+            detalle['pallet']=pallet
+        salida.append(detalle)
     if sum(f['cantidad'] for f in salida)>cantidad:raise HTTPException(422,'Las unidades con incidencia no pueden superar las contadas; cada unidad se clasifica una sola vez')
     return salida
 
@@ -43,6 +52,7 @@ def actualizar(db,s):
             n=float(f['cantidad']);total+=n;pnc+=n if f['pnc'] else 0
             g=grupos.setdefault(f['tipo'],{'tipo':f['tipo'],'nombre':f.get('nombre',f['tipo']),'cantidad':0,'pnc':0})
             g['cantidad']+=n;g['pnc']+=n if f['pnc'] else 0
+            if f.get('pallet'):g.setdefault('pallets',{})[f['pallet']]=g.get('pallets',{}).get(f['pallet'],0)+n
     q=db.scalar(select(AppCalidadSku).where(AppCalidadSku.sku_id==s.id).with_for_update().execution_options(populate_existing=True)) or AppCalidadSku(sku_id=s.id)
     q.datos={'cantidadPnc':pnc,'cantidadConIncidencia':total,'incidencias':list(grupos.values())}
     db.add(q);s.calidad=q;s.tiene_pnc=pnc>0

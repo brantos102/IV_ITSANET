@@ -10,14 +10,14 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261019-59';
-import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261019-59';
-import { db } from './auth.js?v=20261019-59';
-import * as local from './local.js?v=20261019-59';
-import {eventosActivos} from './conteo.js?v=20261019-59';
-import {fechaDe} from './fechas.js?v=20261019-59';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261019-59';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261019-59';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261020-60';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261020-60';
+import { db } from './auth.js?v=20261020-60';
+import * as local from './local.js?v=20261020-60';
+import {eventosActivos} from './conteo.js?v=20261020-60';
+import {fechaDe} from './fechas.js?v=20261020-60';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261020-60';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261020-60';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 
@@ -655,7 +655,7 @@ export function completarIncidencias(filas,eventos,meta={}){
  }
  return filas.map(l=>{let disponible=Number(l.fisica)||0,pnc=0,novedad=0;const tipos=[];
   for(const origen of [l.origen||'PRINCIPAL','']){const gs=grupos.get(JSON.stringify([l.sku,origen]))||[];
-   for(const f of gs){const n=Math.min(disponible,f.cantidad);if(n<=0)continue;f.cantidad-=n;disponible-=n;novedad+=n;if(f.pnc)pnc+=n;if(!tipos.includes(f.nombre||f.tipo))tipos.push(f.nombre||f.tipo);}
+   for(const f of gs){const n=Math.min(disponible,f.cantidad);if(n<=0)continue;f.cantidad-=n;disponible-=n;novedad+=n;if(f.pnc)pnc+=n;const nombre=(f.nombre||f.tipo)+(f.pallet?' · Pallet '+f.pallet:'');if(!tipos.includes(nombre))tipos.push(nombre);}
   }
   if(l.diferencia)tipos.push(l.diferencia<0?'FALTANTE':'SOBRANTE');
   const sinDesglose=l.calidadPorRevisar&&pnc===0;if(sinDesglose)tipos.push('PNC · cantidad por revisar');

@@ -155,7 +155,8 @@ def fotos_correo(fuente, presentacion):
         return [por_id[i] for i in presentacion['fotosIds'] if i in por_id][:MAX_FOTOS]
     if modo == 'NOVEDADES':
         resumen = entregas.resumen_final(fuente['skus'], fuente['eventos'])
-        fotos = [f for f in fotos if _novedad_foto(f, resumen)]
+        fotos = sorted(fotos,key=lambda f:f.get('tipoEvidencia')=='PRERECEPCION')
+        fotos = [f for f in fotos if _novedad_foto(f,resumen) or f.get('tipoEvidencia')=='PRERECEPCION']
     return fotos[:MAX_FOTOS]
 
 
@@ -186,7 +187,9 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             url = f.get('enlace') or f.get('driveUrl') or ('https://drive.google.com/file/d/' + f['fileId'] + '/view' if f.get('fileId') else '')
             vinculos=f.get('rutasVinculadas') or [f]
             codigos=list(dict.fromkeys(v['sku'] for v in vinculos if v.get('sku') and (not categoria or _novedad_foto(v,resumen,categoria))))
-            caption=' · '.join(codigos) or 'Evidencia de recepción'
+            caption=('Prerecepción · descarga del contenedor' if f.get('tipoEvidencia')=='PRERECEPCION' else ' · '.join(codigos) or 'Evidencia de recepción')
+            pallets=list(dict.fromkeys(v.get('pallet') for v in vinculos if v.get('pallet')))
+            if pallets:caption+=' · Pallet '+', '.join(pallets)
             img = ''
             if f.get('fileId'):
                 img = '<img data-archivo="' + escape(f['archivoId'], quote=True) + '" src="https://drive.google.com/thumbnail?id=' + escape(f['fileId'], quote=True) + '&amp;sz=w320" alt="' + escape(caption, quote=True) + '" width="176" height="132" style="display:block;width:176px;height:132px;object-fit:contain;background:#f3f6fa;border:0;border-radius:8px">'
@@ -204,7 +207,7 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             valores = [s['sku'], s['descripcion'], s['esperado'], s['fisico'], s['diferencia'], str(s['pallets']).replace('~', '.')]
             if novedad:
                 inc = s.get('incidencias', [])
-                valores += [sum(float(i.get('cantidad') or 0) for i in inc), ' · '.join(dict.fromkeys(i.get('nombre') or i.get('tipo', '') for i in inc)) or 'PNC por revisar']
+                valores += [sum(float(i.get('cantidad') or 0) for i in inc), ' · '.join(dict.fromkeys((i.get('nombre') or i.get('tipo',''))+(' · Pallet '+', '.join(i['pallets']) if i.get('pallets') else '') for i in inc)) or 'PNC por revisar']
             valores += [s['observacion']]
             cuerpo += '<tr style="background:' + ('#ffffff' if n % 2 else '#f7f9fc') + '">' + ''.join('<td style="padding:9px 7px;border-bottom:1px solid #e3e9f1;vertical-align:top;overflow-wrap:anywhere;' + ('font-weight:700;color:#174c91;' if i == 0 else '') + '">' + escape(numero(v)) + '</td>' for i, v in enumerate(valores)) + '</tr>'
         contenido = ('<div style="overflow-x:auto"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;line-height:1.45;text-align:left">'
@@ -247,6 +250,8 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             html += '</ul>'
         else:html += _parrafo('Los productos de esta recepción figuran en el catálogo consultado para el cliente.')
         html += '</section>'
+    previas=[f for f in fotos if f.get('tipoEvidencia')=='PRERECEPCION' and f['archivoId'] not in usadas]
+    if previas:html+='<h3 style="font-size:16px;margin-top:24px">Prerecepción · descarga del contenedor</h3>'+fotos_html(previas)
     otras = [f for f in fotos if f['archivoId'] not in usadas]
     if otras: html += '<h3 style="font-size:16px;margin-top:24px">Evidencias seleccionadas</h3>' + fotos_html(otras)
     if archivos:
@@ -305,7 +310,7 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     if not congelado or not (e and (e.estado in ('ENTREGADA','PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA')):
         final['respuestaGmail']=respuesta if not respuesta_otra else None
     g = integraciones.google(db, usuario)
-    version = _hash([59, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
+    version = _hash([60, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}
@@ -328,7 +333,7 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
             'archivos': [{'id': a.id, 'nombre': a.nombre, 'url': '/api/app/archivos/' + a.id} for a in archivos],
             'limiteFotos':MAX_FOTOS, 'permiteFotoNueva':r.estado!='CERRADA',
             'fotos': [{'id': f['archivoId'], 'nombre': f.get('nombre', ''), 'sku':f.get('sku') or '',
-                       'categoria':f.get('categoria') or 'GENERAL',
+                       'categoria':f.get('categoria') or 'GENERAL','tipoEvidencia':f.get('tipoEvidencia') or '',
                        'vinculos':[{'sku':v.get('sku') or '', 'categoria':v.get('categoria') or 'GENERAL'} for v in f.get('rutasVinculadas') or [f]],
                        'esNovedad':_novedad_foto(f, resumen),
                        'contextoCompartido':bool(f.get('requiereRevision')),

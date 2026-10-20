@@ -10,18 +10,18 @@
  * hacen que el reemplazo surta efecto en la siguiente carga, no en la siguiente
  * semana.
  */
-const VERSION = 'iv-20261019-59';
+const VERSION = 'iv-20261020-60';
 
 /** Lo mínimo para que la app arranque sin red. */
 const BASE = new URL(self.registration.scope);
 const recurso = (ruta) => new URL(ruta.replace(/^\//, ''), BASE).href;
-const VERSION_RECURSOS = '20261019-59';
+const VERSION_RECURSOS = '20261020-60';
 const CONCHA = [
   '/', '/index.html', '/recepciones.html', '/validar.html', '/admin.html',
   '/usuarios.html', '/cuenta.html', '/kpis.html',
-  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261019-59', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
+  '/css/app.css', '/css/marca.css', '/css/marca.css?v=20261020-60', '/css/operacion.css', '/logo-itsa.png', '/icono.png', '/manifest.webmanifest', '/icono.svg',
   '/js/arranque.js', '/js/config.js', '/js/auth.js', '/js/datos.js', '/js/conteo.js',
-  '/js/barra-supervision.js', '/js/correo-redactado.js', '/js/correos-embarques.js', '/js/manual-fotos.js', '/js/visor-imagen.js', '/js/mi-correo.js', '/js/avisos-entregas.js', '/js/clientes-operacion.js', '/js/entregas-supervisor.js', '/js/corregir-conteo.js', '/js/admin-entregas.js', '/js/admin-politicas.js','/js/editar-recepcion.js','/js/columnas-informe.js','/js/informes-registro.js',
+  '/js/barra-supervision.js', '/js/correo-redactado.js', '/js/correo-miniaturas.js', '/js/miniaturas.js', '/js/ubicacion-final.js', '/js/correos-embarques.js', '/js/manual-fotos.js', '/js/visor-imagen.js', '/js/mi-correo.js', '/js/avisos-entregas.js', '/js/clientes-operacion.js', '/js/entregas-supervisor.js', '/js/corregir-conteo.js', '/js/admin-entregas.js', '/js/admin-politicas.js','/js/editar-recepcion.js','/js/columnas-informe.js','/js/informes-registro.js',
   '/js/notificaciones.js', '/js/cierre-ayuda.js', '/js/borrador-conteo.js', '/js/captura-foto.js', '/js/orden-informe.js',
   '/js/ingreso.js', '/js/bultos.js', '/js/evidencias.js', '/js/fotos-embarques.js', '/js/admin-operacion.js',
   '/js/informe.js', '/js/proxy.js', '/js/imagen.js', '/js/kpi.js', '/js/camara.js', '/js/glosario.js',

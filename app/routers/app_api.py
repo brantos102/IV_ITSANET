@@ -27,6 +27,7 @@ from app.services import app_modelo as m
 from app.services import depot as depot_svc
 from app.services import entregas
 from app.services import ajustes
+from app.services.fotos_identidad import pallet_evidencia
 from app.routers.integraciones import admin
 
 router = APIRouter(prefix="/api/app", tags=["app-operarios"])
@@ -34,6 +35,12 @@ router = APIRouter(prefix="/api/app", tags=["app-operarios"])
 # El código de la recepción ES su identificador, como en Firestore. Las rutas
 # lo llevan tal cual: /api/app/recepciones/REC0260002.
 COLECCIONES = ("lineas", "skus", "adicionales", "eventos", "auditoria")
+
+
+@router.put('/recepciones/{codigo}/eventos/{ident}/posicion')
+def asignar_posicion_final(codigo:str,ident:str,datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.ubicacion_final import asignar
+    return asignar(db,codigo,ident,datos,op.email or op.usuario)
 
 
 @router.get('/estado')
@@ -381,7 +388,7 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
         for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_([a.id for a in filas]),
                 AppEvidencia.eliminado_en.is_(None))):
             metadatos.setdefault(e.archivo_id, []).append({'id':e.id,'protocolo':e.protocolo,'sku': e.sku, 'categoria': e.categoria,
-                'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen, 'embarque':asignado(db,e,fuente=fuente_embarques),
+                'pallet':pallet_evidencia(db,e),'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen, 'embarque':asignado(db,e,fuente=fuente_embarques),
                 'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e,db=db,fuente=fuente_embarques) or ''})
     for a in filas:
         f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',

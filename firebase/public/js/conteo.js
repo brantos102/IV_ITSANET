@@ -2,7 +2,7 @@
  * Registro de conteos físicos.
  *
  * Dos escrituras en una sola transacción:
- *   1. `eventos/{idempotencyKey}` — libro mayor append-only, nunca se modifica.
+ *   1. `eventos/{idempotencyKey}` — libro mayor: cantidades conservadas; ubicación posterior auditada.
  *   2. `skus/{sku}`               — agregado en vivo, con increment() atómico.
  *
  * El agregado existe para que el operario lea UN documento en vez de sumar N
@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261019-59';
-import { db } from './auth.js?v=20261019-59';
-import * as local from './local.js?v=20261019-59';
+} from '../vendor/firebase-sdk.js?v=20261020-60';
+import { db } from './auth.js?v=20261020-60';
+import * as local from './local.js?v=20261020-60';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261019-59';
+} from './datos.js?v=20261020-60';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {

@@ -63,6 +63,7 @@ def filtrar(fuente,lineas,origen,mapa):
             for f in fs:
                 g=incidencias.setdefault(f['tipo'],{'tipo':f['tipo'],'nombre':f.get('nombre',f['tipo']),'cantidad':0,'pnc':0})
                 g['cantidad']+=f['cantidad'];g['pnc']+=f['cantidad'] if f.get('pnc') else 0
+                if f.get('pallet'):g.setdefault('pallets',{})[f['pallet']]=g.get('pallets',{}).get(f['pallet'],0)+f['cantidad']
         pnc=sum(i['pnc'] for i in incidencias.values())
         skus.append({**s,'esperado':sum(float(l['cantidad']) for l in ls),'contado':contado,'pallets':pallets,
             'cantidadPnc':pnc,'cantidadConforme':max(0,contado-pnc),'tienePnc':pnc>0,'incidencias':list(incidencias.values())})

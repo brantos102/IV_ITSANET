@@ -88,3 +88,8 @@ def ruta_bulto(db,e):
     ruta=['BULTOS',f'Bulto{b.numero:02d}_{componente(r.codigo)}_{parte_embarques(r)}']
     if u.padre_id:ruta.append(f'Caja{u.numero:02d}_{componente(u.codigo or "SIN-CODIGO",60)}')
     return ruta
+
+
+def pallet_evidencia(db,e):
+    identidad=db.get(AppArchivoIdentidad,e.archivo_id)
+    return (identidad.datos or {}).get('palletsEvidencia',{}).get(e.id,'') if identidad else ''

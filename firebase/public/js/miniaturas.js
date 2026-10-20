@@ -1,7 +1,7 @@
 /** Vistas privadas: dos lecturas simultáneas, carga visible y sin reintentos en bucle. */
 const cola=[],pendientes=new Map(),fallidas=new Map();let activas=0,observador=null;
 const vacia='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="240" height="180"%3E%3Crect width="100%25" height="100%25" fill="%23edf2f7"/%3E%3C/svg%3E';
-function avanzar(){while(activas<2&&cola.length){const tarea=cola.shift();if(!tarea.img.isConnected)continue;activas++;tarea.ejecutar().finally(()=>{activas--;avanzar();});}}
+function avanzar(){while(activas<2&&cola.length){const tarea=cola.shift();if(tarea.img&&!tarea.img.isConnected)continue;activas++;tarea.ejecutar().finally(()=>{activas--;avanzar();});}}
 async function obtener(url){
  if((fallidas.get(url)||0)>Date.now())throw Error('Vista previa temporalmente no disponible.');
  if(pendientes.has(url))return pendientes.get(url);
@@ -19,3 +19,9 @@ export function cargarMiniatura(img,url,{inmediata=false}={}){
  img._cargarMiniatura=iniciar;requestAnimationFrame(()=>{if(img.isConnected)observador.observe(img);});
 }
 export function limpiarMiniaturas(raiz){for(const img of raiz.querySelectorAll('img')){observador?.unobserve(img);delete img._cargarMiniatura;img._versionMiniatura=(img._versionMiniatura||0)+1;}}
+
+/** Misma cola acotada para la copia manual, con autorización de la sesión. */
+export function leerMiniatura(url){
+ if(!/^\/api\/app\/archivos\/[A-Za-z0-9_-]+$/.test(url||''))return Promise.reject(Error('Fotografía inválida.'));
+ return new Promise((resolve,reject)=>{cola.push({ejecutar:async()=>{try{const b=await obtener(url);if(b.size>1048576)throw Error('Vista previa demasiado grande.');resolve(b);}catch(e){reject(e);}}});avanzar();});
+}

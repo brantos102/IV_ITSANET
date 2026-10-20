@@ -18,7 +18,7 @@ DEFECTO = {'evidencias': {'exterioresMin': 3, 'exterioresObjetivo': 6,
     'repositorios': [], 'impresoras': [], 'maxCopias': 500,
     'correo': {'responsable': '', 'permitirPersonal': True}}
 TIPOS = {'EXTERIOR_BULTO', 'PACKING_INICIAL', 'ABIERTO_CON_PACKING',
-    'CAJA_CERRADA', 'ETIQUETA_CAJA', 'CAJA_ABIERTA', 'ITEM_NOVEDAD', 'PANORAMICA', 'ADICIONAL', 'DANO_EMBALAJE', 'ESTADO_FINAL'}
+    'CAJA_CERRADA', 'ETIQUETA_CAJA', 'CAJA_ABIERTA', 'ITEM_NOVEDAD', 'PANORAMICA', 'ADICIONAL', 'DANO_EMBALAJE', 'ESTADO_FINAL', 'PRERECEPCION'}
 CATEGORIAS = {'RECEPCION', 'VALIDACION', 'FALTANTE', 'SOBRANTE', 'PNC', 'GENERAL'}
 
 
@@ -239,6 +239,9 @@ def validar_evidencia(db, codigo, datos):
         tipo='ITEM_NOVEDAD' if categoria!='VALIDACION' else 'ADICIONAL'
     if tipo not in TIPOS or categoria not in CATEGORIAS:
         raise HTTPException(422, 'Clasificación de evidencia inválida')
+    if tipo=='PRERECEPCION' and (categoria!='RECEPCION' or str(datos.get('sku') or '').strip() or datos.get('unidadId')):raise HTTPException(422,'La prerecepción documenta la descarga, sin SKU ni bulto específico.')
+    if datos.get('palletEvidencia'):
+        if not re.fullmatch(r'[A-Z0-9]+(?:\.[A-Z0-9]+)*',str(datos['palletEvidencia']).strip().upper()) or len(str(datos['palletEvidencia']))>40:raise HTTPException(422,'Pallet de la fotografía inválido.')
     if tipo == 'ESTADO_FINAL' and (categoria != 'RECEPCION' or str(datos.get('sku') or '').strip()):
         raise HTTPException(422, 'El estado final corresponde a la recepción completa, sin SKU')
     protocolo = datos.get('protocolo', 'GENERAL')
@@ -265,7 +268,9 @@ def vincular_evidencia(db, archivo, datos, usuario, confirmar=True):
     embarque = fotos_embarques.resolver(db, archivo.recepcion, datos)
     q = select(AppEvidencia).where(AppEvidencia.archivo_id == archivo.id,
         AppEvidencia.eliminado_en.is_(None), *[getattr(AppEvidencia, k) == v for k, v in d.items()])
-    coincide = lambda e: fotos_embarques.asignado(db, e) == embarque
+    from app.services.fotos_identidad import pallet_evidencia
+    pallet=str(datos.get('palletEvidencia') or '').strip().upper()
+    coincide = lambda e: fotos_embarques.asignado(db,e)==embarque and (not pallet or pallet_evidencia(db,e)==pallet)
     e = next((e for e in db.scalars(q) if coincide(e)), None)
     if not e and datos.get('desdeSku') is True:
         # Reutilizar una foto conocida no crea otra clasificación histórica.
@@ -279,6 +284,10 @@ def vincular_evidencia(db, archivo, datos, usuario, confirmar=True):
             usuario=usuario, **d)
         db.add(e)
         fotos_embarques.registrar(db, archivo.id, e.id, embarque)
+        if pallet:
+            from app.services.fotos_identidad import asegurar_archivo
+            identidad=asegurar_archivo(db,archivo)
+            identidad.datos={**identidad.datos,'palletsEvidencia':{**identidad.datos.get('palletsEvidencia',{}),e.id:pallet}}
         if datos.get('desdeSku') is True and datos.get('conteoPendiente') is True:
             from app.models import AppArchivoIdentidad
             identidad=db.get(AppArchivoIdentidad,archivo.id)

@@ -1,6 +1,6 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261019-59';
-import {esc} from './evidencias.js?v=20261019-59';
-import {tecladoDialogo} from './modal.js?v=20261019-59';
+import {pedir,nuevoIdentificador} from './local.js?v=20261020-60';
+import {esc} from './evidencias.js?v=20261020-60';
+import {tecladoDialogo} from './modal.js?v=20261020-60';
 
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/impresion'});
 function barras(serie){

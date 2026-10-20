@@ -14,7 +14,7 @@ globalThis.fetch=(url,opciones)=>new Promise((resolve,reject)=>{
  opciones.signal.addEventListener('abort',()=>{activas--;reject(new DOMException('Cancelada','AbortError'));},{once:true});
 });
 class Imagen extends EventTarget{isConnected=true;dataset={};src='';}
-const {cargarMiniatura,limpiarMiniaturas}=await import('data:text/javascript;base64,'+Buffer.from(fuente).toString('base64'));
+const {cargarMiniatura,limpiarMiniaturas,leerMiniatura}=await import('data:text/javascript;base64,'+Buffer.from(fuente).toString('base64'));
 async function caso(nombre,fn){try{await fn();pasadas++;console.log('  ok '+nombre);}catch(e){falladas++;console.error('FALLA '+nombre,e);}}
 await caso('comparar duplicados simultáneos evita repetir la petición privada',async()=>{
  const a=new Imagen(),b=new Imagen();cargarMiniatura(a,'/api/app/archivos/uno');cargarMiniatura(b,'/api/app/archivos/uno');await pausa();assert.equal(llamadas.length,1);tareas.shift()();await esperar(()=>a.dataset.miniaturaEstado==='lista'&&b.dataset.miniaturaEstado==='lista');assert.equal(a.dataset.miniaturaEstado,'lista');assert.equal(b.dataset.miniaturaEstado,'lista');a.dispatchEvent(new Event('load'));b.dispatchEvent(new Event('load'));
@@ -30,5 +30,15 @@ await caso('204 ofrece alternativa y no vuelve a consultar en bucle',async()=>{
 });
 await caso('cerrar el modal invalida respuestas tardías y no carga una URL externa',async()=>{
  const a=new Imagen();cargarMiniatura(a,'/api/app/archivos/tardia');await pausa();limpiarMiniaturas({querySelectorAll:()=>[a]});tareas.shift()();await pausa();assert.notEqual(a.dataset.miniaturaEstado,'lista');const antes=llamadas.length;cargarMiniatura(new Imagen(),'https://otro.example/archivo');await pausa();assert.equal(llamadas.length,antes);
+});
+
+await caso('copia manual comparte el límite de dos peticiones de la galería',async()=>{
+ const img=new Imagen();cargarMiniatura(img,'/api/app/archivos/galeria-copia');await pausa();
+ const a=leerMiniatura('/api/app/archivos/copia-a'),b=leerMiniatura('/api/app/archivos/copia-b');
+ assert.equal(activas,2);while(tareas.length||activas){if(tareas.length)tareas.shift()();await new Promise(r=>timer(r,5));}
+ assert((await a).size>0&&(await b).size>0);assert.equal(maximo,2);img.dispatchEvent(new Event('load'));
+});
+await caso('copia manual rechaza rutas externas antes de consultarlas',async()=>{
+ const antes=llamadas.length;await assert.rejects(()=>leerMiniatura('https://externo.example/foto'));assert.equal(llamadas.length,antes);
 });
 console.log(`\n  ${pasadas} pasadas, ${falladas} falladas`);if(falladas)process.exitCode=1;

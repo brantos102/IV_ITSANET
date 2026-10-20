@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261019-59';
-import {pedirDatos} from './modal.js?v=20261019-59';
-import {contextoFotos} from './fotos-embarques.js?v=20261019-59';
+import {pedir} from './local.js?v=20261020-60';
+import {pedirDatos} from './modal.js?v=20261020-60';
+import {contextoFotos} from './fotos-embarques.js?v=20261020-60';
 
 /** Elección explícita por imagen; los códigos originales se conservan. */
 export async function elegirDestinoFoto(recepcion,actual={},nombre='Fotografía'){

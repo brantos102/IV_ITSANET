@@ -206,7 +206,7 @@ def corregir_calidad(codigo:str,ident:str,datos:dict=Body(...),db:Session=Depend
     if db.scalar(select(AppEvento.id).where(AppEvento.anula_a==ident)):raise HTTPException(409,'El conteo está anulado')
     motivo=str(datos.get('motivo') or '').strip()
     if len(motivo)<3:raise HTTPException(422,'Indica el motivo de la corrección')
-    filas=calidad.validar(db,datos,float(e.cantidad))
+    filas=calidad.validar(db,{**datos,'pallet':e.pallet},float(e.cantidad))
     db.add(AppEvento(id=uuid4().hex,recepcion=r.codigo,tipo='CALIDAD',sku=e.sku,cantidad=0,
         usuario=op.email or op.usuario,motivo=motivo[:300],datos={'eventoId':e.id,'incidencias':filas}))
     s=db.scalar(select(AppSku).where(AppSku.recepcion==r.codigo,AppSku.sku==e.sku).with_for_update())

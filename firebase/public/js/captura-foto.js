@@ -1,6 +1,6 @@
 /** Fotografía en la misma página: evita perder la ficha al abrir otra app. */
-import {camaraDisponible,motivoNoDisponible,errorDeCamara} from './camara.js?v=20261019-59';
-import {fotografiarVideo} from './bultos.js?v=20261019-59';
+import {camaraDisponible,motivoNoDisponible,errorDeCamara} from './camara.js?v=20261020-60';
+import {fotografiarVideo} from './bultos.js?v=20261020-60';
 export function tomarFotoEnPagina({titulo='Fotografiar evidencia',alUsarNativa=null}={}){
  const d=document.createElement('dialog');d.className='modal-operativa captura-foto-dialogo';
  d.innerHTML='<header class="acciones"><h2></h2><button type="button" class="b-sec" data-cerrar>Cancelar foto</button></header><p class="mini">La ficha permanece abierta. Captura la evidencia y después guarda el conteo o solo las fotos.</p><video playsinline muted data-video></video><p data-estado role="status"></p><div class="acciones"><button type="button" class="b-primario" data-capturar disabled>Usar esta foto</button><button type="button" class="b-sec" data-activar>Activar cámara</button><button type="button" class="b-sec" data-nativa>Usar cámara del dispositivo</button></div>';

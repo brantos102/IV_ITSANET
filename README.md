@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 60: posición final, pallet de novedades, prerecepción y correo con miniaturas](docs/UBICACION_NOVEDADES_Y_PRERECEPCION_60.md) · [Presentación para jefaturas (ZIP)](docs/descargas/ITSANET-presentacion-jefaturas-v60.zip).
+
 [Conciliación de cantidades por recepción, embarque y contenedor · solo lectura](docs/CONCILIACION_RECEPCION_SOLO_LECTURA.md).
 
 [Versión 59: enlaces de Drive claros por recepción, embarque y categoría](docs/ENLACES_DRIVE_DEL_CORREO_59.md).

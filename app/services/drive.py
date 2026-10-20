@@ -13,6 +13,7 @@ from sqlalchemy import or_, select, update, func
 from app.db import SessionLocal
 from app.models import AppArchivo, AppArchivoIdentidad, AppCopiaDrive, AppEvidencia, AppUnidadLogistica, utcnow
 from app.services import archivos, entregas, operacion
+from app.services.fotos_identidad import pallet_evidencia
 from app.services import app_modelo as m
 
 _verificados = {}
@@ -228,8 +229,8 @@ def descripcion(db, archivo, evidencia=None):
     d['embarque'] = asignado(db,e)
     d['categoria'] = e.categoria if e else 'GENERAL'
     d['rutaSku'] = ruta(e) if e and e.sku else []
-    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen,asignado(db,v)):
-        {'evidenciaId':v.id,'categoria':v.categoria,'sku':v.sku or '', 'origen':v.origen or '', 'embarque':asignado(db,v),'ruta':ruta(v),
+    d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen,asignado(db,v),pallet_evidencia(db,v)):
+        {'evidenciaId':v.id,'categoria':v.categoria,'sku':v.sku or '', 'origen':v.origen or '', 'embarque':asignado(db,v),**({'pallet':pallet_evidencia(db,v)} if pallet_evidencia(db,v) else {}),'ruta':ruta(v),
          'rutaSku':ruta(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
         for v in es}.values())
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
