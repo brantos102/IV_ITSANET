@@ -9,6 +9,7 @@ from app.security import usuario_actual
 ACCIONES={'gestionarUsuarios':'Gestionar y aprobar cuentas','asignarSupervisor':'Asignar rol de supervisor',
  'gestionarClientes':'Gestionar clientes y reglas operativas',
  'exportarInformes':'Generar y descargar informes','cerrarRecepciones':'Finalizar y enviar informes',
+ 'redactarCorreo':'Preparar la redacción y fotos del correo de recepción',
  'verEquipo':'Consultar operarios activos'}
 INCIDENCIAS=[{'codigo':'OK','nombre':'OK','descripcion':'Conforme','pnc':False,'activo':True},
  {'codigo':'FALTANTE','nombre':'FALTANTE','descripcion':'Faltan piezas','pnc':False,'activo':True},
@@ -19,6 +20,7 @@ INCIDENCIAS=[{'codigo':'OK','nombre':'OK','descripcion':'Conforme','pnc':False,'
  {'codigo':'ROTULADO_ERRONEO','nombre':'ROTULADO ERRONEO','descripcion':'Etiqueta o lote erróneo','pnc':True,'activo':True}]
 DEFECTO={'permisos':{'SUPERVISOR':{a:True for a in ACCIONES},'OPERADOR':{a:False for a in ACCIONES}},
  'clientes':{},'incidencias':INCIDENCIAS}
+DEFECTO['permisos']['OPERADOR']['redactarCorreo']=True
 
 
 def configuracion(db):

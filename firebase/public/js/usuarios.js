@@ -1,8 +1,8 @@
 /** Solicitudes y aprobaciones en el mismo destino donde entra el operario. */
 import { collection, getDocs, doc, onSnapshot, runTransaction }
-  from '../vendor/firebase-sdk.js?v=20261020-60';
-import { db } from './auth.js?v=20261020-60';
-import * as local from './local.js?v=20261020-60';
+  from '../vendor/firebase-sdk.js?v=20261021-61';
+import { db } from './auth.js?v=20261021-61';
+import * as local from './local.js?v=20261021-61';
 
 const filasDe = (snap) => snap.docs.map((d) => ({ ...d.data(), id: d.id, uid: d.id }));
 

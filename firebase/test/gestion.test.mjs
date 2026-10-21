@@ -111,6 +111,17 @@ await test('categoría NUV DEV o SCRAP y posición viajan en el modelo de cantid
   eq(r.tabla[1][7],categoria);eq(r.tabla[1][5],'B02');ok(r.tabla[1].includes('BM'));eq(r.filas,1);
  }
 });
+await test('BM-A-10-1 sale en columnas separadas con pallet y cantidad conservados',()=>{
+ const r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],{categoriaLogica:'NUV',eventos:[{id:'e61',tipo:'CONTEO',sku:'S61',cantidad:3,pallet:'Q04.1',posicionReal:'BM-A-10-1'}],catalogo:{S61:{unidad:'CS'}}});
+ const fila=Object.fromEntries(r.tabla[0].map((h,i)=>[h,r.tabla[1][i]]));eq(fila.NAVE,'BM');eq(fila.CALLE,'A');eq(fila.COLUMNA,'10');eq(fila.NIVEL,'1');eq(fila['NRO PALLET'],'Q04.1');eq(fila.CANTIDAD,3);
+});
+await test('posición con etiquetas y ceros conserva nave literal columna y nivel',()=>{
+ eq(csv.partesDePosicion('NAVE: BM, LITERAL: A, COLUMNA: 010, NIVEL: 01'),{nave:'BM',calle:'A',columna:'010',nivel:'01',profundidad:''});
+});
+await test('el CSV posterior a corrección usa únicamente posición y cantidad vigentes',()=>{
+ const r=csv.csvDeCantidades(csv.FORMATOS_BASE[0],{categoriaLogica:'NUV',eventos:[{id:'antes',tipo:'CONTEO',sku:'S61',cantidad:8,pallet:'Q04.1',posicionReal:'BM-X-20-3'},{id:'anular',tipo:'ANULACION',anulaA:'antes',cantidad:-8,sku:'S61'},{id:'nuevo',tipo:'CONTEO',sku:'S61',cantidad:3,pallet:'Q04.1',posicionReal:'BM-A-10-1'}],catalogo:{S61:{unidad:'CS'}}});
+ eq(r.filas,1);const f=Object.fromEntries(r.tabla[0].map((h,i)=>[h,r.tabla[1][i]]));eq(f.CANTIDAD,3);eq(f.CALLE,'A');eq(f.COLUMNA,'10');eq(f.NIVEL,'1');
+});
 const bultos=await cargar('etiquetas-bultos.js');
 await test('etiqueta compacta imprime solo literal y código de barras del mismo dato',()=>{
  const dibujados=[];const html=bultos.htmlEtiquetasBultos({formato:'100x50',recepcion:'R',lote:1,etiquetas:[{rotulo:'B02',serie:'LB-identificador-interno',numero:2,total:8,unidadId:'interno'}]},codigo=>{dibujados.push(codigo);return '<svg/>';});

@@ -1,3 +1,4 @@
+import {partesPosicion} from './posiciones.js?v=20261021-61';
 /**
  * CSV para la carga masiva hacia Depot.
  *
@@ -18,10 +19,10 @@
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261020-60';
-import { db } from './auth.js?v=20261020-60';
-import * as local from './local.js?v=20261020-60';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261020-60';
+} from '../vendor/firebase-sdk.js?v=20261021-61';
+import { db } from './auth.js?v=20261021-61';
+import * as local from './local.js?v=20261021-61';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261021-61';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -126,8 +127,7 @@ export function plantilla(formato) {
  * puede quitar al normalizar: «A-01-03-2» sin él es un número sin sentido.
  */
 export function partesDePosicion(posicion) {
-  const p = String(posicion || '').trim().split('-').map((x) => x.trim());
-  return { nave: p[0] || '', calle: p[1] || '', columna: p[2] || '', nivel: p[3] || '', profundidad: p[4] || '' };
+  return partesPosicion(posicion);
 }
 
 /**

@@ -1,25 +1,19 @@
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261020-60';
-import {elegirDestinoFoto} from './destino-foto.js?v=20261020-60';
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261020-60';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261020-60';
-import {organizarFotos} from './organizar-fotos.js?v=20261020-60';
-import {verImagen} from './visor-imagen.js?v=20261020-60';
-import {manualFotos} from './manual-fotos.js?v=20261020-60';
-import {pedir} from './local.js?v=20261020-60';
-import {comprimir} from './imagen.js?v=20261020-60';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261020-60';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261020-60';
+import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261021-61';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261021-61';
+import {elegirDestinoFoto} from './destino-foto.js?v=20261021-61';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261021-61';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261021-61';
+import {organizarFotos} from './organizar-fotos.js?v=20261021-61';
+import {verImagen} from './visor-imagen.js?v=20261021-61';
+import {manualFotos} from './manual-fotos.js?v=20261021-61';
+import {pedir} from './local.js?v=20261021-61';
+import {comprimir} from './imagen.js?v=20261021-61';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261021-61';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261021-61';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
-export const TIPOS_EVIDENCIA = {
-  EXTERIOR_BULTO:'Vista exterior del bulto', PACKING_INICIAL:'Packing list inicial',
-  ABIERTO_CON_PACKING:'Bulto abierto con packing list visible', CAJA_CERRADA:'Caja cerrada',
-  ETIQUETA_CAJA:'Etiqueta de caja madre', CAJA_ABIERTA:'Caja abierta',
-  PRERECEPCION:'Prerecepción · descarga del contenedor', ITEM_NOVEDAD:'Detalle del producto con novedad', PANORAMICA:'Vista panorámica', ADICIONAL:'Evidencia adicional',
-  DANO_EMBALAJE:'Daño en embalaje / caja madre',
-  ESTADO_FINAL:'Estado final de la mercadería',
-};
+export const TIPOS_EVIDENCIA=TIPOS_FOTOGRAFIA;
 
 /** Lote secuencial sin máximo de imágenes. Cada archivo conserva su resultado al reintentar. */
 export async function cargarEvidencias(recepcion, archivos, datos, alAvanzar=()=>{}, cache=new Map(),destinos=null) {
@@ -201,6 +195,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
         tipoEvidencia:$('[data-tipo]').value,protocolo:$('[data-protocolo]').value,
         unidadId:$('[data-unidad]').value,origen:$('[data-origen]').value},
         (n,t)=>{$('[data-estado]').textContent=`Guardando ${n} de ${t}…`;},cache,destinos);
+      d.fotosGuardadas=[...new Set([...(d.fotosGuardadas||[]),...urls.map(u=>u.split('/').pop())])];
       elegidas=[];destinos.clear();cache=new Map();await cargar();
       $('[data-estado]').textContent=`${new Set(urls).size} imágenes únicas guardadas; copia a Drive en segundo plano.`;
     }catch(e){$('[data-estado]').textContent=e.message+' Puedes reintentar: las imágenes confirmadas no se repiten.';}

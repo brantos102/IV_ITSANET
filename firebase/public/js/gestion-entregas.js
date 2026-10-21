@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261020-60';
-import {pedirDatos} from './modal.js?v=20261020-60';
+import {pedir} from './local.js?v=20261021-61';
+import {pedirDatos} from './modal.js?v=20261021-61';
 export async function declararEnviadoManual(e){
  const v=await pedir('/recepciones/'+encodeURIComponent(e.recepcion)+'/correo?entregaId='+encodeURIComponent(e.id),{base:'/api/operacion'});
  const pendientes=(e.correos||[]).filter(c=>c.estado!=='ENTREGADA');

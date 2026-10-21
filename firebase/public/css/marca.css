@@ -124,3 +124,14 @@
 .zona-arrastre-activa{outline:3px dashed var(--primary,#3b82f6);outline-offset:4px;background:var(--surface)}
 .ingreso-lista{max-height:55dvh;overflow:auto}.ingreso-lista summary{position:sticky;top:0;background:var(--surface);padding:12px;z-index:1}
 .ingreso-lista [data-ir]{text-align:left;white-space:normal}.fotos-captura [data-seleccion] figure{padding:10px;border:1px solid var(--border);border-radius:12px}.fotos-captura [data-seleccion] button{font-size:12px;white-space:normal}
+
+/* Redacción en el mismo correo; estos controles no forman parte del envío. */
+.correo-texto-editable{white-space:pre-wrap;overflow-wrap:anywhere;border:1px dashed #9db8d8;border-radius:6px;padding:8px;margin:8px 0;cursor:text;outline-offset:2px;color:#22334a;background:#fff}
+.correo-texto-editable:focus{outline:2px solid #2563eb;border-color:#2563eb;background:#f8fbff}
+.correo-texto-editable:empty:before{content:attr(data-placeholder);color:#64748b;pointer-events:none}
+.correo-orden-foto{display:flex;gap:8px;padding:0 10px 10px}.correo-orden-foto button{height:auto;min-height:36px;flex:1}
+.correo-dialogo>.acciones:has([data-guardar]){position:sticky;top:0;z-index:2;background:var(--surface);padding:8px 0;border-bottom:1px solid var(--border)}
+.correo-sobre{display:grid;grid-template-columns:1fr;gap:8px}.correo-sobre .campo{margin:0}
+
+.correo-dialogo>header{position:static}.correo-dialogo>.acciones:has([data-guardar]){z-index:3;display:flex;flex-wrap:wrap;gap:8px}.correo-dialogo>.acciones:has([data-guardar])>button{flex:1 1 120px;min-height:42px}.correo-dialogo [data-presentacion]{scroll-margin-top:130px}.correo-herramientas{border:1px solid var(--border);padding:10px;border-radius:10px}
+.posicion-depot-partes{grid-column:1/-1;border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0}.posicion-depot-partes summary{cursor:pointer;font-size:12px;font-weight:700}.posicion-depot-partes .rejilla{margin-top:10px}.posicion-depot-partes input{min-width:0;max-width:100%}

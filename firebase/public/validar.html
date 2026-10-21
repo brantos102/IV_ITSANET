@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261020-60"></script>
+<script src="./js/arranque.js?v=20261021-61"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261020-60">
+<link rel="stylesheet" href="./css/marca.css?v=20261021-61">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261020-60" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261020-60" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261021-61" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261021-61" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -164,9 +164,8 @@
     <label class="campo"><span>Cantidad a registrar</span>
       <input id="fCantidad" class="cantidad" type="number" inputmode="decimal" min="0" step="any" value="1"></label>
     <label class="campo"><span>Pallet / subpallet *</span>
-      <input id="fPallet" placeholder="B04, B04.1 o DP" autocapitalize="characters">
-      <span class="mini">Para lo que va directo a su posición, usa
-        <b>DP</b> y anota abajo la posición real.</span></label>
+      <input id="fPallet" placeholder="Escribe el pallet: B04, C12…" autocapitalize="characters">
+      <span class="mini">Escribe el identificador real del pallet. Puedes completar o corregir su posición por separado.</span></label>
     <label class="campo"><span>Estado físico</span>
       <select id="fEstado">
         <option value="BUENO">Buen estado</option>
@@ -297,7 +296,7 @@
 <!-- Bitácora -->
 <div class="panel oculto" id="panelBitacora">
   <div class="acciones"><h2 style="flex:1">Bitácora de conteos activos</h2><button class="b-sec" id="bVolverLista">Volver a la lista</button></div>
-  <label class="campo"><span>Estado actual del SKU</span><select id="bitacoraFiltro"><option value="">Todos</option><option value="PENDIENTE">Sin buscar</option><option value="FALTANTE">Faltan unidades</option><option value="SOBRANTE">Sobran unidades</option><option value="OK">Completos</option><option value="NO_ENCONTRADO">No aparecieron</option></select></label>
+  <div class="rejilla"><label class="campo"><span>Buscar código en la bitácora</span><input id="bitacoraCodigo" type="search" placeholder="Código completo o parte del SKU" autocomplete="off"></label><label class="campo"><span>Estado actual del SKU</span><select id="bitacoraFiltro"><option value="">Todos</option><option value="PENDIENTE">Sin buscar</option><option value="FALTANTE">Faltan unidades</option><option value="SOBRANTE">Sobran unidades</option><option value="OK">Completos</option><option value="NO_ENCONTRADO">No aparecieron</option></select></label></div><button type="button" class="b-sec" id="bActualizarBitacora">Actualizar bitácora</button><p class="mini" id="bitacoraEstado" role="status" aria-live="polite"></p>
   <label><input id="bitacoraAnulados" type="checkbox"> Mostrar anulados para auditoría</label>
   <p>Cada conteo con su autor y su hora. Nada se borra: anular genera un
      registro de reversa.</p>
@@ -321,51 +320,52 @@
 </dialog>
 
 <script type="module">
-import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261020-60';
-import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261020-60';
-import {abrirCorreo} from './js/correo-redactado.js?v=20261020-60';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261020-60';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261020-60';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261020-60';
-import { mostrarAviso } from './js/notificaciones.js?v=20261020-60';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261020-60';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261020-60';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261020-60';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261020-60';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261020-60';
+import {agregarDesglosePosicion} from './js/posiciones.js?v=20261021-61';
+import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261021-61';
+import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261021-61';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261021-61';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-61';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261021-61';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261021-61';
+import { mostrarAviso } from './js/notificaciones.js?v=20261021-61';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261021-61';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261021-61';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261021-61';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261021-61';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261021-61';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261020-60';
+import { pedir as pedirLocal } from './js/local.js?v=20261021-61';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261020-60';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261020-60';
-import { observarSesion } from './js/auth.js?v=20261020-60';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261021-61';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261021-61';
+import { observarSesion } from './js/auth.js?v=20261021-61';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261020-60';
+} from './js/datos.js?v=20261021-61';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261020-60';
+} from './js/conteo.js?v=20261021-61';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261020-60';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261020-60';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261020-60';
-import { conectarGlosario } from './js/glosario.js?v=20261020-60';
-import { parecidos } from './js/sugerir.js?v=20261020-60';
-import { publicarAvance } from './js/barra-supervision.js?v=20261020-60';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261020-60';
+} from './js/informe.js?v=20261021-61';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261021-61';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261021-61';
+import { conectarGlosario } from './js/glosario.js?v=20261021-61';
+import { parecidos } from './js/sugerir.js?v=20261021-61';
+import { publicarAvance } from './js/barra-supervision.js?v=20261021-61';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261021-61';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261020-60';
-import { Proxy } from './js/proxy.js?v=20261020-60';
-import { modoLocal } from './js/local.js?v=20261020-60';
+} from './js/csv.js?v=20261021-61';
+import { Proxy } from './js/proxy.js?v=20261021-61';
+import { modoLocal } from './js/local.js?v=20261021-61';
 
-import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261020-60';
-import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261020-60';
-import {verImagen} from './js/visor-imagen.js?v=20261020-60';
+import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261021-61';
+import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261021-61';
+import {verImagen} from './js/visor-imagen.js?v=20261021-61';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -525,7 +525,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261020-60');
+      const l=await import('./js/local.js?v=20261021-61');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -547,6 +547,7 @@ detallesFicha.innerHTML = '<summary>Detalle, ubicaciones e historial</summary>';
 $('ficha').insertBefore(detallesFicha, $('fOrigenCaja'));
 $('ficha').insertBefore($('bContarFicha'), detallesFicha);
 for (const id of ['fExtra','fHistorial','fUbicaciones','fDepot']) detallesFicha.append($(id));
+agregarDesglosePosicion($('fPosReal'));
 const filaPosicion = $('fPosReal').closest('.rejilla');
 const detallesConteo = document.createElement('details'); detallesConteo.id = 'detallesConteo'; detallesConteo.className = 'controles-conteo';
 detallesConteo.innerHTML = '<summary>Posición y observaciones</summary>';detallesConteo.open=true;
@@ -596,7 +597,7 @@ $('bAccionEvidencias').onclick=async()=>{
   apagarCamara();
   const s=skus.find(s=>s.sku===actual.sku) || {};
   const categoria=$('fEstado').value==='PNC' || s.tienePnc ? 'PNC' : s.estado==='SOBRANTE' || s.enPackingList===false ? 'SOBRANTE' : ['FALTANTE','NO_ENCONTRADO'].includes(s.estado) ? 'FALTANTE' : 'GENERAL';
-  try{if(modoLocal())await abrirEvidencias({recepcion:RECEPCION,sku:actual.sku,categoria,pallet,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});
+  try{if(modoLocal())await abrirEvidencias({recepcion:RECEPCION,sku:actual.sku,categoria,pallet:$('fPallet').value.includes('-')?'':$('fPallet').value.trim(),supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});
     else {$('filaFotos').open=true;$('filaFotos').scrollIntoView({block:'center'});}
   }catch(e){aviso(e.message,'err');}
 };
@@ -694,6 +695,7 @@ observarSesion(async (e) => {
       .map((s) => `<option value="${esc(s.sku)}">${esc(s.descripcion || '')}</option>`).join('');
     pintarKpis();
     pintarTabla();
+    if(!$('panelBitacora').classList.contains('oculto'))actualizarBitacora().catch(()=>{});
     if(copiaAlIniciar){const copia=copiaAlIniciar;copiaAlIniciar=null;restaurarBorrador(copia);}
     if(codigoInicial) {const codigo=codigoInicial;codigoInicial=null;$('inEscaner').value=codigo;escanear(codigo);}
     if (actual) {
@@ -754,7 +756,7 @@ function aplicarEstado() {
   $('bRegistrar').disabled = cerrada;
   $('bBuscar').disabled = cerrada;
   $('bCamara').disabled = cerrada;
-  $('bCorreoRedactado').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.cerrarRecepciones);
+  $('bCorreoRedactado').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.redactarCorreo);
   $('bExportar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.exportarInformes:manda));
   $('bColumnasInforme').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes||cerrada);
   $('bHistorialInformes').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes);
@@ -1258,7 +1260,7 @@ document.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-posicion]');
   if (!b) return;
   $('fPosReal').value = b.dataset.posicion;
-  if (!$('fPallet').value) $('fPallet').value = 'DP';
+  $('fPosReal').dispatchEvent(new Event('input',{bubbles:true}));
 });
 
 /**
@@ -1464,6 +1466,7 @@ async function registrar(confirmarSobrante) {
     if (!Number.isFinite(Number($('fCantidad').value)) || Number($('fCantidad').value) <= 0) {
       throw errorCampo('fCantidad','Registra una cantidad mayor que 0. Si no apareció, usa «No apareció» para declarar 0.');
     }
+    if(!$('fPosReal').checkValidity())throw errorCampo('fPosReal',$('fPosReal').validationMessage);
     if(reglasCliente.palletRequerido&&!$('fPallet').value.trim())throw errorCampo('fPallet','Indica el pallet o bulto del conteo.');
     if($('fPallet').value.trim()&&!/^[A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)*$/.test($('fPallet').value.trim().toUpperCase()))throw errorCampo('fPallet','Usa B02, B02.1 o B02-B03. No se admiten comillas ni otros caracteres.');
     if(modoLocal()&&$('fEstado').value==='PNC'&&!(Number($('fCantidadIncidencia').value)>0&&Number($('fCantidadIncidencia').value)<=Number($('fCantidad').value)))throw errorCampo('fCantidadIncidencia','Indica cuántas de las unidades contadas tienen esta incidencia.');
@@ -1760,8 +1763,8 @@ $('bCerrarNoEnc').addEventListener('click', reiniciar);
 
 async function corregirSku(sku,eventoId) {
   const s=skus.find(x=>x.sku===sku);if(!s)return;
-  await abrirCorreccion({recepcion:RECEPCION,sku,contado:s.contado,origenes:s.origenes||[],incidencias:reglasCliente.incidencias||[],eventoId,
-    alGuardar:async()=>{skus=await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/skus`);await refrescarEventos();pintarTabla();pintarKpis();reiniciar();aviso('Conteo corregido. El registro anterior queda solo en auditoría.','ok');}});
+  await abrirCorreccion({recepcion:RECEPCION,sku,contado:s.contado,origenes:s.origenes||[],incidencias:reglasCliente.incidencias||[],eventoId,posiciones:actual?.sku===sku?ubicacionesDepot(actual.producto).map(p=>p.posicion):[],
+    alGuardar:async()=>{await refrescarOperacion();reiniciar();aviso('Conteo corregido. El registro anterior queda solo en auditoría.','ok');}});
 }
 $('bCorregirFicha').onclick=()=>corregirSku($('bCorregirFicha').dataset.sku).catch(e=>aviso(e.message,'err'));
 $('tSkus').addEventListener('click',ev=>{const b=ev.target.closest('[data-corregir-sku]');if(b)corregirSku(b.dataset.corregirSku).catch(e=>aviso(e.message,'err'));});
@@ -1772,34 +1775,40 @@ async function soloBitacora(){if($('panelBitacora').classList.contains('oculto')
 $('bBitacoraDirecta').onclick=soloBitacora;$('bSoloBitacora').onclick=soloBitacora;
 $('bVolverLista').onclick=()=>{$('panelBitacora').classList.add('oculto');$('contenidoInventario').hidden=false;$('bPlegarInventario').textContent='Ocultar lista';$('bPlegarInventario').setAttribute('aria-expanded','true');$('panelInventario').scrollIntoView({behavior:'smooth',block:'start'});};
 // --- Bitácora ------------------------------------------------------------- //
-$('bBitacora').addEventListener('click', async () => {
-  const p = $('panelBitacora');
-  if (!p.classList.contains('oculto')) { p.classList.add('oculto'); return; }
-  p.classList.remove('oculto');
-  $('tBitacora').innerHTML = '<tr><td colspan="6" class="mini">Cargando…</td></tr>';
-  try {
-    const todos=await leerBitacora(RECEPCION,0);
-    const evs=todos.filter(e=>['CONTEO','NO_ENCONTRADO','ANULACION'].includes(e.tipo)&&($('bitacoraAnulados').checked||!e.anulado&&e.tipo!=='ANULACION')&&(!$('bitacoraFiltro').value||skus.find(s=>s.sku===e.sku)?.estado===$('bitacoraFiltro').value));
-    $('tBitacora').innerHTML = evs.length ? evs.map((e) => {
-      const tachado = e.anulado || e.tipo === 'ANULACION';
-      const hora = fechaCompleta(e.creadoEn);
-      const puede = !tachado && ['CONTEO','NO_ENCONTRADO'].includes(e.tipo) && (e.operadorUid === usuario.uid ||
-                                 ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol));
-      return `<tr${tachado ? ' style="opacity:.45"' : ''}>
-        <td class="mini">${esc(hora)}</td>
-        <td class="id" style="font-size:12px${tachado ? ';text-decoration:line-through' : ''}">${esc(e.sku)}</td>
-        <td class="num">${e.cantidad}</td>
-        <td class="mini">${esc(e.pallet || '')}${e.posicionReal?'<br>Posición: '+esc(e.posicionReal):''}</td>
-        <td class="mini">${esc(e.operadorNombre || e.operadorEmail || '')}</td>
-        <td>${puede&&modoLocal()&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-corregir-evento="${esc(e.id)}" data-sku="${esc(e.sku)}">Editar conteo</button>`:''}${puede ? `<button class="b-sec" data-anular="${esc(e.id)}">Anular</button>` : ''}${modoLocal()&&!tachado&&Number(e.cantidad)>0&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-calidad="${esc(e.id)}" data-pallet="${esc(e.pallet || '')}" data-total="${Number(e.cantidad)}">Clasificar unidades</button>`:''}</td>
-      </tr>`;
-    }).join('') : '<tr><td colspan="6" class="mini">Sin conteos aún.</td></tr>';
-  } catch (e) {
-    $('tBitacora').innerHTML = `<tr><td colspan="6" class="mini">${esc(e.message)}</td></tr>`;
-  }
+let bitacoraCarga=0;
+async function refrescarOperacion(){
+  const carga=++bitacoraCarga;
+  const [lista,eventos]=await Promise.all([modoLocal()?pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/skus`):Promise.resolve(skus),leerBitacora(RECEPCION,0)]);
+  if(carga!==bitacoraCarga)return;
+  skus=lista.sort((a,b)=>a.sku.localeCompare(b.sku));eventosCache=eventos;
+  pintarTabla();pintarKpis();
+  if(actual){const s=skus.find(x=>x.sku===actual.sku);if(s){refrescarFicha(s);pintarHistorial(s);}}
+  if(!$('panelBitacora').classList.contains('oculto'))pintarBitacora();
+}
+function pintarBitacora(){
+  const codigo=normalizarCodigo($('bitacoraCodigo').value),estado=$('bitacoraFiltro').value;
+  const evs=eventosCache.filter(e=>['CONTEO','CERO','NO_ENCONTRADO','ANULACION'].includes(e.tipo)&&($('bitacoraAnulados').checked||!e.anulado&&e.tipo!=='ANULACION')&&(!estado||skus.find(s=>s.sku===e.sku)?.estado===estado)&&(!codigo||normalizarCodigo(e.sku).includes(codigo)));
+  $('bitacoraEstado').textContent=evs.length+' registros en esta selección · datos actualizados';
+  $('tBitacora').innerHTML=evs.length?evs.map(e=>{
+    const tachado=e.anulado||e.tipo==='ANULACION';
+    const propio=e.operadorUid===usuario.uid||modoLocal()&&e.operadorEmail===usuario.email;
+    const puede=recepcion.estado!=='CERRADA'&&!tachado&&['CONTEO','CERO','NO_ENCONTRADO'].includes(e.tipo)&&(propio||['SUPERVISOR','ADMIN'].includes(perfil?.rol));
+    return `<tr${tachado?' style="opacity:.45"':''}>
+      <td class="mini">${esc(fechaCompleta(e.creadoEn))}</td><td class="id" style="font-size:12px${tachado?';text-decoration:line-through':''}">${esc(e.sku)}</td><td class="num">${e.cantidad}</td>
+      <td class="mini">${esc(e.pallet||'')}${e.posicionReal?'<br>Posición: '+esc(e.posicionReal):''}</td><td class="mini">${esc(e.operadorNombre||e.operadorEmail||'')}</td>
+      <td>${puede&&modoLocal()&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-corregir-evento="${esc(e.id)}" data-sku="${esc(e.sku)}">Editar conteo</button>`:''}${puede?`<button class="b-sec" data-anular="${esc(e.id)}">Anular</button>`:''}${modoLocal()&&recepcion.estado!=='CERRADA'&&!tachado&&Number(e.cantidad)>0&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-calidad="${esc(e.id)}" data-pallet="${esc(e.pallet||'')}" data-total="${Number(e.cantidad)}">Clasificar unidades</button>`:''}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="mini">No hay registros para ese código o estado.</td></tr>';
+}
+async function actualizarBitacora(){
+  $('bActualizarBitacora').disabled=true;$('bitacoraEstado').textContent='Consultando conteos y estados…';
+  try{await refrescarOperacion();}catch(e){$('bitacoraEstado').textContent=e.message;throw e;}finally{$('bActualizarBitacora').disabled=false;}
+}
+$('bBitacora').addEventListener('click',async()=>{
+  const p=$('panelBitacora');p.classList.toggle('oculto');if(p.classList.contains('oculto'))return;
+  try{await actualizarBitacora();}catch(e){aviso(e.message,'err');}
 });
-
-for(const id of ['bitacoraFiltro','bitacoraAnulados'])$(id).onchange=()=>{$('panelBitacora').classList.add('oculto');$('bBitacora').click();};
+$('bActualizarBitacora').onclick=()=>actualizarBitacora().catch(e=>aviso(e.message,'err'));
+for(const id of ['bitacoraCodigo','bitacoraFiltro','bitacoraAnulados'])$(id).addEventListener(id==='bitacoraCodigo'?'input':'change',pintarBitacora);
 $('tBitacora').addEventListener('click',ev=>{const b=ev.target.closest('[data-corregir-evento]');if(b)corregirSku(b.dataset.sku,b.dataset.corregirEvento).catch(e=>aviso(e.message,'err'));});
 $('tBitacora').addEventListener('click',async ev=>{const b=ev.target.closest('[data-calidad]');if(!b)return;
  const d=await pedirDatos({titulo:'Clasificar unidades del conteo',texto:`Total físico: ${b.dataset.total}. Esta corrección no cambia lo contado y conserva el registro original.`,campos:[
@@ -1807,7 +1816,7 @@ $('tBitacora').addEventListener('click',async ev=>{const b=ev.target.closest('[d
  {clave:'cantidad',etiqueta:'Unidades con incidencia (0 si todo es conforme)',tipo:'numero',valor:'',obligatorio:true},
  {clave:'pallet',etiqueta:'Pallet específico de la novedad (uno solo)',valor:b.dataset.pallet.includes('-')?'':b.dataset.pallet},
  {clave:'motivo',etiqueta:'Motivo de la corrección',obligatorio:true}]});if(!d)return;
- try{await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/eventos/'+encodeURIComponent(b.dataset.calidad)+'/calidad',{cuerpo:{motivo:d.motivo,incidencias:d.tipo==='OK'?[]:[{tipo:d.tipo,cantidad:Number(d.cantidad),pallet:d.pallet}]}});aviso('Clasificación corregida con fecha, hora y responsable. El total físico se conserva.','ok');$('bBitacora').click();$('bBitacora').click();}catch(e){aviso(e.message,'err');}
+ try{await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/eventos/'+encodeURIComponent(b.dataset.calidad)+'/calidad',{cuerpo:{motivo:d.motivo,incidencias:d.tipo==='OK'?[]:[{tipo:d.tipo,cantidad:Number(d.cantidad),pallet:d.pallet}]}});aviso('Clasificación corregida con fecha, hora y responsable. El total físico se conserva.','ok');await refrescarOperacion();}catch(e){aviso(e.message,'err');}
 });
 $('tBitacora').addEventListener('click', async (ev) => {
   const id = ev.target.dataset.anular;
@@ -1826,7 +1835,7 @@ $('tBitacora').addEventListener('click', async (ev) => {
   try {
     await anularConteo(RECEPCION, usuario, id, motivo);
     aviso('Conteo anulado. El registro original queda en la bitácora.', 'ok');
-    $('bBitacora').click(); $('bBitacora').click();
+    await refrescarOperacion();
   } catch (e) { aviso(e.message, 'err'); }
 });
 
@@ -1954,8 +1963,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261020-60').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261020-60').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261021-61').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261021-61').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;

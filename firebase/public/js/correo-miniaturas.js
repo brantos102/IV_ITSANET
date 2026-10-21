@@ -1,5 +1,5 @@
 /** Copia local del correo: miniaturas pequeñas; originales y MySQL intactos. */
-import {leerMiniatura} from './miniaturas.js?v=20261020-60';
+import {leerMiniatura} from './miniaturas.js?v=20261021-61';
 async function reducir(blob){
  const url=URL.createObjectURL(blob);try{const img=new Image();img.src=url;await img.decode();const escala=Math.min(1,320/img.naturalWidth,240/img.naturalHeight),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*escala));c.height=Math.max(1,Math.round(img.naturalHeight*escala));const ctx=c.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.78);}finally{URL.revokeObjectURL(url);}
 }
@@ -8,7 +8,7 @@ export async function prepararCorreoMiniaturas(html,alAvanzar=()=>{}){
  const ids=[...new Set(imagenes.map(i=>i.dataset.archivo))];if(ids.length>12)throw Error('El correo admite hasta 12 miniaturas.');
  const archivos=[],faltantes=[],datos=new Map();let hechas=0;
  await Promise.all(ids.map(async(id,i)=>{try{const dato=await reducir(await leerMiniatura('/api/app/archivos/'+id));datos.set(id,dato);const b64=dato.split(',')[1],bin=atob(b64),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));archivos.push({nombre:'Evidencia_'+String(i+1).padStart(2,'0')+'_mini.jpg',bytes});}catch{faltantes.push(id);}finally{alAvanzar(++hechas,ids.length);}}));
- for(const img of imagenes){const dato=datos.get(img.dataset.archivo);if(dato){img.src=dato;img.removeAttribute('loading');}else{const enlace=d.createElement('a');enlace.href=new URL('/api/app/archivos/'+img.dataset.archivo,location.origin).href;enlace.textContent=(img.alt||'Foto')+' · abrir original desde ITSANET';img.replaceWith(enlace);}}
+ for(const img of imagenes){const dato=datos.get(img.dataset.archivo);if(dato){img.src=dato;img.removeAttribute('loading');if(img.nextElementSibling?.hasAttribute('data-copia-pendiente'))img.nextElementSibling.remove();}else{const enlace=d.createElement('a');enlace.href=new URL('/api/app/archivos/'+img.dataset.archivo,location.origin).href;enlace.textContent=(img.alt||'Foto')+' · abrir original desde ITSANET';img.replaceWith(enlace);}}
  archivos.sort((a,b)=>a.nombre.localeCompare(b.nombre));return {html:d.body.innerHTML,archivos,faltantes,total:ids.length};
 }
 // ZIP sin compresión: evita dependencias y conserva los JPEG ya comprimidos.

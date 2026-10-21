@@ -1,3 +1,4 @@
+import {agregarDesglosePosicion} from './posiciones.js?v=20261021-61';
 /**
  * Diálogos propios, en lugar de confirm() y prompt() del navegador.
  *
@@ -305,8 +306,10 @@ export function pedirDatos({ titulo, texto = '', campos = [],
     return `<label class="campo"><span>${esc(c.etiqueta)}</span>
               <input id="${id}" type="${c.tipo==='password'?'password':c.tipo==='email'?'email':c.tipo==='numero'?'number':'text'}" data-clave="${esc(c.clave)}" value="${esc(c.valor ?? '')}"
                      placeholder="${esc(c.marcador || '')}" autocomplete="off"
+                     ${c.sugerencias?.length?'list="'+id+'_opciones"':''}
                      ${c.obligatorio ? 'data-obligatorio required' : ''}
                      autocapitalize="none" spellcheck="false">
+              ${c.sugerencias?.length?'<datalist id="'+id+'_opciones">'+c.sugerencias.map(v=>'<option value="'+esc(v)+'"></option>').join('')+'</datalist>':''}
               ${c.pista ? `<span class="mini">${esc(c.pista)}</span>` : ''}</label>`;
   };
 
@@ -319,6 +322,7 @@ export function pedirDatos({ titulo, texto = '', campos = [],
      </div>`,
     (d, cerrar) => {
       const entradas = Array.from(d.querySelectorAll('[data-clave]'));
+      for(const c of campos)if(c.desglosarPosicion)agregarDesglosePosicion(d.querySelector('[data-clave="'+c.clave+'"]'));
       const si = d.querySelector('[data-si]');
       const revisar = () => {
         si.disabled = entradas.some((e) =>

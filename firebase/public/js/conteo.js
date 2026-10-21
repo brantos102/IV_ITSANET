@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261020-60';
-import { db } from './auth.js?v=20261020-60';
-import * as local from './local.js?v=20261020-60';
+} from '../vendor/firebase-sdk.js?v=20261021-61';
+import { db } from './auth.js?v=20261021-61';
+import * as local from './local.js?v=20261021-61';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261020-60';
+} from './datos.js?v=20261021-61';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -379,7 +379,7 @@ export async function leerBitacora(recepcionId, max = 60) {
   const q = query(
     collection(db, 'recepciones', recepcionId, 'eventos'),
     orderBy('creadoEn', 'desc'),
-    limit(max),
+    ...(max>0?[limit(max)]:[]),
   );
   const snap = await getDocs(q);
   const eventos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));

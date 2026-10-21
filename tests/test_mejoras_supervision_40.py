@@ -31,7 +31,8 @@ def test_borrador_sin_google_edicion_escape_y_conflicto(cliente,db,correo):
     sin_google=cliente.get(api_correo(codigo))
     assert sin_google.status_code==200 and not sin_google.json()['conexionConfigurada']
     op=TestClient(app);op.post('/api/auth/login',json={'usuario':'op1','pin':'2222'})
-    assert op.get(api_correo(codigo)).status_code==403
+    operativo=op.get(api_correo(codigo));assert operativo.status_code==200 and operativo.json()['soloRedaccion']
+    assert op.post(api_correo(codigo)+'/manual',json={}).status_code==403
 
 
 def test_correo_final_congelado_y_cambio_de_recepcion_no_cierra(cliente,db,correo,monkeypatch):

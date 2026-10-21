@@ -1,8 +1,8 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261020-60';
-import {pedirDatos,elegir,confirmar} from './modal.js?v=20261020-60';
-import {eventosActivos} from './conteo.js?v=20261020-60';
+import {pedir,nuevoIdentificador} from './local.js?v=20261021-61';
+import {pedirDatos,elegir,confirmar} from './modal.js?v=20261021-61';
+import {eventosActivos} from './conteo.js?v=20261021-61';
 
-export async function abrirCorreccion({recepcion,sku,contado,origenes=[],incidencias=[],alGuardar,eventoId}) {
+export async function abrirCorreccion({recepcion,sku,contado,origenes=[],incidencias=[],alGuardar,eventoId,posiciones=[]}) {
   const eventos=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/eventos`);
   const activos=eventosActivos(eventos).filter(e=>e.sku===sku&&['CONTEO','NO_ENCONTRADO'].includes(e.tipo));
   if(!activos.length)throw Error('Este SKU no tiene conteos activos para corregir.');
@@ -10,7 +10,8 @@ export async function abrirCorreccion({recepcion,sku,contado,origenes=[],inciden
   if(!id)return;const e=activos.find(e=>e.id===id);if(!e)throw Error('El registro cambió; actualiza la pantalla.');
   const d=await pedirDatos({titulo:'Corregir conteo · '+sku,texto:'Se sustituye este registro, no el total de todos los pallets. El original queda anulado solo en auditoría. Si otro usuario cambia el SKU, se pedirá actualizar.',campos:[
     {clave:'cantidad',etiqueta:'Cantidad correcta de este registro',valor:e.cantidad,obligatorio:true,tipo:'numero'},
-    {clave:'pallet',etiqueta:'Pallet',valor:e.pallet||''},
+    {clave:'pallet',etiqueta:'Pallet · escribe el identificador real',valor:e.pallet||''},
+    {clave:'posicionReal',etiqueta:'Posición final · puedes escribir o editar la sugerencia',valor:e.posicionReal||'',sugerencias:posiciones,desglosarPosicion:true},
     ...(origenes.length?[{clave:'origen',etiqueta:'Packing list',tipo:'lista',valor:e.origen||origenes[0],opciones:origenes.map(o=>({valor:o,titulo:o}))}]:[]),
     {clave:'observacion',etiqueta:'Observación',valor:e.observacion||''},
     {clave:'clasificacion',etiqueta:'Clasificación física',tipo:'lista',valor:'CONSERVAR',opciones:[{valor:'CONSERVAR',titulo:'Conservar clasificación actual'},{valor:'OK',titulo:'Todo conforme'},...incidencias.filter(i=>i.activo&&!['OK','FALTANTE','SOBRANTE'].includes(i.codigo)).map(i=>({valor:i.codigo,titulo:i.nombre}))]},

@@ -126,6 +126,12 @@ def _parrafo(texto):
     return '<p>' + escape(str(texto or '')).replace('\n', '<br>') + '</p>' if texto else ''
 
 
+def texto_editable(campo,texto):
+    # El borrador conserva únicamente texto; no se acepta HTML del navegador.
+    # Los atributos permiten editar en contexto sin tocar tablas ni cantidades.
+    return '<div data-correo-campo="'+campo+'" style="min-height:24px">'+_parrafo(texto)+'</div>'
+
+
 MAX_FOTOS = 12
 PRESENTACION = {'mostrarTotales': False, 'fotosModo': 'NOVEDADES', 'fotosIds': []}
 
@@ -190,11 +196,9 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             caption=('Prerecepción · descarga del contenedor' if f.get('tipoEvidencia')=='PRERECEPCION' else ' · '.join(codigos) or 'Evidencia de recepción')
             pallets=list(dict.fromkeys(v.get('pallet') for v in vinculos if v.get('pallet')))
             if pallets:caption+=' · Pallet '+', '.join(pallets)
-            img = ''
-            if f.get('fileId'):
-                img = '<img data-archivo="' + escape(f['archivoId'], quote=True) + '" src="https://drive.google.com/thumbnail?id=' + escape(f['fileId'], quote=True) + '&amp;sz=w320" alt="' + escape(caption, quote=True) + '" width="176" height="132" style="display:block;width:176px;height:132px;object-fit:contain;background:#f3f6fa;border:0;border-radius:8px">'
-            else:
-                img = '<span style="display:block;padding:16px;color:#64748b">Copia a Drive pendiente</span>'
+            src=('https://drive.google.com/thumbnail?id='+f['fileId']+'&sz=w320') if f.get('fileId') else '/api/app/archivos/'+f['archivoId']
+            img='<img data-archivo="'+escape(f['archivoId'],quote=True)+'" src="'+escape(src,quote=True)+'" alt="'+escape(caption,quote=True)+'" width="176" height="132" style="display:block;width:176px;height:132px;object-fit:contain;background:#f3f6fa;border:0;border-radius:8px">'
+            if not f.get('fileId'):img+='<small data-copia-pendiente style="color:#64748b">Copia a Drive pendiente</small>'
             html += '<div style="display:inline-block;vertical-align:top;width:184px;max-width:100%;margin:8px 8px 0 0"><div style="border:1px solid #dce5ef;border-radius:9px;padding:4px">' + img + '<p style="margin:6px 2px;font-size:12px;overflow-wrap:anywhere">' + (_link(url, caption) or escape(caption)) + '</p></div></div>'
         return '<div style="margin-top:10px">' + html + '</div>' if html else ''
     def tabla(titulo, filas, categoria, color, novedad=False):
@@ -219,17 +223,20 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
     html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#22334a;max-width:960px;margin:0 auto;background:#ffffff">'
     html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(fuente.get('nombreGrupo') or fuente.get('origen') or codigo) + '</h2><p style="margin:0;color:#e2ecf9">Recepción: '+escape(codigo)+' · Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
     if fuente.get('origen'):html += '<p style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
-    html += '<div style="padding:20px 18px;border:1px solid #dce5ef;border-top:0;border-radius:0 0 12px 12px">' + _parrafo(campos['saludo']) + _parrafo(campos['introduccion']) + links
-    html += datos_operativos(campos,fuente)
+    html += '<div style="padding:20px 18px;border:1px solid #dce5ef;border-top:0;border-radius:0 0 12px 12px">' + texto_editable('saludo',campos['saludo']) + texto_editable('introduccion',campos['introduccion']) + links
+    previas=[f for f in fotos if f.get('tipoEvidencia')=='PRERECEPCION']
+    if previas:html+='<section data-correo-seccion="prerecepcion"><h3 style="font-size:16px;margin-top:24px">Prerecepción · descarga del contenedor</h3>'+fotos_html(previas)+'</section>'
+    html+='<section data-correo-seccion="observaciones">'+('<h3 style="font-size:16px;margin-top:24px">Observaciones de recepción</h3>' if campos['notas'] else '')+texto_editable('notas',campos['notas'])+'</section>'
+    ubicacion=datos_operativos(campos,fuente)
     if fuente.get('contenedores'):
-        html+='<section style="margin:18px 0;padding:14px;background:#eef5fb;border-left:4px solid #2462a4"><h3 style="margin:0 0 8px">Distribución y ubicación por contenedor</h3>'
+        ubicacion+='<section style="margin:18px 0;padding:14px;background:#eef5fb;border-left:4px solid #2462a4"><h3 style="margin:0 0 8px">Distribución y ubicación por contenedor</h3>'
         for c in fuente['contenedores']:
             texto=c['id']+' · '+c['numero']
             if len(c['embarques'])>1:texto+=' · Contenedor compartido: '+', '.join(c['embarques'])
             if c.get('total') is not None:texto+=' · Bultos totales: '+str(c['total'])+' · '+c['desde']+' hasta '+c['hasta']
             if c.get('posicion'):texto+=' · Posición final: '+c['posicion']
-            html+=_parrafo(texto)
-        html+='</section>'
+            ubicacion+=_parrafo(texto)
+        ubicacion+='</section>'
     if opciones['mostrarTotales']:
         html += '<p style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
     html += tabla('Sobrantes y adicionales', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
@@ -250,13 +257,12 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             html += '</ul>'
         else:html += _parrafo('Los productos de esta recepción figuran en el catálogo consultado para el cliente.')
         html += '</section>'
-    previas=[f for f in fotos if f.get('tipoEvidencia')=='PRERECEPCION' and f['archivoId'] not in usadas]
-    if previas:html+='<h3 style="font-size:16px;margin-top:24px">Prerecepción · descarga del contenedor</h3>'+fotos_html(previas)
     otras = [f for f in fotos if f['archivoId'] not in usadas]
     if otras: html += '<h3 style="font-size:16px;margin-top:24px">Evidencias seleccionadas</h3>' + fotos_html(otras)
+    html+=ubicacion
     if archivos:
         html += '<div style="padding:14px 16px;background:#f3f6fa;border-radius:8px;margin-top:22px"><h3 style="font-size:15px;margin:0 0 8px">Documentos finales</h3><ul style="margin:0;padding-left:20px">' + ''.join('<li style="overflow-wrap:anywhere">' + escape(a.nombre) + '</li>' for a in archivos) + '</ul></div>'
-    html += _parrafo(campos['notas']) + _parrafo(campos['despedida']) + _parrafo(campos['firma'])
+    html += texto_editable('despedida',campos['despedida']) + texto_editable('firma',campos['firma'])
     html += '<p style="font-size:11px;color:#63758d;border-top:1px solid #e0e7f0;padding-top:12px;margin-top:24px">Preparado por: ' + escape(remitente) + ' · ' + escape(codigo) + '</p></div></div>'
     from html.parser import HTMLParser
     class Texto(HTMLParser):
@@ -310,7 +316,7 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     if not congelado or not (e and (e.estado in ('ENTREGADA','PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA')):
         final['respuestaGmail']=respuesta if not respuesta_otra else None
     g = integraciones.google(db, usuario)
-    version = _hash([60, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
+    version = _hash([61, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}
@@ -342,11 +348,16 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
             'modificadoPor': guardado.get('usuario'), 'modificadoEn': guardado.get('fecha')}
 
 
-def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None):
+def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=False):
     codigo=m.obtener(db, codigo, bloquear=True).codigo
     entrega_id = str(datos.get('entregaId') or '')
     origen=str(datos.get('origen') or '')
     anterior = vista(db, codigo, usuario, entrega_id,origen,actual=True)
+    if solo_redaccion:
+        if anterior['estadoRecepcion']=='CERRADA' or entrega_id:raise HTTPException(409,'La recepción o entrega está cerrada; el supervisor conserva su revisión final.')
+        if 'gmailMensajeId' in datos:raise HTTPException(403,'La selección del hilo Gmail corresponde al supervisor.')
+        if not isinstance(datos.get('campos'),dict) or any(datos['campos'].get(k)!=anterior['campos'][k] for k in ('asunto','destinatarios')):
+            raise HTTPException(403,'El supervisor revisa el asunto y los destinatarios; puedes editar la redacción y fotografías.')
     if anterior['soloLectura']:
         raise HTTPException(409, 'Este correo ya está en proceso o confirmado. Su texto se conserva en el historial.')
     if datos.get('version') != anterior['version']:
@@ -378,7 +389,7 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None):
             respuesta=respuesta_gmail
         else:respuesta=None
     if respuesta:
-        if respuesta.get('cuenta')!=usuario:raise HTTPException(409,'Otro supervisor seleccionó su hilo Gmail. Elige un mensaje de tu cuenta o cambia explícitamente a correo nuevo.')
+        if respuesta.get('cuenta')!=usuario and not solo_redaccion:raise HTTPException(409,'Otro supervisor seleccionó su hilo Gmail. Elige un mensaje de tu cuenta o cambia explícitamente a correo nuevo.')
         campos['asunto']='Re: '+re.sub(r'^(?:re:\s*)+', '',respuesta['asunto'],flags=re.I)
         if len(campos['asunto'])>250:raise HTTPException(422,'El asunto original de Gmail supera 250 caracteres; usa el envío manual.')
     f = db.get(AppConfig, clave_config(codigo,origen=origen)) or AppConfig(clave=clave_config(codigo,origen=origen))

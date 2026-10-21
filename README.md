@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Versión 61: correo editable en contexto, prerecepción ordenada y bitácora actualizada con búsqueda](docs/CORREO_EDITABLE_Y_BITACORA_61.md).
+
 [Versión 60: posición final, pallet de novedades, prerecepción y correo con miniaturas](docs/UBICACION_NOVEDADES_Y_PRERECEPCION_60.md) · [Presentación para jefaturas (ZIP)](docs/descargas/ITSANET-presentacion-jefaturas-v60.zip).
 
 [Conciliación de cantidades por recepción, embarque y contenedor · solo lectura](docs/CONCILIACION_RECEPCION_SOLO_LECTURA.md).

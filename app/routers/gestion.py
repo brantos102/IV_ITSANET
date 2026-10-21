@@ -34,9 +34,14 @@ def contenedores_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_
     return guardar(db,codigo,datos,op.email or op.usuario)
 
 @router.get('/recepciones/{codigo}/correo')
-def correo_vista(codigo:str,entregaId:str='',origen:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+def correo_vista(codigo:str,entregaId:str='',origen:str='',db:Session=Depends(get_db),op=Depends(ajustes.requiere('redactarCorreo'))):
     from app.services.correo_redactado import vista
-    return vista(db,codigo,op.email or op.usuario,entregaId,origen)
+    return capacidades_correo(vista(db,codigo,op.email or op.usuario,entregaId,origen),db,op)
+
+def capacidades_correo(vista,db,op):
+    limitado=not ajustes.permisos(db,op).get('cerrarRecepciones')
+    return {**vista,'soloRedaccion':limitado,**({'respuestaGmail':None,'respuestaOtraCuenta':False,
+        'conexionConfigurada':False,'soloLectura':vista['soloLectura'] or vista['estadoRecepcion']=='CERRADA'} if limitado else {})}
 
 @router.post('/recepciones/{codigo}/correo/enlaces-drive')
 def actualizar_enlaces_correo(codigo:str,db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
@@ -59,13 +64,15 @@ def guardar_plan_correos(codigo:str,datos:dict=Body(...),db:Session=Depends(get_
     return guardar(db,codigo,datos,op.email or op.usuario)
 
 @router.put('/recepciones/{codigo}/correo')
-def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('redactarCorreo'))):
     from app.services.correo_redactado import guardar
+    limitado=not ajustes.permisos(db,op).get('cerrarRecepciones')
+    if limitado and 'gmailMensajeId' in datos:raise HTTPException(403,'La selección del hilo Gmail corresponde al supervisor.')
     respuesta=None
     if datos.get('gmailMensajeId'):
         from app.services.gmail import seleccionar
         respuesta=seleccionar(db,op,datos['gmailMensajeId'])
-    return guardar(db,codigo,datos,op.email or op.usuario,respuesta_gmail=respuesta)
+    return capacidades_correo(guardar(db,codigo,datos,op.email or op.usuario,respuesta_gmail=respuesta,solo_redaccion=limitado),db,op)
 
 @router.post('/recepciones/{codigo}/correo/manual')
 def correo_manual(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
