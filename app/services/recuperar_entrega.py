@@ -23,7 +23,7 @@ def _validar(db, e, grupo, *, manual_confirmado=False):
         raise HTTPException(409,'El supervisor ya declaró el envío manual. Se conserva el historial y no se reenvían estos documentos.')
     d = expandir(e.datos)
     r = m.obtener(db, e.recepcion)
-    if r.estado != 'CERRADA':
+    if r.estado != 'CERRADA' and not (d.get('reporteSinCierre') and r.estado in m.ABIERTAS):
         raise HTTPException(409, 'La recepción cambió o fue reabierta. Revisa el conteo y genera su informe al finalizar.')
     ultima = max(grupo, key=lambda g: (g.creado_en, g.id))
     if ultima.id != e.id:

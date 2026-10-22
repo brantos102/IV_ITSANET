@@ -18,7 +18,7 @@ def test_borrador_sin_google_edicion_escape_y_conflicto(cliente,db,correo):
     codigo,_=correo
     r=cliente.get(api_correo(codigo));assert r.status_code==200,r.text
     v=r.json();assert 'Sin diferencias' in v['html']
-    assert 'SKU1' in v['html'] and v['validacionDepot']['porSku']['SKU1']['estado']=='SIN_VALIDAR'
+    assert 'Productos por verificar en Depot' not in v['html'] and v['validacionDepot']['porSku']['SKU1']['estado']=='SIN_VALIDAR'
     campos={**v['campos'],'asunto':'Informe revisado','notas':'<img src=x onerror=alert(1)>','destinatarios':'otro@example.test'}
     g=cliente.put(api_correo(codigo),json={'version':v['version'],'campos':campos})
     assert g.status_code==200,g.text

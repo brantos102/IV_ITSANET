@@ -142,6 +142,9 @@ def guardar(db,codigo,datos,usuario):
     else:c['repartos']={}
     registro=db.get(AppConfig,clave(r.codigo)) or AppConfig(clave=clave(r.codigo));registro.datos=c;registro.usuario=usuario;db.add(registro)
     ajustes.auditar(db,usuario,'AGRUPACION_CORREOS_REVISADA',r.codigo,{'modo':c['modo'],'grupos':p['grupos'],'repartos':c['repartos']})
+    db.flush()
+    from app.services.carpetas_recepcion import encolar
+    encolar(db,r.codigo)
     db.commit();return vista(db,r.codigo)
 
 

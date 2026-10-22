@@ -17,7 +17,7 @@ def test_fotos_sku_solo_en_su_carpeta_segun_estado(cliente,db,monkeypatch,tmp_pa
     for i in range(2):
         r=foto(cliente,c,sku='SKU1',desdeSku=True,categoria='GENERAL',tipoEvidencia='EXTERIOR_BULTO',variante=i);assert r.status_code==201,r.text
         db.rollback();db.expire_all();j=db.get(AppCopiaDrive,r.json()['id'])
-        assert j.datos['ruta']==(['SKU1'] if categoria=='VALIDACION' else [categoria,'SKU1'])
+        assert j.datos['ruta']==[{'VALIDACION':'PRODUCTOS','SOBRANTE':'SOBRANTES','FALTANTE':'FALTANTES','PNC':'PNC'}[categoria],'SKU1']
         assert j.datos['rutaSku']==j.datos['ruta'] and j.datos['nombre'].startswith('MEJORAS_SIN-EMBARQUE_') and j.datos['nombre'].endswith(f'_{i+1:05d}.png')
         e=db.scalar(select(AppEvidencia).where(AppEvidencia.archivo_id==r.json()['id']))
         assert e.categoria==categoria and e.tipo==('ADICIONAL' if categoria=='VALIDACION' else 'ITEM_NOVEDAD')
@@ -86,7 +86,7 @@ def test_secuencia_del_sku_no_se_repite_al_cambiar_clasificacion(cliente,db,monk
     uno=foto(cliente,c,sku='SKU1',categoria='GENERAL',variante=1).json()
     dos=foto(cliente,c,sku='SKU1',desdeSku=True,variante=2).json()
     db.rollback();db.expire_all();a,b=[db.get(AppCopiaDrive,r['id']) for r in (uno,dos)]
-    assert a.datos['ruta']==b.datos['ruta']==['SKU1']
+    assert a.datos['ruta']==b.datos['ruta']==['PRODUCTOS','SKU1']
     assert [j.datos['nombre'].rsplit('_',1)[1] for j in (a,b)]==['00001.png','00002.png']
 
 

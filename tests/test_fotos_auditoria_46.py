@@ -89,11 +89,11 @@ def test_bultos_y_cajas_tienen_carpetas_propias_con_recepcion_y_embarques(client
     c=preparar(cliente,db);ruta='/api/operacion/recepciones/'+c
     unidades=cliente.post(ruta+'/bultos',json={'cantidad':2}).json()['unidades'];b=unidades[0]
     r=foto(cliente,c,unidadId=b['id'],categoria='RECEPCION',tipoEvidencia='EXTERIOR_BULTO');assert r.status_code==201,r.text
-    j=db.get(AppCopiaDrive,r.json()['id']);assert j.datos['ruta']==['EMBARQUES','POR-ASIGNAR','BULTOS','Bulto01_FOTOS46_RB654123-RB999']
+    j=db.get(AppCopiaDrive,r.json()['id']);assert j.datos['ruta']==['POR-ASIGNAR','BULTOS','Bulto01_FOTOS46_RB654123-RB999']
     caja=cliente.post(ruta+'/unidades',json={'tipo':'CAJA_MADRE','padreId':b['id'],'codigo':'CAJA-ABC'}).json()['unidades'][-1]
     f=foto(cliente,c,unidadId=caja['id'],categoria='RECEPCION',variante=2);assert f.status_code==201,f.text
     db.rollback();db.expire_all()
-    assert db.get(AppCopiaDrive,f.json()['id']).datos['ruta']==['EMBARQUES','POR-ASIGNAR','BULTOS','Bulto01_FOTOS46_RB654123-RB999','Caja01_CAJA-ABC']
+    assert db.get(AppCopiaDrive,f.json()['id']).datos['ruta']==['POR-ASIGNAR','BULTOS','Bulto01_FOTOS46_RB654123-RB999','Caja01_CAJA-ABC']
 
 
 def test_organizar_es_previo_confirmado_idempotente_y_no_envia_correo(cliente,db):

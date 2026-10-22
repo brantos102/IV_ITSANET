@@ -2,7 +2,7 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261021-61"></script>
+<script src="./js/arranque.js?v=20261021-62"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>ITSANET — Acceso</title>
@@ -150,7 +150,7 @@
   label.campo2 .pista { font-size:10px; color:var(--secondary); font-weight:600;
                         text-transform:none; letter-spacing:0; line-height:1.35; }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261021-61">
+<link rel="stylesheet" href="./css/marca.css?v=20261021-62">
 </head>
 <body>
 <div class="caja">
@@ -218,7 +218,7 @@
       </p>
     </form>
 
-    <div class="separador" id="sepGoogle"><span>o si tienes cuenta de Google</span></div>
+    <div class="separador" id="sepGoogle"><span>acceso opcional con tu cuenta Google</span></div>
 
     <button class="btn-google" id="btnEntrar">
       <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
@@ -227,7 +227,7 @@
         <path fill="#FBBC05" d="M11.6 28.1c-.4-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z"/>
         <path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.2 30 2 24 2 15.4 2 7.9 6.9 4.3 14.2l7.3 5.7c1.7-5.2 6.6-9.1 12.4-9.1z"/>
       </svg>
-      <span id="txtEntrar">Entrar con Google</span>
+      <span id="txtEntrar">Entrar con Google · opcional</span>
     </button>
     <p class="mini" id="notaAcceso" style="text-align:center;margin-top:16px;">
       Solo cuentas <code id="dominioTxt">@itsanet.com</code>.
@@ -290,18 +290,18 @@
 </div>
 
 <script type="module">
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-61';
-import { mostrarAviso } from './js/notificaciones.js?v=20261021-61';
-import { fechaDe, recientes } from './js/fechas.js?v=20261021-61';
-import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261021-61';
-import { modoLocal, estadoServidor } from './js/local.js?v=20261021-61';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-62';
+import { mostrarAviso } from './js/notificaciones.js?v=20261021-62';
+import { fechaDe, recientes } from './js/fechas.js?v=20261021-62';
+import { DOMINIO, SDK, DATABASE_ID } from './js/config.js?v=20261021-62';
+import { modoLocal, estadoServidor } from './js/local.js?v=20261021-62';
 import { entrar, entrarConClave, registrarse, salir, observarSesion,
          recogerRedirect, traducirError, esCuentaWorkspace, tipoDeAcceso,
-         normalizarAlias, db, auth } from './js/auth.js?v=20261021-61';
-import { pedirDatos } from './js/modal.js?v=20261021-61';
+         normalizarAlias, db, auth } from './js/auth.js?v=20261021-62';
+import { pedirDatos } from './js/modal.js?v=20261021-62';
 import { doc, getDoc, collection, getDocs, limit, query }
-  from './vendor/firebase-sdk.js?v=20261021-61';
-import { listarRecepciones } from './js/datos.js?v=20261021-61';
+  from './vendor/firebase-sdk.js?v=20261021-62';
+import { listarRecepciones } from './js/datos.js?v=20261021-62';
 
 const $ = (id) => document.getElementById(id);
 $('dominioTxt').textContent = '@' + DOMINIO;

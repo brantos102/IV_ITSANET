@@ -32,7 +32,7 @@ from app.services.validation import (
 COLUMNAS = [
     "ITEM", "Descripción", "ReferenciaPedido", "Factura", "Cantidad", "PrecioUnit",
     "PrecioTotal", "Numerodepiezareemplazo", "Embarque", "Cantidad Física",
-    "Validación", "PALLET", "CODIGO BARRA", "COD/PROD", "OBSERVACION", "ok",
+    "Validación", "PALLET", "CODIGO BARRA", "COD/PROD", "OBSERVACION", "ok", "POSICION FINAL SUGERIDA",
 ]
 
 ETIQUETA = {EstadoSku.OK: "Ok", EstadoSku.FALTANTE: "Faltante", EstadoSku.SOBRANTE: "Sobrante",
@@ -92,6 +92,13 @@ def _observaciones_de(db: Session, recepcion_id: int, sku: str) -> str:
     return " | ".join(salida)
 
 
+def _posiciones_de(db,recepcion_id,sku):
+    anulados=select(ScanEvent.evento_ref_id).where(ScanEvent.recepcion_id==recepcion_id,ScanEvent.evento_ref_id.is_not(None))
+    return ' / '.join(dict.fromkeys(db.scalars(select(ScanEvent.posicion_real).where(
+        ScanEvent.recepcion_id==recepcion_id,ScanEvent.sku==sku,ScanEvent.cantidad>0,
+        ScanEvent.posicion_real.is_not(None),ScanEvent.id.not_in(anulados)).order_by(ScanEvent.creado_en))))
+
+
 def construir_filas(db: Session, recepcion: Recepcion) -> list[dict]:
     """Arma las filas del packing list final (sin escribir el archivo)."""
     items = db.execute(
@@ -148,6 +155,7 @@ def construir_filas(db: Session, recepcion: Recepcion) -> list[dict]:
             "Cantidad Física": entero_si_aplica(fisica),
             "Validación": ETIQUETA[estado],
             "PALLET": pallet_celda or 0,
+            "POSICION FINAL SUGERIDA":_posiciones_de(db,recepcion.id,it.sku),
             "CODIGO BARRA": _txt(ean),
             "COD/PROD": "",
             "OBSERVACION": obs,
@@ -178,6 +186,7 @@ def construir_filas(db: Session, recepcion: Recepcion) -> list[dict]:
             "PrecioUnit": None, "PrecioTotal": None, "Numerodepiezareemplazo": "",
             "Embarque": "", "Cantidad Física": entero_si_aplica(contado[sku]),
             "Validación": "Sobrante", "PALLET": pallet_celda or 0,
+            "POSICION FINAL SUGERIDA":_posiciones_de(db,recepcion.id,sku),
             "CODIGO BARRA": _txt(ean), "COD/PROD": "", "OBSERVACION": obs,
             "ok": "ok" if prod else "#N/A", "_estado": EstadoSku.SOBRANTE.value,
         }
@@ -213,7 +222,7 @@ def exportar_packing_final(db: Session, recepcion: Recepcion, ruta: Path | None 
             if relleno:
                 celda.fill = relleno
 
-    anchos = [18, 42, 16, 14, 10, 11, 12, 20, 12, 14, 12, 14, 18, 12, 40, 8]
+    anchos = [18, 42, 16, 14, 10, 11, 12, 20, 12, 14, 12, 14, 18, 12, 40, 8, 30]
     for i, ancho in enumerate(anchos, start=1):
         ws.column_dimensions[get_column_letter(i)].width = ancho
     ws.freeze_panes = "A2"

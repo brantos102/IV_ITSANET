@@ -41,13 +41,16 @@ function gmailFicha_(m) {
     messageId:gmailCabecera_(m,'Message-ID'),references:gmailCabecera_(m,'References'),resumen:String(m.snippet||'').slice(0,500)};
 }
 function gmailConsultarServidor_(operacion, datos) {
+  var perfil=gmailApiServidor_('profile');
+  if(String(perfil.emailAddress||'').toLowerCase()!==String(datos.usuario||'').toLowerCase())throw new Error('GMAIL_CUENTA: El buzón no corresponde a la cuenta ejecutora solicitada.');
+  if(operacion==='gmailEstado')return {exito:true,cuentaGmail:perfil.emailAddress,versionGmail:'62',lecturaConfirmada:true};
   if(operacion==='gmailBuscar') {
     var q=String(datos.busqueda||'').trim();
     if(!q||q.length>250)throw new Error('Escribe una búsqueda de hasta 250 caracteres.');
     var lista=gmailApiServidor_('messages?maxResults=15&q='+encodeURIComponent(q+' -in:trash -in:spam'));
     var consultas=(lista.messages||[]).slice(0,15).map(function(m){return {url:'https://gmail.googleapis.com/gmail/v1/users/me/messages/'+gmailId_(m.id)+'?format=metadata',headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true};});
     var mensajes=consultas.length?UrlFetchApp.fetchAll(consultas).map(function(r){return gmailFicha_(gmailRespuestaServidor_(r));}):[];
-    return {exito:true,mensajes:mensajes,hayMas:!!lista.nextPageToken};
+    return {exito:true,cuentaGmail:perfil.emailAddress,mensajes:mensajes,hayMas:!!lista.nextPageToken};
   }
   var m=gmailApiServidor_('messages/'+gmailId_(datos.mensajeId)+'?format=full'),ficha=gmailFicha_(m),textos=[];
   function partes(p){
@@ -61,7 +64,7 @@ function gmailConsultarServidor_(operacion, datos) {
   ficha.adjuntos=[];
   function adjuntos(p){if(p.filename)ficha.adjuntos.push(String(p.filename).slice(0,200));(p.parts||[]).slice(0,30).forEach(adjuntos);}
   adjuntos(m.payload||{});
-  return {exito:true,mensaje:ficha};
+  return {exito:true,cuentaGmail:perfil.emailAddress,mensaje:ficha};
 }
 
 /** Genera MIME manteniendo el hilo y los documentos de ESTA entrega. */

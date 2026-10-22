@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261021-61"></script>
+<script src="./js/arranque.js?v=20261021-62"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261021-61">
+<link rel="stylesheet" href="./css/marca.css?v=20261021-62">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261021-61" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261021-61" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261021-62" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261021-62" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -208,7 +208,7 @@
 
   <div class="acciones">
     <button class="b-primario" id="bRegistrar">Guardar conteo</button>
-    <button class="b-peligro" id="bNoApareció">No apareció</button>
+    <button class="b-peligro" id="bNoApareció" hidden aria-hidden="true" tabindex="-1">No apareció</button>
     <button class="b-sec" id="bCancelar">Cancelar</button>
   </div>
 </div>
@@ -255,7 +255,7 @@
       <option value="PENDIENTE">Sin buscar</option>
       <option value="FALTANTE">Faltan unidades</option>
       <option value="NO_ENCONTRADO">No aparecieron</option>
-      <option value="SOBRANTE">Sobran unidades</option>
+      <option value="SOBRANTE">Sobran unidades</option><option value="ADICIONAL">Adicionales fuera del packing list</option>
       <option value="OK">Completos</option>
     </select>
   </div>
@@ -296,7 +296,7 @@
 <!-- Bitácora -->
 <div class="panel oculto" id="panelBitacora">
   <div class="acciones"><h2 style="flex:1">Bitácora de conteos activos</h2><button class="b-sec" id="bVolverLista">Volver a la lista</button></div>
-  <div class="rejilla"><label class="campo"><span>Buscar código en la bitácora</span><input id="bitacoraCodigo" type="search" placeholder="Código completo o parte del SKU" autocomplete="off"></label><label class="campo"><span>Estado actual del SKU</span><select id="bitacoraFiltro"><option value="">Todos</option><option value="PENDIENTE">Sin buscar</option><option value="FALTANTE">Faltan unidades</option><option value="SOBRANTE">Sobran unidades</option><option value="OK">Completos</option><option value="NO_ENCONTRADO">No aparecieron</option></select></label></div><button type="button" class="b-sec" id="bActualizarBitacora">Actualizar bitácora</button><p class="mini" id="bitacoraEstado" role="status" aria-live="polite"></p>
+  <div class="rejilla"><label class="campo"><span>Buscar código en la bitácora</span><input id="bitacoraCodigo" type="search" placeholder="Código completo o parte del SKU" autocomplete="off"></label><label class="campo"><span>Estado actual del SKU</span><select id="bitacoraFiltro"><option value="">Todos</option><option value="PENDIENTE">Sin buscar</option><option value="FALTANTE">Faltan unidades</option><option value="SOBRANTE">Sobran unidades</option><option value="ADICIONAL">Adicionales fuera del packing list</option><option value="OK">Completos</option><option value="NO_ENCONTRADO">No aparecieron</option></select></label></div><button type="button" class="b-sec" id="bActualizarBitacora">Actualizar bitácora</button><p class="mini" id="bitacoraEstado" role="status" aria-live="polite"></p>
   <label><input id="bitacoraAnulados" type="checkbox"> Mostrar anulados para auditoría</label>
   <p>Cada conteo con su autor y su hora. Nada se borra: anular genera un
      registro de reversa.</p>
@@ -320,52 +320,52 @@
 </dialog>
 
 <script type="module">
-import {agregarDesglosePosicion} from './js/posiciones.js?v=20261021-61';
-import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261021-61';
-import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261021-61';
-import {abrirCorreo} from './js/correo-redactado.js?v=20261021-61';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-61';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261021-61';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261021-61';
-import { mostrarAviso } from './js/notificaciones.js?v=20261021-61';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261021-61';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261021-61';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261021-61';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261021-61';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261021-61';
+import {agregarDesglosePosicion} from './js/posiciones.js?v=20261021-62';
+import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261021-62';
+import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261021-62';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261021-62';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-62';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261021-62';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261021-62';
+import { mostrarAviso } from './js/notificaciones.js?v=20261021-62';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261021-62';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261021-62';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261021-62';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261021-62';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261021-62';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261021-61';
+import { pedir as pedirLocal } from './js/local.js?v=20261021-62';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261021-61';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261021-61';
-import { observarSesion } from './js/auth.js?v=20261021-61';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261021-62';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261021-62';
+import { observarSesion } from './js/auth.js?v=20261021-62';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261021-61';
+} from './js/datos.js?v=20261021-62';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261021-61';
+} from './js/conteo.js?v=20261021-62';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261021-61';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261021-61';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261021-61';
-import { conectarGlosario } from './js/glosario.js?v=20261021-61';
-import { parecidos } from './js/sugerir.js?v=20261021-61';
-import { publicarAvance } from './js/barra-supervision.js?v=20261021-61';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261021-61';
+} from './js/informe.js?v=20261021-62';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261021-62';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261021-62';
+import { conectarGlosario } from './js/glosario.js?v=20261021-62';
+import { parecidos } from './js/sugerir.js?v=20261021-62';
+import { publicarAvance } from './js/barra-supervision.js?v=20261021-62';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261021-62';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261021-61';
-import { Proxy } from './js/proxy.js?v=20261021-61';
-import { modoLocal } from './js/local.js?v=20261021-61';
+} from './js/csv.js?v=20261021-62';
+import { Proxy } from './js/proxy.js?v=20261021-62';
+import { modoLocal } from './js/local.js?v=20261021-62';
 
-import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261021-61';
-import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261021-61';
-import {verImagen} from './js/visor-imagen.js?v=20261021-61';
+import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261021-62';
+import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261021-62';
+import {verImagen} from './js/visor-imagen.js?v=20261021-62';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -525,7 +525,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261021-61');
+      const l=await import('./js/local.js?v=20261021-62');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -589,7 +589,7 @@ $('bAccionCodigo').onclick=()=>{if(actual)$('bAsociarCodigo').click();};
 $('bAccionHistorial').onclick=async()=>{
   if(!actual)return;
   try{const evs=(await leerBitacora(RECEPCION,400)).filter(e=>e.sku===actual.sku);
-    await avisarModal({titulo:'Historial · '+actual.sku,texto:evs.length ? evs.map(e=>`<p><b>${esc(fechaCompleta(e.creadoEn))}</b> · ${esc(e.tipo)} · ${esc(e.cantidad)} u. · ${esc(e.pallet || '')}<br>${esc(e.operadorEmail || '')}</p>`).join('') : 'Sin movimientos registrados.'});
+    await avisarModal({titulo:'Historial · '+actual.sku,texto:evs.length ? evs.map(e=>`<p><b>${esc(fechaCompleta(e.creadoEn))}</b> · ${esc(e.tipo)} · ${esc(e.cantidad)} u. · ${esc(e.pallet || '')}<br>${esc(e.operadorNombre || 'Operador registrado')}<br>${esc(e.observacion || '')}${e.posicionReal?'<br>Posición final: '+esc(e.posicionReal):''}</p>`).join('') : 'Sin movimientos registrados.'});
   }catch(e){aviso(e.message,'err');}
 };
 $('bAccionEvidencias').onclick=async()=>{
@@ -865,7 +865,7 @@ function pintarTabla() {
   const estado = $('fEstadoFiltro').value;
   const filas = skus.filter((s) => {
     if (vistaOperacion === 'novedades' && (!s.verificado || (s.estado === 'OK' && !s.tienePnc && !s.cantidadConIncidencia))) return false;
-    if (estado && s.estado !== estado) return false;
+    if (estado && (estado==='ADICIONAL'?s.enPackingList!==false:s.estado!==estado)) return false;
     if (!filtro) return true;
     return s.sku.includes(filtro) || (s.descripcion || '').toUpperCase().includes(filtro);
   }).sort((a,b)=>Number(!!b.verificado)-Number(!!a.verificado) || fechaOrden(b.actualizadoEn)-fechaOrden(a.actualizadoEn) || a.sku.localeCompare(b.sku));
@@ -1213,6 +1213,7 @@ function pintarOrigen(s) {
  * se registró antes: de qué lista salió, dónde quedó y cuándo. Sin eso el
  * segundo registro se hace a ciegas y se duplica o se contradice.
  */
+$('fHistorial').addEventListener('click',ev=>{const b=ev.target.closest('[data-editar-historial]');if(b&&actual)corregirSku(actual.sku,b.dataset.editarHistorial).catch(e=>aviso(e.message,'err'));});
 function pintarHistorial(s) {
   const caja = $('fHistorial');
   const previos = registrosDe(eventosCache, s.sku || actual?.sku);
@@ -1230,7 +1231,7 @@ function pintarHistorial(s) {
       en ${previos.length} ${previos.length === 1 ? 'registro' : 'registros'}</span>
     <div class="tabla-env" style="margin-top:7px"><table>
       <thead><tr><th>Cuándo</th><th class="num">Cant.</th><th>Pallet</th>
-        <th>Posición</th><th>Lista</th><th>Operario</th></tr></thead>
+        <th>Posición final</th><th>Lista</th><th>Operario y observación</th><th>Acciones</th></tr></thead>
       <tbody>${previos.slice(0, 8).map((r) => `<tr>
         <td class="mini">${r.cuando ? esc(r.cuando.toLocaleString('es-EC', {
           day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) : ''}</td>
@@ -1238,7 +1239,7 @@ function pintarHistorial(s) {
         <td class="id" style="font-size:12px">${esc(r.pallet)}</td>
         <td class="mini">${esc(r.posicionReal)}</td>
         <td class="mini">${esc(r.origen || '—')}</td>
-        <td class="mini">${esc((r.operador || '').split(' ')[0])}</td>
+        <td class="mini">${esc(r.operador || 'Operador registrado')}<br>${esc(r.observacion||'')}</td><td>${modoLocal()&&recepcion.estado!=='CERRADA'&&perfil?.permisos?.cerrarRecepciones?'<button class="b-sec" data-editar-historial="'+esc(r.id)+'">Editar conteo / pallet / posición</button>':''}</td>
       </tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -1787,7 +1788,7 @@ async function refrescarOperacion(){
 }
 function pintarBitacora(){
   const codigo=normalizarCodigo($('bitacoraCodigo').value),estado=$('bitacoraFiltro').value;
-  const evs=eventosCache.filter(e=>['CONTEO','CERO','NO_ENCONTRADO','ANULACION'].includes(e.tipo)&&($('bitacoraAnulados').checked||!e.anulado&&e.tipo!=='ANULACION')&&(!estado||skus.find(s=>s.sku===e.sku)?.estado===estado)&&(!codigo||normalizarCodigo(e.sku).includes(codigo)));
+  const evs=eventosCache.filter(e=>['CONTEO','CERO','NO_ENCONTRADO','ANULACION'].includes(e.tipo)&&($('bitacoraAnulados').checked||!e.anulado&&e.tipo!=='ANULACION')&&(!estado||(estado==='ADICIONAL'?skus.find(s=>s.sku===e.sku)?.enPackingList===false:skus.find(s=>s.sku===e.sku)?.estado===estado))&&(!codigo||normalizarCodigo(e.sku).includes(codigo)));
   $('bitacoraEstado').textContent=evs.length+' registros en esta selección · datos actualizados';
   $('tBitacora').innerHTML=evs.length?evs.map(e=>{
     const tachado=e.anulado||e.tipo==='ANULACION';
@@ -1795,7 +1796,7 @@ function pintarBitacora(){
     const puede=recepcion.estado!=='CERRADA'&&!tachado&&['CONTEO','CERO','NO_ENCONTRADO'].includes(e.tipo)&&(propio||['SUPERVISOR','ADMIN'].includes(perfil?.rol));
     return `<tr${tachado?' style="opacity:.45"':''}>
       <td class="mini">${esc(fechaCompleta(e.creadoEn))}</td><td class="id" style="font-size:12px${tachado?';text-decoration:line-through':''}">${esc(e.sku)}</td><td class="num">${e.cantidad}</td>
-      <td class="mini">${esc(e.pallet||'')}${e.posicionReal?'<br>Posición: '+esc(e.posicionReal):''}</td><td class="mini">${esc(e.operadorNombre||e.operadorEmail||'')}</td>
+      <td class="mini">${esc(e.pallet||'')}${e.posicionReal?'<br>Posición: '+esc(e.posicionReal):''}</td><td class="mini">${esc(e.operadorNombre||'Operador registrado')}<br>${esc(e.observacion||'')}</td>
       <td>${puede&&modoLocal()&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-corregir-evento="${esc(e.id)}" data-sku="${esc(e.sku)}">Editar conteo</button>`:''}${puede?`<button class="b-sec" data-anular="${esc(e.id)}">Anular</button>`:''}${modoLocal()&&recepcion.estado!=='CERRADA'&&!tachado&&Number(e.cantidad)>0&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-calidad="${esc(e.id)}" data-pallet="${esc(e.pallet||'')}" data-total="${Number(e.cantidad)}">Clasificar unidades</button>`:''}</td></tr>`;
   }).join(''):'<tr><td colspan="6" class="mini">No hay registros para ese código o estado.</td></tr>';
 }
@@ -1852,7 +1853,7 @@ const elegirVersion = (titulo,porEmbarque=false) => elegir({
   opciones: [
     {valor:'envio-ampliado',titulo:'Cliente: informe ampliado y organizado',detalle:'Archivos separados según el embarque revisado. Marca y Cliente al inicio, resultados y enlaces. Adicionales y sobrantes en otra hoja.'},
     { valor: 'envio',
-      titulo: 'Para enviar al cliente',
+      titulo: 'Para enviar al ejecutivo de cuenta',
       detalle: 'Packing list con su formato de origen y hoja ADICIONALES cuando corresponda, con sus enlaces de Drive.' },
     ...(!porEmbarque?[{ valor: 'auditable',
       titulo: 'Auditable',
@@ -1963,8 +1964,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261021-61').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261021-61').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261021-62').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261021-62').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;
@@ -2062,12 +2063,12 @@ $('bCerrar').addEventListener('click', async () => {
   if (r.sinVerificar > 0) {
     $('fEstadoFiltro').value = 'PENDIENTE';
     pintarKpis(); pintarTabla();
-    const revisar=await elegir({titulo:'Faltan referencias por validar',texto:`Quedan ${r.sinVerificar} referencias. Revisa su cantidad o declara No apareció; no se marcarán como faltantes automáticamente.`,opciones:[{valor:'primera',titulo:'Revisar la primera pendiente'},{valor:'lista',titulo:'Ver todas las pendientes'}]});
+    const revisar=await elegir({titulo:'Faltan referencias por validar',texto:`Quedan ${r.sinVerificar} referencias. Registra la cantidad encontrada, incluyendo cero; no se marcarán como faltantes automáticamente.`,opciones:[{valor:'primera',titulo:'Revisar la primera pendiente'},{valor:'lista',titulo:'Ver todas las pendientes'}]});
     if(revisar==='primera'){const siguiente=skus.find(s=>!s.verificado&&!Number(s.contado));if(siguiente)await escanear(siguiente.sku);return;}
     if(!revisar)return;
     return aviso(
       `Quedan ${r.sinVerificar} ${r.sinVerificar === 1 ? 'referencia' : 'referencias'} ` +
-      'sin buscar. Cuéntalas, o declara «No apareció» con su nota. La tabla ya ' +
+      'sin buscar. Registra su cantidad, incluyendo cero con su observación. La tabla ya ' +
       'está filtrada por las que faltan.',
       'warn', 'No se puede cerrar todavía');
   }

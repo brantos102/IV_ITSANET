@@ -132,5 +132,5 @@ def test_estado_final_despues_cierre_sin_alterar_conteos_ni_informes(cliente,db,
     assert cliente.get('/api/operacion/recepciones/BULTOS/informes').json()==informes
     db.rollback();assert len(list(db.scalars(select(AppInforme))))==1
     j=db.get(AppCopiaDrive,r.json()['id'])
-    assert j.estado=='PENDIENTE' and j.datos['ruta']==['RECEPCION','ESTADO_FINAL']
+    assert j.estado=='PENDIENTE' and j.datos['ruta']==['FOTOS-FINALES']
     assert db.get(AppArchivo,r.json()['id']).bytes==len(PNG)

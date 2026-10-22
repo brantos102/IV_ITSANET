@@ -14,12 +14,21 @@ def consultar(db, op, operacion, datos):
         raise HTTPException(409, 'Autoriza tu cuenta en Mi cuenta y correo antes de consultar Gmail.')
     db.rollback()
     try:
-        estado = entregas.llamar_conexion('estado', uuid4().hex, {'usuario': email}, conexion)
-        if str(estado.get('remitente', '')).lower() != email:
-            raise HTTPException(409, 'El puente Google no pertenece a tu cuenta.')
-        if 'gmailHilos' not in estado.get('capacidades', []):
-            raise HTTPException(409, 'Para responder hilos, añade Gmail.gs y los permisos Gmail de lectura y envío, ejecuta verificarGmailServidor y publica una Nueva versión de tu /exec. El envío de correos nuevos sigue disponible.')
-        r = entregas.llamar_conexion(operacion, uuid4().hex, {'usuario': email, **datos}, conexion)
+        legado=False;perfil={}
+        try:perfil=entregas.llamar_conexion('gmailEstado',uuid4().hex,{'usuario':email},conexion)
+        except RuntimeError as exc:
+            # Compatibilidad con despliegues anteriores; solo una operación desconocida.
+            if 'no reconoce esta operación' not in str(exc):raise
+            legado=True
+        if perfil.get('cuentaGmail'):
+            if str(perfil['cuentaGmail']).lower()!=email:raise HTTPException(409,'El buzón Google no pertenece a tu cuenta.')
+        else:legado=True
+        if legado:
+            estado=entregas.llamar_conexion('estado',uuid4().hex,{'usuario':email},conexion)
+            if str(estado.get('remitente','')).lower()!=email:raise HTTPException(409,'El puente Google no pertenece a tu cuenta.')
+            if 'gmailHilos' not in estado.get('capacidades',[]):raise HTTPException(409,'Para responder hilos, añade Gmail.gs y los permisos Gmail de lectura y envío, ejecuta verificarGmailServidor y publica una Nueva versión de tu /exec. El envío de correos nuevos sigue disponible.')
+            if operacion=='gmailEstado':raise HTTPException(409,'Actualiza Gmail.gs y Servidor.gs versión 62 para comprobar tu buzón sin depender de Drive.')
+        r=perfil if operacion=='gmailEstado' else entregas.llamar_conexion(operacion,uuid4().hex,{'usuario':email,**datos},conexion)
     except HTTPException: raise
     except RuntimeError as exc:
         mensaje=str(exc)
@@ -35,6 +44,7 @@ def consultar(db, op, operacion, datos):
     except Exception as exc:
         logging.getLogger('iv_itsanet.gmail').warning('Consulta Gmail no confirmada causa=%s',type(exc).__name__)
         raise HTTPException(502, 'Gmail no confirmó la consulta. Revisa los permisos y la publicación de tu cuenta; no se envió ningún correo.') from None
+    if r.get('cuentaGmail') and str(r['cuentaGmail']).lower()!=email:raise HTTPException(409,'Google devolvió otro buzón. Revisa el despliegue de tu cuenta; no se seleccionó ningún hilo.')
     return {**r, 'cuenta': email}
 
 

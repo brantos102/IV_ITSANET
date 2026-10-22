@@ -153,10 +153,10 @@ def test_gmail_puente_antiguo_no_degrada_respuesta_a_correo_nuevo(cliente,db,cor
 
 def test_gmail_fallo_de_cuenta_no_accede_al_buzon(cliente,db,correo,monkeypatch):
     acciones=[]
-    def otro(accion,*args):acciones.append(accion);return {'exito':True,'remitente':'otro@example.test','capacidades':['gmailHilos']}
+    def otro(accion,*args):acciones.append(accion);return {'exito':True,'cuentaGmail':'otro@example.test','capacidades':['gmailHilos']}
     monkeypatch.setattr(entregas,'llamar_conexion',otro)
     assert cliente.get('/api/app/integraciones/mi-google/gmail',params={'busqueda':'packing'}).status_code==409
-    assert acciones==['estado']
+    assert acciones==['gmailEstado']
 
 
 def test_hilo_de_otro_supervisor_no_puede_congelarse_con_otra_identidad(cliente,db,correo,monkeypatch):

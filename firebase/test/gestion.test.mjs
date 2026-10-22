@@ -218,12 +218,12 @@ await test('bitácora ISO y Firestore conserva fecha Ecuador; auditable no agreg
  ok(!w.SheetNames.includes('AUDITORIA'));const rs=XLSX.utils.sheet_to_json(w.Sheets.BITACORA);
  ok(rs[0].FECHA.includes('2026')&&rs[0].FECHA.includes('9:00:00'));ok(rs[1].FECHA!=='');eq(rs[2].FECHA,'Fecha no registrada');eq(datos.auditoria.length,1);
 });
-await test('cliente agrega adicionales y sobrantes en hoja separada con enlace Drive directo',()=>{
+await test('ADICIONALES excluye el sobrante ya declarado y conserva el enlace del adicional',()=>{
  const url='https://drive.google.com/drive/folders/adicional55',detalle=[{sku:'SKU',cantidad:3,fisica:4,diferencia:1,estado:'SOBRANTE',evidencia:'https://drive.google.com/drive/folders/pnc55',evidenciaSobrante:url,cruda:['SKU',3]}];
  for(const version of ['envio','envio-ampliado']){
   const f=informe.construirLibro({recepcion:{codigo:'R'},detalle,adicionales:[{sku:'EXTRA',descripcion:'No declarado',fisica:2,evidencia:url}],eventos:[]},{version});
   const w=XLSX.read(f.base64,{type:'base64'});eq(w.SheetNames,['VALIDADA','ADICIONALES']);const sh=w.Sheets.ADICIONALES,rs=XLSX.utils.sheet_to_json(sh);
-  eq(rs.map(r=>r.TIPO),['ADICIONAL NO DECLARADO','SOBRANTE DE SKU DECLARADO']);eq(rs[1]['CANTIDAD FISICA'],1);ok(rs[1].MOTIVO.includes('no sumar'));eq(rs[0].EVIDENCIAS,url);eq(rs[1].EVIDENCIAS,url);
+  eq(rs.map(r=>r.TIPO),['ADICIONAL NO DECLARADO']);eq(rs.length,1);eq(rs[0].ITEM,'EXTRA');eq(rs[0]['CANTIDAD FISICA'],2);eq(rs[0].EVIDENCIAS,url);
   const cols=XLSX.utils.sheet_to_json(sh,{header:1})[0];eq(sh[XLSX.utils.encode_cell({r:1,c:cols.indexOf('EVIDENCIAS')})].l.Target,url);
  }
 });
@@ -280,5 +280,15 @@ await test('dos packing lists del mismo embarque conservan nombres distintos aun
  const porOrigen=['PRINCIPAL','EMB-A'].map(origen=>({origen,detalle:[{sku:'X',cantidad:1,fisica:1,diferencia:0,embarque:'EMB-A'}]}));
  const libros=informe.construirLibros({recepcion:{codigo:'CLIENTE-EMB-A-19-10-2026',cliente:'PRUEBA',informe:{sufijo:'_R0001'}},porGrupo:[{id:'grupo',nombre:'EMB-A',porOrigen}],detalle:porOrigen.flatMap(l=>l.detalle),adicionales:[],eventos:[]},{version:'envio'});
  eq(new Set(libros.map(l=>l.nombre)).size,2);ok(libros.every(l=>l.nombre.length<100));ok(libros[0].nombre.includes('_PL01_'));
+});
+await test('REV incluye posición final sin mover columnas ni filas originales',()=>{
+ const detalle=[{sku:'S1',cantidad:3,fisica:3,diferencia:0,estado:'OK',posicionReal:'BM-A-010-01',cruda:['S1',3]}];
+ const f=informe.construirLibro({recepcion:{codigo:'R62'},detalle,porOrigen:[{origen:'PL',formato:{hoja:'REV',encabezados:['SKU','Cantidad'],columnas:{sku:0,cantidad:1}},detalle}],adicionales:[],eventos:[]},{version:'envio'});
+ const w=XLSX.read(f.base64,{type:'base64'}),filas=XLSX.utils.sheet_to_json(w.Sheets.REV,{header:1});
+ eq(filas,[['SKU','Cantidad','POSICION FINAL SUGERIDA'],['S1',3,'BM-A-010-01']]);
+});
+await test('CSV no interpreta como posición válida seis segmentos ni omite el último',()=>{
+ const vacia={nave:'',calle:'',columna:'',nivel:'',profundidad:''};eq(csv.partesDePosicion('BM-A-10-1-X-Y'),vacia);
+ eq(csv.partesDePosicion('BM-A-010-01'),{nave:'BM',calle:'A',columna:'010',nivel:'01',profundidad:''});
 });
 resumen();

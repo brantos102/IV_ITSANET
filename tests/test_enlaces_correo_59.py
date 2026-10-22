@@ -32,9 +32,9 @@ def test_correo_por_embarque_solo_raiz_y_tres_categorias(cliente,db,multi,monkey
     for g in p['grupos']:
         v=cliente.get(url+'/correo',params={'origen':g['id']}).json();h=v['html'];ls=enlaces(h)
         assert len(ls)==4 and len(set(ls))==4
-        assert all('EMBARQUES-'+g['nombre'] in u for u in ls)
+        assert all(g['nombre'] in u for u in ls)
         assert 'EMB-B' not in h if g['nombre']=='EMB-A' else 'EMB-A' not in h
-        assert all(x in h for x in ('Carpeta del embarque '+g['nombre'],'Sobrantes y adicionales','Faltantes','PNC'))
+        assert all(x in h for x in ('Carpeta del embarque '+g['nombre'],'Sobrantes','Faltantes','PNC'))
         assert 'Consultar carpeta de evidencias' not in h
         assert all(u in v['texto'] for u in ls)
 

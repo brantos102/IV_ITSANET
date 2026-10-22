@@ -33,3 +33,10 @@ body.ficha-activa::before{content:'';position:fixed;inset:0;background:#15274390
 @media(max-width:600px){.acciones-recepcion .menu-recepcion-opciones{left:0;right:auto}.acciones-sku .menu-recepcion-opciones{right:0;left:auto}.menu-recepcion>summary{padding:11px 12px}}
 
 .acciones-sku .menu-recepcion-opciones{position:static;min-width:170px}
+/* v62 · redacción directa y resultados de cada acción siempre visibles */
+.correo-cabecera{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.correo-cabecera h2{margin:0}.correo-cabecera p{margin:6px 0}
+.correo-barra{position:sticky;top:0;z-index:5;background:var(--surface,#f4f7fa);display:flex;flex-wrap:wrap;gap:8px;padding:12px;border:1px solid #9caec5;border-radius:10px}.correo-barra [data-estado]{flex-basis:100%;margin:2px;font-size:14px;font-weight:600;overflow-wrap:anywhere}.correo-barra .correo-error{color:#c52d37}
+.correo-cuenta,.correo-panel{border:1px solid #cbd5e1;border-radius:10px;padding:14px;margin:16px 0}.correo-panel h3{margin-top:0}.correo-vista[contenteditable=true]{outline:2px solid #90afff;outline-offset:3px;min-height:180px}.correo-vista [data-correo-bloque]{cursor:default}.correo-vista [data-correo-bloque]:hover{outline:1px dashed #9fb0c7}.correo-formato{margin-bottom:12px}.foto-destino-preview{max-height:280px;width:100%;object-fit:contain;background:#eaf0f7;border-radius:10px}.foto-ruta{overflow-wrap:anywhere;padding:8px;border-left:3px solid #3973db;background:var(--bg,#edf3fb)}
+
+.correo-vista table{min-width:680px}.correo-accesos{margin:12px 0}.correo-barra [data-estado]{max-height:6em;overflow:auto}
+@media(max-width:600px){.correo-label-extendida{display:none}.correo-barra{gap:6px;padding:8px}.correo-barra button{padding:10px 12px;font-size:12px;min-width:0}.correo-barra [data-estado]{font-size:12px;line-height:1.4}.correo-cabecera h2{font-size:18px}}

@@ -89,7 +89,7 @@ def documento(e, tecnico=False):
         mensajes['CANCELADA']='Envío manual declarado por el supervisor; sin confirmación de Google.' if e.datos['correoManual'].get('estado')=='DECLARADO_ENVIADO' else 'Preparado para envío manual. El envío automático está detenido.'
     gestion=hashlib.sha256(json.dumps([e.id,e.estado,e.intentos,e.error,e.datos],sort_keys=True,default=str).encode()).hexdigest()
     return {'correos':[{'origen':c['origen'],'estado':c['estado'],'nombre':c.get('nombre',c['origen']),'destinatarios':c['destinatarios'],'confirmadoEn':c.get('confirmadoEn')} for c in e.datos.get('correosPorOrigen',[])],
-            'versionGestion':gestion,'archivado':bool(e.datos.get('historialOculto')),'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
+            'reporteSinCierre':bool(e.datos.get('reporteSinCierre')),'versionGestion':gestion,'archivado':bool(e.datos.get('historialOculto')),'correoManual':e.datos.get('correoManual'),'confirmarConCuenta':e.datos.get('confirmarConCuenta',''),'id': e.id, 'recepcion': e.recepcion, 'estado': e.estado,
             'conexionRechazada': conexion_rechazada(e.error) or e.datos.get('revisionMotivo') == 'CONEXION_RECHAZADA',
             'intentos': e.intentos, 'mensaje': (e.error if tecnico and e.estado in ACTIVAS and e.error
                 else mensajes.get(e.estado, 'Comprobando entrega.')),
@@ -274,6 +274,7 @@ def _error_google(respuesta):
     """Traducir solo categorías conocidas; nunca reenviar textos con secretos."""
     mensaje = str(respuesta.get('mensaje') or respuesta.get('error') or '').lower()
     gmail={
+        'GMAIL_CUENTA':'El buzón Gmail no corresponde al supervisor conectado. Publica el /exec desde su propia cuenta.',
         'GMAIL_API_DESACTIVADA':'Habilita Gmail API en el proyecto Google Cloud asociado al Apps Script de tu cuenta. Conserva el /exec y la clave HMAC.',
         'GMAIL_PERMISOS':'Faltan permisos de Gmail en tu cuenta Google. Añade gmail.readonly y gmail.send al manifiesto, ejecuta verificarGmailServidor y publica una Nueva versión del mismo /exec.',
         'GMAIL_POLITICA':'La política de Google Workspace bloquea Gmail para esta aplicación. TI debe autorizarla para tu cuenta.',
@@ -323,7 +324,7 @@ def llamar_conexion(operacion, clave, datos, destino):
     # La consulta de estado no sube archivos ni envía correo. Debe devolver
     # un diagnóstico antes de agotar el tiempo del proxy público.
     timeout = (httpx.Timeout(12,connect=5) if operacion=='miniatura' else
-        httpx.Timeout(25,connect=8) if operacion in ('estado','gmailBuscar','gmailMensaje','carpetasCorreo') else 120)
+        httpx.Timeout(25,connect=8) if operacion in ('estado','gmailBuscar','gmailMensaje','gmailEstado','carpetasCorreo') else 120)
     with httpx.Client(timeout=timeout, follow_redirects=True) as cliente:
         try:
             respuesta = cliente.post(destino['url'],
@@ -408,6 +409,7 @@ def procesar_uno():
                 raise RuntimeError('El puente no verifica la cuenta del supervisor responsable. No se enviaron archivos ni correo.')
             if (d.get('correoFinal') or d.get('correosPorOrigen')) and 'correoEditable' not in estado.get('capacidades',[]):
                 raise RuntimeError('El puente tiene archivos de versiones diferentes. Actualiza Proxy.gs y Servidor.gs y publica una nueva versión del mismo /exec para enviar el correo revisado.')
+            if d.get('destino',{}).get('carpetaRecepcionId') and 'carpetasRecepcion62' not in estado.get('capacidades',[]):raise RuntimeError('Actualiza Servidor.gs para conservar la carpeta fija de esta recepción antes de enviar.')
             respuestas=[d.get('correoFinal') or {}]+[c.get('correoFinal') or {} for c in d.get('correosPorOrigen',[]) if c.get('estado')!='ENTREGADA']
             if any(c.get('respuestaGmail') for c in respuestas) and 'gmailHilos' not in estado.get('capacidades',[]):
                 raise RuntimeError('Este correo responde a un hilo Gmail. Actualiza Proxy.gs, Servidor.gs y Gmail.gs, autoriza Gmail y publica una Nueva versión. No se envió como correo nuevo.')
@@ -415,6 +417,8 @@ def procesar_uno():
             # Las fotos finales pueden agregarse después del cierre. Incluirlas
             # antes de preparar el correo, sin alterar los informes de conteo.
             fotos_actuales = list(dict.fromkeys(f['archivoId'] for f in manifiesto(db, e.recepcion)))
+            if fotos_actuales != d['fotos'] and d.get('correoRevisado62'):
+                raise RevisionEntrega('Las fotografías cambiaron después de revisar el correo. Revisa esta entrega antes de enviarla; se conserva el informe original.')
             if fotos_actuales != d['fotos']:
                 d = {**d, 'fotos': fotos_actuales}
                 if d.get('informeEvidencias'):

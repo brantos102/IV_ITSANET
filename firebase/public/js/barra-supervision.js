@@ -1,8 +1,8 @@
-import {iniciarAyudas} from './ayudas-operativas.js?v=20261021-61';
-import {pedir} from './local.js?v=20261021-61';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261021-61';
-import {mostrarAviso} from './notificaciones.js?v=20261021-61';
-import {abrirEtiqueta} from './etiquetas.js?v=20261021-61';
+import {iniciarAyudas} from './ayudas-operativas.js?v=20261021-62';
+import {pedir} from './local.js?v=20261021-62';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261021-62';
+import {mostrarAviso} from './notificaciones.js?v=20261021-62';
+import {abrirEtiqueta} from './etiquetas.js?v=20261021-62';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let avanceActual=null, liberarBarra=()=>{};
 export function publicarAvance(datos){
@@ -19,15 +19,15 @@ export function iniciarBarra({usuario,perfil}){
  const enlaces=[['./','Inicio'],...(supervisor?[['./recepciones.html','Recepciones']]:[]),[codigo?'./validar.html?r='+encodeURIComponent(codigo):'./validar.html','Validar recepción'],...(supervisor?[['./kpis.html','Indicadores'],['./usuarios.html','Equipo']]:[]),['./cuenta.html','Mi cuenta y correo'],['./manuales/'+(supervisor?'supervisor':'operario')+'.html','Ayuda · manual interactivo'],...(perfil.rol==='ADMIN'?[['./admin.html','Administración']]:[])];
  nav.innerHTML=`<div class="barra-fila"><details class="nav-menu"><summary>☰ Menú</summary><div class="nav-opciones">${enlaces.map(([href,t])=>`<a href="${esc(href)}"${new URL(href,location.href).pathname===aqui.pathname?' aria-current="page"':''}>${t}</a>`).join('')}</div></details><div class="barra-contexto"><strong>${codigo?'Recepción actual':'Operación ITSANET'}</strong><span>${esc(perfil.rol==='ADMIN'?'Administración':supervisor?'Supervisión':'Operario')}</span></div><details class="barra-utilidades nav-menu"><summary>Herramientas</summary><div class="barra-herramientas nav-opciones"><button class="b-sec" data-etiqueta>▥ Etiqueta por código</button>${codigo&&supervisor?'<button class="b-sec" data-contenedores title="Registrar los contenedores recibidos, rangos de bultos y posición final">Contenedores y bultos</button><button class="b-sec" data-revisar-packing title="Comparar los embarques guardados con las filas originales sin duplicar la recepción">Revisar embarques del Excel</button>':''}${supervisor?'<button class="b-sec" data-catalogo title="Consultar Depot y actualizar el catálogo de productos">↻ Catálogo</button><button class="b-sec" data-pendientes title="Recepciones cerradas con correo pendiente">▣ Entregas <span data-cantidad-pendientes></span></button>':''}</div></details><div class="barra-reloj"><a class="perfil-acceso" href="./cuenta.html" data-avatar title="Mi foto y mi cuenta"></a><time data-reloj title="Hora de Ecuador · reloj del equipo"></time><button class="b-sec" data-tema></button></div></div><div class="avance-encabezado" data-avance hidden><div><strong data-avance-codigo></strong><span data-avance-cifras></span></div><span class="avance-pastel" role="img" aria-label="Avance de referencias verificadas"><b data-avance-porcentaje></b></span></div>`;
  cabecera.after(nav);
- nav.querySelector('[data-revisar-packing]')?.addEventListener('click',async()=>{try{const {revisarPackingGuardado}=await import('./revision-packing.js?v=20261021-61');await revisarPackingGuardado(codigo);}catch(e){aviso(e.message,'err');}});
- nav.querySelector('[data-contenedores]')?.addEventListener('click',async()=>{try{const {editarContenedores}=await import('./contenedores.js?v=20261021-61');await editarContenedores(codigo);}catch(e){aviso(e.message,'err');}});
+ nav.querySelector('[data-revisar-packing]')?.addEventListener('click',async()=>{try{const {revisarPackingGuardado}=await import('./revision-packing.js?v=20261021-62');await revisarPackingGuardado(codigo);}catch(e){aviso(e.message,'err');}});
+ nav.querySelector('[data-contenedores]')?.addEventListener('click',async()=>{try{const {editarContenedores}=await import('./contenedores.js?v=20261021-62');await editarContenedores(codigo);}catch(e){aviso(e.message,'err');}});
  nav.querySelector('[data-catalogo]')?.addEventListener('click',()=>abrirCatalogo());
  nav.querySelector('[data-etiqueta]')?.addEventListener('click',()=>etiquetaCatalogo());
  const aviso=(t,tipo,titulo)=>mostrarAviso(document.querySelector('#avisos,#avisos-sesion')||nav,t,tipo,titulo);
  nav.querySelector('[data-pendientes]')?.addEventListener('click',()=>abrirEntregas(aviso,'',{pendientes:true}).catch(e=>aviso(e.message,'err')));
  const pintarAvatar=url=>{const a=nav.querySelector('[data-avatar]');a.replaceChildren();if(url&&/^\/api\/auth\/operadores\/\d+\/foto\?v=[a-f0-9]+$/.test(url)){const img=document.createElement('img');img.src=url;img.alt='Mi foto de perfil';a.append(img);}else a.textContent=(perfil.nombre||usuario.displayName||'U').trim().slice(0,1).toUpperCase();};pintarAvatar(perfil.photoURL||usuario.photoURL);
  const fotoNueva=e=>pintarAvatar(e.detail);document.addEventListener('itsanet:perfil-foto',fotoNueva);
- const pintarPendientes=filas=>{const n=new Set(filas.filter(e=>e.esUltima&&e.recepcionEstado==='CERRADA'&&(['PENDIENTE','REVISION','PROCESANDO'].includes(e.estado)||e.correoManual?.estado==='PREPARADO')).map(e=>e.recepcion)).size;const el=nav.querySelector('[data-cantidad-pendientes]');if(el)el.textContent=n?String(n):'';};
+ const pintarPendientes=filas=>{const n=new Set(filas.filter(e=>e.esUltima&&(e.recepcionEstado==='CERRADA'||e.reporteSinCierre)&&(['PENDIENTE','REVISION','PROCESANDO'].includes(e.estado)||e.correoManual?.estado==='PREPARADO')).map(e=>e.recepcion)).size;const el=nav.querySelector('[data-cantidad-pendientes]');if(el)el.textContent=n?String(n):'';};
  const alCambiar=e=>pintarPendientes(e.detail);document.addEventListener('itsanet:entregas',alCambiar);
  const pendientes=async()=>{if(!supervisor||document.hidden)return;try{const filas=await pedir('/entregas');if(nav.isConnected)pintarPendientes(filas);}catch{}};pendientes();const timerPendientes=setInterval(pendientes,60000);
  const tema=nav.querySelector('[data-tema]');

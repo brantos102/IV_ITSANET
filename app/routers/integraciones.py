@@ -163,6 +163,11 @@ def mi_google(db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
     from app.services.mi_correo import estado
     return estado(db,op)
 
+@router.get('/mi-google/gmail/estado')
+def estado_gmail_propio(db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.gmail import consultar
+    return consultar(db,op,'gmailEstado',{})
+
 @router.get('/mi-google/gmail')
 def buscar_gmail(busqueda:str='',mensajeId:str='',db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
     from app.services.gmail import consultar

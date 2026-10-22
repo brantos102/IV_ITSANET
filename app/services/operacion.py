@@ -312,7 +312,11 @@ def destino_drive(db, codigo):
     responsable = d.get('responsable') or r.creado_por or ''
     if '@' not in responsable and candidatos:
         responsable = candidatos[0].get('supervisor') or responsable
-    return {'cliente': r.cliente, 'marca': marca, 'carpetaRecepcion': r.codigo,
+    from app.services.carpetas_recepcion import clave as clave_carpetas
+    tarea=db.get(AppConfig,clave_carpetas(r.codigo))
+    carpeta=(tarea.datos or {}).get('carpeta','') if tarea else ''
+    fija={'carpetaRecepcionId':carpeta.rsplit('/',1)[-1]} if carpeta else {}
+    return {**fija,'cliente': r.cliente, 'marca': marca, 'carpetaRecepcion': r.codigo,
         'carpetaRaiz': candidatos[0]['carpetaId'] if candidatos else '',
         'supervisor': responsable}
 

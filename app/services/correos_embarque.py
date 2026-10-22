@@ -116,7 +116,9 @@ def congelar(db,r,datos,usuario,informe,entrega_id=''):
         previo=expandir(db.get(AppEntrega,entrega_id).datos)
         config=previo.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':previo.get('asignacionesAdicionales',{})});lineas=previo['lineas']
     else:config=configuracion(db,r.codigo);lineas=m.leer_coleccion(db,r.codigo,'lineas',actual=True)
-    destinos=grupos(lineas,r.origenes or [],config);ids={g['id'] for g in destinos}
+    destinos=grupos(lineas,r.origenes or [],config)
+    if entrega_id and previo.get('reporteSinCierre'):destinos=[g for g in destinos if g['id'] in {c['origen'] for c in previo.get('correosPorOrigen',[])}]
+    ids={g['id'] for g in destinos}
     revisados=datos.get('correos')
     if not isinstance(revisados,list) or any(not isinstance(d,dict) or not isinstance(d.get('origen'),str) for d in revisados) or len(revisados)!=len(ids) or {d['origen'] for d in revisados}!=ids:
         raise HTTPException(409,'Revisa un correo separado por cada packing list antes de cerrar la recepción.')

@@ -112,7 +112,7 @@ def test_foto_adicional_previa_al_conteo_no_exige_crear_sku_ni_directorio_tipo(c
     res=foto(cliente,c,sku='NUEVO',desdeSku=True,conteoPendiente=True)
     assert res.status_code==201,res.text
     db.rollback();db.expire_all();a=db.get(AppArchivo,res.json()['id'])
-    assert drive.descripcion(db,a)['ruta']==['SOBRANTE','NUEVO']
+    assert drive.descripcion(db,a)['ruta']==['SOBRANTES','NUEVO']
     assert not db.scalar(select(AppSku).where(AppSku.sku=='NUEVO'))
 
 

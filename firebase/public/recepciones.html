@@ -2,17 +2,17 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261021-61"></script>
+<script src="./js/arranque.js?v=20261021-62"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261021-61">
+<link rel="stylesheet" href="./css/marca.css?v=20261021-62">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261021-61"></script>
-<script src="./vendor/JsBarcode.all.min.js?v=20261021-61"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261021-62"></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261021-62"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -153,28 +153,28 @@
 </div>
 
 <script type="module">
-import {prepararSeleccionContenedores} from './js/packing-contenedores.js?v=20261021-61';
-import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261021-61';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-61';
-import {configurarClientes} from './js/clientes-operacion.js?v=20261021-61';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261021-61';
-import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261021-61';
-import { mostrarAviso } from './js/notificaciones.js?v=20261021-61';
-import { observarSesion, modoLocal } from './js/auth.js?v=20261021-61';
+import {prepararSeleccionContenedores} from './js/packing-contenedores.js?v=20261021-62';
+import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261021-62';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-62';
+import {configurarClientes} from './js/clientes-operacion.js?v=20261021-62';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261021-62';
+import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261021-62';
+import { mostrarAviso } from './js/notificaciones.js?v=20261021-62';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261021-62';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261021-61';
-import { Proxy } from './js/proxy.js?v=20261021-61';
-import { resumir } from './js/conteo.js?v=20261021-61';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261021-61';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261021-61';
-import { leerCodigos } from './js/codigos.js?v=20261021-61';
-import { pedir } from './js/local.js?v=20261021-61';
-import { abrirIngreso } from './js/ingreso.js?v=20261021-61';
-import {editarRecepcion} from './js/editar-recepcion.js?v=20261021-61';
-import { operacion } from './js/evidencias.js?v=20261021-61';
+} from './js/datos.js?v=20261021-62';
+import { Proxy } from './js/proxy.js?v=20261021-62';
+import { resumir } from './js/conteo.js?v=20261021-62';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261021-62';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261021-62';
+import { leerCodigos } from './js/codigos.js?v=20261021-62';
+import { pedir } from './js/local.js?v=20261021-62';
+import { abrirIngreso } from './js/ingreso.js?v=20261021-62';
+import {editarRecepcion} from './js/editar-recepcion.js?v=20261021-62';
+import { operacion } from './js/evidencias.js?v=20261021-62';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -676,9 +676,9 @@ function pintarListado() {
 
       return `<tr${vacia ? ' style="background:rgba(245,158,11,.06)"' : ''}>
         <td class="id">${esc(r.codigo)}<br><span class="mini">${
-          [r.cliente, (r.origenes || []).length > 1
+          [r.cliente+(r.marca?'–'+r.marca:''), (r.origenes || []).length > 1
             ? `${r.origenes.length} listas: ${r.origenes.map(o=>r.nombresListas?.[o]||o).join(' · ')}`
-            : r.nombresListas?.[(r.origenes||[])[0]]||(r.origenes || [])[0]].filter(Boolean).join(' — ')}</span></td>
+            : r.nombresListas?.[(r.origenes||[])[0]]||(r.origenes || [])[0]].filter(Boolean).map(esc).join(' — ')}</span></td>
         <td><span class="pastilla ${vacia ? 'p-warn' : clase}">
           ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
         <td class="num">${t.skus ?? 0}</td>

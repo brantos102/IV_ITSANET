@@ -74,6 +74,11 @@ def correo_guardar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op
         respuesta=seleccionar(db,op,datos['gmailMensajeId'])
     return capacidades_correo(guardar(db,codigo,datos,op.email or op.usuario,respuesta_gmail=respuesta,solo_redaccion=limitado),db,op)
 
+@router.post('/recepciones/{codigo}/correo/enviar',status_code=201)
+def correo_enviar(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.correo_envio import enviar
+    return enviar(db,codigo,datos,op.email or op.usuario)
+
 @router.post('/recepciones/{codigo}/correo/manual')
 def correo_manual(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(ajustes.requiere('cerrarRecepciones'))):
     from app.services.correo_redactado import manual

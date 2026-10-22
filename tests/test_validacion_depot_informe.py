@@ -50,15 +50,15 @@ def test_metadatos_sin_fuente_no_reusan_nd_de_formula_y_no_escriben_datos(client
     assert cliente.get(f'/api/app/recepciones/{c}/eventos').json()==[]
 
 
-def test_correo_avisa_productos_pendientes_sin_nota_tecnica_y_catalogo_exige_revisar(cliente,db,correo):
+def test_depot_solo_avisa_internamente_y_catalogo_exige_revisar(cliente,db,correo):
     c,_=correo
     cliente_depot=m.obtener(db,c).cliente
     db.add(Producto(sku='OTROSKU',cliente=cliente_depot,origen='API'));db.commit()
     ruta=f'/api/operacion/recepciones/{c}/correo';v=cliente.get(ruta).json()
-    assert 'Productos por verificar en Depot' in v['html']
-    assert 'No se adjunta la hoja MAESTRO' not in v['texto'] and 'SKU1' in v['texto']
-    assert 'No encontrado en el catálogo consultado' in v['texto']
-    assert 'antes de cargar cantidades en Depot' in v['texto']
+    assert 'Productos por verificar en Depot' not in v['html']
+    assert 'No se adjunta la hoja MAESTRO' not in v['texto'] and 'SKU1' not in v['texto']
+    assert v['validacionDepot']['porSku']['SKU1']['estado']=='NO_ENCONTRADO'
+    assert 'antes de cargar cantidades en Depot' not in v['texto']
     db.add(Producto(sku='SKU1',cliente=cliente_depot,origen='API'));db.commit()
     r=cliente.put(ruta,json={'version':v['version'],'campos':{**v['campos'],'notas':'Ubicación revisada'}})
     assert r.status_code==409

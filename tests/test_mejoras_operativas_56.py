@@ -80,9 +80,9 @@ def test_cierre_rechaza_cambio_concurrente_y_correo_procesando(cliente,db,multi)
     db.rollback();db.expire_all();assert db.get(AppRecepcion,multi).estado!='CERRADA'
 
 
-def test_general_explicita_de_sku_compartido_usa_generales_y_enlaces_en_ambos_embarques(cliente,db,multi):
+def test_general_explicita_de_sku_compartido_usa_compartidas_y_enlaces_en_ambos_embarques(cliente,db,multi):
     f=foto(cliente,multi,sku='MISMO',categoria='PNC',embarqueFoto='').json()
-    db.rollback();db.expire_all();j=db.get(AppCopiaDrive,f['id']);assert j.datos['ruta']==['GENERALES','PNC','MISMO']
+    db.rollback();db.expire_all();j=db.get(AppCopiaDrive,f['id']);assert j.datos['ruta']==['COMPARTIDAS','PNC','MISMO']
     a=db.get(AppArchivo,f['id']);a.drive_id='drive-general56';e=db.scalar(select(AppEvidencia).where(AppEvidencia.archivo_id==a.id))
     url='https://drive.google.com/drive/folders/general56';j.estado='COPIADA';j.datos={**j.datos,'vinculosPorEvidencia':{e.id:{'carpetaSkuUrl':url}}};db.commit()
     meta=informes.metadatos(db,multi)

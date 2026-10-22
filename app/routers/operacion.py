@@ -101,11 +101,15 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
     from app.models import AppCopiaDrive, AppEvento
     from app.services.operacion import destino_drive
     codigo = m.obtener(db, codigo).codigo
+    from app.models import AppConfig
+    from app.services.carpetas_recepcion import clave as clave_carpetas
+    tarea=db.get(AppConfig,clave_carpetas(codigo))
     copias = list(db.scalars(select(AppCopiaDrive).where(AppCopiaDrive.recepcion == codigo)))
     from app.services.drive import resumen_fotos
     salida = {'sincronizacion': resumen_fotos(db, codigo), 'estados': {e: sum(c.estado == e for c in copias)
         for e in ('PENDIENTE', 'PROCESANDO', 'REVISION', 'COPIADA', 'ELIMINADA')},
         'carpetas': sorted({c.datos.get('carpetaRecepcionUrl') for c in copias if c.datos.get('carpetaRecepcionUrl')})}
+    salida['carpetasRecepcion']={k:v for k,v in tarea.datos.items() if k in ('estado','mensaje','carpeta','embarques')} if tarea else {'estado':'SIN_PREPARAR'}
     confirmada = db.scalar(select(AppEvento).where(AppEvento.recepcion == codigo,
         AppEvento.tipo == 'AUDITORIA', AppEvento.motivo == 'CARPETA_DRIVE_VERIFICADA')
         .order_by(AppEvento.creado_en.desc(), AppEvento.id.desc()).limit(1))
@@ -151,7 +155,10 @@ def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = De
     from app.services import entregas, remitentes, drive
     destino = svc.destino_drive(db, codigo)
     correo, _ = remitentes.elegir(db, codigo, {'modoRemitente': 'RESPONSABLE'}, op.email or op.usuario)
-    datos = {**destino, 'usuario': correo}
+    from app.services.fotos_embarques import informacion
+    from app.services.enlaces_correo import base_embarque
+    embarques=[base_embarque(e)[0] for e in informacion(db,codigo)[3]]
+    datos = {**destino, 'usuario': correo,'embarques':embarques}
     datos.pop('supervisor', None)
     db.rollback()
     try:
@@ -162,6 +169,7 @@ def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = De
             raise RuntimeError('Google no confirmó la carpeta raíz configurada.')
         if 'prepararCarpeta' not in estado.get('capacidades', []):
             raise RuntimeError('Actualiza Servidor.gs en Apps Script y publica una versión nueva del mismo despliegue /exec para crear y comprobar las carpetas.')
+        if datos.get('carpetaRecepcionId') and 'carpetasRecepcion62' not in estado.get('capacidades',[]):raise RuntimeError('Publica Servidor.gs versión 62 para verificar la carpeta fija de esta recepción.')
         resultado = entregas.llamar('prepararCarpeta', uuid4().hex, datos)
         if not str(resultado.get('carpeta') or '').startswith('https://drive.google.com/'):
             raise RuntimeError('Drive no confirmó el enlace de la carpeta de recepción.')
@@ -172,6 +180,11 @@ def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = De
     m.obtener(db, codigo, bloquear=True)
     svc.auditoria(db, codigo, op.email or op.usuario, 'CARPETA_DRIVE_VERIFICADA',
         {'remitente': correo, 'carpeta': resultado['carpeta']})
+    if 'carpetasRecepcion62' in estado.get('capacidades',[]):
+        from app.services.carpetas_recepcion import encolar,clave
+        from app.models import AppConfig
+        encolar(db,codigo);db.flush();tarea=db.get(AppConfig,clave(codigo))
+        tarea.datos={**tarea.datos,'estado':'LISTA','carpeta':resultado['carpeta'],'proximo':0}
     reintento = drive.reintentar_pendientes(db, codigo, op.email or op.usuario)
     return {'carpeta': resultado['carpeta'], 'remitente': correo,
         'programadas': reintento['programadas'], 'mensaje': 'Carpeta confirmada. Las fotos pendientes se copiarán en segundo plano; este paso no envía correo.'}

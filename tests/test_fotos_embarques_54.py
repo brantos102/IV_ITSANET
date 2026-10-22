@@ -27,7 +27,7 @@ def test_un_packing_dos_embarques_separan_tres_categorias_y_no_alteran_conteos(c
         assert r.status_code==201,r.text
         db.rollback();db.expire_all()
         j=db.get(AppCopiaDrive,r.json()['id'])
-        assert j.datos['ruta']==['EMBARQUES',emb,cat,'COMUN']
+        assert j.datos['ruta']==[emb,{'FALTANTE':'FALTANTES','SOBRANTE':'SOBRANTES','PNC':'PNC'}[cat],'COMUN']
         assert j.datos['rutasVinculadas'][0]['embarque']==emb
     assert all(s['contado']==0 for s in m.leer_coleccion(db,c,'skus'))
     assert db.query(AppEntrega).count()==0
@@ -42,16 +42,16 @@ def test_destino_incompatible_no_guarda_y_foto_sin_destino_ambiguo_no_se_adivina
     db.rollback()
     unica=foto(cliente,c,sku='SOLOA',categoria='PNC',variante=1);assert unica.status_code==201,unica.text
     db.rollback();db.expire_all()
-    assert db.get(AppCopiaDrive,unica.json()['id']).datos['ruta']==['EMBARQUES','RB-A','PNC','SOLOA']
+    assert db.get(AppCopiaDrive,unica.json()['id']).datos['ruta']==['RB-A','PNC','SOLOA']
     db.rollback()
     antigua=foto(cliente,c,sku='COMUN',categoria='FALTANTE',variante=2);assert antigua.status_code==201,antigua.text
     db.rollback();db.expire_all()
-    assert db.get(AppCopiaDrive,antigua.json()['id']).datos['ruta']==['EMBARQUES','POR-ASIGNAR','FALTANTE','COMUN']
+    assert db.get(AppCopiaDrive,antigua.json()['id']).datos['ruta']==['POR-ASIGNAR','FALTANTES','COMUN']
     db.rollback()
     general=foto(cliente,c,categoria='RECEPCION',tipoEvidencia='PANORAMICA',embarqueFoto='',variante=3)
     assert general.status_code==201,general.text
     db.rollback();db.expire_all()
-    assert db.get(AppCopiaDrive,general.json()['id']).datos['ruta']==['GENERALES','RECEPCION','PANORAMICA']
+    assert db.get(AppCopiaDrive,general.json()['id']).datos['ruta']==['COMPARTIDAS','PANORAMICAS']
 
 
 def test_reusar_la_misma_imagen_en_dos_embarques_guarda_dos_vinculos_un_binario(cliente,db):
@@ -133,7 +133,7 @@ def test_organizar_asigna_una_historica_cerrada_sin_reabrir_ni_reenviar(cliente,
     r=cliente.post(ruta+'/organizar',json={'huella':p['huella'],'confirmar':True,'asignaciones':{e['id']:'RB-B'}})
     assert r.status_code==200,r.text
     db.rollback();db.expire_all();j=db.get(AppCopiaDrive,f['id'])
-    assert j.estado=='PENDIENTE' and j.datos['ruta']==['EMBARQUES','RB-B','FALTANTE','COMUN']
+    assert j.estado=='PENDIENTE' and j.datos['ruta']==['RB-B','FALTANTES','COMUN']
     assert j.datos['conservarAccesosPrevios'] is True
     assert db.get(AppArchivo,f['id']).drive_id=='drive-historica'
     assert db.get(AppRecepcion,c).estado=='CERRADA'
@@ -185,7 +185,7 @@ def test_otro_operario_agrega_destino_durante_copia_y_se_reprograma_con_su_embar
     db.rollback();db.expire_all();j=db.get(AppCopiaDrive,f['id'])
     assert j.estado=='PENDIENTE'
     assert {tuple(v['ruta']) for v in j.datos['rutasVinculadas']}=={
-        ('EMBARQUES','RB-A','PNC','COMUN'),('EMBARQUES','RB-B','PNC','COMUN')}
+        ('RB-A','PNC','COMUN'),('RB-B','PNC','COMUN')}
 
 
 @pytest.mark.skipif(engine.dialect.name!='mysql',reason='Requiere bloqueo real de recepción MySQL')

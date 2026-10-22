@@ -2,9 +2,9 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261021-61"></script>
+<script src="./js/arranque.js?v=20261021-62"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<script src="./vendor/xlsx.full.min.js?v=20261021-61" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261021-62" defer></script>
 <meta name="theme-color" content="#2563eb">
 <title>Administración — ITSANET</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -97,7 +97,7 @@
   a { color:var(--accent); }
   @media (max-width:640px){ .panel{padding:18px;} body{padding:12px 10px;} }
 </style>
-<link rel="stylesheet" href="./css/marca.css?v=20261021-61">
+<link rel="stylesheet" href="./css/marca.css?v=20261021-62">
 </head>
 <body>
 <div class="envoltorio">
@@ -144,6 +144,7 @@
       <p class="mini">Cada supervisor puede verificar y guardar su propia conexión en Mi cuenta y correo. ADMIN conserva las conexiones generales. El correo se envía desde la cuenta autorizada del supervisor que confirma el envío; editar este campo no cambia la cuenta que ejecuta el /exec de Google.</p>
       <p><a class="b-sec" href="./cuenta.html#panelCorreo">Autorizar mi correo de informes</a></p>
       <div id="puentesSupervisores" class="acciones"></div>
+      <p class="guia-modal">Para vincular el correo personal de un supervisor o administrador usa Operación diaria → Remitente de informes → Revisar cuentas. Allí se comprueba que el /exec pertenece a esa persona. La siguiente conexión general se conserva para integraciones anteriores.</p>
       <form id="formGoogleLocal" class="rejilla" style="margin-top:16px">
         <label class="campo"><span>Correo del supervisor responsable</span><input id="iGoogleSupervisor" type="email" placeholder="supervisor@gmail.com"></label>
         <label class="campo"><span>Apps Script /exec</span><input id="iGoogleUrl" type="url" required placeholder="https://script.google.com/macros/s/…/exec"><span class="mini">URL de la aplicación web en Implementar → Administrar implementaciones. La carpeta Drive se configura en Repositorios.</span></label>
@@ -322,22 +323,22 @@
 </div>
 
 <script type="module">
-import {organizarAdministracion} from './js/admin-navegacion.js?v=20261021-61';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-61';
-import { mostrarAviso } from './js/notificaciones.js?v=20261021-61';
-import { configurarPoliticas } from './js/admin-politicas.js?v=20261021-61';
-import { pintarEntregas } from './js/admin-entregas.js?v=20261021-61';
-import { configurarOperacion } from './js/admin-operacion.js?v=20261021-61';
-import { observarSesion, traducirError, db } from './js/auth.js?v=20261021-61';
-import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261021-61';
-import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261021-61';
-import { confirmar, pedirDatos } from './js/modal.js?v=20261021-61';
+import {organizarAdministracion} from './js/admin-navegacion.js?v=20261021-62';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261021-62';
+import { mostrarAviso } from './js/notificaciones.js?v=20261021-62';
+import { configurarPoliticas } from './js/admin-politicas.js?v=20261021-62';
+import { pintarEntregas } from './js/admin-entregas.js?v=20261021-62';
+import { configurarOperacion } from './js/admin-operacion.js?v=20261021-62';
+import { observarSesion, traducirError, db } from './js/auth.js?v=20261021-62';
+import { Proxy, obtenerUrlProxy } from './js/proxy.js?v=20261021-62';
+import { pedir, modoLocal, estadoServidor, entregasServidor, reintentarEntrega, nuevoIdentificador } from './js/local.js?v=20261021-62';
+import { confirmar, pedirDatos } from './js/modal.js?v=20261021-62';
 import {
   CAMPOS, FORMATOS_BASE, leerFormatos, guardarFormatos, plantilla, descargarCsv, descargarModelo, resultadoModelo,
-} from './js/csv.js?v=20261021-61';
-import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261021-61';
+} from './js/csv.js?v=20261021-62';
+import { reunirTodo, contar, descargarJson } from './js/exportar.js?v=20261021-62';
 import { doc, getDoc, setDoc }
-  from './vendor/firebase-sdk.js?v=20261021-61';
+  from './vendor/firebase-sdk.js?v=20261021-62';
 
 const $ = (id) => document.getElementById(id);
 let clientes = [];

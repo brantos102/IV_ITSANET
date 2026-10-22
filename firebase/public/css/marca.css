@@ -135,3 +135,7 @@
 
 .correo-dialogo>header{position:static}.correo-dialogo>.acciones:has([data-guardar]){z-index:3;display:flex;flex-wrap:wrap;gap:8px}.correo-dialogo>.acciones:has([data-guardar])>button{flex:1 1 120px;min-height:42px}.correo-dialogo [data-presentacion]{scroll-margin-top:130px}.correo-herramientas{border:1px solid var(--border);padding:10px;border-radius:10px}
 .posicion-depot-partes{grid-column:1/-1;border:1px solid var(--border);border-radius:10px;padding:10px;margin:8px 0}.posicion-depot-partes summary{cursor:pointer;font-size:12px;font-weight:700}.posicion-depot-partes .rejilla{margin-top:10px}.posicion-depot-partes input{min-width:0;max-width:100%}
+
+.admin-config-barra{position:sticky;top:0;z-index:3;background:var(--surface,#fff);border:1px solid var(--border,#ccd5df);padding:12px;border-radius:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.admin-config-barra p{margin:0;overflow-wrap:anywhere}
+
+[data-config-operacion] input[type=checkbox]{width:auto;vertical-align:middle;margin-right:8px}

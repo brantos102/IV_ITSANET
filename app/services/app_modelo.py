@@ -27,7 +27,7 @@ import math
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, or_
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -114,6 +114,7 @@ def doc_recepcion(r: AppRecepcion, operarios: list[str] | None = None) -> dict:
         "id": r.codigo,
         "codigo": r.codigo,
         "cliente": r.cliente,
+        "marca": "",
         "descripcion": r.descripcion or "",
         "bultos": r.bultos,
         "estado": r.estado,
@@ -244,8 +245,13 @@ def listar_recepciones(db: Session, max_filas: int = 50,
     from app.services.seguimiento import resumenes
     filas = list(db.execute(q).scalars().all())
     metricas = resumenes(db, [r.codigo for r in filas])
-    nombres=nombres_listas(db,[r.codigo for r in filas])
-    return [{**doc_recepcion(r), 'nombresListas':nombres.get(r.codigo,{}), **metricas.get(r.codigo, {})} for r in filas]
+    nombres=nombres_listas(db,[r.codigo for r in filas]);marcas=marcas_recepciones(db,[r.codigo for r in filas])
+    return [{**doc_recepcion(r),'marca':marcas.get(r.codigo,''), 'nombresListas':nombres.get(r.codigo,{}), **metricas.get(r.codigo, {})} for r in filas]
+
+
+def marcas_recepciones(db,codigos):
+    from app.models import AppIngreso
+    return {codigo:str(marca or '').strip().upper() for codigo,marca in db.execute(select(AppIngreso.recepcion,AppIngreso.datos['marca'].as_string()).where(AppIngreso.recepcion.in_(codigos)))}
 
 
 def nombres_listas(db,codigos):
@@ -279,7 +285,17 @@ def leer_coleccion(db: Session, codigo: str, nombre: str, max_filas: int = 0, *,
         q = q.order_by(AppEvento.creado_en.desc())
         if max_filas:
             q = q.limit(max_filas)
-        return [doc_evento(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
+        filas=[doc_evento(x) for x in db.execute(q.with_for_update().execution_options(populate_existing=True) if actual else q).scalars().all()]
+        from app.models import Operador
+        autores={str(e.get('operadorEmail') or '').lower() for e in filas}
+        nombres={}
+        for op in db.scalars(select(Operador).where(or_(func.lower(Operador.email).in_(autores),func.lower(Operador.usuario).in_(autores)))):
+            for identidad in (op.email,op.usuario):
+                if identidad:nombres.setdefault(identidad.lower(),set()).add(op.nombre or op.usuario)
+        for e in filas:
+            ns=nombres.get(str(e.get('operadorEmail') or '').lower(),set())
+            if not e.get('operadorNombre') and len(ns)==1:e['operadorNombre']=next(iter(ns))
+        return filas
     raise ErrorApp(f"No existe la colección «{nombre}».", "COLECCION_DESCONOCIDA")
 
 
@@ -308,6 +324,9 @@ def crear_recepcion(db: Session, datos: dict, usuario: str | None) -> dict:
         origenes=[], lineas_por_origen={}, formatos={}, embarques=[],
     )
     db.add(r)
+    db.flush()
+    from app.services.carpetas_recepcion import encolar
+    encolar(db,r.codigo)
     db.commit()
     return doc_recepcion(r, [])
 
@@ -324,7 +343,8 @@ def borrar_recepcion(db: Session, codigo: str) -> dict:
         db.execute(delete(modelo).where(modelo.recepcion == codigo))
     from app.models import AppConfig
     from app.services.correo_redactado import clave_config
-    db.execute(delete(AppConfig).where(AppConfig.clave.in_([clave_config(codigo),clave_config(codigo,manual=True)])))
+    from app.services.carpetas_recepcion import clave as clave_carpetas
+    db.execute(delete(AppConfig).where(AppConfig.clave.in_([clave_config(codigo),clave_config(codigo,manual=True),clave_carpetas(codigo)])))
     db.delete(r)
     db.commit()
     return {"codigo": codigo, "borrado": cuentas}
@@ -437,6 +457,8 @@ def guardar_packing_list(db: Session, codigo: str, resultado: dict,
     r.packing_list_en = ahora
     from app.services.fotos_organizacion import actualizar_por_embarques
     actualizar_por_embarques(db,r.codigo)
+    from app.services.carpetas_recepcion import encolar
+    encolar(db,r.codigo)
 
     resumen = resultado.get("resumen") or {}
     if resumen.get("huella"):

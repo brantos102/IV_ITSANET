@@ -77,12 +77,16 @@ def _fuente(db, codigo, entrega_id='',origen=''):
         ident=foto['archivoId']
         if ident in unicas:continue
         copia=db.get(AppCopiaDrive,ident)
-        unicas[ident]={**foto,'carpetaRecepcion':(copia.datos or {}).get('carpetaRecepcionUrl','') if copia else ''}
+        rutas_confirmadas=[v.get('ruta') for v in (copia.datos or {}).get('rutasVinculadas',[])] if copia else []
+        organizada=bool(copia and copia.estado=='COPIADA' and all(v.get('ruta') in rutas_confirmadas for v in foto.get('rutasVinculadas') or [foto]) and not any(v.get('embarque') is None and v.get('sku') for v in foto.get('rutasVinculadas',[])))
+        unicas[ident]={**foto,'copiaConfirmada':organizada,'carpetaRecepcion':(copia.datos or {}).get('carpetaRecepcionUrl','') if copia else ''}
     fotos=sorted(unicas.values(),key=lambda foto:(db.get(AppArchivo,foto['archivoId']).creado_en,foto['archivoId']))
     from app.models import AppEvento
     carpeta_confirmada=db.scalar(select(AppEvento).where(AppEvento.recepcion==codigo,AppEvento.tipo=='AUDITORIA',AppEvento.motivo=='CARPETA_DRIVE_VERIFICADA').order_by(AppEvento.creado_en.desc(),AppEvento.id.desc()).limit(1))
     carpeta_general=(carpeta_confirmada.datos or {}).get('carpeta','') if carpeta_confirmada else next((f.get('carpetaRecepcion') for f in fotos if f.get('carpetaRecepcion')),'')
-    fuente = {'carpetaGeneral':carpeta_general,'cliente': r.cliente, 'descripcion': r.descripcion, 'skus': skus,
+    from app.services.operacion import destino_drive
+    marca=(d.get('destino') or {}).get('marca','') if e else destino_drive(db,codigo)['marca']
+    fuente = {'carpetaGeneral':carpeta_general,'cliente': r.cliente, 'descripcion': r.descripcion, 'marca':marca, 'skus': skus,
               'eventos': eventos, 'fotos': fotos, 'entrega': entrega_id}
     if e:
         fuente['validacionDepot']=((hijo or {}).get('correoFinal') or d.get('correoFinal') or {}).get('validacionDepot')
@@ -95,8 +99,11 @@ def _fuente(db, codigo, entrega_id='',origen=''):
     config=d.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':d.get('asignacionesAdicionales',{})}) if e else configuracion(db,codigo)
     if origen:
         permitidos=[g['id'] for g in grupos(ls,(d.get('recepcion') or {}).get('origenes',r.origenes or []) if e else (r.origenes or []),config)]
+        if e and e.datos.get('correosPorOrigen'):permitidos=[c['origen'] for c in e.datos['correosPorOrigen']]
         if origen not in permitidos:raise HTTPException(422,'El packing list no pertenece a esta recepción o entrega archivada.')
         fuente=filtrar(fuente,ls,origen,config)
+    from app.services.agrupacion_correo import embarque as embarque_linea,grupo_id
+    fuente['embarquesReportados']=list(dict.fromkeys(embarque_linea(l,config) for l in ls if embarque_linea(l,config) and (not origen or config.get('modo')=='RECEPCION' or (config.get('modo')=='EMBARQUE' and grupo_id(embarque_linea(l,config))==origen) or (config.get('modo') not in ('EMBARQUE','RECEPCION') and (l.get('origen') or 'PRINCIPAL')==origen))))
     if not e:
         from app.services import contenedores
         embarques=None
@@ -161,7 +168,7 @@ def fotos_correo(fuente, presentacion):
         return [por_id[i] for i in presentacion['fotosIds'] if i in por_id][:MAX_FOTOS]
     if modo == 'NOVEDADES':
         resumen = entregas.resumen_final(fuente['skus'], fuente['eventos'])
-        fotos = sorted(fotos,key=lambda f:f.get('tipoEvidencia')=='PRERECEPCION')
+        fotos = sorted(fotos,key=lambda f:f.get('tipoEvidencia')!='PRERECEPCION')
         fotos = [f for f in fotos if _novedad_foto(f,resumen) or f.get('tipoEvidencia')=='PRERECEPCION']
     return fotos[:MAX_FOTOS]
 
@@ -199,10 +206,10 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             src=('https://drive.google.com/thumbnail?id='+f['fileId']+'&sz=w320') if f.get('fileId') else '/api/app/archivos/'+f['archivoId']
             img='<img data-archivo="'+escape(f['archivoId'],quote=True)+'" src="'+escape(src,quote=True)+'" alt="'+escape(caption,quote=True)+'" width="176" height="132" style="display:block;width:176px;height:132px;object-fit:contain;background:#f3f6fa;border:0;border-radius:8px">'
             if not f.get('fileId'):img+='<small data-copia-pendiente style="color:#64748b">Copia a Drive pendiente</small>'
-            html += '<div style="display:inline-block;vertical-align:top;width:184px;max-width:100%;margin:8px 8px 0 0"><div style="border:1px solid #dce5ef;border-radius:9px;padding:4px">' + img + '<p style="margin:6px 2px;font-size:12px;overflow-wrap:anywhere">' + (_link(url, caption) or escape(caption)) + '</p></div></div>'
+            html += '<div data-correo-bloque="foto:'+escape(f['archivoId'],quote=True)+'" style="display:inline-block;vertical-align:top;width:184px;max-width:100%;margin:8px 8px 0 0"><div style="border:1px solid #dce5ef;border-radius:9px;padding:4px">' + img + '<p style="margin:6px 2px;font-size:12px;overflow-wrap:anywhere">' + (_link(url, caption) or escape(caption)) + '</p></div></div>'
         return '<div style="margin-top:10px">' + html + '</div>' if html else ''
     def tabla(titulo, filas, categoria, color, novedad=False):
-        if not filas: return ''
+        if not filas: return '<div data-correo-bloque="tabla:'+categoria+'"></div>'
         cab = ['Referencia', 'Descripción', 'Declarado', 'Contado', 'Diferencia', 'Pallets']
         if novedad: cab += ['Uds. afectadas', 'Novedad']
         cab += ['Observaciones']
@@ -217,12 +224,14 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
         contenido = ('<div style="overflow-x:auto"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;line-height:1.45;text-align:left">'
             '<thead><tr>' + ''.join('<th style="padding:9px 7px;background:#eaf0f8;color:#33465f;border-bottom:1px solid #d1ddeb;font-size:11px">' + c + '</th>' for c in cab) + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>')
         imagenes = [f for f in fotos if f['archivoId'] not in usadas and _novedad_foto(f, resumen, categoria)]
-        return '<section style="margin:22px 0"><h3 style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ' + color + ';background:#f2f5fa;font-size:16px;color:#1e3655">' + titulo + '</h3>' + contenido + fotos_html(imagenes, categoria) + '</section>'
+        return '<section data-correo-bloque="tabla:'+categoria+'" style="margin:22px 0"><h3 style="margin:0 0 10px;padding:10px 12px;border-left:4px solid ' + color + ';background:#f2f5fa;font-size:16px;color:#1e3655">' + titulo + '</h3>' + contenido + '</section>' + fotos_html(imagenes, categoria)
     links=''.join('<p style="margin:6px 0">'+_link(v['url'],v['texto'])+'</p>' for v in fuente.get('enlacesCarpetas',[]))
-    if links:links='<section style="padding:12px 16px;background:#eef4fb;border-radius:8px;margin:16px 0"><b>Evidencias en Drive</b>'+links+'</section>'
+    if links:links='<section data-correo-bloque="carpetas" style="padding:12px 16px;background:#eef4fb;border-radius:8px;margin:16px 0"><b>Evidencias en Drive</b>'+links+'</section>'
+    if not links:links='<div data-correo-bloque="carpetas"></div>'
     html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#22334a;max-width:960px;margin:0 auto;background:#ffffff">'
-    html += '<div style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(fuente.get('nombreGrupo') or fuente.get('origen') or codigo) + '</h2><p style="margin:0;color:#e2ecf9">Recepción: '+escape(codigo)+' · Cliente: <b>' + escape(fuente['cliente']) + '</b></p></div>'
-    if fuente.get('origen'):html += '<p style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
+    html += '<div data-correo-bloque="cabecera" style="background:#16345c;color:#ffffff;border-radius:12px 12px 0 0;padding:22px 24px"><p style="font-size:11px;letter-spacing:1.5px;margin:0;color:#c9def8">ITSANET · INFORME DE RECEPCIÓN</p><h2 style="font-size:23px;line-height:1.35;margin:8px 0;color:#ffffff;overflow-wrap:anywhere">' + escape(fuente.get('nombreGrupo') or fuente.get('origen') or codigo) + '</h2><p style="margin:0;color:#e2ecf9">Recepción: '+escape(codigo)+' · Cliente: <b>' + escape(fuente['cliente']+('–'+fuente['marca'] if fuente.get('marca') else '')) + '</b></p></div>'
+    if fuente.get('tipoGrupo')=='RECEPCION':html+='<p data-correo-bloque="alcance" style="padding:10px 18px;background:#eef4fb"><b>Embarques reportados: '+escape(', '.join(fuente.get('embarquesReportados',[])) or 'Sin número informado')+'</b><br>Packing lists: '+escape(', '.join(fuente.get('packingLists',[])))+'</p>'
+    if fuente.get('origen') and fuente.get('tipoGrupo')!='RECEPCION':html += '<p data-correo-bloque="alcance" style="padding:10px 18px;background:#eef4fb;margin:0"><b>'+('Embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'Packing list')+': '+escape(fuente.get('nombreGrupo') or fuente['origen'])+'</b></p>'
     html += '<div style="padding:20px 18px;border:1px solid #dce5ef;border-top:0;border-radius:0 0 12px 12px">' + texto_editable('saludo',campos['saludo']) + texto_editable('introduccion',campos['introduccion']) + links
     previas=[f for f in fotos if f.get('tipoEvidencia')=='PRERECEPCION']
     if previas:html+='<section data-correo-seccion="prerecepcion"><h3 style="font-size:16px;margin-top:24px">Prerecepción · descarga del contenedor</h3>'+fotos_html(previas)+'</section>'
@@ -238,32 +247,26 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
             ubicacion+=_parrafo(texto)
         ubicacion+='</section>'
     if opciones['mostrarTotales']:
-        html += '<p style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
+        html += '<p data-correo-bloque="totales" style="padding:12px;background:#eef4fb;border-radius:8px"><b>Resumen de unidades</b><br>' + numero(resumen['unidadesEsperadas']) + ' declaradas · ' + numero(resumen['unidadesFisicas']) + ' contadas · ' + numero(resumen['unidadesPnc']) + ' PNC</p>'
+    if not opciones['mostrarTotales']:html+='<div data-correo-bloque="totales"></div>'
     html += tabla('Sobrantes y adicionales', [s for s in resumen['discrepancias'] if s['diferencia'] > 0], 'SOBRANTE', '#1577a7')
     html += tabla('Faltantes', [s for s in resumen['discrepancias'] if s['diferencia'] < 0], 'FALTANTE', '#d79315')
     html += tabla('Producto no conforme (PNC) y novedades físicas', resumen['novedades'], 'PNC', '#cf5252', True)
     if not resumen['discrepancias'] and not resumen['novedades']:
-        html += '<p style="padding:14px;background:#eff9f4;border-left:4px solid #20a277">Sin diferencias de cantidad ni novedades físicas registradas.</p>'
-    depot=fuente.get('validacionDepot')
-    if depot and any(depot['porSku'].get(s['sku'],{}).get('estado','OK')!='OK' for s in fuente['skus']):
-        html += '<section style="margin:22px 0;padding:14px;border:1px solid #dce5ef;border-radius:8px"><h3 style="margin:0 0 8px;color:#1e3655;font-size:16px">Productos por verificar en Depot</h3>'
-        if depot.get('actualizadoEn'):html += _parrafo('Actualización del catálogo: '+(depot.get('fechaActualizacion') or depot['actualizadoEn']))
-        pendientes=[s for s in fuente['skus'] if depot['porSku'].get(s['sku'],{}).get('estado','OK')!='OK']
-        if pendientes:
-            html += '<p><b>Verificar los siguientes productos antes de cargar sus cantidades en Depot:</b></p><ul>'
-            for s in pendientes:
-                d=depot['porSku'][s['sku']]
-                html += '<li style="margin-bottom:10px"><b>'+escape(s['sku'])+'</b>'+(' · '+escape(s['descripcion']) if s.get('descripcion') else '')+'<br>'+escape(d['observacion'])+'</li>'
-            html += '</ul>'
-        else:html += _parrafo('Los productos de esta recepción figuran en el catálogo consultado para el cliente.')
-        html += '</section>'
+        html += '<p data-correo-bloque="validacion" style="padding:14px;background:#eff9f4;border-left:4px solid #20a277">Sin diferencias de cantidad ni novedades físicas registradas.</p>'
+    if resumen['discrepancias'] or resumen['novedades']:html+='<div data-correo-bloque="validacion"></div>'
+    depot=fuente.get('validacionDepot')  # Aviso interno; nunca forma parte del correo externo.
     otras = [f for f in fotos if f['archivoId'] not in usadas]
     if otras: html += '<h3 style="font-size:16px;margin-top:24px">Evidencias seleccionadas</h3>' + fotos_html(otras)
-    html+=ubicacion
+    html+='<div data-correo-bloque="ubicacion">'+ubicacion+'</div>'
     if archivos:
-        html += '<div style="padding:14px 16px;background:#f3f6fa;border-radius:8px;margin-top:22px"><h3 style="font-size:15px;margin:0 0 8px">Documentos finales</h3><ul style="margin:0;padding-left:20px">' + ''.join('<li style="overflow-wrap:anywhere">' + escape(a.nombre) + '</li>' for a in archivos) + '</ul></div>'
+        html += '<div data-correo-bloque="documentos" style="padding:14px 16px;background:#f3f6fa;border-radius:8px;margin-top:22px"><h3 style="font-size:15px;margin:0 0 8px">Documentos finales</h3><ul style="margin:0;padding-left:20px">' + ''.join('<li style="overflow-wrap:anywhere">' + escape(a.nombre) + '</li>' for a in archivos) + '</ul></div>'
+    if not archivos:html+='<div data-correo-bloque="documentos"></div>'
     html += texto_editable('despedida',campos['despedida']) + texto_editable('firma',campos['firma'])
-    html += '<p style="font-size:11px;color:#63758d;border-top:1px solid #e0e7f0;padding-top:12px;margin-top:24px">Preparado por: ' + escape(remitente) + ' · ' + escape(codigo) + '</p></div></div>'
+    html += '<p data-correo-bloque="autor" style="font-size:11px;color:#63758d;border-top:1px solid #e0e7f0;padding-top:12px;margin-top:24px">Preparado por: ' + escape(remitente) + ' · ' + escape(codigo) + '</p></div></div>'
+    if campos.get('cuerpoHtml'):
+        from app.services.correo_cuerpo import aplicar
+        html=aplicar(campos['cuerpoHtml'],html)
     from html.parser import HTMLParser
     class Texto(HTMLParser):
         def __init__(self): super().__init__(); self.partes = []
@@ -289,13 +292,14 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     campos = {'asunto': 'Informe de recepción · ' + codigo, 'destinatarios': e.datos.get('destinatarios', '') if e else '',
               'saludo': 'Estimados,', 'introduccion': 'Por medio del presente, remito el informe correspondiente a la recepción ' + codigo + ' del cliente ' + r.cliente + '. Se detallan las novedades registradas durante la validación.',
               'notas': '', 'despedida': 'Quedo atento a cualquier consulta o información adicional.\nSaludos cordiales,', 'firma': usuario,**{k:'' for k in OPERATIVOS}}
-    campos.update({k: v for k, v in guardado.get('campos', {}).items() if k in CAMPOS})
+    campos.update({k: v for k, v in guardado.get('campos', {}).items() if k in CAMPOS or k=='cuerpoHtml'})
     respuesta=guardado.get('respuestaGmail')
     respuesta_otra=bool(respuesta and respuesta.get('cuenta')!=usuario)
     if origen:
         nombre=fuente.get('nombreGrupo') or origen;tipo='embarque' if fuente.get('tipoGrupo')=='EMBARQUE' else 'packing list'
+        if fuente.get('tipoGrupo')=='RECEPCION':tipo='consolidado de recepción';nombre=', '.join(r.embarques or r.origenes or [])
         if 'asunto' not in guardado.get('campos',{}):campos['asunto']=('Informe de recepción · '+nombre+' · '+r.cliente+' · Recepción '+codigo)[:250]
-        if 'introduccion' not in guardado.get('campos',{}):campos['introduccion']='Remito el informe del '+tipo+' '+nombre+' de la recepción '+codigo+' del cliente '+r.cliente+'. Se detallan exclusivamente los resultados de este grupo de envío.'
+        if 'introduccion' not in guardado.get('campos',{}):campos['introduccion']='Remito el informe del '+tipo+' '+nombre+' de la recepción '+codigo+' del cliente '+r.cliente+('–'+fuente['marca'] if fuente.get('marca') else '')+'. Se detallan exclusivamente los resultados de este grupo de envío.'
         if hijo and 'destinatarios' not in guardado.get('campos',{}):campos['destinatarios']=hijo['destinatarios']
         elif not e and 'destinatarios' not in guardado.get('campos',{}):
             general=db.get(AppConfig,clave_config(codigo))
@@ -316,13 +320,14 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     if not congelado or not (e and (e.estado in ('ENTREGADA','PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA')):
         final['respuestaGmail']=respuesta if not respuesta_otra else None
     g = integraciones.google(db, usuario)
-    version = _hash([61, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
+    version = _hash([62, fuente, guardado.get('revision', 0), usuario,campos,respuesta])
     ultima=entregas.recientes(db,1,recepcion=codigo)
     from app.services.agrupacion_correo import configuracion,grupos
     data=expandir(e.datos) if e else {}
     config=data.get('planCorreos',{'modo':'PACKING_LIST','asignaciones':data.get('asignacionesAdicionales',{})}) if e else configuracion(db,codigo)
     packing_lists=(data.get('recepcion') or {}).get('origenes',r.origenes or []) if e else (r.origenes or [])
     gs=grupos(data.get('lineas',[]) if e else m.leer_coleccion(db,codigo,'lineas',actual=True),packing_lists,config)
+    if e and e.datos.get('correosPorOrigen'):gs=[g for g in gs if g['id'] in {c['origen'] for c in e.datos['correosPorOrigen']}]
     origenes=[g['id'] for g in gs]
     resumen=entregas.resumen_final(fuente['skus'], fuente['eventos'])
     return {'campos': campos, 'version': version, 'revision': guardado.get('revision', 0), **final,
@@ -333,6 +338,7 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
             'entregaHistoricaDisponible':ultima[0].id if ultima and not entrega_id else '',
             'entregaAgrupada':bool(ultima and not ultima[0].datos.get('correosPorOrigen')),
             'entregaDisponible':ultima[0].id if ultima and not entrega_id and r.estado=='CERRADA' else '',
+            'cliente':r.cliente,'marca':fuente.get('marca',''),
             'conexionConfigurada': bool(g['url'] and g['secreto']),
             'respuestaOtraCuenta':respuesta_otra,
             'soloLectura': bool(e and e.estado in ('ENTREGADA', 'PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA'),
@@ -340,10 +346,10 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
             'limiteFotos':MAX_FOTOS, 'permiteFotoNueva':r.estado!='CERRADA',
             'fotos': [{'id': f['archivoId'], 'nombre': f.get('nombre', ''), 'sku':f.get('sku') or '',
                        'categoria':f.get('categoria') or 'GENERAL','tipoEvidencia':f.get('tipoEvidencia') or '',
-                       'vinculos':[{'sku':v.get('sku') or '', 'categoria':v.get('categoria') or 'GENERAL'} for v in f.get('rutasVinculadas') or [f]],
+                       'vinculos':[{'sku':v.get('sku') or '', 'embarque':v.get('embarque') or '', 'categoria':v.get('categoria') or 'GENERAL'} for v in f.get('rutasVinculadas') or [f]],
                        'esNovedad':_novedad_foto(f, resumen),
                        'contextoCompartido':bool(f.get('requiereRevision')),
-                       'enDrive':bool(f.get('fileId')), 'url': '/api/app/archivos/' + f['archivoId']} for f in fuente['fotos']],
+                       'enDrive':bool(f.get('fileId') and f.get('copiaConfirmada')), 'url': '/api/app/archivos/' + f['archivoId']} for f in fuente['fotos']],
             'manual':(db.get(AppConfig,clave_config(codigo,manual=True)).datos if db.get(AppConfig,clave_config(codigo,manual=True)) else None),
             'modificadoPor': guardado.get('usuario'), 'modificadoEn': guardado.get('fecha')}
 
@@ -363,12 +369,13 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
     if datos.get('version') != anterior['version']:
         raise HTTPException(409, 'La recepción o el borrador cambió. Actualiza la vista antes de guardar.')
     campos = datos.get('campos')
-    if not isinstance(campos, dict) or not set(CAMPOS)-set(OPERATIVOS)<=set(campos) or not set(campos)<=set(CAMPOS):
+    if not isinstance(campos, dict) or not set(CAMPOS)-set(OPERATIVOS)<=set(campos) or not set(campos)<=set(CAMPOS)|{'cuerpoHtml'}:
         raise HTTPException(422, 'Completa asunto, destinatarios y los textos del correo.')
     campos={**{k:anterior['campos'].get(k,'') for k in OPERATIVOS},**campos}
     for k, limite in CAMPOS.items():
         if not isinstance(campos[k], str) or len(campos[k]) > limite:
             raise HTTPException(422, f'Revisa {k}: máximo {limite} caracteres.')
+    if 'cuerpoHtml' in campos and (not isinstance(campos['cuerpoHtml'],str) or len(campos['cuerpoHtml'])>300000):raise HTTPException(422,'Revisa el cuerpo del correo: máximo 300.000 caracteres.')
     campos = {k: v.strip() for k, v in campos.items()}
     if campos['fechaOperacion']:
         from datetime import date
@@ -380,6 +387,13 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
     if not campos['asunto'] or any(c in campos['asunto'] for c in '\r\n'):
         raise HTTPException(422, 'Escribe el asunto en una sola línea.')
     campos['destinatarios'] = entregas.validar_destinatarios(campos['destinatarios'])
+    presentacion=validar_presentacion(datos.get('presentacion', anterior['presentacion']), [f['id'] for f in anterior['fotos']])
+    if 'cuerpoHtml' in campos:
+        from app.services.correo_cuerpo import limpiar
+        # La base no toma el HTML previo: todos los bloques vienen de SQL y de fotos seleccionadas.
+        _,_,fuente,archivos=_fuente(db,codigo,entrega_id,origen)
+        base=renderizar(codigo,fuente,{k:v for k,v in campos.items() if k!='cuerpoHtml'},archivos,usuario,presentacion)['html']
+        campos['cuerpoHtml']=limpiar(campos['cuerpoHtml'],base)
     previo=db.get(AppConfig,clave_config(codigo,origen=origen))
     respuesta=(previo.datos if previo else {}).get('respuestaGmail')
     if 'gmailMensajeId' in datos:
@@ -393,7 +407,6 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
         campos['asunto']='Re: '+re.sub(r'^(?:re:\s*)+', '',respuesta['asunto'],flags=re.I)
         if len(campos['asunto'])>250:raise HTTPException(422,'El asunto original de Gmail supera 250 caracteres; usa el envío manual.')
     f = db.get(AppConfig, clave_config(codigo,origen=origen)) or AppConfig(clave=clave_config(codigo,origen=origen))
-    presentacion=validar_presentacion(datos.get('presentacion', anterior['presentacion']), [f['id'] for f in anterior['fotos']])
     f.datos = {'campos': campos, 'presentacion':presentacion, 'respuestaGmail':respuesta,'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat()}
     f.usuario = usuario; db.add(f)
     ajustes.auditar(db, usuario, 'CORREO_BORRADOR_GUARDADO', codigo, {'revision': f.datos['revision']})

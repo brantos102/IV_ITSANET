@@ -95,14 +95,17 @@ def ruta(db, e, *, con_bulto=True, fuente=None):
     from app.services.drive import ruta_evidencia
     from app.services.fotos_identidad import ruta_bulto, componente
     bulto = ruta_bulto(db, e) if con_bulto else []
-    base = bulto + (ruta_evidencia(e) if e and e.sku else []) if bulto else ruta_evidencia(e)
+    if e and e.sku:
+        categoria={'SOBRANTE':'SOBRANTES','FALTANTE':'FALTANTES','PNC':'PNC'}.get(e.categoria,'PRODUCTOS')
+        base=[categoria,componente(e.sku,120)]+bulto
+    elif bulto:base=bulto
+    else:base=[{'PRERECEPCION':'PRE-INGRESO','ESTADO_FINAL':'FOTOS-FINALES','PANORAMICA':'PANORAMICAS'}.get(e.tipo if e else '', 'OTRAS-EVIDENCIAS')]
     emb = asignado(db, e,fuente=fuente)
     if emb:
         carpeta = componente(emb, 90)
         if carpeta != emb or emb == 'POR-ASIGNAR':
             carpeta += '-' + hashlib.sha256(emb.encode()).hexdigest()[:10]
-        return ['EMBARQUES', carpeta] + base
+        return [carpeta] + base
     if e and contexto(db, e.recepcion,fuente=fuente)['embarques']:
-        # Nunca repartir una foto histórica ambigua entre embarques por intuición.
-        return (['EMBARQUES', 'POR-ASIGNAR'] if emb is None and (e.sku or e.unidad_id) else ['GENERALES']) + base
+        return (['POR-ASIGNAR'] if emb is None and (e.sku or e.unidad_id) else ['COMPARTIDAS']) + base
     return base

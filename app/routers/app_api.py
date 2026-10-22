@@ -377,7 +377,7 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
             etiquetas.setdefault(aid, []).append(cod)
     resultado = []
     from app.models import AppEvidencia, AppCopiaDrive, AppArchivoIdentidad
-    from app.services.drive import carpeta_sku
+    from app.services.drive import carpeta_sku,ubicacion_evidencia
     from app.services.fotos_embarques import asignado, informacion
     fuente_embarques=informacion(db,r.codigo) if filas else None
     metadatos = {}
@@ -389,6 +389,8 @@ def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str =
                 AppEvidencia.eliminado_en.is_(None))):
             metadatos.setdefault(e.archivo_id, []).append({'id':e.id,'protocolo':e.protocolo,'sku': e.sku, 'categoria': e.categoria,
                 'pallet':pallet_evidencia(db,e),'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen, 'embarque':asignado(db,e,fuente=fuente_embarques),
+                'rutaEsperada':ubicacion_evidencia(db,e,copias.get(e.archivo_id),fuente=fuente_embarques)['rutaEsperada'],
+                'estadoCarpeta':ubicacion_evidencia(db,e,copias.get(e.archivo_id),fuente=fuente_embarques)['estado'],
                 'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e,db=db,fuente=fuente_embarques) or ''})
     for a in filas:
         f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',
@@ -525,7 +527,7 @@ def una(codigo: str, db: Session = Depends(get_db),
         r = m.obtener(db, codigo)
     except m.ErrorApp as exc:
         raise _traducir(exc) from exc
-    return {**m.doc_recepcion(r, m.operarios_de(db, r.codigo)),'nombresListas':m.nombres_listas(db,[r.codigo]).get(r.codigo,{})}
+    return {**m.doc_recepcion(r, m.operarios_de(db, r.codigo)),'marca':m.marcas_recepciones(db,[r.codigo]).get(r.codigo,''),'nombresListas':m.nombres_listas(db,[r.codigo]).get(r.codigo,{})}
 
 
 @router.delete("/recepciones/{codigo}")

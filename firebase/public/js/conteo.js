@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261021-61';
-import { db } from './auth.js?v=20261021-61';
-import * as local from './local.js?v=20261021-61';
+} from '../vendor/firebase-sdk.js?v=20261021-62';
+import { db } from './auth.js?v=20261021-62';
+import * as local from './local.js?v=20261021-62';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261021-61';
+} from './datos.js?v=20261021-62';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -403,7 +403,8 @@ export function registrosDe(eventos, sku) {
       pallet: e.pallet || '',
       posicionReal: e.posicionReal || '',
       origen: e.origen || null,
-      operador: e.operadorNombre || e.operadorEmail || '',
+      operador: e.operadorNombre || 'Operador registrado',
+      observacion:e.observacion||'',
       cuando: e.creadoEn?.toDate ? e.creadoEn.toDate()
         : e.creadoEn && Number.isFinite(new Date(e.creadoEn).getTime()) ? new Date(e.creadoEn) : null,
     }))

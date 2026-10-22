@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261021-61';
-import {confirmar,elegir} from './modal.js?v=20261021-61';
+import {pedir,nuevoIdentificador} from './local.js?v=20261021-62';
+import {confirmar,elegir} from './modal.js?v=20261021-62';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base=c=>'/recepciones/'+encodeURIComponent(c)+'/informes';
@@ -21,7 +21,7 @@ export async function archivarInforme(c,informe,libros){return api(base(c)+'/'+i
 export async function prepararDocumentosPorEmbarque(c){
  const plan=await api('/recepciones/'+encodeURIComponent(c)+'/correos-embarques');
  if(plan.embarques.length&&plan.modo==='PACKING_LIST'&&!plan.consolidadoConfirmado){
-  const {revisarPlanCorreos}=await import('./correos-embarques.js?v=20261021-61');
+  const {revisarPlanCorreos}=await import('./correos-embarques.js?v=20261021-62');
   if(!await revisarPlanCorreos(c))return null;
  }
  const formato=await elegir({titulo:'Preparar documentos por packing list',texto:'Se conservan el cierre, los conteos y los documentos históricos. Esta revisión prepara un Excel por embarque; no envía correos ni inicia descargas.',opciones:[
@@ -30,7 +30,7 @@ export async function prepararDocumentosPorEmbarque(c){
  if(!formato)return null;
  const vigente=await informeActual(c,formato);if(vigente.actual)return vigente.informe;
  const f=await iniciarInforme(c,'DESCARGA',formato);if(!f)return null;if(f.estado==='GENERADO')return f;
- const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261021-61'),pedir('/recepciones/'+encodeURIComponent(c))]);
+ const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261021-62'),pedir('/recepciones/'+encodeURIComponent(c))]);
  const datos=await reunirInforme(c,recepcion);datos.recepcion={...datos.recepcion,informe:f};
  return archivarInforme(c,f,construirLibros(datos,{version:formato}));
 }
@@ -44,7 +44,7 @@ export async function descargarInforme(informe,{origen=null}={}){
   if(!r.ok)throw Error('No se pudo descargar el informe ('+r.status+'). Revisa los documentos o genera su versión actualizada.');
   const cd=r.headers.get('Content-Disposition')||'',utf=cd.match(/filename\*=UTF-8''([^;]+)/i),simple=cd.match(/filename="?([^";]+)/i);
   const nombre=utf?decodeURIComponent(utf[1]):simple?.[1]||fs[0].nombre;
-  const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=nombre;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=nombre;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
   return true;
  }finally{descargasEnCurso.delete(informe.id);}
 }

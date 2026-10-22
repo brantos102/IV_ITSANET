@@ -1,5 +1,5 @@
 /** Copia local del correo: miniaturas pequeñas; originales y MySQL intactos. */
-import {leerMiniatura} from './miniaturas.js?v=20261021-61';
+import {leerMiniatura} from './miniaturas.js?v=20261021-62';
 async function reducir(blob){
  const url=URL.createObjectURL(blob);try{const img=new Image();img.src=url;await img.decode();const escala=Math.min(1,320/img.naturalWidth,240/img.naturalHeight),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*escala));c.height=Math.max(1,Math.round(img.naturalHeight*escala));const ctx=c.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.78);}finally{URL.revokeObjectURL(url);}
 }
@@ -23,5 +23,5 @@ export function zipMiniaturas(archivos){
 export function descargarMiniaturas(preparado,asunto){
  const texto='En Gmail: abre el correo original, pulsa Responder, pega el texto revisado y usa Insertar foto para incluir estos JPEG en el cuerpo. Revisa las imágenes, los destinatarios y adjunta los informes finales antes de enviar.\n';
  const archivos=[...preparado.archivos,{nombre:'Como_insertar_las_fotos.txt',bytes:new TextEncoder().encode(texto)},{nombre:'Correo_con_miniaturas.html',bytes:new TextEncoder().encode('<!doctype html><meta charset="utf-8"><title>Correo de recepción</title>'+preparado.html)}];
- const url=URL.createObjectURL(zipMiniaturas(archivos)),a=document.createElement('a');a.href=url;a.download='Miniaturas_'+String(asunto).replace(/[^A-Za-z0-9_-]/g,'_').slice(0,110)+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
+ const url=URL.createObjectURL(zipMiniaturas(archivos)),a=document.createElement('a');a.href=url;a.download='Miniaturas_'+String(asunto).replace(/[^A-Za-z0-9_-]/g,'_').slice(0,110)+'.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }

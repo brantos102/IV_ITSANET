@@ -53,12 +53,12 @@ function entregaServidor_(peticion) {
   var remitente = cuentaServidor_(p.datos && p.datos.usuario);
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
-    return { exito: true, versionPuente: 2, remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables','carpetasCorreo'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
+    return { exito: true, versionPuente: 2, versionCodigo:'20261021-62', remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables','carpetasCorreo','carpetasRecepcion62'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
         typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'].concat(accionEnviarInforme_.versionServidor>=3?['correoEditable']:[]) : []) };
   }
   if(p.operacion==='carpetasCorreo')return carpetasCorreoServidor_(p.datos||{});
-  if(p.operacion==='gmailBuscar'||p.operacion==='gmailMensaje') {
+  if(p.operacion==='gmailBuscar'||p.operacion==='gmailMensaje'||p.operacion==='gmailEstado') {
     if(typeof gmailConsultarServidor_!=='function')throw new Error('Publica Gmail.gs antes de consultar el buzón.');
     return gmailConsultarServidor_(p.operacion,p.datos||{});
   }
@@ -73,7 +73,7 @@ function entregaServidor_(peticion) {
   lock.waitLock(15000);
   try {
     if (p.operacion === 'prepararCarpeta') {
-      var recepcion = carpetaRecepcionServidor_(p.datos);
+      var recepcion = prepararCarpetasRecepcionServidor_(p.datos);
       return {exito:true,remitente:remitente,carpeta:recepcion.getUrl()};
     }
     if (p.operacion === 'pruebaCorreo') {
@@ -108,12 +108,29 @@ function raizServidor_(p) {
 }
 
 function carpetaRecepcionServidor_(p) {
+  if(p.carpetaRecepcionId){
+    if(!/^[A-Za-z0-9_-]{5,128}$/.test(p.carpetaRecepcionId))throw new Error('Carpeta de recepción no válida.');
+    var fija=DriveApp.getFolderById(p.carpetaRecepcionId);
+    if(fija.getName()!==limpiarNombre_(p.carpetaRecepcion||p.recepcion||p.codigo))throw new Error('La carpeta no corresponde al código de esta recepción.');
+    return fija;
+  }
   var raiz = raizServidor_(p);
   if (!p.cliente) return carpetaDeRecepcion_(raiz, p); // Entregas antiguas conservan su destino.
   var cliente = carpetaDe_(raiz, limpiarNombre_(p.cliente));
   var marca = p.marca ? carpetaDe_(cliente, limpiarNombre_(p.marca)) : cliente;
   var r = carpetaDe_(marca, limpiarNombre_(p.carpetaRecepcion || p.recepcion || p.codigo));
   return r;
+}
+
+function prepararCarpetasRecepcionServidor_(p){
+  if(p.embarques&&(!Array.isArray(p.embarques)||p.embarques.length>512))throw new Error('Embarques no válidos.');
+  var recepcion=carpetaRecepcionServidor_(p);
+  (p.embarques||[]).forEach(function(e){
+    if(typeof e!=='string'||!e.trim()||e.length>110)throw new Error('Embarque no válido.');
+    var embarque=carpetaDe_(recepcion,limpiarNombre_(e));
+    ['SOBRANTES','FALTANTES','PNC','BULTOS','PRE-INGRESO','FOTOS-FINALES','PANORAMICAS','PRODUCTOS'].forEach(function(n){carpetaDe_(embarque,n);});
+  });
+  return recepcion;
 }
 
 function carpetaEvidenciaServidor_(recepcion, p) {
@@ -350,7 +367,7 @@ function fotosCorreoServidor_(archivos, manifiesto, seleccion) {
 /** Resolver solo carpetas existentes de una recepción; nunca crea ni mueve. */
 function carpetasCorreoServidor_(p){
   if(!/^[A-Za-z0-9_-]{5,128}$/.test(String(p.carpetaRecepcionId||''))||!Array.isArray(p.rutas)||p.rutas.length>512)throw new Error('Consulta de carpetas inválida.');
-  p.rutas.forEach(function(r){if(!Array.isArray(r)||r.length>3||r.some(function(x){return typeof x!=='string'||!x.trim()||x.length>180;})||r.length&&!(r[0]==='EMBARQUES'&&r.length>=2||r.length===1&&['PNC','SOBRANTE','FALTANTE'].indexOf(r[0])>=0)||r.length===3&&['PNC','SOBRANTE','FALTANTE'].indexOf(r[2])<0)throw new Error('Ruta de carpeta de correo inválida.');});
+  p.rutas.forEach(function(r){if(!Array.isArray(r)||r.length>3||r.some(function(x){return typeof x!=='string'||!x.trim()||x.length>180||x==='..'||x.indexOf('/')>=0;})||r.length===2&&r[0]!=='EMBARQUES'&&['PNC','SOBRANTES','FALTANTES'].indexOf(r[1])<0||r.length===3&&(r[0]!=='EMBARQUES'||['PNC','SOBRANTE','FALTANTE'].indexOf(r[2])<0))throw new Error('Ruta de carpeta de correo inválida.');});
   var recepcion=DriveApp.getFolderById(p.carpetaRecepcionId),carpetas=[],prefijos={'[]':recepcion};
   function resolver(r){
     var k=JSON.stringify(r);if(Object.prototype.hasOwnProperty.call(prefijos,k))return prefijos[k];

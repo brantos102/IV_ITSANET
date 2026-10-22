@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.models import AppConfig, AppCopiaDrive, AppEvento
 from app.services import app_modelo as m
 
-CATEGORIAS={'SOBRANTE':'Sobrantes y adicionales','FALTANTE':'Faltantes','PNC':'PNC'}
+CATEGORIAS={'SOBRANTES':'Sobrantes','FALTANTES':'Faltantes','PNC':'PNC'}
 
 
 def carpeta_url(valor):
@@ -23,7 +23,7 @@ def base_embarque(emb):
     from app.services.fotos_identidad import componente
     carpeta=componente(emb,90)
     if carpeta!=emb or emb=='POR-ASIGNAR':carpeta+='-'+hashlib.sha256(emb.encode()).hexdigest()[:10]
-    return ('EMBARQUES',carpeta)
+    return (carpeta,)
 
 
 def raiz(db,codigo):

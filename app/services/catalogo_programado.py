@@ -121,10 +121,12 @@ def sincronizar_turno(ahora=None):
 
 async def trabajador():
     from app.services.drive import procesar_uno
+    from app.services.carpetas_recepcion import trabajar as preparar_carpetas
     siguiente_catalogo = 0.0
     while True:
         try:
             ocupado = await asyncio.to_thread(procesar_uno)
+            if not ocupado:ocupado=await asyncio.to_thread(preparar_carpetas)
             reloj = asyncio.get_running_loop().time()
             if reloj >= siguiente_catalogo:
                 await asyncio.to_thread(sincronizar_turno)

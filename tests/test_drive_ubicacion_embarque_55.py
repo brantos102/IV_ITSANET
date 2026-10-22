@@ -26,7 +26,7 @@ def test_copiada_en_carpeta_anterior_pide_actualizar_y_no_publica_link_equivocad
     r=cliente.get('/api/operacion/recepciones/'+c+'/drive').json()
     assert r['sincronizacion']['copiadas']==0 and r['sincronizacion']['pendientes']==1
     assert r['organizacion']=={'sinEmbarque':0,'carpetasDesactualizadas':1}
-    assert r['archivos'][0]['ubicaciones'][0]['rutaEsperada']==['EMBARQUES','RB-A','PNC','SOLOA']
+    assert r['archivos'][0]['ubicaciones'][0]['rutaEsperada']==['RB-A','PNC','SOLOA']
     db.rollback()
     assert informes.metadatos(db,c)['carpetas']=={}
     db.rollback()
@@ -52,7 +52,7 @@ def test_actualizar_carpeta_cerrada_reusa_fileid_sin_binario_ni_correo(cliente,d
         if accion=='estado':return {'versionPuente':2,'capacidades':['fotosSkuSimples','fotosAuditables'],'remitente':d['usuario']}
         llamadas.append(d)
         assert d['fileId']=='misma-foto-55' and 'base64' not in d
-        assert d['ruta']==['EMBARQUES','RB-A','PNC','SOLOA']
+        assert d['ruta']==['RB-A','PNC','SOLOA']
         return {'fileId':d['fileId'],'nombre':d['nombre'],
             'vinculosDrive':{'PNC|SOLOA':{'carpetaSkuUrl':'https://drive.google.com/drive/folders/RBA-SOLOA'}}}
     monkeypatch.setattr(entregas,'llamar',google)
@@ -87,8 +87,8 @@ def test_carpeta_de_otro_embarque_del_mismo_sku_no_se_acepta(cliente,db):
     c=preparar(cliente,db)
     f=foto(cliente,c,sku='COMUN',categoria='PNC',origen='PRINCIPAL',embarqueFoto='RB-A').json()
     copiada(db,f['id'])
-    j=db.get(AppCopiaDrive,f['id']);j.datos={**j.datos,'ruta':['EMBARQUES','RB-B','PNC','COMUN'],
-        'rutasVinculadas':[{**v,'ruta':['EMBARQUES','RB-B','PNC','COMUN']} for v in j.datos['rutasVinculadas']]};db.commit()
+    j=db.get(AppCopiaDrive,f['id']);j.datos={**j.datos,'ruta':['RB-B','PNC','COMUN'],
+        'rutasVinculadas':[{**v,'ruta':['RB-B','PNC','COMUN']} for v in j.datos['rutasVinculadas']]};db.commit()
     r=cliente.get('/api/operacion/recepciones/'+c+'/drive').json()
     assert r['organizacion']['carpetasDesactualizadas']==1
     db.rollback()

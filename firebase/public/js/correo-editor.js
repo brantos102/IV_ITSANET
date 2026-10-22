@@ -1,13 +1,13 @@
-/** Edición en contexto: se guarda texto; las cifras y tablas siguen calculadas. */
-const etiquetas={saludo:'Saludo',introduccion:'Presentación de la recepción',notas:'Observaciones de recepción',despedida:'Despedida',firma:'Firma'};
+/** Cuerpo libre; los bloques de resultados se recalculan en el servidor. */
 export function iniciarEditorCorreo(raiz,campos,{editable=true,alCambiar=()=>{},alAvisar=()=>{}}={}){
- for(const el of raiz.querySelectorAll('[data-correo-campo]')){
-  const k=el.dataset.correoCampo;if(!etiquetas[k])continue;
-  if(!editable)continue;
-  el.textContent=campos[k]||'';el.contentEditable='plaintext-only';el.classList.add('correo-texto-editable');
-  el.setAttribute('role','textbox');el.setAttribute('aria-label',etiquetas[k]);el.setAttribute('aria-multiline','true');el.dataset.placeholder='Escribe '+etiquetas[k].toLowerCase()+'…';
-  el.addEventListener('input',()=>alCambiar(k,el.innerText.replace(/\r\n?/g,'\n').replace(/\u00a0/g,' ')));
-  el.addEventListener('paste',ev=>{if(ev.clipboardData?.files.length){ev.preventDefault();alAvisar('Usa Agregar fotos para registrar y seleccionar las imágenes del correo.');}});
-  el.addEventListener('drop',ev=>{if(ev.dataTransfer?.files.length){ev.preventDefault();alAvisar('Usa Agregar fotos para registrar y seleccionar las imágenes del correo.');}});
- }
+ raiz.contentEditable=editable?'true':'false';raiz.setAttribute('role','textbox');raiz.setAttribute('aria-label','Cuerpo completo del correo');raiz.setAttribute('aria-multiline','true');
+ for(const el of raiz.querySelectorAll('[data-correo-bloque]')){el.contentEditable='false';el.classList.add('correo-bloque-calculado');el.title='Datos verificados. Puedes quitar este bloque; sus valores se editan desde el registro correspondiente.';}
+ raiz.oninput=()=>alCambiar('cuerpoHtml'); // Serializar solo al guardar, para no bloquear cada pulsación.
+ const archivos=ev=>{if((ev.clipboardData||ev.dataTransfer)?.files.length){ev.preventDefault();alAvisar('Pulsa Agregar fotos para registrar las imágenes, elegir su embarque y mostrarlas en el correo.');return true;}return false;};
+ raiz.onpaste=ev=>{if(archivos(ev))return;ev.preventDefault();const texto=ev.clipboardData?.getData('text/plain')||'';document.execCommand('insertText',false,texto);};
+ raiz.ondrop=ev=>{archivos(ev);};
+}
+export function leerCuerpoCorreo(raiz){
+ const copia=raiz.cloneNode(true);for(const el of copia.querySelectorAll('[data-correo-bloque]')){const marcador=document.createElement('div');marcador.dataset.correoBloque=el.dataset.correoBloque;el.replaceWith(marcador);}
+ copia.querySelectorAll('[contenteditable]').forEach(e=>e.removeAttribute('contenteditable'));return copia.innerHTML;
 }

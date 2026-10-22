@@ -10,14 +10,14 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261021-61';
-import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261021-61';
-import { db } from './auth.js?v=20261021-61';
-import * as local from './local.js?v=20261021-61';
-import {eventosActivos} from './conteo.js?v=20261021-61';
-import {fechaDe} from './fechas.js?v=20261021-61';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261021-61';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261021-61';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261021-62';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261021-62';
+import { db } from './auth.js?v=20261021-62';
+import * as local from './local.js?v=20261021-62';
+import {eventosActivos} from './conteo.js?v=20261021-62';
+import {fechaDe} from './fechas.js?v=20261021-62';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261021-62';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261021-62';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 
@@ -466,12 +466,18 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     // Primero el archivo tal como llegó, con sus columnas rellenas. Si no se
     // guardó el formato original —recepciones anteriores a esto— se cae a las
     // columnas propias, que es lo que había.
-    XLSX.utils.book_append_sheet(
-      libro,
-      lista.formato?.encabezados?.length
+    const hoja=lista.formato?.encabezados?.length
         ? hojaOriginal(lista.detalle, lista.formato,opciones.version==='envio-ampliado',validacionDepot)
-        : hojaValidada(lista.detalle),
-      base);
+        : hojaValidada(lista.detalle);
+    if(base.toUpperCase()==='REV'){
+      const matriz=XLSX.utils.sheet_to_json(hoja,{header:1,defval:''}),cabecera=matriz.findIndex(f=>f.some(v=>/^(?:ITEM|SKU|CODIGO)$/i.test(String(v).trim()))),indice=cabecera>=0?cabecera:0;
+      if(!matriz[indice]?.some(v=>/POSICION|UBICACION/i.test(String(v)))){
+        const col=XLSX.utils.decode_range(hoja['!ref']||'A1').e.c+1;
+        XLSX.utils.sheet_add_aoa(hoja,[['POSICION FINAL SUGERIDA'],...lista.detalle.map(l=>[l.posicionReal||''])],{origin:{r:indice,c:col}});
+        hoja['!cols']=[...(hoja['!cols']||[]),{wch:32}];
+      }
+    }
+    XLSX.utils.book_append_sheet(libro,hoja,base);
 
     // Y aparte, lo que la validación añade.
     if (!soloEnvio && lista.formato?.encabezados?.length) {
@@ -480,10 +486,9 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     }
   }
 
-  const sobrantes=detalle.filter(l=>l.diferencia>0).map(l=>({sku:l.sku,descripcion:l.descripcion,fisica:l.diferencia,pallets:l.pallets,
-    origen:l.origen,embarque:opciones.embarque||'',evidencia:l.evidenciaSobrante||l.evidencia,tipo:'SOBRANTE DE SKU DECLARADO',
-    motivo:'Diferencia ya incluida en la cantidad física del packing list; no sumar nuevamente.',observacion:l.observacion}));
-  const extras=[...(adicionales||[]).map(a=>({...a,tipo:'ADICIONAL NO DECLARADO'})),...sobrantes];
+  // Un sobrante declarado ya está en el packing validado: nunca duplicarlo como adicional.
+  const declarados=new Set((detalle||[]).map(l=>l.sku));
+  const extras=(adicionales||[]).filter(a=>!declarados.has(a.sku)).map(a=>({...a,tipo:'ADICIONAL NO DECLARADO'}));
   if(!soloEnvio||extras.length){
   // --- Adicionales, aparte para no alterar el conteo de filas --- //
   const h2 = XLSX.utils.json_to_sheet(extras.length ? extras.map((a) => ({

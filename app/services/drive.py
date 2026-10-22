@@ -37,11 +37,11 @@ def ubicacion_evidencia(db, e, j, *, fuente=None):
     if not propias:
         propias = [v for v in vs if v.get('sku','') == (e.sku or '') and v.get('categoria') == e.categoria]
     actuales = [v.get('ruta',[]) for v in propias] or ([datos['ruta']] if datos.get('ruta') else [])
-    if fuente[3] and (e.sku or e.unidad_id) and emb is None:
+    if fuente[3] and emb is None:
         estado = 'ASIGNAR_EMBARQUE'
     elif not j or j.estado != 'COPIADA':
         estado = 'PENDIENTE_COPIA'
-    elif fuente[3] and esperada not in actuales:
+    elif esperada not in actuales:
         estado = 'ACTUALIZAR_CARPETAS'
     else:
         estado = 'SINCRONIZADA'
@@ -167,6 +167,7 @@ def verificar_puente(db, clave, datos):
     k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(), datos['usuario'], datos.get('carpetaRaiz'),bool(datos.get('rutaSku')),datos.get('versionFotos'))
     if _verificados.get(k, 0) > time.monotonic(): return
     r = entregas.llamar('estado', clave, {'usuario': datos['usuario'], 'carpetaRaiz': datos.get('carpetaRaiz', '')})
+    if datos.get('carpetaRecepcionId') and 'carpetasRecepcion62' not in r.get('capacidades',[]):raise RuntimeError('Actualiza Servidor.gs: la recepción conserva una carpeta fija de la versión 62. Las fotos locales se conservan.')
     if datos.get('rutaSku') and 'fotosSkuSimples' not in r.get('capacidades',[]):
         raise RuntimeError('Actualiza Servidor.gs y publica una Nueva versión del mismo /exec para fotos por SKU con nombres simples. Se conservan las imágenes locales.')
     if datos.get('versionFotos')==2 and 'fotosAuditables' not in r.get('capacidades',[]):
@@ -218,9 +219,9 @@ def descripcion(db, archivo, evidencia=None):
         db.refresh(identidad)
     from app.services.fotos_embarques import informacion
     fuente_embarques=informacion(db,archivo.recepcion)
-    def ruta(v):
+    def ruta(v,solo_sku=False):
         from app.services.fotos_embarques import ruta as ruta_embarque
-        return ruta_embarque(db,v,con_bulto=bool(identidad),fuente=fuente_embarques)
+        return ruta_embarque(db,v,con_bulto=bool(identidad) and not solo_sku,fuente=fuente_embarques)
     from app.services.fotos_embarques import asignado as leer_asignado
     def asignado(db,e):return leer_asignado(db,e,fuente=fuente_embarques)
     d['ruta'] = ruta(e)
@@ -228,10 +229,10 @@ def descripcion(db, archivo, evidencia=None):
     d['origen'] = e.origen if e else ''
     d['embarque'] = asignado(db,e)
     d['categoria'] = e.categoria if e else 'GENERAL'
-    d['rutaSku'] = ruta(e) if e and e.sku else []
+    d['rutaSku'] = ruta(e,solo_sku=True) if e and e.sku else []
     d['rutasVinculadas'] = list({(v.categoria,v.sku or '',v.tipo,v.unidad_id,v.origen,asignado(db,v),pallet_evidencia(db,v)):
         {'evidenciaId':v.id,'categoria':v.categoria,'sku':v.sku or '', 'origen':v.origen or '', 'embarque':asignado(db,v),**({'pallet':pallet_evidencia(db,v)} if pallet_evidencia(db,v) else {}),'ruta':ruta(v),
-         'rutaSku':ruta(v) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
+         'rutaSku':ruta(v,solo_sku=True) if v.sku else [],'nombre':nombre_evidencia(db,archivo,v)}
         for v in es}.values())
     d.update(tipoArchivo=archivo.tipo, nombre=archivo.nombre, tipo=archivo.mime,
         recepcion=archivo.recepcion, evidencia=e.id if e else None)
@@ -245,9 +246,7 @@ def descripcion(db, archivo, evidencia=None):
             # ni eliminar archivos ajenos. El puente trata únicamente atajos.
             previas=[anterior.datos.get('ruta',[])]+[v.get('ruta',[]) for v in anterior.datos.get('rutasVinculadas',[])]+anterior.datos.get('rutasIntentadas',[])
             d['rutasAnteriores']=[list(r) for r in sorted(set(tuple(r) for r in previas if r))]
-            if anterior.datos.get('ruta') and anterior.datos['ruta']!=d['ruta'] and (
-                anterior.datos.get('embarque')!=d.get('embarque') or
-                anterior.datos['ruta'][:1] not in (['EMBARQUES'],['GENERALES']) and d['ruta'][:1] in (['EMBARQUES'],['GENERALES'])):
+            if anterior.datos.get('ruta') and anterior.datos['ruta']!=d['ruta']:
                 # Mantener accesos a carpetas que ya fueron incluidas en informes.
                 d['conservarAccesosPrevios']=True
         d['rutasIntentadas']=[list(r) for r in sorted(set(tuple(r) for r in [d['ruta']]+d.get('rutasAnteriores',[]) if r))]
@@ -294,7 +293,7 @@ def procesar_uno():
         elegible = or_(AppCopiaDrive.estado == 'PENDIENTE', AppCopiaDrive.estado == 'PROCESANDO')
         aid = db.scalar(select(AppCopiaDrive.archivo_id).where(elegible, AppCopiaDrive.proximo_en <= ahora)
                         .order_by(AppCopiaDrive.proximo_en).limit(1))
-        if not aid: return False
+        if not aid:return False
         cambio = db.execute(update(AppCopiaDrive).where(AppCopiaDrive.archivo_id == aid,
             elegible, AppCopiaDrive.proximo_en <= ahora).values(estado='PROCESANDO',
             proximo_en=ahora + timedelta(minutes=5)).execution_options(synchronize_session=False))

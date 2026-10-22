@@ -1,4 +1,4 @@
-import {partesPosicion} from './posiciones.js?v=20261021-61';
+import {partesPosicion} from './posiciones.js?v=20261021-62';
 /**
  * CSV para la carga masiva hacia Depot.
  *
@@ -19,10 +19,10 @@ import {partesPosicion} from './posiciones.js?v=20261021-61';
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261021-61';
-import { db } from './auth.js?v=20261021-61';
-import * as local from './local.js?v=20261021-61';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261021-61';
+} from '../vendor/firebase-sdk.js?v=20261021-62';
+import { db } from './auth.js?v=20261021-62';
+import * as local from './local.js?v=20261021-62';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261021-62';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
