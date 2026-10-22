@@ -71,6 +71,16 @@ def _fuente(db, codigo, entrega_id='',origen=''):
     eventos = [ev for ev in eventos if ev.get('tipo') not in ('EXPORT', 'CIERRE', 'AUDITORIA')]
     archivos = [db.get(AppArchivo, ident) for ident in ids]
     archivos = [a for a in archivos if a and a.recepcion == codigo]
+    if e and d.get('nombresAdjuntos'):
+        from app.services.adjuntos_correo import objetos
+        archivos=objetos(db,codigo,[{'id':a.id,'nombre':d['nombresAdjuntos'].get(a.id,a.nombre)} for a in archivos])
+    seleccion=None
+    if not e:
+        f=db.get(AppConfig,clave_config(codigo,origen=origen))
+        seleccion=(f.datos or {}).get('adjuntos') if f else None
+        if seleccion is not None:
+            from app.services.adjuntos_correo import objetos
+            archivos=objetos(db,codigo,seleccion)
     from app.services.drive import manifiesto
     unicas = {}
     for foto in manifiesto(db, codigo):
@@ -88,6 +98,7 @@ def _fuente(db, codigo, entrega_id='',origen=''):
     marca=(d.get('destino') or {}).get('marca','') if e else destino_drive(db,codigo)['marca']
     fuente = {'carpetaGeneral':carpeta_general,'cliente': r.cliente, 'descripcion': r.descripcion, 'marca':marca, 'skus': skus,
               'eventos': eventos, 'fotos': fotos, 'entrega': entrega_id}
+    if seleccion is not None:fuente['adjuntos']=seleccion
     if e:
         fuente['validacionDepot']=((hijo or {}).get('correoFinal') or d.get('correoFinal') or {}).get('validacionDepot')
     if not e or (fuente['validacionDepot'] is None and e.estado not in ('ENTREGADA','PROCESANDO')
@@ -121,6 +132,17 @@ def _fuente(db, codigo, entrega_id='',origen=''):
 
 def _hash(valor):
     return hashlib.sha256(json.dumps(valor, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def version_edicion(fuente,revision,usuario,campos,respuesta):
+    # Una confirmación de copia/enlace Drive no cambia la selección ni los datos
+    # operativos. El guardado regenera esos bloques con las URLs actuales.
+    estable={k:v for k,v in fuente.items() if k not in ('fotos','carpetaGeneral','enlacesCarpetas')}
+    claves=('archivoId','sku','tipoEvidencia','categoria','ruta','rutaSku','embarque','requiereRevision')
+    estable['fotos']=[{**{k:f.get(k) for k in claves},'vinculos':[
+        {k:v.get(k) for k in ('evidenciaId','sku','categoria','embarque','ruta','rutaSku','pallet')}
+        for v in f.get('rutasVinculadas',[])]} for f in fuente['fotos']]
+    return _hash([63,estable,revision,usuario,campos,respuesta])
 
 
 def _link(url, texto):
@@ -330,7 +352,10 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
     if e and e.datos.get('correosPorOrigen'):gs=[g for g in gs if g['id'] in {c['origen'] for c in e.datos['correosPorOrigen']}]
     origenes=[g['id'] for g in gs]
     resumen=entregas.resumen_final(fuente['skus'], fuente['eventos'])
-    return {'campos': campos, 'version': version, 'revision': guardado.get('revision', 0), **final,
+    from app.services.adjuntos_correo import disponibles
+    return {'campos': campos, 'version': version,
+            'versionEdicion':version_edicion(fuente,guardado.get('revision',0),usuario,campos,respuesta),
+            'revision': guardado.get('revision', 0), **final,
             'origen':origen,'nombreGrupo':fuente.get('nombreGrupo') or origen,'origenes':origenes,'grupos':gs,'modoAgrupacion':config.get('modo','PACKING_LIST'),'packingLists':packing_lists,
             'correosSeparados':(len(origenes)>1 or config.get('modo') in ('EMBARQUE','RECEPCION')) and (not e or bool(e.datos.get('correosPorOrigen'))),
             'correos':[{k:c.get(k) for k in ('origen','destinatarios','estado','nombre')} for c in e.datos.get('correosPorOrigen',[])] if e else [],
@@ -339,10 +364,12 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
             'entregaAgrupada':bool(ultima and not ultima[0].datos.get('correosPorOrigen')),
             'entregaDisponible':ultima[0].id if ultima and not entrega_id and r.estado=='CERRADA' else '',
             'cliente':r.cliente,'marca':fuente.get('marca',''),
-            'conexionConfigurada': bool(g['url'] and g['secreto']),
+            'conexionConfigurada': integraciones.conexion_lista(g),
             'respuestaOtraCuenta':respuesta_otra,
             'soloLectura': bool(e and e.estado in ('ENTREGADA', 'PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA'),
             'archivos': [{'id': a.id, 'nombre': a.nombre, 'url': '/api/app/archivos/' + a.id} for a in archivos],
+            'adjuntosPersonalizados':'adjuntos' in guardado,
+            'documentosDisponibles':disponibles(db,codigo,origen) if not e else [],
             'limiteFotos':MAX_FOTOS, 'permiteFotoNueva':r.estado!='CERRADA',
             'fotos': [{'id': f['archivoId'], 'nombre': f.get('nombre', ''), 'sku':f.get('sku') or '',
                        'categoria':f.get('categoria') or 'GENERAL','tipoEvidencia':f.get('tipoEvidencia') or '',
@@ -362,11 +389,12 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
     if solo_redaccion:
         if anterior['estadoRecepcion']=='CERRADA' or entrega_id:raise HTTPException(409,'La recepción o entrega está cerrada; el supervisor conserva su revisión final.')
         if 'gmailMensajeId' in datos:raise HTTPException(403,'La selección del hilo Gmail corresponde al supervisor.')
+        if 'adjuntos' in datos:raise HTTPException(403,'El supervisor selecciona los documentos finales del envío.')
         if not isinstance(datos.get('campos'),dict) or any(datos['campos'].get(k)!=anterior['campos'][k] for k in ('asunto','destinatarios')):
             raise HTTPException(403,'El supervisor revisa el asunto y los destinatarios; puedes editar la redacción y fotografías.')
     if anterior['soloLectura']:
         raise HTTPException(409, 'Este correo ya está en proceso o confirmado. Su texto se conserva en el historial.')
-    if datos.get('version') != anterior['version']:
+    if datos.get('version') != anterior['version'] and datos.get('versionEdicion')!=anterior['versionEdicion']:
         raise HTTPException(409, 'La recepción o el borrador cambió. Actualiza la vista antes de guardar.')
     campos = datos.get('campos')
     if not isinstance(campos, dict) or not set(CAMPOS)-set(OPERATIVOS)<=set(campos) or not set(campos)<=set(CAMPOS)|{'cuerpoHtml'}:
@@ -388,6 +416,10 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
         raise HTTPException(422, 'Escribe el asunto en una sola línea.')
     campos['destinatarios'] = entregas.validar_destinatarios(campos['destinatarios'])
     presentacion=validar_presentacion(datos.get('presentacion', anterior['presentacion']), [f['id'] for f in anterior['fotos']])
+    adjuntos=None
+    if 'adjuntos' in datos:
+        from app.services.adjuntos_correo import validar
+        adjuntos=validar(db,codigo,origen,datos['adjuntos'])
     if 'cuerpoHtml' in campos:
         from app.services.correo_cuerpo import limpiar
         # La base no toma el HTML previo: todos los bloques vienen de SQL y de fotos seleccionadas.
@@ -407,7 +439,8 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
         campos['asunto']='Re: '+re.sub(r'^(?:re:\s*)+', '',respuesta['asunto'],flags=re.I)
         if len(campos['asunto'])>250:raise HTTPException(422,'El asunto original de Gmail supera 250 caracteres; usa el envío manual.')
     f = db.get(AppConfig, clave_config(codigo,origen=origen)) or AppConfig(clave=clave_config(codigo,origen=origen))
-    f.datos = {'campos': campos, 'presentacion':presentacion, 'respuestaGmail':respuesta,'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat()}
+    adjuntos=adjuntos if adjuntos is not None else (f.datos or {}).get('adjuntos')
+    f.datos = {'campos': campos, 'presentacion':presentacion, 'respuestaGmail':respuesta,'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat(),**({'adjuntos':adjuntos} if adjuntos is not None else {})}
     f.usuario = usuario; db.add(f)
     ajustes.auditar(db, usuario, 'CORREO_BORRADOR_GUARDADO', codigo, {'revision': f.datos['revision']})
     db.commit()

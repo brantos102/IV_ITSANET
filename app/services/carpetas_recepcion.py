@@ -47,11 +47,15 @@ def procesar_uno(db):
         if f.datos.get('embarques')!=original['embarques']:db.rollback();return True
         f.datos={**original,'estado':'LISTA','carpeta':carpeta,'proximo':0}
         operacion.auditoria(db,original['recepcion'],d['usuario'],'CARPETA_DRIVE_VERIFICADA',{'carpeta':carpeta})
-    except Exception:
+        from app.services.procesos import registrar
+        registrar(db,'CARPETAS','LISTA',original['recepcion'],d['usuario'],recepcion=original['recepcion'])
+    except Exception as exc:
         db.rollback();f=db.get(AppConfig,f.clave)
         # El estado expone la incidencia sin filtrar credenciales del puente.
         if f and f.datos.get('embarques')==original['embarques']:
-            f.datos={**original,'estado':'PENDIENTE','proximo':time.time()+300,'mensaje':'Carpetas pendientes: revisa la conexión y versión Google del responsable.'}
+            f.datos={**original,'estado':'PENDIENTE','proximo':time.time()+300,'mensaje':str(exc)[:250] if type(exc) is RuntimeError else 'Carpetas pendientes: revisa la conexión Google de almacenamiento.'}
+            from app.services.procesos import registrar
+            registrar(db,'CARPETAS','ERROR',original['recepcion'],recepcion=original['recepcion'],codigo=type(exc).__name__)
     db.commit();return True
 
 

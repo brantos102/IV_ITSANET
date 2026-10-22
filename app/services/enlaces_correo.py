@@ -52,7 +52,8 @@ def actualizar(db,codigo,usuario):
     principal=raiz(db,codigo)
     if not principal:raise HTTPException(409,'Primero verifica la carpeta de recepción. Después podrás actualizar sus enlaces de embarques y novedades.')
     solicitadas=rutas(db,codigo)
-    correo,_=remitentes.elegir(db,codigo,{'modoRemitente':'RESPONSABLE'},usuario)
+    from app.services.google_cuentas import responsable_drive
+    correo=responsable_drive(db,codigo,usuario)
     conexion=integraciones.google(db,correo)
     f=db.get(AppConfig,clave(codigo));anterior=f.datos if f else {}
     if anterior.get('raiz')==principal and anterior.get('rutas')==[list(r) for r in solicitadas] and time.time()-anterior.get('comprobado',0)<30:

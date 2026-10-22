@@ -96,8 +96,14 @@ def eliminar_evidencia(archivo_id: str, db: Session = Depends(get_db), op: Opera
     except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
 
 
+@router.get('/procesos')
+def procesos_operativos(recepcion:str='',estado:str='',limite:int=100,db:Session=Depends(get_db),op:Operador=Depends(admin)):
+    from app.services.procesos import consultar
+    return consultar(db,recepcion.strip(),estado.strip(),max(1,min(200,limite)))
+
+
 @router.get('/recepciones/{codigo}/drive')
-def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     from app.models import AppCopiaDrive, AppEvento
     from app.services.operacion import destino_drive
     codigo = m.obtener(db, codigo).codigo
@@ -119,7 +125,7 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
     operativo=destino_drive(db,codigo)
     salida['destinoOperativo']={k:operativo[k] for k in ('cliente','marca')}
     salida['destinoOperativo']['supervisor']=responsable(db,codigo) or operativo['supervisor']
-    if op.rol in (Rol.ADMIN,Rol.SUPERVISOR):
+    if op.rol in (Rol.ADMIN,Rol.SUPERVISOR,Rol.OPERADOR):
         from app.services.remitentes import responsable
         salida['destino'] = destino_drive(db, codigo)
         salida['destino']['supervisor'] = responsable(db, codigo) or salida['destino']['supervisor']
@@ -139,6 +145,8 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
             'ubicaciones':ubicaciones.get(a.id,[]),
             'sku':c.datos.get('sku','') if c else '', 'tipo':c.datos.get('tipoEvidencia','') if c else '',
             'error': c.error if c and c.estado in ('PENDIENTE','REVISION') else None,
+            'intentos':c.intentos if c else 0,'proximoIntento':m._iso(c.proximo_en) if c and c.estado=='PENDIENTE' else None,
+            'proceso':c.datos.get('proceso',{}) if c else {},
             'enlace': a.drive_url if a.drive_id else None,
             'carpeta': (c.datos.get('carpeta') or '') if c and c.estado == 'COPIADA' else '',
             'ruta': c.datos.get('ruta', []) if c else []}
@@ -146,6 +154,11 @@ def estado_drive(codigo: str, db: Session = Depends(get_db), op: Operador = Depe
                 AppCopiaDrive.archivo_id == AppArchivo.id).where(AppArchivo.recepcion == codigo,
                 AppArchivo.tipo == 'foto').order_by(AppArchivo.creado_en, AppArchivo.id))
             if not c or c.estado != 'ELIMINADA' and c.datos.get('accion') != 'papelera']
+    if op.rol==Rol.OPERADOR:
+        salida.pop('destino',None);salida.pop('avisos',None)
+        salida['destinoOperativo'].pop('supervisor',None)
+        for f in salida['archivos']:
+            f['error']='La copia requiere revisión del supervisor.' if f['error'] else None
     return salida
 
 
@@ -154,7 +167,8 @@ def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = De
     from uuid import uuid4
     from app.services import entregas, remitentes, drive
     destino = svc.destino_drive(db, codigo)
-    correo, _ = remitentes.elegir(db, codigo, {'modoRemitente': 'RESPONSABLE'}, op.email or op.usuario)
+    from app.services.google_cuentas import responsable_drive
+    correo = responsable_drive(db,codigo,op.email or op.usuario)
     from app.services.fotos_embarques import informacion
     from app.services.enlaces_correo import base_embarque
     embarques=[base_embarque(e)[0] for e in informacion(db,codigo)[3]]

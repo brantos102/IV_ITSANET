@@ -2,7 +2,7 @@
 export function organizarAdministracion(raiz){
  if(raiz.querySelector('[data-admin-menu]'))return;
  const menu=document.createElement('nav');menu.className='admin-secciones';menu.dataset.adminMenu='';menu.setAttribute('aria-label','Secciones de administración');
- const areas=[['operacion','Operación diaria','Fotos, catálogo, remitentes e impresión'],['entregas','Entregas','Pendientes, envíos manuales e historial'],['conexiones','Conexiones','Depot, Google y acceso al servidor'],['equipo','Roles y reglas','Permisos, clientes e incidencias'],['formatos','Formatos Depot','Archivos de importación y columnas']];
+ const areas=[['operacion','Operación diaria','Fotos, catálogo, remitentes e impresión'],['procesos','Procesos y errores','Fotos, correos, intentos y diagnóstico'],['entregas','Entregas','Pendientes, envíos manuales e historial'],['conexiones','Conexiones','Depot, Google y acceso al servidor'],['equipo','Roles y reglas','Permisos, clientes e incidencias'],['formatos','Formatos Depot','Archivos de importación y columnas']];
  const descripcion=document.createElement('p');descripcion.className='guia-modal';descripcion.textContent='Selecciona una sección. Los supervisores realizan la operación; las credenciales y la administración de administradores permanecen en ADMIN.';
  raiz.prepend(menu,descripcion);
  const asignar=(selector,area)=>raiz.querySelectorAll(selector).forEach(p=>p.dataset.areaAdmin=area);

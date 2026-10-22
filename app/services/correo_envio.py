@@ -18,9 +18,14 @@ def enviar(db,codigo,datos,usuario):
     if not destinatarios:raise HTTPException(422,'Indica el correo del ejecutivo de cuenta asignado.')
     if v.get('respuestaOtraCuenta'):raise HTTPException(409,'Selecciona el hilo desde tu propia cuenta de Gmail.')
     f=db.get(AppInforme,str(datos.get('informeId') or ''))
+    if v.get('adjuntosPersonalizados'):
+        from app.services.adjuntos_correo import validar,disponibles
+        validar(db,r.codigo,origen,[{'id':a['id'],'nombre':a['nombre']} for a in v['archivos']])
+        opciones={a['id']:a for a in disponibles(db,r.codigo,origen)}
+        f=db.get(AppInforme,opciones[v['archivos'][0]['id']]['informeId'])
     if not f or f.recepcion!=r.codigo or f.datos.get('formato') not in ('envio','envio-ampliado') or not f.datos.get('archivos'):raise HTTPException(409,'Prepara los documentos finales dentro de este correo antes de enviarlo.')
     if f.datos.get('huellaContenido')!=informes.huella_contenido(db,r):raise HTTPException(409,'Los conteos, posiciones o evidencias cambiaron. Prepara los documentos actualizados antes de enviar.')
-    docs=[a['id'] for a in f.datos['archivos'] if not origen or a.get('grupo',a.get('origen'))==origen]
+    docs=[a['id'] for a in v['archivos']] if v.get('adjuntosPersonalizados') else [a['id'] for a in f.datos['archivos'] if not origen or a.get('grupo',a.get('origen'))==origen]
     if not docs or set(docs)!={a['id'] for a in v['archivos']}:raise HTTPException(409,'Los documentos no corresponden al grupo y revisión mostrados. Actualiza el correo.')
     if any(not (a:=db.get(AppArchivo,i)) or a.recepcion!=r.codigo or not (a.drive_id or archivos.ruta(a).is_file()) for i in docs):raise HTTPException(409,'Falta un documento final. Vuelve a preparar los documentos.')
     firma=hashlib.sha256(('correo62|'+r.codigo+'|'+origen+'|'+v['version']+'|'+f.id+'|'+usuario).encode()).hexdigest()
@@ -32,6 +37,7 @@ def enviar(db,codigo,datos,usuario):
     from app.services.drive import resumen_fotos,manifiesto
     if resumen_fotos(db,r.codigo)['pendientes']:raise HTTPException(409,'Hay imágenes sin confirmar u organizar en Drive. Revisa Fotos y actualiza sus carpetas antes de enviar.')
     _,_,fuente,_=correo._fuente(db,r.codigo,origen=origen)
+    if v['fotosSeleccionadas'] and not fuente.get('enlacesCarpetas'):raise HTTPException(409,'Comprueba las carpetas y enlaces de esta recepción antes de enviar sus fotografías.')
     if not fuente['skus'] or any(not s.get('verificado') for s in fuente['skus']):raise HTTPException(409,'Valida todas las referencias del grupo antes de enviar su informe final.')
     from app.services.correos_embarque import validar_cierre
     validar_cierre(db,r)  # Un informe descargable no acredita la asignación de conteos antiguos a sus listas.
@@ -43,7 +49,7 @@ def enviar(db,codigo,datos,usuario):
     fotos=[p['archivoId'] for p in manifiesto(db,r.codigo)]
     e=AppEntrega(id=uuid4().hex,recepcion=r.codigo,usuario=usuario,clave=firma,estado='PENDIENTE',datos=compactar({
         'correoRevisado62':True,'reporteSinCierre':True,'destinatarios':destinatarios,'remitente':remitente,'modoRemitente':modo,
-        'informes':docs,'fotos':list(dict.fromkeys(fotos)),'destino':destino,'carpetaMes':'','carpetaRecepcion':r.codigo,
+        'informes':docs,'nombresAdjuntos':{a['id']:a['nombre'] for a in v['archivos']},'fotos':list(dict.fromkeys(fotos)),'destino':destino,'carpetaMes':'','carpetaRecepcion':r.codigo,
         'skus':m.leer_coleccion(db,r.codigo,'skus',actual=True),'eventos':m.leer_coleccion(db,r.codigo,'eventos',actual=True),
         'lineas':m.leer_coleccion(db,r.codigo,'lineas',actual=True),'recepcion':m.doc_recepcion(r),
         'planCorreos':plan,'informeId':f.id,'informe':{'id':f.id,'numero':f.numero,'usuario':f.usuario,'creadoEn':m._iso(f.creado_en)},

@@ -10,7 +10,7 @@ from app.services import mi_correo, integraciones, entregas
 def consultar(db, op, operacion, datos):
     email = mi_correo.cuenta(db, op)
     conexion = integraciones.google(db, email)
-    if not conexion['url'] or not conexion['secreto']:
+    if not integraciones.conexion_lista(conexion):
         raise HTTPException(409, 'Autoriza tu cuenta en Mi cuenta y correo antes de consultar Gmail.')
     db.rollback()
     try:

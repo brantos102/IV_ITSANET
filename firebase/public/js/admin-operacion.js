@@ -1,12 +1,16 @@
-import {mostrarCuentasSupervision} from './admin-correos.js?v=20261021-62';
-import {pedir} from './local.js?v=20261021-62';
-import {operacion,esc} from './evidencias.js?v=20261021-62';
-import {pedirDatos,confirmar} from './modal.js?v=20261021-62';
+import {mostrarCuentasSupervision} from './admin-correos.js?v=20261022-63';
+import {pedir} from './local.js?v=20261022-63';
+import {operacion,esc} from './evidencias.js?v=20261022-63';
+import {pedirDatos,confirmar} from './modal.js?v=20261022-63';
+import {googleCentral} from './google-central.js?v=20261022-63';
+import {procesosAdmin} from './procesos-admin.js?v=20261022-63';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;
   const panel=document.createElement('section');panel.className='panel';panel.dataset.configOperacion='1';
   contenedor.prepend(panel);
+  procesosAdmin(contenedor);
+  await googleCentral(contenedor);
   let c=await operacion('/config'),ocupado=false,sucio=false;
   const input=(label,key,value,tipo='text')=>`<label class="campo"><span>${esc(label)}</span><input data-pref="${key}" type="${tipo}" value="${esc(value)}"></label>`;
   function pintar() {

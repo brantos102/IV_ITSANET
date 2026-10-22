@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 
 from app.models import Operador, Rol
-from app.services.integraciones import google, puentes_publicos
+from app.services.integraciones import google, puentes_publicos, conexion_lista
 from app.services.operacion import configuracion, destino_drive
 
 
@@ -15,8 +15,11 @@ def _disponible(db, correo):
     if len(perfiles) != 1:
         return False
     puente = google(db, correo)
-    return bool(puente['url'] and len(puente['secreto']) >= 32
-                and str(puente.get('supervisor') or correo).lower() == correo)
+    if puente.get('tipo')=='GOOGLE_API':
+        from app.services.google_cuentas import estado
+        propia=estado(db,correo)
+        return propia['conectada'] and propia['gmail']
+    return bool(conexion_lista(puente) and str(puente.get('supervisor') or correo).lower() == correo)
 
 
 def responsable(db, codigo, propuesto=None):

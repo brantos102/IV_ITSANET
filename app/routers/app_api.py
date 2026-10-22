@@ -149,7 +149,7 @@ def comprobar_envio(codigo: str, datos: dict=Body(...), db: Session=Depends(get_
         'remitenteConfirmado':datos.get('remitenteConfirmado')},_quien(op))
     destino=operacion.destino_drive(db,codigo);db.rollback()
     try:
-        r=entregas.llamar('estado',uuid4().hex,{'usuario':correo,'carpetaRaiz':destino['carpetaRaiz']})
+        r=entregas.llamar('estado',uuid4().hex,{'usuario':correo,'carpetaRaiz':destino['carpetaRaiz'],'verificarGmail':True})
         if str(r.get('remitente') or '').lower()!=correo:
             raise RuntimeError('Google no confirmó la cuenta que solicita el envío.')
         if 'correoVerificado' not in r.get('capacidades',[]):
@@ -302,6 +302,8 @@ def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session =
             fotos_identidad.asegurar_archivo(db,a)
             creada = operacion.vincular_evidencia(db, a, datos, _quien(op), confirmar=False)
             drive.encolar(db, a)
+            from app.services.procesos import registrar as registrar_proceso
+            registrar_proceso(db,'FOTO','GUARDADA',a.id,_quien(op),archivoId=a.id,recepcion=codigo,etapa='SERVIDOR')
             if r.estado not in m.ABIERTAS and creada:
                 operacion.auditoria(db, codigo, _quien(op), 'EVIDENCIA_POSTCIERRE', {'archivoId': a.id, 'tipo': 'ESTADO_FINAL'})
         db.commit()

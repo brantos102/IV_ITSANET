@@ -97,6 +97,8 @@ app.include_router(kpi.router)
 app.include_router(app_api.router)
 app.include_router(integraciones.router)
 app.include_router(google_auth.router)
+from app.routers import google_operacion
+app.include_router(google_operacion.router)
 app.include_router(reportes.router)
 app.include_router(operacion.router)
 app.include_router(impresion.router)

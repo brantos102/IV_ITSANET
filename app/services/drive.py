@@ -14,7 +14,7 @@ from app.db import SessionLocal
 from app.models import AppArchivo, AppArchivoIdentidad, AppCopiaDrive, AppEvidencia, AppUnidadLogistica, utcnow
 from app.services import archivos, entregas, operacion
 from app.services.fotos_identidad import pallet_evidencia
-from app.services import app_modelo as m
+from app.services import app_modelo as m, procesos
 
 _verificados = {}
 
@@ -164,7 +164,7 @@ def reintentar_pendientes(db, codigo, usuario):
 def verificar_puente(db, clave, datos):
     from app.services.integraciones import google
     g = google(db, datos['usuario'])
-    k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(), datos['usuario'], datos.get('carpetaRaiz'),bool(datos.get('rutaSku')),datos.get('versionFotos'))
+    k = (g['url'], hashlib.sha256(g['secreto'].encode()).hexdigest(),g.get('tipo'),g.get('driveCuenta'), datos['usuario'], datos.get('carpetaRaiz'),bool(datos.get('rutaSku')),datos.get('versionFotos'))
     if _verificados.get(k, 0) > time.monotonic(): return
     r = entregas.llamar('estado', clave, {'usuario': datos['usuario'], 'carpetaRaiz': datos.get('carpetaRaiz', '')})
     if datos.get('carpetaRecepcionId') and 'carpetasRecepcion62' not in r.get('capacidades',[]):raise RuntimeError('Actualiza Servidor.gs: la recepción conserva una carpeta fija de la versión 62. Las fotos locales se conservan.')
@@ -259,7 +259,10 @@ def vinculos_por_evidencia(aid,datos,respuesta):
     Si una misma foto tiene dos destinos con esa clave, consultar cada vínculo
     con el mismo fileId confirma sus carpetas sin volver a subir el binario.
     """
-    salida={};vs=datos.get('rutasVinculadas',[])
+    vs=datos.get('rutasVinculadas',[])
+    confirmados=respuesta.get('vinculosPorEvidencia')
+    if isinstance(confirmados,dict) and all(v.get('evidenciaId') in confirmados for v in vs):return confirmados
+    salida={}
     for v in vs:
         if not v.get('evidenciaId'):continue
         k=v['categoria']+'|'+v['sku'];r=respuesta
@@ -300,17 +303,21 @@ def procesar_uno():
         db.commit()
         if cambio.rowcount != 1: return False
         j, a = db.get(AppCopiaDrive, aid), db.get(AppArchivo, aid)
+        iniciado=time.monotonic()
         try:
             j.intentos += 1
             # Permite corregir responsable/repositorio desde ADMIN sin editar tareas pendientes.
             if not a.drive_id and j.datos.get('accion') != 'papelera':
                 j.datos = descripcion(db, a)
                 j.usuario = j.datos['usuario']
+            j.datos={**j.datos,'proceso':{'etapa':'VERIFICANDO','actualizadoEn':m._iso(utcnow())}}
+            procesos.registrar(db,'FOTO','PROCESANDO',aid,j.usuario,archivoId=aid,recepcion=j.recepcion,intento=j.intentos,etapa='VERIFICANDO')
             db.commit()
             if not entregas.configurado(db, j.usuario):
                 raise RuntimeError('Pendiente de conexión Drive del supervisor responsable')
             d = dict(j.datos)
             verificar_puente(db, aid + ':' + aid, {**d, 'usuario': j.usuario})
+            j.datos={**j.datos,'proceso':{'etapa':'COPIANDO' if not a.drive_id else 'ORGANIZANDO','actualizadoEn':m._iso(utcnow())}};db.commit()
             if d.get('accion') == 'papelera':
                 if a.drive_id:
                     entregas.llamar('papelera', aid + ':' + aid, {**d, 'usuario': j.usuario, 'fileId': a.drive_id})
@@ -332,6 +339,8 @@ def procesar_uno():
                         'carpetaSkuUrl': r.get('carpetaSkuUrl', ''),'vinculosDrive':r.get('vinculosDrive',{}),'vinculosPorEvidencia':vinculos}
                 j.estado = 'COPIADA'
             j.error = None
+            j.datos={**j.datos,'proceso':{'etapa':j.estado,'actualizadoEn':m._iso(utcnow())}}
+            procesos.registrar(db,'FOTO',j.estado,aid,j.usuario,archivoId=aid,recepcion=j.recepcion,intento=j.intentos,duracionMs=int((time.monotonic()-iniciado)*1000))
             db.commit()
             if j.estado == 'COPIADA':
                 nueva = descripcion(db,a)
@@ -347,6 +356,9 @@ def procesar_uno():
             j.estado = 'REVISION' if entregas.conexion_rechazada(str(exc)) else 'PENDIENTE'
             j.error = str(exc)[:160] if type(exc) is RuntimeError else 'Copia pendiente; se reintentará sin perder la foto'
             j.proximo_en = utcnow() + timedelta(seconds=min(1800, 15 * 2 ** min(j.intentos, 7)))
+            codigo=str(exc).split(':',1)[0] if type(exc) is RuntimeError and re.match(r'^[A-Z_]+:',str(exc)) else type(exc).__name__
+            j.datos={**j.datos,'proceso':{'etapa':'ERROR','codigo':codigo,'actualizadoEn':m._iso(utcnow())}}
+            procesos.registrar(db,'FOTO','ERROR',aid,j.usuario,archivoId=aid,recepcion=j.recepcion,intento=j.intentos,codigo=codigo)
             db.commit()
     return True
 

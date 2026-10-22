@@ -76,6 +76,9 @@ def identidad(c, codigo, verificador):
 
 @router.get('/google/callback')
 def callback(request: Request, db: Session = Depends(get_db)):
+    from app.routers import google_operacion
+    if request.cookies.get(google_operacion.COOKIE) and request.query_params.get('state','').startswith('op_'):
+        return google_operacion.callback(request,db)
     r = RedirectResponse('/app/?google=error', status_code=303)
     r.delete_cookie(FLUJO, path='/api/auth/google')
     if not request.cookies.get(FLUJO):

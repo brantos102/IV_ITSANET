@@ -31,7 +31,9 @@ def _firma(f):
 
 def estado(db,op):
     email=cuenta(db,op);f=_propia(db,email);d=f.datos if f else {}
+    from app.services.google_cuentas import estado as estado_api
     return {'correo':email,'url':d.get('url',''),'secretoConfigurado':bool(d.get('credencial')),
+        'api':estado_api(db,email),
         'verificadoEn':d.get('verificadoEn'),'capacidades':d.get('capacidades',[]),
         'gmailDisponible':'gmailHilos' in d.get('capacidades',[]),
         'envioHabilitado':operacion.configuracion(db)['correo']['permitirPersonal']}

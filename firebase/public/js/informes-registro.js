@@ -1,5 +1,5 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261021-62';
-import {confirmar,elegir} from './modal.js?v=20261021-62';
+import {pedir,nuevoIdentificador} from './local.js?v=20261022-63';
+import {confirmar,elegir} from './modal.js?v=20261022-63';
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const base=c=>'/recepciones/'+encodeURIComponent(c)+'/informes';
@@ -21,16 +21,16 @@ export async function archivarInforme(c,informe,libros){return api(base(c)+'/'+i
 export async function prepararDocumentosPorEmbarque(c){
  const plan=await api('/recepciones/'+encodeURIComponent(c)+'/correos-embarques');
  if(plan.embarques.length&&plan.modo==='PACKING_LIST'&&!plan.consolidadoConfirmado){
-  const {revisarPlanCorreos}=await import('./correos-embarques.js?v=20261021-62');
+  const {revisarPlanCorreos}=await import('./correos-embarques.js?v=20261022-63');
   if(!await revisarPlanCorreos(c))return null;
  }
- const formato=await elegir({titulo:'Preparar documentos por packing list',texto:'Se conservan el cierre, los conteos y los documentos históricos. Esta revisión prepara un Excel por embarque; no envía correos ni inicia descargas.',opciones:[
+ const formato=await elegir({titulo:'Preparar documentos por packing list',texto:'Se conservan el cierre, los conteos y los documentos históricos. El correo descargará los documentos preparados para que puedas revisarlos antes de enviar.',opciones:[
   {valor:'envio-ampliado',titulo:'Informe ampliado · columnas configuradas'},
   {valor:'envio',titulo:'Packing list · formato original'}]});
  if(!formato)return null;
  const vigente=await informeActual(c,formato);if(vigente.actual)return vigente.informe;
  const f=await iniciarInforme(c,'DESCARGA',formato);if(!f)return null;if(f.estado==='GENERADO')return f;
- const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261021-62'),pedir('/recepciones/'+encodeURIComponent(c))]);
+ const [{reunirInforme,construirLibros},recepcion]=await Promise.all([import('./informe.js?v=20261022-63'),pedir('/recepciones/'+encodeURIComponent(c))]);
  const datos=await reunirInforme(c,recepcion);datos.recepcion={...datos.recepcion,informe:f};
  return archivarInforme(c,f,construirLibros(datos,{version:formato}));
 }

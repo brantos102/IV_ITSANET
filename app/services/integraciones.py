@@ -117,8 +117,16 @@ def puentes_publicos(db):
             for f in db.scalars(select(AppConfig).where(AppConfig.clave.like('g:%')))]
 
 
-def google(db, supervisor=None):
+def conexion_lista(conexion):
+    return conexion.get('tipo')=='GOOGLE_API' or bool(conexion.get('url') and len(conexion.get('secreto',''))>=32)
+
+
+def google(db, supervisor=None, *, legado=False):
     email = str(supervisor or '').strip().lower()
+    if not legado:
+        from app.services.google_cuentas import conexion
+        directa=conexion(db,email)
+        if directa:return directa
     f = db.get(AppConfig, _clave_google(email)) if email else None
     f = f or db.get(AppConfig, 'google')
     if f:
@@ -131,7 +139,7 @@ def guardar_google(db, datos, usuario, *, confirmar=True):
     supervisor = str(datos.get('supervisor') or '').strip().lower()
     if supervisor and not re.fullmatch(r'[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+', supervisor):
         raise HTTPException(422, 'Correo del supervisor invalido')
-    anterior = google(db, supervisor)
+    anterior = google(db, supervisor,legado=True)
     url = _url(datos.get('url') or anterior['url'], google=True)
     secreto = str(datos.get('secreto') or anterior['secreto'])
     if len(secreto) < 32:

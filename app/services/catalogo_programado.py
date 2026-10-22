@@ -122,11 +122,28 @@ def sincronizar_turno(ahora=None):
 async def trabajador():
     from app.services.drive import procesar_uno
     from app.services.carpetas_recepcion import trabajar as preparar_carpetas
+    async def fotos():
+        while True:
+            try:ocupado=await asyncio.to_thread(procesar_uno)
+            except asyncio.CancelledError:raise
+            except Exception:
+                log.warning('Revisión de cola de fotos pendiente');ocupado=False
+            await asyncio.sleep(0.25 if ocupado else 2)
+    # Dos reservas independientes: una imagen lenta no detiene las demás ni el
+    # catálogo. La actualización SQL impide tomar dos veces el mismo archivo.
+    tareas=[asyncio.create_task(fotos()) for _ in range(2)]
+    try:
+        await _trabajador_catalogo_carpetas(preparar_carpetas)
+    finally:
+        for t in tareas:t.cancel()
+        await asyncio.gather(*tareas,return_exceptions=True)
+
+
+async def _trabajador_catalogo_carpetas(preparar_carpetas):
     siguiente_catalogo = 0.0
     while True:
         try:
-            ocupado = await asyncio.to_thread(procesar_uno)
-            if not ocupado:ocupado=await asyncio.to_thread(preparar_carpetas)
+            ocupado=await asyncio.to_thread(preparar_carpetas)
             reloj = asyncio.get_running_loop().time()
             if reloj >= siguiente_catalogo:
                 await asyncio.to_thread(sincronizar_turno)

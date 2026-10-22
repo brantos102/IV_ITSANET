@@ -29,7 +29,8 @@ ACTIVAS = ('PENDIENTE', 'PROCESANDO', 'REVISION')
 def conexion_rechazada(mensaje):
     texto=str(mensaje or '').lower()
     return any(p in texto for p in ('servidor_hmac','clave compartida no coincide','misma cuenta google',
-        'ejecutarse como el supervisor','archivos de versiones diferentes'))
+        'ejecutarse como el supervisor','archivos de versiones diferentes','google_autorizacion:',
+        'google_permisos:','google_api_desactivada:','drive_carpeta_duplicada:','drive_ruta_cambio:'))
 
 
 def recientes(db, limite=100, *, recepcion=None, cliente=None, incluir_archivadas=True):
@@ -64,12 +65,18 @@ def activas(db, codigo):
 
 
 def configurado(db=None, supervisor=None):
-    from app.services.integraciones import google, puentes_publicos
+    from app.services.integraciones import google, puentes_publicos, conexion_lista
     if db is None:
         with SessionLocal() as sesion:
             return configurado(sesion, supervisor)
     g = google(db, supervisor)
-    return bool(g['url'] and len(g['secreto']) >= 32) or (not supervisor and bool(puentes_publicos(db)))
+    if not supervisor:
+        from app.services.google_cuentas import configuracion, estado
+        c=configuracion(db)
+        if c.get('activo'):
+            from app.models import AppConfig
+            if db.scalar(select(AppConfig.clave).where(AppConfig.clave.like('go:%'),AppConfig.datos['estado'].as_string()=='AUTORIZADA').limit(1)):return True
+    return conexion_lista(g) or (not supervisor and bool(puentes_publicos(db)))
 
 
 def documento(e, tecnico=False):
@@ -315,6 +322,9 @@ def llamar(operacion, clave, datos):
 
 def llamar_conexion(operacion, clave, datos, destino):
     """Verifica una conexión candidata sin guardarla ni cambiar tareas pendientes."""
+    if destino.get('tipo')=='GOOGLE_API':
+        from app.services.google_api import llamar as api_directa
+        return api_directa(operacion,clave,datos,destino)
     payload = json.dumps({'operacion': operacion, 'clave': clave,
         'fecha': int(time.time()), 'datos': datos}, ensure_ascii=False, separators=(',', ':'))
     if not destino['url'] or len(destino['secreto']) < 32:
@@ -387,6 +397,8 @@ def procesar_uno():
         e = db.get(AppEntrega, ident)
         db.refresh(e)
         e.intentos += 1
+        from app.services import procesos
+        procesos.registrar(db,'CORREO','PROCESANDO',e.id,e.usuario,recepcion=e.recepcion,intento=e.intentos)
         db.commit()
         try:
             d = expandir(e.datos)
@@ -468,7 +480,7 @@ def procesar_uno():
                         raise RuntimeError('Google no confirmo un identificador de archivo valido')
                     a.drive_id, a.drive_url = drive_id, 'https://drive.google.com/file/d/' + drive_id + '/view'
                     db.commit()
-                guardados.append({**copia,'nombre':a.nombre,'tipoArchivo':a.tipo})
+                guardados.append({**copia,'nombre':d.get('nombresAdjuntos',{}).get(a.id,a.nombre),'tipoArchivo':a.tipo})
                 # La imagen no ocupa MySQL ni queda duplicada tras confirmar Drive.
                 if a.tipo == 'foto':
                     archivos.conservar_miniatura(a)
@@ -506,6 +518,7 @@ def procesar_uno():
                 raise RevisionEntrega('Google no confirmó el remitente del envío final. Revisa Enviados antes de reintentar; el informe no se reenviará automáticamente.')
             resultado = {**resultado, 'confirmadoEn': resultado.get('confirmadoEn') or m._iso(utcnow())}
             e.estado, e.resultado, e.error = 'ENTREGADA', resultado, None
+            procesos.registrar(db,'CORREO','ENTREGADA',e.id,e.usuario,recepcion=e.recepcion,intento=e.intentos)
             if d.get('informeId'):
                 informe = db.get(AppInforme, d['informeId'])
                 if informe:
@@ -518,6 +531,7 @@ def procesar_uno():
                          'confirmadoEn': resultado['confirmadoEn'], 'remitente': remitente})
         except RevisionEntrega as exc:
             e.estado, e.error = 'REVISION', str(exc)
+            procesos.registrar(db,'CORREO','ERROR',e.id,e.usuario,recepcion=e.recepcion,intento=e.intentos,codigo='REVISION_ENVIO')
             if d.get('informeId'):
                 informe = db.get(AppInforme, d['informeId'])
                 if informe:
@@ -531,6 +545,7 @@ def procesar_uno():
                 e.estado='REVISION'
                 e.datos={**e.datos,'revisionMotivo':'CONEXION_RECHAZADA','conexionFallidaEn':m._iso(utcnow())}
             log.warning('Entrega %s pendiente (%s)', e.id, type(exc).__name__)
+            procesos.registrar(db,'CORREO','ERROR',e.id,e.usuario,recepcion=e.recepcion,intento=e.intentos,codigo=type(exc).__name__)
         db.commit()
     return True
 
