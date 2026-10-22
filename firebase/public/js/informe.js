@@ -10,14 +10,15 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261022-63';
-import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261022-63';
-import { db } from './auth.js?v=20261022-63';
-import * as local from './local.js?v=20261022-63';
-import {eventosActivos} from './conteo.js?v=20261022-63';
-import {fechaDe} from './fechas.js?v=20261022-63';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261022-63';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261022-63';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261022-64';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261022-64';
+import { db } from './auth.js?v=20261022-64';
+import * as local from './local.js?v=20261022-64';
+import {eventosActivos} from './conteo.js?v=20261022-64';
+import {fechaDe} from './fechas.js?v=20261022-64';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261022-64';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261022-64';
+import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261022-64';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 
@@ -94,6 +95,7 @@ export function repartirPorListas(lineas,totales,explicitos={}) {
 
 // Las ubicaciones y observaciones de una lista nunca completan otra lista vacía.
 export function completarRegistrosPorLista(filas,eventos) {
+  if(filas.every(f=>Number.isFinite(f.fisica)))return repartirRegistrosEnFilas(filas,eventos);
   const origenes=new Map(),registros=new Map();
   for(const f of filas){if(!origenes.has(f.sku))origenes.set(f.sku,new Set());origenes.get(f.sku).add(f.origen||'PRINCIPAL');}
   const clave=(sku,origen)=>JSON.stringify([sku,origen]);
@@ -127,7 +129,7 @@ export async function reunirInforme(recepcionId, recepcion) {
     leerColeccion(recepcionId, 'skus'),
     leerColeccion(recepcionId, 'adicionales'),
     leerColeccion(recepcionId, 'eventos').then((eventos) => {
-      return eventos.sort((a, b) => aFechaMs(a.creadoEn) - aFechaMs(b.creadoEn));
+      return eventos.sort((a, b) => aFechaMs(a.creadoEn) - aFechaMs(b.creadoEn) || String(a.id).localeCompare(String(b.id)));
     }),
   ]);
 
@@ -288,7 +290,13 @@ export async function reunirInforme(recepcionId, recepcion) {
     porOrigen:g.packingLists.map(o=>{
       const lista=porOrigen.find(l=>l.origen===o),resultados=agrupacion.resultados.filter(x=>x.grupo===g.id&&x.origen===o);
       const filas=lista.detalle.filter(l=>String(l.embarque||agrupacion.configuracion.embarquesPorLinea[l.id||o+'-'+l.linea]||'').trim().toUpperCase()===g.nombre);
-      const eventosGrupo=resultados.map(x=>({id:'reparto-'+o+'-'+x.sku,tipo:'CONTEO',sku:x.sku,origen:o,cantidad:x.contado,pallet:x.pallets,observacion:x.observacion,incidencias:x.incidencias}));
+      const eventosGrupo=resultados.flatMap(x=>{
+       const embs=new Set(lineas.filter(l=>l.sku===x.sku&&(l.origen||'PRINCIPAL')===o).map(l=>String(l.embarque||agrupacion.configuracion.embarquesPorLinea[l.id||o+'-'+l.linea]||'').trim().toUpperCase()).filter(Boolean));
+       const origenesSku=new Set(lineas.filter(l=>l.sku===x.sku).map(l=>l.origen||'PRINCIPAL'));
+       const propios=eventos.filter(e=>e.sku===x.sku&&(e.origen===o||!e.origen&&origenesSku.size===1));
+       if(embs.size===1)return propios;
+       return [{id:'reparto-'+o+'-'+x.sku,tipo:'CONTEO',sku:x.sku,origen:o,cantidad:x.contado,pallet:'',observacion:x.observacion,incidencias:x.incidencias,sinDetalleUbicacion:true}];
+      });
       const base=repartirPorLinea(filas,Object.fromEntries(resultados.map(x=>[x.sku,x.contado]))).map(l=>({...l,formulas:{},estado:etiquetaEstado(Number(l.cantidad),l.fisica),pnc:'',calidadPorRevisar:false}));
       const propia=metadatosDelGrupo(meta,'EMBARQUE',g.nombre);
       return {...lista,detalle:completarIncidencias(completarRegistrosPorLista(base,eventosGrupo),eventosGrupo,propia).map(l=>evidenciasDeFila(l,propia))};
@@ -341,7 +349,8 @@ function hojaOriginal(filas, formato, ampliado=false, validacionDepot=null) {
   const orden=columnasDeSalida(formato,{ampliado});
   formato=prepararFormatoInforme(formato,ampliado);
   const enc = (formato?.encabezados || []).slice();
-  const col = formato?.columnas || {};
+  const col = {...formato?.columnas};
+  if(col.posicion===undefined){const j=enc.findIndex(v=>/^(?:POSICION(?:FINAL(?:SUGERIDA)?|REAL(?:ASIGNADA)?)?|UBICACIONFINAL(?:SUGERIDA)?)$/.test(String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z]/g,'')));if(j>=0)col.posicion=j;}
   const ancho = enc.length;
   const salida=new Set(['marca','cliente','fisica','validacion','desface','pallet','posicion','codigoBarra','cantidadIncidencia','incidencia','observacion','evidencia','depot']);
   for(const [rol,i] of Object.entries(col))if(salida.has(rol)&&(!Number.isInteger(i)||i<0||i>=ancho))throw Error('La columna de '+rol+' no existe en este packing list. Revisa Columnas del informe.');
@@ -364,7 +373,7 @@ function hojaOriginal(filas, formato, ampliado=false, validacionDepot=null) {
     if(l.evidencia!==undefined)poner('evidencia',l.evidencia||'');
     for(const rol of ['marca','cliente','posicion','codigoBarra','cantidadIncidencia','incidencia','evidencia']){
       const valor=rol==='posicion'?l.posicionReal:l[rol];
-      if(valor!==undefined&&valor!==null&&valor!==''&&(!['marca','cliente'].includes(rol)||!fila[col[rol]]))poner(rol,valor);
+      if(valor!==undefined&&valor!==null&&(valor!==''||rol==='posicion')&&(!['marca','cliente'].includes(rol)||!fila[col[rol]]))poner(rol,valor);
     }
 
     matriz.push(fila);
@@ -451,6 +460,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   }
   const soloEnvio = ['envio','envio-ampliado'].includes(opciones.version);
   const libro = XLSX.utils.book_new();
+  const ubicaciones=[];
   libro.Props={Company:'ITSANET',Author:recepcion.informe?.usuario||'ITSANET',Title:recepcion.codigo,Subject:(recepcion.informe?'Informe '+recepcion.informe.numero+' · '+recepcion.informe.id:'Validación de recepción')+' · Listas: '+(porOrigen||[]).map(l=>l.origen).join(', ')};
   if(opciones.embarque)libro.Props.Subject+=' · Embarque: '+opciones.embarque;
   if(opciones.embarque)libro.Props.Comments=(libro.Props.Comments||'')+' Revisión por embarque: conserva valores de las filas de origen; las fórmulas se presentan como valores para evitar referencias a filas de otros embarques.';
@@ -478,12 +488,26 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
       }
     }
     XLSX.utils.book_append_sheet(libro,hoja,base);
+    lista.detalle.forEach((l,i)=>{for(const p of l.registrosAsignados||[]){ubicaciones.push({
+     'HOJA':base,'FILA DEL INFORME':prefijoInforme(lista.formato||{}).length+i+2,'FILA ORIGINAL':l.filaOriginal||'', 'LINEA':l.linea||i+1,'PACKING LIST':l.origen||lista.origen,'EMBARQUE':l.embarque||opciones.embarque||'',
+     'ITEM':l.sku,'DESCRIPCION':l.descripcion||'','CANTIDAD ASIGNADA':p.cantidad,'CONDICION':p.estado,'INCIDENCIA':p.tipo||'',
+     'PALLET':p.pallet||'Sin pallet registrado','POSICION FINAL SUGERIDA':p.posicionReal||'Sin posición registrada',
+     'OBSERVACION DEL CONTEO':p.observacion||'','ID CONTEO':p.eventoId||'',
+     'ASIGNACION A FILA':p.sinDetalleUbicacion?'Por revisar':'Por orden de filas del packing list',
+     'EVIDENCIAS':l.evidencia||''});}});
 
     // Y aparte, lo que la validación añade.
     if (!soloEnvio && lista.formato?.encabezados?.length) {
       XLSX.utils.book_append_sheet(
         libro, hojaValidada(lista.detalle), nombreDeHoja(base + ' DET'));
     }
+  }
+
+  if(ubicaciones.length){
+   const hoja=XLSX.utils.json_to_sheet(ubicaciones),cabecera=Object.keys(ubicaciones[0]);hoja['!cols']=cabecera.map(k=>({wch:/OBSERVACION|ASIGNACION|EVIDENCIAS/.test(k)?55:/DESCRIPCION|POSICION|ID CONTEO/.test(k)?34:22}));hoja['!autofilter']={ref:hoja['!ref']};
+   ubicaciones.forEach((p,i)=>{const fila=hoja[XLSX.utils.encode_cell({r:i+1,c:cabecera.indexOf('FILA DEL INFORME')})];if(fila)fila.l={Target:"#'"+p.HOJA.replace(/'/g,"''")+"'!A"+p['FILA DEL INFORME'],Tooltip:'Ir a la fila del packing list validado'};const url=String(p.EVIDENCIAS||'').split(' | ')[0],celda=hoja[XLSX.utils.encode_cell({r:i+1,c:cabecera.indexOf('EVIDENCIAS')})];if(celda&&/^https:\/\/drive\.google\.com\//.test(url))celda.l={Target:url,Tooltip:'Evidencias confirmadas del SKU '+p.ITEM};});
+   let nombre='UBICACIONES';while(libro.SheetNames.includes(nombre))nombre+=' 2';XLSX.utils.book_append_sheet(libro,hoja,nombre);
+   libro.Props.Comments=(libro.Props.Comments||'')+' UBICACIONES muestra unidades por conteo y condición. La asignación a filas repetidas es secuencial dentro de su packing list; no acredita una factura física que no se registró.';
   }
 
   // Un sobrante declarado ya está en el packing validado: nunca duplicarlo como adicional.
@@ -659,8 +683,12 @@ export function completarIncidencias(filas,eventos,meta={}){
   for(const f of fs)grupos.get(clave).push({...f,cantidad:Number(f.cantidad)});
  }
  return filas.map(l=>{let disponible=Number(l.fisica)||0,pnc=0,novedad=0;const tipos=[];
+  if(l.registrosAsignados){
+   for(const p of l.incidenciasAsignadas||[]){novedad+=p.cantidad;if(p.pnc)pnc+=p.cantidad;const nombre=p.tipo+' ('+p.cantidad+' u.)'+(p.pallet?' · Pallet '+p.pallet:'');if(!tipos.includes(nombre))tipos.push(nombre);}
+  }else{
   for(const origen of [l.origen||'PRINCIPAL','']){const gs=grupos.get(JSON.stringify([l.sku,origen]))||[];
    for(const f of gs){const n=Math.min(disponible,f.cantidad);if(n<=0)continue;f.cantidad-=n;disponible-=n;novedad+=n;if(f.pnc)pnc+=n;const nombre=(f.nombre||f.tipo)+(f.pallet?' · Pallet '+f.pallet:'');if(!tipos.includes(nombre))tipos.push(nombre);}
+  }
   }
   if(l.diferencia)tipos.push(l.diferencia<0?'FALTANTE':'SOBRANTE');
   const sinDesglose=l.calidadPorRevisar&&pnc===0;if(sinDesglose)tipos.push('PNC · cantidad por revisar');

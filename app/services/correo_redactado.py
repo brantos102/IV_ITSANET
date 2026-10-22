@@ -233,14 +233,16 @@ def renderizar(codigo, fuente, campos, archivos, remitente, presentacion=None):
     def tabla(titulo, filas, categoria, color, novedad=False):
         if not filas: return '<div data-correo-bloque="tabla:'+categoria+'"></div>'
         cab = ['Referencia', 'Descripción', 'Declarado', 'Contado', 'Diferencia', 'Pallets']
-        if novedad: cab += ['Uds. afectadas', 'Novedad']
+        if novedad: cab += ['Uds. afectadas', 'Novedad', 'Unidades por condición, pallet y posición']
         cab += ['Observaciones']
         cuerpo = ''
         for n, s in enumerate(filas):
             valores = [s['sku'], s['descripcion'], s['esperado'], s['fisico'], s['diferencia'], str(s['pallets']).replace('~', '.')]
             if novedad:
+                from app.services.desglose_conteos import texto_ubicaciones
                 inc = s.get('incidencias', [])
                 valores += [sum(float(i.get('cantidad') or 0) for i in inc), ' · '.join(dict.fromkeys((i.get('nombre') or i.get('tipo',''))+(' · Pallet '+', '.join(i['pallets']) if i.get('pallets') else '') for i in inc)) or 'PNC por revisar']
+                valores += [texto_ubicaciones(fuente.get('eventosUbicacion',fuente['eventos']),s['sku']) or 'Detalle por conteo pendiente de revisar']
             valores += [s['observacion']]
             cuerpo += '<tr style="background:' + ('#ffffff' if n % 2 else '#f7f9fc') + '">' + ''.join('<td style="padding:9px 7px;border-bottom:1px solid #e3e9f1;vertical-align:top;overflow-wrap:anywhere;' + ('font-weight:700;color:#174c91;' if i == 0 else '') + '">' + escape(numero(v)) + '</td>' for i, v in enumerate(valores)) + '</tr>'
         contenido = ('<div style="overflow-x:auto"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:12px;line-height:1.45;text-align:left">'

@@ -187,15 +187,24 @@ def filtrar(f,lineas,ident,c):
     if not g:raise HTTPException(422,'El embarque no pertenece a este plan de correos.')
     filas,pendientes=proyecciones(f,lineas,c)
     reparto_vigente(c,pendientes)
-    eventos=[]
+    eventos=[];eventos_ubicacion=[]
     for x in filas:
         if x['grupo']!=ident:continue
         eventos.append({'id':'reparto-'+firma([x['origen'],x['sku'],ident])[:24],'tipo':'CONTEO','sku':x['sku'],'origen':ident,
             'cantidad':x['contado'],'pallet':x['pallets'],'observacion':x['observacion'],'incidencias':[i for i in x['incidencias'] if i['cantidad']>0]})
+        embarques_sku={embarque(l,c) for l in lineas if l['sku']==x['sku'] and (l.get('origen') or 'PRINCIPAL')==x['origen']}
+        if len(embarques_sku)==1:
+            base=por_lista(f,lineas,x['origen'],c.get('asignaciones',{}))
+            conteos=[e for e in base['eventos'] if e.get('sku')==x['sku']]
+            ids={e['id'] for e in conteos}
+            eventos_ubicacion.extend(conteos+[e for e in base['eventos'] if e.get('tipo')=='CALIDAD' and e.get('eventoId') in ids and e not in conteos])
+        else:eventos_ubicacion.append({**eventos[-1],'sinDetalleUbicacion':True})
     for s in f['skus']:
         if s.get('enPackingList') is False and c.get('asignaciones',{}).get(s['sku'])==ident:
             eventos.append({'id':'adicional-'+s['sku'],'tipo':'CONTEO','sku':s['sku'],'origen':ident,'cantidad':s['contado'],
                 'pallet':'-'.join(s.get('pallets',{})),'incidencias':[{**i,'cantidad':n,'pnc':pnc} for i in s.get('incidencias',[]) for n,pnc in ((i.get('pnc',0),True),(i['cantidad']-i.get('pnc',0),False)) if n>0]})
+            propios=[e for e in f['eventos'] if e.get('sku')==s['sku']];ids={e['id'] for e in propios}
+            eventos_ubicacion.extend(propios+[e for e in f['eventos'] if e.get('tipo')=='CALIDAD' and e.get('eventoId') in ids and e not in propios])
     ls=[{**l,'origen':ident} for l in lineas if grupo_id(embarque(l,c))==ident]
     filtrado=por_lista({**f,'eventos':eventos,'fotos':[]},ls,ident,c.get('asignaciones',{}))
     miembros={s['sku'] for s in filtrado['skus']};fotos=[]
@@ -205,4 +214,4 @@ def filtrar(f,lineas,ident,c):
         compartida=any(v.get('sku') and v.get('embarque') is None and len({embarque(l,c) for l in lineas if l['sku']==v['sku'] and (not v.get('origen') or l.get('origen')==v['origen'])})>1 for v in vs)
         fotos.append({**foto,'sku':vs[0].get('sku',''),'categoria':vs[0].get('categoria','RECEPCION'),
             'origen':vs[0].get('origen',''),'embarque':vs[0].get('embarque'),'rutasVinculadas':vs,'requiereRevision':compartida})
-    return {**filtrado,'fotos':fotos,'nombreGrupo':g['nombre'],'tipoGrupo':'EMBARQUE','packingLists':g['packingLists']}
+    return {**filtrado,'eventosUbicacion':eventos_ubicacion,'fotos':fotos,'nombreGrupo':g['nombre'],'tipoGrupo':'EMBARQUE','packingLists':g['packingLists']}

@@ -291,4 +291,44 @@ await test('CSV no interpreta como posición válida seis segmentos ni omite el 
  const vacia={nave:'',calle:'',columna:'',nivel:'',profundidad:''};eq(csv.partesDePosicion('BM-A-10-1-X-Y'),vacia);
  eq(csv.partesDePosicion('BM-A-010-01'),{nave:'BM',calle:'A',columna:'010',nivel:'01',profundidad:''});
 });
+
+
+await test('64: filas repetidas conservan solo sus cantidades, pallets, posiciones y notas',()=>{
+ const filas=[{sku:'S64',origen:'PL',linea:1,cantidad:6,fisica:6,diferencia:0,estado:'OK',cruda:['S64',6]}, {sku:'S64',origen:'PL',linea:2,cantidad:4,fisica:4,diferencia:0,estado:'OK',cruda:['S64',4]}];
+ const es=[{id:'a64',tipo:'CONTEO',sku:'S64',origen:'PL',cantidad:6,pallet:'A01',posicionReal:'BM-A-10-1',observacion:'Daño en dos unidades',incidencias:[{tipo:'MAL_ESTADO',nombre:'Rotura',cantidad:2,pnc:true,pallet:'A01'}]}, {id:'b64',tipo:'CONTEO',sku:'S64',origen:'PL',cantidad:4,pallet:'A02',posicionReal:'BM-B-20-2',observacion:'Caja conforme'}];
+ const d=informe.completarIncidencias(informe.completarRegistrosPorLista(filas,es),es);
+ eq(d.map(f=>f.palletsSimple),['A01','A02']);eq(d.map(f=>f.posicionReal),['BM-A-10-1','BM-B-20-2']);eq(d.map(f=>f.observacion),['Daño en dos unidades','Caja conforme']);eq(d.map(f=>f.cantidadPnc),[2,0]);eq(d.map(f=>f.cantidadConforme),[4,4]);
+ eq(d.flatMap(f=>f.registrosAsignados).map(p=>[p.cantidad,p.estado,p.pallet]),[[2,'PNC','A01'],[4,'CONFORME','A01'],[4,'CONFORME','A02']]);
+ const formato={hoja:'REV',encabezados:['ITEM','Cantidad','FISICA','PALLET','OBSERVACION','POSICION FINAL SUGERIDA'],columnas:{sku:0,cantidad:1,fisica:2,pallet:3,observacion:4}};
+ const salida=informe.construirLibro({recepcion:{codigo:'DEMO64'},detalle:d,porOrigen:[{origen:'PL',formato,detalle:d}],eventos:es,adicionales:[]},{version:'envio'});
+ const wb=XLSX.read(salida.base64,{type:'base64'}),rev=XLSX.utils.sheet_to_json(wb.Sheets.REV),ub=XLSX.utils.sheet_to_json(wb.Sheets.UBICACIONES);
+ eq(rev.length,2);eq(rev.map(f=>f.PALLET),['A01','A02']);eq(rev.map(f=>f['POSICION FINAL SUGERIDA']),['BM-A-10-1','BM-B-20-2']);eq(ub.map(f=>f['CANTIDAD ASIGNADA']),[2,4,4]);eq(ub.reduce((n,f)=>n+f['CANTIDAD ASIGNADA'],0),10);eq(ub.map(f=>f['FILA DEL INFORME']),[2,2,3]);eq(wb.Sheets.UBICACIONES.B2.l.Target,"#'REV'!A2");
+});
+await test('64: una sola fila con dos destinos expresa cantidades, sin inventar un único pallet',()=>{
+ const es=[{id:'a',sku:'S',cantidad:6,pallet:'A01',posicionReal:'POS1',incidencias:[{tipo:'Rotura',cantidad:2,pnc:true}]},{id:'b',sku:'S',cantidad:4,pallet:'A02',posicionReal:'POS2'}];
+ const d=informe.completarRegistrosPorLista([{sku:'S',fisica:10}],es)[0];eq(d.palletsSimple,'A01 (6 u.) / A02 (4 u.)');eq(d.posicionReal,'POS1 (6 u.) / POS2 (4 u.)');eq(d.registrosAsignados.reduce((n,p)=>n+p.cantidad,0),10);
+ const w=XLSX.read(informe.construirLibro({recepcion:{codigo:'SIN-FORMATO'},detalle:[d],eventos:es,adicionales:[]},{version:'envio'}).base64,{type:'base64'});eq(XLSX.utils.sheet_to_json(w.Sheets.UBICACIONES).length,3);
+});
+await test('64: calidad corregida y conteos anulados no contaminan otra fila',()=>{
+ const es=[{id:'a',tipo:'CONTEO',sku:'S',origen:'P',cantidad:6,pallet:'A01',incidencias:[{tipo:'Rotura',cantidad:5,pnc:true}]},{id:'q',tipo:'CALIDAD',eventoId:'a',incidencias:[{tipo:'Rotura',cantidad:1,pnc:true}]},{id:'b',tipo:'CONTEO',sku:'S',origen:'P',cantidad:4,pallet:'RETIRADO'},{id:'x',tipo:'ANULACION',anulaA:'b'}];
+ const d=informe.completarIncidencias(informe.completarRegistrosPorLista([{sku:'S',origen:'P',fisica:6,diferencia:0}],es),es)[0];eq(d.cantidadPnc,1);eq(d.palletsSimple,'A01');ok(!d.destino.includes('RETIRADO'));
+});
+await test('64: registros sin lista en varias listas se señalan para revisión y no atribuyen ubicación falsa',()=>{
+ const d=informe.completarRegistrosPorLista([{sku:'S',origen:'P1',fisica:2},{sku:'S',origen:'P2',fisica:2}],[{id:'a',sku:'S',cantidad:4,pallet:'A01',posicionReal:'POS1'}]);
+ eq(d.map(f=>f.palletsSimple),['','']);ok(d.every(f=>f.ubicacionPorRevisar));eq(d.flatMap(f=>f.registrosAsignados).reduce((n,p)=>n+p.cantidad,0),4);
+});
+await test('64: un conteo antiguo que agrupa pallets conserva cantidades y señala la distribución pendiente',()=>{
+ const d=informe.completarRegistrosPorLista([{sku:'S',fisica:6}],[{id:'viejo',sku:'S',cantidad:6,pallet:'A01-A02',posicionReal:'BM-A-10-1'}]);
+ eq(d[0].registrosAsignados[0].cantidad,6);ok(d[0].registrosAsignados[0].sinDetalleUbicacion);ok(d[0].ubicacionPorRevisar);
+});
+
+await test('64: informe por embarque conserva cantidades y posiciones con conteos sin origen no ambiguos',async()=>{
+ const prev={location:globalThis.location,fetch:globalThis.fetch};globalThis.location={pathname:'/app/validar.html'};
+ const lineas=[{sku:'S',origen:'P1',linea:1,cantidad:6,embarque:'E'},{sku:'S',origen:'P1',linea:2,cantidad:4,embarque:'E'},{sku:'T',origen:'P2',linea:1,cantidad:1,embarque:'E'}];
+ const eventos=[{id:'a',sku:'S',tipo:'CONTEO',cantidad:6,pallet:'A01',posicionReal:'BM-A-10-1',incidencias:[{tipo:'MAL_ESTADO',cantidad:2,pnc:true}]},{id:'b',sku:'S',tipo:'CONTEO',cantidad:4,pallet:'A02',posicionReal:'BM-B-20-2'},{id:'c',sku:'T',tipo:'CONTEO',origen:'P2',cantidad:1,pallet:'T01'}];
+ const meta={columnas:{},agrupacionCorreos:{modo:'EMBARQUE',configuracion:{embarquesPorLinea:{}},grupos:[{id:'G',nombre:'E',packingLists:['P1','P2']}],resultados:[{grupo:'G',origen:'P1',sku:'S',contado:10},{grupo:'G',origen:'P2',sku:'T',contado:1}]}};
+ globalThis.fetch=async url=>{const k=String(url).split('/').at(-1),v=k==='lineas'?lineas:k==='eventos'?eventos:k==='skus'?[{sku:'S',contado:10,pallets:{A01:6,A02:4}},{sku:'T',contado:1,pallets:{T01:1}}]:k==='informe-metadatos'?meta:[];return new Response(JSON.stringify(v),{status:200});};
+ try{const r=await informe.reunirInforme('R64',{codigo:'R64'}),d=r.porGrupo[0].porOrigen[0].detalle;eq(d.map(f=>f.palletsSimple),['A01','A02']);eq(d.map(f=>f.posicionReal),['BM-A-10-1','BM-B-20-2']);eq(d.flatMap(f=>f.registrosAsignados).map(p=>p.cantidad),[2,4,4]);}
+ finally{if(prev.location===undefined)delete globalThis.location;else globalThis.location=prev.location;globalThis.fetch=prev.fetch;}
+});
 resumen();

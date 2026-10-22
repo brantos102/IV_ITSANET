@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261022-63';
-import {revisarDrive} from './admin-entregas.js?v=20261022-63';
+import {pedir} from './local.js?v=20261022-64';
+import {revisarDrive} from './admin-entregas.js?v=20261022-64';
 
 // Una recepción abierta puede tener fotos antes de generar su primera entrega.
 // Sin enlace confirmado se muestra el diagnóstico y la vista previa local.

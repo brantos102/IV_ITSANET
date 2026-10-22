@@ -1,5 +1,5 @@
 /** Copia local del correo: miniaturas pequeñas; originales y MySQL intactos. */
-import {leerMiniatura} from './miniaturas.js?v=20261022-63';
+import {leerMiniatura} from './miniaturas.js?v=20261022-64';
 async function reducir(blob){
  const url=URL.createObjectURL(blob);try{const img=new Image();img.src=url;await img.decode();const escala=Math.min(1,320/img.naturalWidth,240/img.naturalHeight),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*escala));c.height=Math.max(1,Math.round(img.naturalHeight*escala));const ctx=c.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.78);}finally{URL.revokeObjectURL(url);}
 }

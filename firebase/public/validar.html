@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261022-63"></script>
+<script src="./js/arranque.js?v=20261022-64"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Validación física — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261022-63">
+<link rel="stylesheet" href="./css/marca.css?v=20261022-64">
 <link rel="stylesheet" href="./css/operacion.css">
-<script src="./vendor/JsBarcode.all.min.js?v=20261022-63" defer></script>
-<script src="./vendor/xlsx.full.min.js?v=20261022-63" defer></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261022-64" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261022-64" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -320,52 +320,53 @@
 </dialog>
 
 <script type="module">
-import {agregarDesglosePosicion} from './js/posiciones.js?v=20261022-63';
-import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261022-63';
-import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261022-63';
-import {abrirCorreo} from './js/correo-redactado.js?v=20261022-63';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261022-63';
-import {abrirCorreccion} from './js/corregir-conteo.js?v=20261022-63';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261022-63';
-import { mostrarAviso } from './js/notificaciones.js?v=20261022-63';
-import { abrirEtiqueta } from './js/etiquetas.js?v=20261022-63';
-import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261022-63';
-import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261022-63';
-import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261022-63';
-import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261022-63';
+import {agregarDesglosePosicion} from './js/posiciones.js?v=20261022-64';
+import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261022-64';
+import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261022-64';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261022-64';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261022-64';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261022-64';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261022-64';
+import { mostrarAviso } from './js/notificaciones.js?v=20261022-64';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261022-64';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261022-64';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261022-64';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261022-64';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261022-64';
 
-import { pedir as pedirLocal } from './js/local.js?v=20261022-63';
+import { pedir as pedirLocal } from './js/local.js?v=20261022-64';
 const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
-import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261022-63';
-import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261022-63';
-import { observarSesion } from './js/auth.js?v=20261022-63';
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261022-64';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261022-64';
+import { observarSesion } from './js/auth.js?v=20261022-64';
 import {
   obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
   reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
   decodificarPallets, ubicacionesDepot,
-} from './js/datos.js?v=20261022-63';
+} from './js/datos.js?v=20261022-64';
 import {
   registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
   ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
-} from './js/conteo.js?v=20261022-63';
+} from './js/conteo.js?v=20261022-64';
 import {
   reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
-} from './js/informe.js?v=20261022-63';
-import { comprimir, tamanoLegible } from './js/imagen.js?v=20261022-63';
-import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261022-63';
-import { conectarGlosario } from './js/glosario.js?v=20261022-63';
-import { parecidos } from './js/sugerir.js?v=20261022-63';
-import { publicarAvance } from './js/barra-supervision.js?v=20261022-63';
-import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261022-63';
+} from './js/informe.js?v=20261022-64';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261022-64';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261022-64';
+import { conectarGlosario } from './js/glosario.js?v=20261022-64';
+import { parecidos } from './js/sugerir.js?v=20261022-64';
+import { publicarAvance } from './js/barra-supervision.js?v=20261022-64';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261022-64';
 import {
   leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
-} from './js/csv.js?v=20261022-63';
-import { Proxy } from './js/proxy.js?v=20261022-63';
-import { modoLocal } from './js/local.js?v=20261022-63';
+} from './js/csv.js?v=20261022-64';
+import { Proxy } from './js/proxy.js?v=20261022-64';
+import { modoLocal } from './js/local.js?v=20261022-64';
 
-import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261022-63';
-import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261022-63';
-import {verImagen} from './js/visor-imagen.js?v=20261022-63';
+import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261022-64';
+import {coordinarSku} from './js/sku-en-curso.js?v=20261022-64';
+import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261022-64';
+import {verImagen} from './js/visor-imagen.js?v=20261022-64';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -525,7 +526,7 @@ async function elegirRecepcion() {
     if(!modoLocal() || !$('inElegir').value.trim())return;
     const id=++consulta,codigo=$('inElegir').value.trim();
     try {
-      const l=await import('./js/local.js?v=20261022-63');
+      const l=await import('./js/local.js?v=20261022-64');
       const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
       if(id!==consulta || codigo!==$('inElegir').value.trim())return;
       caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
@@ -661,6 +662,7 @@ observarSesion(async (e) => {
       $('fPosReal').required=reglasCliente.posicionRequerida;
       $('fTipoIncidencia').innerHTML=reglasCliente.incidencias.filter(i=>i.activo&&!['OK','FALTANTE','SOBRANTE'].includes(i.codigo)).map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('');
       $('fTipoIncidencia').value='MAL_ESTADO';
+      if(!globalThis.coordinacionSkuActual)globalThis.coordinacionSkuActual=coordinarSku({recepcion:RECEPCION,obtenerSku:()=>actual?.sku,contando:()=>!$('ficha').classList.contains('solo-consulta'),contenedor:$('ficha')});
       clearInterval(presenciaIntervalo);
       const latido=async()=>{if(document.hidden)return;try{
         await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/presencia',{metodo:'PUT',cuerpo:{dispositivo:dispositivoPresencia,actividad:vistaOperacion==='contar'?'CONTANDO':'REVISANDO'}});
@@ -1964,8 +1966,8 @@ $('bCsvDepot').addEventListener('click', async () => {
     const [formatos, datos] = await Promise.all([
       leerFormatos(), reunirInforme(RECEPCION, recepcion),
     ]);
-    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261022-63').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
-    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261022-63').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261022-64').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261022-64').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
     if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
       if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
         const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;

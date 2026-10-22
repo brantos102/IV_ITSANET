@@ -192,6 +192,11 @@ def reglas(cliente:str,db:Session=Depends(get_db),op=Depends(usuario_actual)):
 def token(request):
     return hashlib.sha256((request.cookies.get(COOKIE) or request.headers.get('Authorization','').removeprefix('Bearer ')).encode()).hexdigest()
 
+@router.put('/recepciones/{codigo}/sku-en-curso')
+def sku_en_curso(codigo:str,request:Request,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(usuario_actual)):
+    from app.services.sku_en_curso import actualizar
+    return actualizar(db,codigo,op,token(request),datos)
+
 @router.put('/recepciones/{codigo}/presencia')
 def presencia(codigo:str,request:Request,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(usuario_actual)):
     r=m.obtener(db,codigo,bloquear=True)
