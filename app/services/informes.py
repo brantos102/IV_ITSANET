@@ -9,6 +9,7 @@ from app.models import (AppInforme,AppEvento,AppIngreso,AppCopiaDrive,AppEvidenc
     ProductoCodigo,AppSku)
 from app.services import app_modelo as m, ajustes, archivos
 
+REVISION_FORMATO = 68
 
 def metadatos(db,codigo):
     from app.services.agrupacion_correo import metadatos as agrupacion
@@ -63,7 +64,7 @@ def metadatos(db,codigo):
 
 def huella(db,r):
     eventos=list(db.scalars(select(AppEvento.id).where(AppEvento.recepcion==r.codigo).order_by(AppEvento.id).with_for_update()))
-    d={'eventos':eventos,'formatos':r.formatos,'estado':r.estado,'metadatos':metadatos(db,r.codigo)}
+    d={'revisionFormato':REVISION_FORMATO,'eventos':eventos,'formatos':r.formatos,'estado':r.estado,'metadatos':metadatos(db,r.codigo)}
     return hashlib.sha256(json.dumps(d,sort_keys=True,default=str,separators=(',',':')).encode()).hexdigest()
 
 
@@ -71,7 +72,7 @@ def huella_contenido(db,r):
     eventos=list(db.scalars(select(AppEvento.id).where(AppEvento.recepcion==r.codigo,
         AppEvento.tipo.not_in(['CIERRE','EXPORT','AUDITORIA'])).order_by(AppEvento.id)))
     posiciones=[list(f) for f in db.execute(select(AppEvento.id,AppEvento.posicion).where(AppEvento.recepcion==r.codigo,AppEvento.tipo=='CONTEO').order_by(AppEvento.id))]
-    d={'revisionFormato':65,'posiciones':posiciones,'eventos':eventos,'cliente':r.cliente,'descripcion':r.descripcion,'formatos':r.formatos,'metadatos':metadatos(db,r.codigo)}
+    d={'revisionFormato':REVISION_FORMATO,'posiciones':posiciones,'eventos':eventos,'cliente':r.cliente,'descripcion':r.descripcion,'formatos':r.formatos,'metadatos':metadatos(db,r.codigo)}
     return hashlib.sha256(json.dumps(d,sort_keys=True,default=str,separators=(',',':')).encode()).hexdigest()
 
 
@@ -122,7 +123,7 @@ def reservar(db,codigo,datos,usuario):
     if datos.get('reutilizarId'):
         if not ultimo or ultimo.id!=datos['reutilizarId'] or ultimo.usuario!=usuario:
             raise HTTPException(409,'Esta generación pertenece a otro supervisor o ya no es la más reciente.')
-        if ultimo.estado!='GENERADO' or ultimo.huella!=huella(db,r) or ultimo.datos.get('formato')!=datos.get('formato'):
+        if ultimo.estado!='GENERADO' or ultimo.huella!=huella(db,r) or ultimo.datos.get('huellaContenido')!=huella_contenido(db,r) or ultimo.datos.get('formato')!=datos.get('formato'):
             raise HTTPException(409,'El informe anterior ya no corresponde a los datos actuales. Revisa y genera una nueva versión.')
         if datos.get('tipo')=='CORREO' and ultimo.tipo!='CORREO':
             raise HTTPException(409,'Este informe se preparó para descarga manual. Genera el informe de correo o conserva el envío manual.')

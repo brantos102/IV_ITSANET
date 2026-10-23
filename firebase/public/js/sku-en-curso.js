@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261023-67';
-import {escucharCambiosRecepcion} from './cambios-recepcion.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-68';
+import {escucharCambiosRecepcion} from './cambios-recepcion.js?v=20261023-68';
 /** Aviso con todo el equipo de este SKU; conserva conteos y borradores. */
 export function coordinarSku({recepcion,obtenerSku,contando,contenedor}){
  const aviso=document.createElement('p');aviso.className='sku-coordinacion';aviso.setAttribute('role','alert');aviso.hidden=true;contenedor.prepend(aviso);

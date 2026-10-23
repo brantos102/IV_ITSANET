@@ -17,7 +17,7 @@ def generar(cliente,c,formato='envio-ampliado',tipo='DESCARGA'):
     assert r.status_code==200,r.text
     f=r.json();docs=[]
     for origen in cliente.get('/api/app/recepciones/'+c).json()['origenes']:
-        w=Workbook();w.active.append(['ITEM','CANTIDAD']);w.active.append(['SKU1',3]);w.properties.subject=origen+formato;b=io.BytesIO();w.save(b)
+        w=Workbook();w.active.append(['ITEM','CANTIDAD']);w.active.append(['SKU1',3]);w.properties.subject=origen+formato+f['sufijo'];b=io.BytesIO();w.save(b)
         docs.append({'nombre':formato+'_'+origen+f['sufijo']+'.xlsx','origen':origen,'base64':base64.b64encode(b.getvalue()).decode()})
     r=cliente.put(ruta+'/'+f['id'],json={'adjuntos':docs});assert r.status_code==200,r.text
     return r.json()

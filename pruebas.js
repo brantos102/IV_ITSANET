@@ -25,6 +25,7 @@ const SUITES = [
   ['Operacion — fechas locales y etiquetas Zebra', 'firebase/test/operacion.test.mjs'],
   ['Gestión — incidencias y columnas del informe', 'firebase/test/gestion.test.mjs'],
   ['Excel — tipos numéricos y estructura válida', 'firebase/test/excel-exportacion65.test.mjs'],
+  ['Excel — identificadores limpios y detalle PNC por fila', 'firebase/test/informe-ejecutivo68.test.mjs'],
   ['Correo — nombres y selección independientes', 'firebase/test/adjuntos.test.mjs'],
   ['Etiquetas — selección parcial y tamaños', 'firebase/test/etiquetas65.test.mjs'],
   ['Recepciones — fecha de registro y filtros en Ecuador', 'firebase/test/recepciones-lista.test.mjs'],

@@ -60,7 +60,7 @@ await test('65: apóstrofo de nombre de hoja no rompe la referencia OOXML del au
  const f={hoja:"O'Brien",encabezados:['SKU','Cantidad'],columnas:{sku:0,cantidad:1}},d=[{sku:'S',cantidad:2,fisica:2,diferencia:0,cruda:['S','2']}];
  const w=libro(d,f);eq(w.SheetNames[0],'O’Brien');
  const xml=Buffer.from(w.files['xl/workbook.xml'].content).toString();ok(xml.includes('O’Brien'));ok(!xml.includes("'O'Brien'!"));
- const refs=w.Workbook.Names.filter(n=>n.Name==='_xlnm._FilterDatabase');ok(refs.some(n=>n.Ref==="'O’Brien'!A1:B2"));
+ const refs=w.Workbook.Names.filter(n=>n.Name==='_xlnm._FilterDatabase');ok(refs.some(n=>n.Ref==="'O’Brien'!A1:C2"));
 });
 
 await test('65: modelo Excel de Depot tipa cantidad y mantiene códigos, posiciones y fechas como texto',()=>{

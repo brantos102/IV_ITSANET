@@ -40,6 +40,7 @@ if (!archivos.length) {
 
 const datos = await cargar('datos.js');
 const informe = await cargar('informe.js');
+const {COLUMNA_DETALLE_UNIDADES}=await cargar('ubicaciones-informe.js');
 
 await test('ITEM numerico no reemplaza COD. PRODUCTO y se conserva la fila original', () => {
   const libro = XLSX.utils.book_new();
@@ -195,12 +196,13 @@ for (const nombre of archivos) {
     ok(!hojasAuditable.includes('AUDITORIA'));
     ok(hojasAuditable.length > hojasEnvio.length);
 
-    // Y la hoja del packing list tiene que ser idéntica en las dos.
+    // El bloque original es idéntico; solo el ejecutivo agrega el detalle final.
     const filasEnvio = XLSX.utils.sheet_to_json(
       XLSX.read(envio.base64, { type: 'base64' }).Sheets.VALIDADA, { header: 1, defval: '' });
     const filasAud = XLSX.utils.sheet_to_json(
       XLSX.read(auditable.base64, { type: 'base64' }).Sheets.VALIDADA, { header: 1, defval: '' });
-    eq(filasEnvio, filasAud, 'la hoja que se entrega no cambia entre versiones');
+    eq(filasEnvio.map(f=>f.slice(0,-1)), filasAud, 'el bloque original no cambia entre versiones');
+    eq(filasEnvio[0].at(-1),COLUMNA_DETALLE_UNIDADES);
   });
 
   await test(`${nombre}: el pallet nunca lleva cantidades ni paréntesis`, () => {
@@ -251,8 +253,8 @@ for (const nombre of archivos) {
     const filasB = XLSX.utils.sheet_to_json(leidoLibro.Sheets['PL-B'], { header: 1, defval: '' });
     eq(filasA.length - 1, dA.length, 'PL-A entrega sus filas');
     eq(filasB.length - 1, dB.length, 'PL-B entrega las suyas');
-    eq(filasA[0], a.encabezados, 'y cada una con SU cabecera');
-    eq(filasB[0], b.encabezados);
+    eq(filasA[0], [...a.encabezados,COLUMNA_DETALLE_UNIDADES], 'cada una con SU cabecera y el detalle al final');
+    eq(filasB[0], [...b.encabezados,COLUMNA_DETALLE_UNIDADES]);
   });
 
   // Una lista cargada antes de que se guardara el formato original no puede

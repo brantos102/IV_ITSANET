@@ -1,15 +1,15 @@
-import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261023-67';
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-67';
-import {elegirDestinoFoto} from './destino-foto.js?v=20261023-67';
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261023-67';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261023-67';
-import {organizarFotos} from './organizar-fotos.js?v=20261023-67';
-import {verImagen} from './visor-imagen.js?v=20261023-67';
-import {manualFotos} from './manual-fotos.js?v=20261023-67';
-import {pedir} from './local.js?v=20261023-67';
-import {comprimir} from './imagen.js?v=20261023-67';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261023-67';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261023-67';
+import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261023-68';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-68';
+import {elegirDestinoFoto} from './destino-foto.js?v=20261023-68';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261023-68';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261023-68';
+import {organizarFotos} from './organizar-fotos.js?v=20261023-68';
+import {verImagen} from './visor-imagen.js?v=20261023-68';
+import {manualFotos} from './manual-fotos.js?v=20261023-68';
+import {pedir} from './local.js?v=20261023-68';
+import {comprimir} from './imagen.js?v=20261023-68';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261023-68';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261023-68';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});

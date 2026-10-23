@@ -10,16 +10,17 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261023-67';
-import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261023-67';
-import { db } from './auth.js?v=20261023-67';
-import * as local from './local.js?v=20261023-67';
-import {eventosActivos} from './conteo.js?v=20261023-67';
-import {fechaDe} from './fechas.js?v=20261023-67';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261023-67';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261023-67';
-import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261023-67';
-import {tiparHojaOriginal,formatoNumericoCalculado,validarLibroExcel} from './excel-formato.js?v=20261023-67';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261023-68';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261023-68';
+import { db } from './auth.js?v=20261023-68';
+import * as local from './local.js?v=20261023-68';
+import {eventosActivos} from './conteo.js?v=20261023-68';
+import {fechaDe} from './fechas.js?v=20261023-68';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261023-68';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261023-68';
+import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261023-68';
+import {tiparHojaOriginal,formatoNumericoCalculado,validarLibroExcel} from './excel-formato.js?v=20261023-68';
+import {filaParaEjecutivo,anadirDetalleEjecutivo,COLUMNA_DETALLE_UNIDADES} from './ubicaciones-informe.js?v=20261023-68';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 
@@ -397,6 +398,20 @@ function hojaOriginal(filas, formato, ampliado=false, validacionDepot=null) {
   return ampliado?organizarHojaInforme(hoja,orden):hoja;
 }
 
+function finalizarHojaLista(hoja,filas,formato,{rev=false,ejecutivo=false}={}){
+ const indice=formato?.encabezados?.length?prefijoInforme(formato).length:0;
+ if(rev){
+  const matriz=XLSX.utils.sheet_to_json(hoja,{header:1,defval:''});
+  if(!matriz[indice]?.some(v=>/POSICION|UBICACION/i.test(String(v)))){
+   const col=XLSX.utils.decode_range(hoja['!ref']||'A1').e.c+1;
+   XLSX.utils.sheet_add_aoa(hoja,[['POSICION FINAL SUGERIDA'],...filas.map(l=>[l.posicionReal||''])],{origin:{r:indice,c:col}});
+   hoja['!cols']=[...(hoja['!cols']||[]),{wch:32}];
+  }
+ }
+ if(ejecutivo)anadirDetalleEjecutivo(hoja,filas,indice);
+ return hoja;
+}
+
 /** Excel limita el nombre de hoja a 31 caracteres y prohíbe : \ / ? * [ ] */
 export function nombreDeHoja(origen) {
   // SheetJS 0.18 serializa mal el autofiltro con apóstrofos ASCII en el nombre.
@@ -487,21 +502,15 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
 
   for (const lista of listas) {
     const base = hojaUnica(libro,soloEnvio&&lista.formato?.hoja?lista.formato.hoja:listas.length === 1 ? 'VALIDADA' : recepcion.nombresListas?.[lista.origen]||lista.origen);
+    const filasSalida=soloEnvio?lista.detalle.map(filaParaEjecutivo):lista.detalle;
 
     // Primero el archivo tal como llegó, con sus columnas rellenas. Si no se
     // guardó el formato original —recepciones anteriores a esto— se cae a las
     // columnas propias, que es lo que había.
     const hoja=lista.formato?.encabezados?.length
-        ? hojaOriginal(lista.detalle, lista.formato,opciones.version==='envio-ampliado',validacionDepot)
-        : hojaValidada(lista.detalle);
-    if(base.toUpperCase()==='REV'){
-      const matriz=XLSX.utils.sheet_to_json(hoja,{header:1,defval:''}),cabecera=matriz.findIndex(f=>f.some(v=>/^(?:ITEM|SKU|CODIGO)$/i.test(String(v).trim()))),indice=cabecera>=0?cabecera:0;
-      if(!matriz[indice]?.some(v=>/POSICION|UBICACION/i.test(String(v)))){
-        const col=XLSX.utils.decode_range(hoja['!ref']||'A1').e.c+1;
-        XLSX.utils.sheet_add_aoa(hoja,[['POSICION FINAL SUGERIDA'],...lista.detalle.map(l=>[l.posicionReal||''])],{origin:{r:indice,c:col}});
-        hoja['!cols']=[...(hoja['!cols']||[]),{wch:32}];
-      }
-    }
+        ? hojaOriginal(filasSalida, lista.formato,opciones.version==='envio-ampliado',validacionDepot)
+        : hojaValidada(filasSalida);
+    finalizarHojaLista(hoja,filasSalida,lista.formato,{rev:base.toUpperCase()==='REV',ejecutivo:soloEnvio});
     XLSX.utils.book_append_sheet(libro,hoja,base);
     lista.detalle.forEach((l,i)=>{for(const p of l.registrosAsignados||[]){ubicaciones.push({
      'HOJA':base,'FILA DEL INFORME':prefijoInforme(lista.formato||{}).length+i+2,'FILA ORIGINAL':l.filaOriginal||'', 'LINEA':l.linea||i+1,'PACKING LIST':l.origen||lista.origen,'EMBARQUE':l.embarque||opciones.embarque||'',
@@ -535,7 +544,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     'ITEM': a.sku,
     'DESCRIPCION': a.descripcion,
     'CANTIDAD FISICA': a.fisica,
-    'PALLET': a.pallets,
+    'PALLET': soloEnvio?filaParaEjecutivo(a).palletsSimple:a.pallets,
     'MOTIVO': a.motivo,
     'OBSERVACION': a.observacion,
     'DETECTADO POR': a.detectadoPor,
@@ -625,10 +634,13 @@ export function previsualizarLista(lista,columnas,{ampliado=false,offset=0,limit
     for(const [rol,i] of Object.entries(formato.columnas||{}))if(['sku','descripcion','cantidad'].includes(rol))f.cruda[i]=f[rol];
     filas=[f];
   }
-  const hoja=hojaOriginal(filas,formato,ampliado,lista.validacionDepot),filaCabecera=prefijoInforme(formato).length;
+  filas=filas.map(filaParaEjecutivo);
+  const hoja=finalizarHojaLista(hojaOriginal(filas,formato,ampliado,lista.validacionDepot),filas,formato,{rev:formato.hoja?.toUpperCase()==='REV',ejecutivo:true}),filaCabecera=prefijoInforme(formato).length;
   const ancho=XLSX.utils.decode_range(hoja['!ref']).e.c+1;
   const celda=(r,c)=>hoja[XLSX.utils.encode_cell({r,c})]||{};
-  return {ejemplo,total:filas.length,columnas:columnasDeSalida(formato,{ampliado}),encabezados:Array.from({length:ancho},(_,c)=>String(celda(filaCabecera,c).v??'')),
+  const columnasSalida=columnasDeSalida(formato,{ampliado});
+  while(columnasSalida.length<ancho){const i=columnasSalida.length,titulo=String(celda(filaCabecera,i).v??'');columnasSalida.push({id:titulo===COLUMNA_DETALLE_UNIDADES?'resultado:detalleUnidades':'resultado:posicion',titulo,indice:i});}
+  return {ejemplo,total:filas.length,columnas:columnasSalida,encabezados:Array.from({length:ancho},(_,c)=>String(celda(filaCabecera,c).v??'')),
     filas:filas.slice(offset,offset+limite).map((_,i)=>({numero:offset+i+filaCabecera+2,
       celdas:Array.from({length:ancho},(_,c)=>{const v=celda(offset+i+filaCabecera+1,c);return {
         texto:String(v.w??v.v??(v.f?'='+v.f:'')),formula:v.f||'',url:v.l?.Target||'',comentario:(v.c||[]).map(c=>c.t).join('\n')};})}))};

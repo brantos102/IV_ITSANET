@@ -3,6 +3,7 @@ import {cargar,test,eq,ok,resumen} from './cargador.mjs';
 const require=createRequire(import.meta.url);globalThis.XLSX=require('xlsx');
 const informe=await cargar('informe.js'),csv=await cargar('csv.js');
 const organizacion=await cargar('orden-informe.js');
+const {COLUMNA_DETALLE_UNIDADES}=await cargar('ubicaciones-informe.js');
 await test('2 PNC de 6 mantienen 4 conformes y no se duplican en filas repetidas',()=>{
  const filas=[{sku:'S',origen:'PL',fisica:1,diferencia:0},{sku:'S',origen:'PL',fisica:5,diferencia:0}];
  const eventos=[{id:'a',sku:'S',origen:'PL',cantidad:6,incidencias:[{tipo:'MAL_ESTADO',nombre:'MAL ESTADO',cantidad:2,pnc:true}]}];
@@ -24,7 +25,7 @@ await test('A M P Q R S configurables conservan filas, cabeceras y código con c
  const f=informe.construirLibro({recepcion:{codigo:'R',informe:{id:'id-auditado',numero:1,sufijo:'_R0001_20261016-080000',usuario:'sup@itsanet.com'}},detalle,porOrigen:[{origen:'PL',formato:{encabezados,columnas},detalle}],adicionales:[],eventos:[],auditoria:[]},{version:'envio'});
  ok(f.nombre.endsWith('_R0001_20261016-080000.xlsx'));
  const w=XLSX.read(f.base64,{type:'base64'}),tabla=XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1});
- eq(tabla.length,2);eq(tabla[0],encabezados);eq(tabla[1][0],'original');eq(tabla[1][12],'00001234');eq(tabla[1][15],2);eq(tabla[1][16],'MAL ESTADO');eq(tabla[1][18],'https://drive.google.com/drive/folders/sku');eq(tabla[1][4],'original');eq(w.Props.Author,'sup@itsanet.com');
+ eq(tabla.length,2);eq(tabla[0],[...encabezados,COLUMNA_DETALLE_UNIDADES]);eq(tabla[1][0],'original');eq(tabla[1][12],'00001234');eq(tabla[1][15],2);eq(tabla[1][16],'MAL ESTADO');eq(tabla[1][18],'https://drive.google.com/drive/folders/sku');eq(tabla[1][4],'original');eq(w.Props.Author,'sup@itsanet.com');
 });
 await test('los dos modelos de Depot no incluyen plantilla de barras inexistente',()=>eq(csv.FORMATOS_BASE.length,2));
 await test('un PNC antiguo sin desglose no inventa unidades conformes',()=>{
@@ -55,7 +56,7 @@ await test('cliente ampliado genera un archivo por lista y enlaces del SKU sin h
  const datos={recepcion:{codigo:'PRUEBA'},detalle:ls.flatMap(l=>l.detalle),porOrigen:ls,eventos:[],adicionales:[],auditoria:[]};
  const libros=informe.construirLibros(datos,{version:'envio-ampliado'});eq(libros.length,2);
  for(let i=0;i<libros.length;i++){const w=XLSX.read(libros[i].base64,{type:'base64'});eq(w.SheetNames.length,1);const sh=w.Sheets[w.SheetNames[0]],rs=XLSX.utils.sheet_to_json(sh,{header:1});eq(rs.length,2);eq(rs[0].slice(0,2),['MARCA','CLIENTE']);eq(rs[1][rs[0].indexOf('SKU')],'S'+i);eq(rs[1][rs[0].indexOf('ok')],'ok');ok(rs[1].includes('Solo '+ls[i].origen));ok(!rs[1].includes('Solo '+ls[1-i].origen));const j=rs[0].indexOf('Carpeta Drive del SKU');eq(sh[XLSX.utils.encode_cell({r:1,c:j})].l.Target,'https://drive.google.com/drive/folders/sku'+i);}
- const original=informe.construirLibros(datos,{version:'envio'});const w=XLSX.read(original[0].base64,{type:'base64'});eq(XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1})[0],['SKU','Cantidad','ok']);
+ const original=informe.construirLibros(datos,{version:'envio'});const w=XLSX.read(original[0].base64,{type:'base64'});eq(XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1})[0],['SKU','Cantidad','ok',COLUMNA_DETALLE_UNIDADES]);
 });
 await test('ampliado inicia con marca y cliente y conserva cada dato del origen',()=>{
  const formato={encabezados:['ITEM','Descripción','Cantidad'],columnas:{sku:0,descripcion:1,cantidad:2}};
@@ -63,7 +64,7 @@ await test('ampliado inicia con marca y cliente y conserva cada dato del origen'
  const datos={recepcion:{codigo:'R'},detalle,porOrigen:[{origen:'EMB',formato,detalle}],adicionales:[],eventos:[],auditoria:[]};
  const leer=version=>{const libro=informe.construirLibro(datos,{version}),w=XLSX.read(libro.base64,{type:'base64'});return XLSX.utils.sheet_to_json(w.Sheets[w.SheetNames[0]],{header:1,defval:''});};
  const original=leer('envio'),ampliado=leer('envio-ampliado');
- eq(original,[formato.encabezados,detalle[0].cruda]);eq(ampliado[0].slice(0,2),['MARCA','CLIENTE']);eq(ampliado[0].slice(2,5),formato.encabezados);eq(ampliado[1].slice(2,5),detalle[0].cruda);
+ eq(original.map(f=>f.slice(0,-1)),[formato.encabezados,detalle[0].cruda]);eq(original[0].at(-1),COLUMNA_DETALLE_UNIDADES);eq(ampliado[0].slice(0,2),['MARCA','CLIENTE']);eq(ampliado[0].slice(2,5),formato.encabezados);eq(ampliado[1].slice(2,5),detalle[0].cruda);
  for(const [campo,valor] of [['Posición','A-01-02-1'],['Código de barras','00001234'],['CLIENTE','CLIENTE'],['MARCA','MARCA']]){const i=ampliado[0].indexOf(campo);ok(i>=0);eq(ampliado[1][i],valor);}
 });
 await test('dos listas de contenido idéntico conservan identificadores distintos en sus archivos',()=>{
@@ -84,8 +85,8 @@ await test('vista previa usa las mismas celdas y enlaces que el Excel final, sin
  const antes=JSON.stringify(lista),vista=informe.previsualizarLista(lista,columnas);
  const base={recepcion:{codigo:'R'},detalle:lista.detalle,porOrigen:[lista],eventos:[],adicionales:[],auditoria:[]};
  const x=informe.construirLibros(base,{version:'envio'})[0],w=XLSX.read(x.base64,{type:'base64'}),sh=w.Sheets.REV;
- eq(vista.filas[0].numero,3);eq(vista.filas[0].celdas.map(c=>c.texto),['S1','10','8','Solo lista A','https://drive.google.com/drive/folders/sku1']);
- eq(vista.filas[0].celdas.map(c=>c.texto),[0,1,2,3,4].map(c=>String(sh[XLSX.utils.encode_cell({r:2,c})].v)));
+ eq(vista.filas[0].numero,3);eq(vista.filas[0].celdas.slice(0,5).map(c=>c.texto),['S1','10','8','Solo lista A','https://drive.google.com/drive/folders/sku1']);
+ eq(vista.filas[0].celdas.map(c=>c.texto),vista.encabezados.map((_,c)=>String(sh[XLSX.utils.encode_cell({r:2,c})]?.v??'')));eq(vista.encabezados.at(-1),COLUMNA_DETALLE_UNIDADES);
  eq(vista.filas[0].celdas[4].url,sh.E3.l.Target);eq(JSON.stringify(lista),antes);
  const cambio=informe.previsualizarLista(lista,{sku:0,cantidad:1,fisica:3});eq(cambio.filas[0].celdas[2].texto,'0');eq(cambio.filas[0].celdas[3].texto,'8');
 });
@@ -285,7 +286,7 @@ await test('REV incluye posición final sin mover columnas ni filas originales',
  const detalle=[{sku:'S1',cantidad:3,fisica:3,diferencia:0,estado:'OK',posicionReal:'BM-A-010-01',cruda:['S1',3]}];
  const f=informe.construirLibro({recepcion:{codigo:'R62'},detalle,porOrigen:[{origen:'PL',formato:{hoja:'REV',encabezados:['SKU','Cantidad'],columnas:{sku:0,cantidad:1}},detalle}],adicionales:[],eventos:[]},{version:'envio'});
  const w=XLSX.read(f.base64,{type:'base64'}),filas=XLSX.utils.sheet_to_json(w.Sheets.REV,{header:1});
- eq(filas,[['SKU','Cantidad','POSICION FINAL SUGERIDA'],['S1',3,'BM-A-010-01']]);
+ eq(filas.map(f=>f.slice(0,-1)),[['SKU','Cantidad','POSICION FINAL SUGERIDA'],['S1',3,'BM-A-010-01']]);eq(filas[0].at(-1),COLUMNA_DETALLE_UNIDADES);
 });
 await test('CSV no interpreta como posición válida seis segmentos ni omite el último',()=>{
  const vacia={nave:'',calle:'',columna:'',nivel:'',profundidad:''};eq(csv.partesDePosicion('BM-A-10-1-X-Y'),vacia);

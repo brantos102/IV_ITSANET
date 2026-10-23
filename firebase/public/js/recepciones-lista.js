@@ -1,4 +1,4 @@
-import {fechaDe} from './fechas.js?v=20261023-67';
+import {fechaDe} from './fechas.js?v=20261023-68';
 
 const zona='America/Guayaquil';
 const calendario=new Intl.DateTimeFormat('en-CA',{timeZone:zona,year:'numeric',month:'2-digit',day:'2-digit'});

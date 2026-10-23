@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261023-67';
-import {pedirDatos} from './modal.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-68';
+import {pedirDatos} from './modal.js?v=20261023-68';
 export async function cerrarDesdeRecepciones(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo)+'/cierre-externo',p=await pedir(ruta,{base:'/api/operacion'});
  if(p.estado==='CERRADA')throw Error('Esta recepción ya está cerrada. Actualiza el listado.');

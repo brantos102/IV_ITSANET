@@ -1,9 +1,9 @@
-import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261023-67';
-import {pedir} from './local.js?v=20261023-67';
-import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261023-67';
-import {reunirInforme,previsualizarLista} from './informe.js?v=20261023-67';
-import {tecladoDialogo} from './modal.js?v=20261023-67';
-import {columnasDeSalida} from './orden-informe.js?v=20261023-67';
+import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261023-68';
+import {pedir} from './local.js?v=20261023-68';
+import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261023-68';
+import {reunirInforme,previsualizarLista} from './informe.js?v=20261023-68';
+import {tecladoDialogo} from './modal.js?v=20261023-68';
+import {columnasDeSalida} from './orden-informe.js?v=20261023-68';
 const api=(r,o={})=>pedir(r,{...o,base:'/api/operacion'});
 const EJEMPLOS={depot:'ok',marca:'MARCA',cliente:'CLIENTE',fisica:'8',validacion:'Faltante',desface:'-2',pallet:'B01.1-B02',posicion:'A-01-02-1',codigoBarra:'000123456789',cantidadIncidencia:'2',incidencia:'PNC',observacion:'Caja abierta; revisar 2 unidades',evidencia:'Enlace a la carpeta del SKU en Drive'};
 const GRUPOS=[['Conteo y ubicación',['fisica','validacion','desface','pallet','posicion']],['Incidencias y observaciones',['cantidadIncidencia','incidencia','observacion']],['Identificación y documentos',['depot','marca','cliente','codigoBarra','evidencia']]];
@@ -15,7 +15,7 @@ export async function configurarColumnasInforme(codigo){
  <div class="columnas-layout"><section><h3>1. Elige el embarque y los destinos</h3><label class="campo"><span>Embarque · archivo independiente</span><select data-lista></select></label><div data-campos></div></section>
  <section class="columnas-muestra"><div class="acciones"><h3>2. Organiza y revisa el resultado</h3><span class="muestra-badge">VISTA PREVIA</span></div><p class="mini">Las celdas azules son resultados. Enfoca un destino para localizarlo en la muestra. Las letras de los destinos corresponden al archivo original; la muestra usa el orden de exportación.</p>
  <div class="acciones"><label class="campo"><span>Formato de la muestra</span><select data-presentacion><option value="ampliado">Informe ampliado · orden editable</option><option value="original">Packing list · orden original</option></select></label><button class="b-sec" data-actualizar>↻ Actualizar datos</button></div>
- <details data-organizacion open><summary>Orden de las columnas del informe ampliado</summary><p class="mini">Elige una posición o usa las flechas. Se mueve la columna completa; no se elimina ningún dato ni fila. Guarda esta configuración por embarque.</p><div class="acciones"><button type="button" class="b-sec" data-identificacion>Marca y Cliente al inicio</button><button type="button" class="b-sec" data-orden-original>Orden del packing list</button></div><ol data-orden class="orden-columnas" aria-label="Orden de exportación de las columnas"></ol></details>
+ <details data-organizacion open><summary>Orden de las columnas del informe ampliado</summary><p class="mini">Elige una posición o usa las flechas. Se mueve la columna completa; no se elimina ningún dato ni fila. Guarda esta configuración por embarque. El detalle de unidades y PNC por pallet se agrega automáticamente al final.</p><div class="acciones"><button type="button" class="b-sec" data-identificacion>Marca y Cliente al inicio</button><button type="button" class="b-sec" data-orden-original>Orden del packing list</button></div><ol data-orden class="orden-columnas" aria-label="Orden de exportación de las columnas"></ol></details>
  <p class="mini" data-estado-vista role="status">Cargando datos de la recepción…</p><div data-tabla class="columnas-tabla" tabindex="0" aria-label="Vista previa del archivo Excel"></div><div class="acciones"><button data-anterior class="b-sec">Anterior</button><button data-siguiente class="b-sec">Siguiente</button></div></section></div>
  <footer class="modal-pie"><p data-mensaje role="status" class="mini">Tab: siguiente campo · Enter: elegir · Ctrl+Enter: guardar. La muestra no genera archivos ni envía correos.</p><button data-guardar class="b-primario">Guardar columnas y orden de este embarque</button></footer>`;
  const $=s=>ds.querySelector(s),selector=$('[data-lista]'),campos=$('[data-campos]');
