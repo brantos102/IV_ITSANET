@@ -1,0 +1,12 @@
+import {pedir} from './local.js?v=20261023-68';
+import {configurarMiCorreo} from './mi-correo.js?v=20261023-68';
+export async function mostrarCuentasSupervision(panel){
+ panel.replaceChildren();const estado=document.createElement('p');estado.setAttribute('role','status');estado.textContent='Consultando fichas y conexiones guardadas…';panel.append(estado);
+ const fichas=(await pedir('/operadores',{base:'/api/auth'})).filter(o=>o.activo&&['ADMIN','SUPERVISOR'].includes(o.rol));
+ const prioritarias=['johnnybarahona51@gmail.com','inventarioopuio@itsanet.com','fmorales@itsanet.com'];fichas.sort((a,b)=>Number(prioritarias.includes(b.email))-Number(prioritarias.includes(a.email))||a.nombre.localeCompare(b.nombre));
+ for(const op of fichas){const fila=document.createElement('article');fila.className='guia-modal';const titulo=document.createElement('h3');titulo.textContent=op.nombre+' · '+(op.email||'Sin correo en la ficha');const detalle=document.createElement('p');const boton=document.createElement('button');boton.className='b-sec';boton.textContent='Revisar conexión de esta persona';const configuracion=document.createElement('section');configuracion.hidden=true;fila.append(titulo,detalle,boton,configuracion);panel.append(fila);
+  try{const c=await pedir('/integraciones/usuarios/'+op.id+'/google');detalle.textContent=(c.api?.conectada&&c.api?.gmail?'Gmail conectado mediante la API Google':(c.secretoConfigurado?'Conexión anterior guardada':'Sin conexión propia')+' · '+(c.gmailDisponible?'Puente con funciones Gmail':'Pendiente de conectar Gmail'))+' · '+(c.verificadoEn?'Verificación: '+new Date(c.verificadoEn).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'Pendiente de verificar')+'. La autorización y búsqueda del buzón se comprueban desde la sesión de esa persona.';}catch(e){detalle.textContent=e.message;}
+  boton.onclick=async()=>{boton.disabled=true;try{configuracion.hidden=!configuracion.hidden;if(!configuracion.hidden&&!configuracion.children.length)await configurarMiCorreo(configuracion,t=>estado.textContent=t,{usuarioId:op.id});}catch(e){estado.textContent=e.message;}finally{boton.disabled=false;}};
+ }
+ const faltantes=prioritarias.filter(email=>!fichas.some(o=>o.email?.toLowerCase()===email));estado.textContent=faltantes.length?'Revisa las fichas activas de: '+faltantes.join(', ')+'. No se crean ni se cambian usuarios automáticamente.':'Fichas de supervisión consultadas. Cada persona autoriza su cuenta Google una sola vez.';
+}

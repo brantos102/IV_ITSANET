@@ -1,0 +1,229 @@
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-68';
+import {verImagen} from './visor-imagen.js?v=20261023-68';
+import {pedir} from './local.js?v=20261023-68';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261023-68';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261023-68';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261023-68';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261023-68';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261023-68';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261023-68';
+
+/** Mantiene el formulario y el motivo abiertos si el servidor rechaza la corrección. */
+export function corregirTotalBultos({codigo,cantidad,guardar}){
+  const d=document.createElement('dialog');d.className='modal-operativa';
+  d.innerHTML=`<h3>Total físico de bultos</h3><p class="mini">${esc(codigo)} · Total actual: ${esc(cantidad)}. Corregir este total no modifica las cantidades de los SKU.</p><label class="campo"><span>Bultos recibidos / consolidados</span><input data-cantidad type="number" inputmode="numeric" min="1" max="1000" step="1" value="${esc(cantidad)}" required></label><div data-reduccion hidden><label class="campo"><span>Motivo de la consolidación</span><input data-motivo minlength="3" maxlength="300" placeholder="Ej.: consolidación física de 70 a 50 bultos"></label><label><input data-confirmar type="checkbox"> Confirmo el total físico y retiraré las etiquetas sobrantes. Solo se archivarán bultos finales sin registros ni evidencias.</label><p class="mini">El historial y los rótulos impresos se conservan. Si un bulto sobrante ya tiene datos o fotografías, la corrección se detendrá para protegerlos.</p></div><p data-error role="alert" style="color:#b91c1c;overflow-wrap:anywhere"></p><div class="acciones"><button type="button" class="b-sec" data-cancelar>Cancelar</button><button type="button" class="b-primario" data-guardar>Guardar total</button></div>`;
+  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);let ocupado=false,resultado=null;
+  const cambiar=()=>{const reducir=Number($('[data-cantidad]').value)<cantidad;$('[data-reduccion]').hidden=!reducir;$('[data-motivo]').required=reducir;$('[data-confirmar]').required=reducir;};
+  $('[data-cantidad]').addEventListener('input',cambiar);cambiar();
+  $('[data-cancelar]').onclick=()=>{if(!ocupado)d.close();};
+  $('[data-guardar]').onclick=async()=>{
+    if(ocupado)return;const n=Number($('[data-cantidad]').value),reducir=n<cantidad;
+    if(!Number.isInteger(n)||n<1||n>1000){$('[data-error]').textContent='Indica un total entero de 1 a 1000 bultos.';$('[data-cantidad]').focus();return;}
+    if(reducir&&($('[data-motivo]').value.trim().length<3||!$('[data-confirmar]').checked)){$('[data-error]').textContent='Indica el motivo y confirma el total físico antes de consolidar.';return;}
+    ocupado=true;$('[data-error]').textContent='Guardando y comprobando los bultos…';d.querySelectorAll('button,input').forEach(e=>e.disabled=true);
+    try{const ingreso=await guardar({cantidad:n,cantidadAnterior:cantidad,...(reducir?{consolidar:true,motivo:$('[data-motivo]').value.trim()}:{})});resultado={ingreso,cantidad:n};d.close();}
+    catch(e){$('[data-error]').textContent=e.message||'No se pudo guardar. Revisa el total y vuelve a intentarlo.';}
+    finally{ocupado=false;d.querySelectorAll('button,input').forEach(e=>e.disabled=false);}
+  };
+  tecladoDialogo(d,{accion:'[data-guardar]'});d.addEventListener('cancel',e=>{if(ocupado)e.preventDefault();});
+  $('[data-cantidad]').focus();$('[data-cantidad]').select();
+  return new Promise(resolve=>d.addEventListener('close',()=>{d.remove();resolve(resultado);},{once:true}));
+}
+
+/** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
+export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
+  const ruta=`/recepciones/${encodeURIComponent(codigo)}`;
+  const esWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
+  let [recepcion,ingreso]=await Promise.all([pedir(ruta),operacion(ruta+'/ingreso')]);
+  let indice=0,u=null,cerrarCamara=null,camaraSesion=0,ocupado=false,leyendo=false,pendientes=[],cache=new Map(),conflicto=false;
+  const d=document.createElement('dialog');d.className='dialogo-operativo ingreso-guiado';
+  d.innerHTML=`<header class="ingreso-cabecera"><div><strong>Recepción</strong><p class="mini codigo-recepcion">${esc(codigo)}</p></div><button data-cerrar class="b-sec">Cerrar</button></header><div data-cuerpo></div><p data-estado role="status" aria-live="polite"></p>`;
+  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
+  // Los detalles opcionales no avanzan de bulto por un Enter del lector.
+  tecladoDialogo(d,{accion:null});
+  let versiones=new Map(),camaraPendiente=null;
+  const estado=t=>{$('[data-estado]').textContent=t;};
+  const bultos=()=>ingreso.unidades.filter(x=>x.tipo==='BULTO');
+  const viewport=()=>{if(window.visualViewport)d.style.maxHeight=Math.max(180,window.visualViewport.height-20)+'px';};
+  viewport();window.visualViewport?.addEventListener('resize',viewport);
+  const apagar=()=>{camaraSesion++;cerrarCamara?.();cerrarCamara=null;};
+  const manejarError=e=>{estado(e.message);if(e.estado===409){conflicto=true;if($('[data-recargar]'))$('[data-recargar]').hidden=false;}};
+  const seguro=fn=>async()=>{if(ocupado)return;ocupado=true;d.dataset.ocupado='1';
+    try{await fn();}catch(e){manejarError(e);}finally{ocupado=false;delete d.dataset.ocupado;}};
+  async function refrescar(){ingreso=await operacion(ruta+'/ingreso');recepcion=await pedir(ruta);}
+  async function guardarUnidad(cambios){
+    ingreso=await operacion(ruta+'/unidades',{cuerpo:{id:u.id,tipo:u.tipo,version:u.version,...cambios}});
+    u=ingreso.unidades.find(x=>x.id===u.id);versiones.set(u.id,u.version);return u;
+  }
+  let sugeridasEtiquetas=false;
+  async function sugerirEtiquetas(){
+    if(sugeridasEtiquetas||ingreso.unidades.some(u=>u.etiquetaEmitida))return;
+    sugeridasEtiquetas=true;
+    if(await confirmar({titulo:'¿Imprimir etiquetas de los bultos?',texto:'La recepción está guardada. Puedes imprimir los códigos A01, B02… antes de tomar las fotos.',aceptar:'Revisar etiquetas',cancelar:'Continuar sin imprimir'})){
+      const modal=await abrirEtiquetasBultos(codigo);await new Promise(resolve=>modal.addEventListener('close',resolve,{once:true}));await refrescar();
+    }
+  }
+  async function guardarInicio({crearBultos=true}={}){
+    const marca=$('[data-marca]').value.trim(),protocolo=$('[data-protocolo]').value;
+    if(marca!==(ingreso.marca || '') || protocolo!==ingreso.protocolo || !ingreso.version || !ingreso.responsable)
+      ingreso=await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{marca,protocolo,version:ingreso.version}});
+    if(crearBultos&&protocolo!=='SIN_FOTOS' && !bultos().length)ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Math.max(1,Number(recepcion.bultos)||1)}});
+  }
+  async function continuarPacking(){
+    await guardarInicio({crearBultos:false});
+    await operacion(ruta+'/ingreso',{metodo:'PUT',cuerpo:{paso:'PACKING',version:ingreso.version}});
+    d.close();continuar();
+  }
+  function inicio(){
+    apagar();u=null;conflicto=false;estado('');
+    const bs=bultos(),completos=bs.filter(b=>b.concluido).length;
+    limpiarMiniaturas($('[data-cuerpo]'));$('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><b>${completos} de ${bs.length || recepcion.bultos || 1} bultos registrados</b><button class="b-sec" data-total>Corregir total</button></div>
+      <div class="acciones"><button class="b-sec" data-etiquetas>Etiquetas de bultos</button><button class="b-sec" data-finales>Fotos del estado final</button></div>
+      <div class="rejilla ingreso-opciones"><label class="campo"><span>Marca</span><input data-marca placeholder="Isuzu, Geely…" value="${esc(ingreso.marca || '')}"></label>
+      <label class="campo"><span>Protocolo de fotos</span><select data-protocolo><option value="REGLAMENTARIO">Reglamentario</option><option value="GENERAL">Cotidiano / panorámicas</option><option value="SIN_FOTOS">Sin registro fotográfico</option></select></label></div>
+      <p class="mini" data-sin-fotos hidden>La decisión del supervisor queda registrada. Continúa al packing list sin tomar fotos.</p>
+      <section class="ingreso-eleccion"><h2>¿Cómo deseas continuar?</h2><p class="mini">Elige el primer paso. Puedes volver después para completar las fotografías.</p><div class="ingreso-rutas"><button class="b-sec" data-prerecepcion>Fotos de descarga · prerecepción</button><button class="b-sec" data-panoramicas><b>1 · Fotos panorámicas</b><span>Documentar la recepción completa antes del primer bulto.</span></button><button class="b-primario ingreso-principal" data-empezar><b>${completos?'Continuar bultos':'2 · Fotos de los bultos'}</b><span>Identificar y fotografiar cada bulto por separado.</span></button><button class="b-sec" data-packing><b>3 · Cargar packing list</b><span>Continuar a los archivos; las fotos se pueden completar después.</span></button></div></section><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button>
+      <details class="ingreso-lista"><summary>Revisar bultos (${bs.length})</summary><label class="campo"><span>Buscar bulto o código</span><input data-buscar-bulto placeholder="Número, código o Pendiente"></label>${bs.map((b,i)=>`<button class="b-sec" data-ir="${i}">Bulto ${b.numero} · ${esc(b.codigo || 'sin etiqueta')} · ${b.concluido?'Registrado':'Pendiente'}</button>`).join('')}</details>
+      <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button>`;
+    $('[data-buscar-bulto]').oninput=ev=>{const q=ev.target.value.trim().toUpperCase();for(const b of d.querySelectorAll('[data-ir]'))b.hidden=!b.textContent.toUpperCase().includes(q);};
+    $('[data-protocolo]').value=ingreso.protocolo || 'REGLAMENTARIO';
+    const pintarProtocolo=()=>{const sinFotos=$('[data-protocolo]').value==='SIN_FOTOS';
+      $('[data-sin-fotos]').hidden=!sinFotos;
+      $('[data-prerecepcion]').disabled=sinFotos||recepcion.estado==='CERRADA';$('[data-empezar]').disabled=sinFotos||recepcion.estado==='CERRADA';$('[data-panoramicas]').disabled=sinFotos||recepcion.estado==='CERRADA';
+      $('.ingreso-lista').hidden=sinFotos;
+    };
+    $('[data-protocolo]').onchange=pintarProtocolo;pintarProtocolo();
+    $('[data-etiquetas]').onclick=seguro(async()=>{if(recepcion.estado!=='CERRADA')await guardarInicio();const modal=await abrirEtiquetasBultos(codigo);modal.addEventListener('close',()=>refrescar().then(inicio).catch(manejarError));});
+    $('[data-finales]').onclick=seguro(async()=>{if(recepcion.estado!=='CERRADA')await guardarInicio();await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'ESTADO_FINAL',supervisor:true});});
+    if(recepcion.estado==='CERRADA')for(const s of ['[data-total]','[data-empezar]','[data-packing]','[data-prerecepcion]','[data-panoramicas]','[data-marca]','[data-protocolo]'])$(s).disabled=true;
+    $('[data-recargar]').onclick=seguro(async()=>{const marca=$('[data-marca]').value,protocolo=$('[data-protocolo]').value,anterior=ingreso;
+      await refrescar();inicio();if(marca!==(anterior.marca || ''))$('[data-marca]').value=marca;if(protocolo!==anterior.protocolo)$('[data-protocolo]').value=protocolo;
+      pintarProtocolo();estado('Ingreso actualizado. Revisa marca y protocolo antes de guardar.');});
+    $('[data-empezar]').onclick=seguro(async()=>{if($('[data-protocolo]').value==='SIN_FOTOS'){await continuarPacking();return;}await guardarInicio();await sugerirEtiquetas();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
+    $('[data-panoramicas]').onclick=seguro(async()=>{await guardarInicio({crearBultos:false});const modal=await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'PANORAMICA',supervisor:true});if(modal.open)await new Promise(ok=>modal.addEventListener('close',ok,{once:true}));await refrescar();inicio();});
+    $('[data-temporales]').onclick=seguro(()=>abrirFotosPendientes(codigo,{alGuardar:refrescar}));
+    $('[data-total]').onclick=seguro(async()=>{const resultado=await corregirTotalBultos({codigo,cantidad:recepcion.bultos || bs.length || 1,guardar:cuerpo=>operacion(ruta+'/bultos',{cuerpo})});if(!resultado)return;
+      ingreso=resultado.ingreso;await refrescar();inicio();estado('Total físico guardado: '+resultado.cantidad+' bultos. Se conserva el historial de las etiquetas y de los registros.');$('[data-estado]').scrollIntoView({block:'nearest'});});
+    $('[data-prerecepcion]').onclick=seguro(async()=>{const modal=await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'PRERECEPCION'});if(modal.open)await new Promise(ok=>modal.addEventListener('close',ok,{once:true}));await refrescar();inicio();});
+    $('[data-packing]').onclick=seguro(continuarPacking);
+    $('[data-cuerpo]').querySelectorAll('[data-ir]').forEach(b=>b.onclick=seguro(async()=>{await guardarInicio();indice=Number(b.dataset.ir);await mostrarBulto();}));
+    if(recepcion.estado==='CERRADA')$('[data-cuerpo]').querySelectorAll('[data-ir]').forEach(b=>b.disabled=true);
+  }
+  async function encender(){
+    if(cerrarCamara || camaraPendiente===camaraSesion)return;
+    const sesion=++camaraSesion,video=$('[data-video]');camaraPendiente=sesion;
+    try{
+      const cerrar=await abrirCamara(video,raw=>{
+        if(ocupado || conflicto || !leyendo || !d.open || sesion!==camaraSesion)return;
+        let interna=false;leyendo=false;seguro(async()=>{const etiqueta=interpretarEtiquetaDeBulto(raw,u.id,u.rotulo,bultos().map(b=>b.rotulo).filter(Boolean));
+          if(etiqueta.interna){interna=true;estado('Bulto identificado con su etiqueta interna. Puedes tomar las fotos.');return;}
+          if(!await confirmar({titulo:'Confirmar código madre',texto:'Código leído: <b>'+esc(etiqueta.codigo)+'</b>. Revisa que corresponda a este bulto.',aceptar:'Usar este código'}))return;
+          await guardarUnidad({...etiqueta,pallet:etiqueta.pallet || (u.codigo===etiqueta.codigo ? u.pallet : '')});
+          pintarEtiqueta();estado('Etiqueta registrada. Puedes tomar las fotos.');
+        })().finally(()=>{leyendo=false;});
+      },{puedeLeer:()=>leyendo && !ocupado && !conflicto});
+      if(sesion!==camaraSesion || !d.open){cerrar();return;}
+      cerrarCamara=cerrar;$('[data-activar]').hidden=true;$('[data-error-camara]').hidden=true;video.parentElement.classList.remove('sin-camara');
+    }catch(e){if(sesion===camaraSesion){const mensaje=errorDeCamara(e);
+      estado(mensaje);$('[data-error-camara]').textContent=mensaje;$('[data-error-camara]').hidden=false;video.parentElement.classList.add('sin-camara');$('[data-activar]').hidden=false;}}
+    finally{if(camaraPendiente===sesion)camaraPendiente=null;}
+  }
+  function pintarEtiqueta(){
+    $('[data-etiqueta]').textContent=u.codigo ? `Etiqueta: ${u.codigo}${u.pallet ? ' · Pallet: '+u.pallet : ''}` : 'Escanea la etiqueta madre';
+    $('[data-tomar]').textContent=esWindows && !camaraDisponible() ? 'Elegir archivo' : '📷 Capturar del visor';
+    $('[data-pallet]').value=u.pallet || '';
+  }
+  function pintarCantidad(){
+    const ids=new Set([u.id,...ingreso.unidades.filter(x=>x.padreId===u.id).map(x=>x.id)]);
+    const fotos=new Set(ingreso.evidencias.filter(e=>ids.has(e.unidadId)).map(e=>e.archivoId)).size;
+    $('[data-cantidad-fotos]').textContent=`${fotos} foto${fotos===1?'':'s'} guardada${fotos===1?'':'s'}`;
+    $('[data-reintentar]').hidden=!pendientes.length;
+    for(const selector of ['[data-tipo]','[data-unidad-foto]','[data-origen]'])$(selector).disabled=!!pendientes.length;
+  }
+  async function subir(){
+    if(!pendientes.length)return;
+    const unidad=$('[data-unidad-foto]').value || u.id;
+    pintarCantidad();
+    await cargarEvidencias(codigo,pendientes,{unidadId:unidad,unidadVersion:versiones.get(unidad),
+      categoria:'RECEPCION',tipoEvidencia:$('[data-tipo]').value,protocolo:ingreso.protocolo || 'REGLAMENTARIO',
+      origen:$('[data-origen]').value.trim()},(n,t)=>estado(`Guardando foto ${n} de ${t}…`),cache);
+    pendientes=[];cache=new Map();ingreso=await operacion(ruta+'/ingreso');
+    pintarCantidad();estado('Fotos guardadas.');
+  }
+  async function galeria(){
+    const r=await pedir(`${ruta}/imagenes?unidadId=${encodeURIComponent(u.id)}&limite=100`);
+    limpiarMiniaturas($('[data-galeria]'));$('[data-galeria]').replaceChildren();
+    for(const f of r.archivos){const a=document.createElement('a');a.href=f.driveUrl || f.url;a.target='_blank';a.rel='noopener';
+      const img=document.createElement('img');cargarMiniatura(img,f.url);img.alt='Evidencia del bulto '+u.numero;img.loading='lazy';a.append(img);a.onclick=ev=>{if(ev.ctrlKey||ev.metaKey)return;ev.preventDefault();verImagen(f);};$('[data-galeria]').append(a);}
+    $('[data-galeria-nota]').textContent=r.total>100 ? `Se muestran las últimas 100 de ${r.total}. Todas se conservan en la galería de recepción.` : `${r.total} imágenes de este bulto y sus cajas.`;
+  }
+  async function mostrarBulto(){
+    apagar();pendientes=[];cache=new Map();conflicto=false;
+    await refrescar();if(ingreso.protocolo==='SIN_FOTOS'){inicio();return;}u=bultos()[indice];if(!u){inicio();return;}
+    leyendo=false;versiones=new Map(ingreso.unidades.map(x=>[x.id,x.version]));
+    const hijos=ingreso.unidades.filter(x=>x.padreId===u.id);
+    limpiarMiniaturas($('[data-cuerpo]'));$('[data-cuerpo]').innerHTML=`<div class="ingreso-resumen"><h2>Bulto ${u.numero} de ${bultos().length}</h2><button class="b-sec" data-resumen>Resumen</button></div>
+      <p class="guia-modal">1 · Identifica el bulto si tiene código madre. 2 · Selecciona el tipo de foto y guárdala. 3 · Revisa las fotos guardadas y continúa al siguiente bulto.</p><p data-etiqueta class="etiqueta-madre"></p><div class="camara-bulto"><video data-video playsinline muted></video><p data-error-camara class="mini" hidden></p><button class="b-sec" data-activar>Activar cámara</button></div>
+      <div class="acciones ingreso-herramientas"><button class="b-sec" data-escanear>↻ Escanear etiqueta</button><button class="b-sec" data-manual>Escribir código</button></div>
+      <label class="campo"><span>Fotos de</span><select data-tipo>${['EXTERIOR_BULTO','ABIERTO_CON_PACKING','ETIQUETA_CAJA','DANO_EMBALAJE','PACKING_INICIAL','PANORAMICA','ADICIONAL'].map(k=>`<option value="${k}">${esc(TIPOS_EVIDENCIA[k])}</option>`).join('')}</select></label>
+      <div class="acciones ingreso-herramientas"><button class="b-primario" data-tomar>📷 Capturar del visor</button><button class="b-sec" data-nativa>Cámara del teléfono</button><a class="b-sec" data-nativa-windows href="microsoft.windows.camera:" hidden>Cámara de Windows</a><button class="b-sec" data-archivos>Elegir de la galería</button><button class="b-sec" data-reintentar hidden>Reintentar fotos</button></div><input type="file" data-captura accept="image/*" capture="environment" hidden><input type="file" data-ficheros accept="image/*" multiple hidden>
+      <p class="mini">Capturar del visor guarda una foto de la cámara abierta; Cámara del teléfono abre la aplicación del dispositivo. Galería permite elegir fotos existentes.</p><p class="mini" data-cantidad-fotos></p><button class="b-sec" data-temporales>Recuperar fotos pendientes de este navegador</button><details data-fotos-guardadas><summary>Ver fotos del bulto</summary><div data-galeria class="fotos-bulto"></div><p data-galeria-nota class="mini"></p></details>
+      <details class="nota-bulto"><summary>＋ Observación opcional</summary><textarea data-nota rows="2" maxlength="300" placeholder="Estado del embalaje o novedad…">${esc(u.observacion || '')}</textarea></details>
+      <details><summary>Guía de fotos</summary><p class="mini">${ingreso.protocolo==='GENERAL' ? `${ingreso.recomendaciones.panoramicasMin} panorámicas recomendadas por recepción.` : `${ingreso.recomendaciones.exterioresMin} exteriores por bulto (objetivo ${ingreso.recomendaciones.exterioresObjetivo}), ${ingreso.recomendaciones.abiertosMin} abierto con lista visible y ${ingreso.recomendaciones.packingMin} packing inicial por recepción.`} Sin máximo de imágenes.</p></details>
+      <details><summary>Caja interior, pallet o lista (opcional)</summary><label class="campo"><span>Packing list</span><input data-origen value="${esc((u.origenes || recepcion.origenes || [])[0] || 'PRINCIPAL')}"></label>
+      <label class="campo"><span>Ubicación / pallet</span><input data-pallet value="${esc(u.pallet || '')}"></label>
+      <label class="campo"><span>Unidad de las fotos</span><select data-unidad-foto><option value="${u.id}">Bulto ${u.numero}</option>${hijos.map(h=>`<option value="${h.id}">Caja ${h.numero} · ${esc(h.codigo)}</option>`).join('')}</select></label><button class="b-sec" data-caja>＋ Caja interior</button><button class="b-sec" data-editar-unidad>Editar unidad seleccionada</button></details>
+      <button class="b-sec" data-recargar hidden>Revisar cambios del otro supervisor</button>
+      <footer class="ingreso-pie"><button class="b-primario" data-siguiente>${indice<bultos().length-1 ? 'Guardar y siguiente bulto →' : 'Guardar y terminar bultos ✓'}</button></footer>`;
+    $('[data-tipo]').value=ingreso.protocolo==='GENERAL' ? 'PANORAMICA' : 'EXTERIOR_BULTO';
+    pintarEtiqueta();pintarCantidad();estado('');
+    $('[data-nativa]').hidden=esWindows;$('[data-nativa-windows]').hidden=!esWindows;
+    $('[data-nativa-windows]').onclick=ev=>{if(ocupado || conflicto){ev.preventDefault();return;}apagar();leyendo=false;estado('Toma la foto en Cámara de Windows. Regresa y toca Galería para adjuntarla a este bulto.');};
+    $('[data-activar]').onclick=seguro(encender);
+    $('[data-escanear]').onclick=seguro(async()=>{leyendo=true;estado('Enfoca el código de la etiqueta madre.');await encender();});
+    $('[data-manual]').onclick=seguro(async()=>{leyendo=false;const v=await pedirCampos({titulo:'Etiqueta madre',campos:[{clave:'codigo',etiqueta:'Código madre',valor:u.codigo,obligatorio:true}]});
+      if(!v){leyendo=false;return;}const e=interpretarEtiquetaDeBulto(v.codigo,u.id,u.rotulo,bultos().map(b=>b.rotulo).filter(Boolean));if(e.interna){estado('Bulto identificado; se conserva su etiqueta madre.');return;}await guardarUnidad({...e,pallet:e.pallet || (u.codigo===e.codigo ? u.pallet : '')});pintarEtiqueta();});
+    $('[data-tomar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de adjuntar fotos.');
+      if(!camaraDisponible()){abrirNativa();return;}
+      if(!cerrarCamara){await encender();return;}leyendo=false;pendientes.push(await fotografiarVideo($('[data-video]')));try{await subir();}finally{pintarCantidad();leyendo=false;}});
+    function abrirNativa(){apagar();leyendo=false;$('[data-activar]').hidden=false;$('[data-video]').parentElement.classList.add('sin-camara');$('[data-captura]').click();}
+    $('[data-nativa]').onclick=()=>{if(!ocupado && !conflicto)abrirNativa();};
+    $('[data-captura]').onchange=seguro(async()=>{pendientes.push(...$('[data-captura]').files);$('[data-captura]').value='';try{await subir();}finally{pintarCantidad();}});
+    $('[data-archivos]').onclick=()=>{if(!ocupado && !conflicto)$('[data-ficheros]').click();};
+    $('[data-cuerpo]').addEventListener('dragover',ev=>{ev.preventDefault();});$('[data-cuerpo]').addEventListener('drop',ev=>{ev.preventDefault();if(ocupado||conflicto)return;pendientes.push(...[...ev.dataTransfer.files].filter(f=>f.type.startsWith('image/')));pintarCantidad();estado('Fotos seleccionadas. Revisa el tipo y pulsa Reintentar fotos para guardarlas.');});
+    $('[data-ficheros]').onchange=seguro(async()=>{const files=$('[data-ficheros]').files;pendientes.push(...files);$('[data-ficheros]').value='';try{await subir();}finally{pintarCantidad();}});
+    $('[data-reintentar]').onclick=seguro(async()=>{if(conflicto)throw new Error('Revisa los cambios antes de reintentar.');await subir();});
+    $('[data-temporales]').onclick=seguro(()=>abrirFotosPendientes(codigo,{alGuardar:refrescar}));
+    $('[data-fotos-guardadas]').addEventListener('toggle',ev=>{if(ev.target.open)galeria().catch(manejarError);});
+    const terminar=async()=>{if(conflicto)throw new Error('Revisa los cambios antes de guardar.');await subir();
+      await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value,
+        origenes:[...new Set([...(u.origenes || []),$('[data-origen]').value.trim()].filter(Boolean))],concluido:true});};
+    $('[data-siguiente]').onclick=seguro(async()=>{await terminar();indice++;if(indice>=bultos().length)inicio();else await mostrarBulto();});
+    $('[data-resumen]').onclick=seguro(async()=>{await subir();await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value});inicio();});
+    $('[data-caja]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Caja interior de bulto '+u.numero,campos:[{clave:'codigo',etiqueta:'Código de caja madre',obligatorio:true}]});if(!v)return;
+      const antes=new Set(ingreso.unidades.map(x=>x.id));ingreso=await operacion(ruta+'/unidades',{cuerpo:{tipo:'CAJA_MADRE',padreId:u.id,codigo:v.codigo,origenes:[$('[data-origen]').value.trim()].filter(Boolean)}});
+      const h=ingreso.unidades.find(x=>!antes.has(x.id));versiones.set(h.id,h.version);const o=document.createElement('option');o.value=h.id;o.textContent='Caja '+h.numero+' · '+h.codigo;$('[data-unidad-foto]').append(o);$('[data-unidad-foto]').value=h.id;});
+    $('[data-editar-unidad]').onclick=seguro(async()=>{const seleccion=$('[data-unidad-foto]').value,unidad=seleccion===u.id ? u : ingreso.unidades.find(x=>x.id===seleccion);
+      const v=await pedirCampos({titulo:'Código y listas de la unidad',campos:[{clave:'codigo',etiqueta:'Código madre',valor:unidad.codigo},{clave:'origenes',etiqueta:'Listas vinculadas, separadas por coma',valor:(unidad.origenes || []).join(',')}]});if(!v)return;
+      ingreso=await operacion(ruta+'/unidades',{cuerpo:{id:unidad.id,tipo:unidad.tipo,version:versiones.get(unidad.id),codigo:v.codigo,origenes:v.origenes.split(',').map(s=>s.trim()).filter(Boolean)}});
+      const nueva=ingreso.unidades.find(x=>x.id===unidad.id);versiones.set(nueva.id,nueva.version);
+      if(nueva.id===u.id){u=nueva;$('[data-etiqueta]').textContent='Etiqueta: '+u.codigo+(u.pallet ? ' · Pallet: '+u.pallet : '');}
+      else $('[data-unidad-foto]').selectedOptions[0].textContent='Caja '+nueva.numero+' · '+nueva.codigo;
+    });
+    $('[data-recargar]').onclick=seguro(async()=>{const nota=$('[data-nota]').value,pallet=$('[data-pallet]').value,anterior=u;
+      await refrescar();u=ingreso.unidades.find(x=>x.id===u.id);conflicto=false;leyendo=false;versiones=new Map(ingreso.unidades.map(x=>[x.id,x.version]));pintarEtiqueta();$('[data-recargar]').hidden=true;
+      if(nota===(anterior.observacion || ''))$('[data-nota]').value=u.observacion || '';
+      if(pallet!==(anterior.pallet || ''))$('[data-pallet]').value=pallet;
+      estado(`Último registro: ${u.actualizadoPor || 'otro supervisor'}. Observación guardada: ${u.observacion || '—'}. Revisa tus datos antes de guardar.`);pintarCantidad();});
+    estado('Selecciona Escanear etiqueta solo para leer el código madre, o activa la cámara para tomar fotos.');
+  }
+  async function cerrar(){if(ocupado)return;
+    if(u && !conflicto){try{ocupado=true;await subir();await guardarUnidad({observacion:$('[data-nota]').value,pallet:$('[data-pallet]').value});}catch(e){manejarError(e);return;}finally{ocupado=false;}}
+    if(conflicto && !await confirmar({titulo:'Salir sin sobrescribir cambios',texto:`Las fotos ya guardadas permanecen. Se descartarán la observación local sin guardar${pendientes.length ? ' y '+pendientes.length+' foto(s) pendientes de guardar' : ''}.`,aceptar:'Salir'}))return;
+    d.close();
+  }
+  $('[data-cerrar]').onclick=cerrar;
+  d.addEventListener('cancel',ev=>{ev.preventDefault();cerrar();});
+  d.addEventListener('close',()=>{apagar();window.visualViewport?.removeEventListener('resize',viewport);limpiarMiniaturas(d);d.remove();});
+  inicio();return d;
+}

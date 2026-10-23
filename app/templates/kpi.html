@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% set activo = 'kpi' %}
+{% block titulo %}Indicadores · {{ APP_NAME }}{% endblock %}
+{% block contenido %}
+<h1>Indicadores de recepción</h1>
+<div class="fila" style="margin-bottom:1rem">
+  <div class="campo"><label>Desde</label><input type="date" id="desde"></div>
+  <div class="campo"><label>Hasta</label><input type="date" id="hasta"></div>
+  <button onclick="cargar()">Aplicar</button>
+</div>
+
+<div class="kpis" id="kpis"></div>
+
+<h2>Por recepción</h2>
+<div class="scroll" style="max-height:38vh">
+  <table><thead><tr><th>Fecha</th><th>Recepción</th><th>Estado</th>
+    <th class="num">SKUs</th><th class="num">Ok</th><th class="num">Falt.</th>
+    <th class="num">Sobr.</th><th class="num">Exactitud</th><th class="num">Horas</th>
+  </tr></thead><tbody id="tRec"></tbody></table>
+</div>
+
+<h2>Por operador</h2>
+<div class="scroll" style="max-height:32vh">
+  <table><thead><tr><th>Operador</th><th class="num">Eventos</th><th class="num">Unidades</th>
+    <th class="num">SKUs</th><th class="num">Recepciones</th><th class="num">Anulaciones</th>
+    <th class="num">Mal estado</th><th class="num">Scans/hora</th>
+  </tr></thead><tbody id="tOp"></tbody></table>
+</div>
+
+<h2>SKU con más discrepancias</h2>
+<div class="fila" style="margin-bottom:.5rem">
+  <label style="display:flex;gap:.4rem;align-items:center;text-transform:none">
+    <input type="checkbox" id="soloProb" onchange="cargarSkus()" style="width:auto"> Solo con discrepancia
+  </label>
+</div>
+<div class="scroll" style="max-height:38vh">
+  <table><thead><tr><th>SKU</th><th class="num">Recepciones</th><th class="num">Ok</th>
+    <th class="num">Faltante</th><th class="num">Sobrante</th><th class="num">Discrepancia</th>
+    <th class="num">Dif. unid.</th><th>Última</th></tr></thead><tbody id="tSku"></tbody></table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function cargar(){
+  const q = new URLSearchParams();
+  if($('#desde').value) q.set('desde', $('#desde').value);
+  if($('#hasta').value) q.set('hasta', $('#hasta').value);
+  const d = await API.get('/api/kpi/resumen?'+q);
+  $('#kpis').innerHTML = `
+    <div class="kpi"><div class="v">${d.recepciones}</div><div class="e">Recepciones</div></div>
+    <div class="kpi warn"><div class="v">${d.recepciones_abiertas}</div><div class="e">En curso</div></div>
+    <div class="kpi"><div class="v">${d.skus_validados}</div><div class="e">SKU validados</div></div>
+    <div class="kpi ok"><div class="v">${d.exactitud_pct}%</div><div class="e">Exactitud</div></div>
+    <div class="kpi err"><div class="v">${d.tasa_discrepancia_pct}%</div><div class="e">Discrepancia</div></div>
+    <div class="kpi err"><div class="v">${d.faltante}</div><div class="e">Faltantes</div></div>
+    <div class="kpi info"><div class="v">${d.sobrante}</div><div class="e">Sobrantes</div></div>
+    <div class="kpi"><div class="v">${d.diferencia_unidades>0?'+':''}${d.diferencia_unidades}</div><div class="e">Dif. unidades</div></div>`;
+  $('#tRec').innerHTML = d.por_recepcion.map(r=>`
+    <tr><td class="mini">${r.fecha}</td>
+      <td><a href="/recepciones/${r.id}">${esc(r.codigo)}</a></td>
+      <td>${tag(r.estado)}</td><td class="num">${r.skus}</td>
+      <td class="num">${r.ok}</td><td class="num">${r.faltante}</td><td class="num">${r.sobrante}</td>
+      <td class="num">${r.exactitud_pct}%</td><td class="num">${r.horas??'—'}</td></tr>`).join('')
+    || '<tr><td colspan="9" class="mini">Sin datos.</td></tr>';
+
+  const ops = await API.get('/api/kpi/operadores?'+q);
+  $('#tOp').innerHTML = ops.map(o=>`
+    <tr><td><b>${esc(o.nombre)}</b> <span class="mini">${esc(o.rol)}</span></td>
+      <td class="num">${o.eventos}</td><td class="num">${o.unidades}</td>
+      <td class="num">${o.skus_distintos}</td><td class="num">${o.recepciones}</td>
+      <td class="num">${o.anulaciones}</td><td class="num">${o.items_mal_estado}</td>
+      <td class="num">${o.scans_por_hora??'—'}</td></tr>`).join('')
+    || '<tr><td colspan="8" class="mini">Sin datos.</td></tr>';
+  cargarSkus();
+}
+
+async function cargarSkus(){
+  const s = await API.get('/api/kpi/skus?limite=150&solo_problematicos='+$('#soloProb').checked);
+  $('#tSku').innerHTML = s.map(x=>`
+    <tr><td><b>${esc(x.sku)}</b></td><td class="num">${x.recepciones}</td>
+      <td class="num">${x.ok}</td><td class="num">${x.faltante}</td><td class="num">${x.sobrante}</td>
+      <td class="num">${x.tasa_discrepancia_pct}%</td>
+      <td class="num">${x.diferencia_unidades>0?'+':''}${x.diferencia_unidades}</td>
+      <td class="mini">${esc(x.ultima_recepcion||'')} ${x.ultima_fecha||''}</td></tr>`).join('')
+    || '<tr><td colspan="8" class="mini">Sin datos.</td></tr>';
+}
+cargar();
+</script>
+{% endblock %}

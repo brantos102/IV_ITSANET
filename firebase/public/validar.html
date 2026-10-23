@@ -1,0 +1,2307 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<script src="./js/arranque.js?v=20261023-68"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Validación física — ITSANET</title>
+<link rel="stylesheet" href="./css/app.css">
+<link rel="stylesheet" href="./css/marca.css?v=20261023-68">
+<link rel="stylesheet" href="./css/operacion.css">
+<script src="./vendor/JsBarcode.all.min.js?v=20261023-68" defer></script>
+<script src="./vendor/xlsx.full.min.js?v=20261023-68" defer></script>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
+</head>
+<body class="operacion-movil">
+<div class="envoltorio">
+
+<header>
+  <div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
+    <div class="sub" id="lblRecepcion">—</div>
+    <div class="mini" id="lblListas"></div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="./recepciones.html"><button class="b-sec">Recepciones</button></a>
+</header>
+
+<div class="estado-red"><span id="redOperacion" role="status">Conectando con el servidor…</span><span id="progresoOperacion"></span></div>
+<nav class="vistas-operacion" aria-label="Vistas de validación">
+  <button type="button" data-vista="contar" aria-pressed="true">Contar</button>
+  <button type="button" data-vista="inventario" aria-pressed="false">Recepción actual</button>
+  <button type="button" data-vista="novedades" aria-pressed="false">Novedades</button>
+</nav>
+<div class="resumen-operacion" id="resumenOperacion"></div>
+<!-- Avance -->
+<details class="panel detalle-indicadores"><summary>Ver todos los indicadores y su explicación</summary>
+  <div class="kpis" id="kpis"></div>
+  <div class="barra" hidden style="margin-top:14px"><i id="barraAvance"></i></div>
+  <button type="button" class="enlace-ayuda" id="bGlosario">
+    ¿Qué significa cada cifra?</button>
+  <div id="glosario" class="oculto"></div>
+</details>
+
+<div id="avisos"></div>
+
+<!-- Si la dirección llega sin recepción, la pantalla no se queda muerta: se
+     elige aquí mismo. Escribiendo el código se va filtrando, y un dígito de
+     más o de menos sigue encontrándola: REC0260002 y REC026002 se parecen
+     demasiado para exigir que se escriba exacto. -->
+<div class="panel oculto" id="panelElegir">
+  <h3 style="margin:0 0 4px">¿Qué recepción vas a validar?</h3>
+  <p class="mini" style="margin:0 0 14px">
+    Escribe el código o parte de él. También puedes verlas todas en
+    <a href="./recepciones.html">Recepciones</a>.</p>
+  <label class="campo">
+    <span>Recepción, SKU o código de barras</span>
+    <input id="inElegir" class="escaner" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" placeholder="Recepción o producto…">
+  </label>
+  <div id="listaElegir" style="margin-top:14px"></div>
+</div>
+
+<!-- Paso 1: escanear -->
+<p class="mini" id="equipoActivo" aria-live="polite"></p>
+<div class="panel oculto" id="panelEscaneo">
+  <div class="herramientas-conteo"><b>Consultar producto por código</b><button type="button" class="b-sec" id="bCaceria" aria-pressed="true">Consulta previa</button></div>
+  <p class="mini" id="ayudaCaceria">Consulta el estado antes de registrar.</p>
+  <!-- Va dentro de un <form>: en el teclado del móvil, la tecla Intro solo
+       envía si el campo pertenece a un formulario. Sin esto, el operario
+       escribía el código, pulsaba Intro y no pasaba nada. -->
+  <form id="formEscaner" autocomplete="off">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <label class="campo" style="flex:3;min-width:180px">
+        <span>SKU o código de barras</span>
+        <input id="inEscaner" class="escaner" autocomplete="off" autocapitalize="characters"
+               autocorrect="off" spellcheck="false" enterkeyhint="go"
+               inputmode="text" placeholder="Escanear…" list="sugerencias">
+        <datalist id="sugerencias"></datalist>
+      </label>
+      <label class="campo" style="flex:1;min-width:100px">
+        <span>Cantidad</span>
+        <input id="inCantidad" class="escaner" type="number" inputmode="decimal"
+               min="0" step="any" value="1" enterkeyhint="go">
+      </label>
+      <button type="submit" class="b-primario" id="bBuscar"
+              style="padding:16px 22px">Buscar</button>
+      <button type="button" class="b-sec oculto" id="bCamara"
+              style="padding:16px 18px">📷 Cámara</button>
+    </div>
+  </form>
+  <div id="visorCamara" class="oculto" style="margin-top:14px">
+    <div class="visor-lector"><video id="video" muted playsinline></video><span class="guia-lector" aria-hidden="true"></span></div>
+    <div class="lector-controles"><button type="button" class="b-primario" id="bLeerAhora" title="Intenta leer ahora con el lector nativo y el respaldo local. Solo consulta el producto.">Leer ahora</button><button type="button" class="b-sec" id="bLinterna" hidden aria-pressed="false">Linterna</button><button type="button" class="b-sec" id="bCerrarCamara">Apagar cámara</button></div>
+    <label class="lector-zoom" id="controlZoom" hidden>Zoom <input id="zoomCamara" type="range" aria-label="Zoom de la cámara"><output id="valorZoom"></output></label>
+    <p class="mini" id="estadoLector" role="status">Encuadra una etiqueta; puede estar horizontal o vertical. Leer consulta el código, sin guardar unidades.</p>
+    <details class="mini"><summary>Información del escáner</summary><p id="datosLector"></p><a href="./diagnostico-camara.html" target="_blank" rel="noopener">Comprobar cámara y versión en este dispositivo</a></details>
+  </div>
+  <div id="pistaCodigo"></div>
+  <details class="ayuda-conteo"><summary>¿Cómo registrar?</summary><p>Escanea, revisa el producto, indica cantidad y pallet, y guarda. La cantidad predeterminada es 1. Escanear no guarda por sí solo.</p></details>
+</div>
+
+<!-- Pasos 2-7: la ficha -->
+<div class="panel oculto" id="ficha" role="region" aria-label="Producto escaneado" style="border:2px solid var(--accent)">
+  <div class="cabecera-ficha"><span>Validación física</span><button type="button" class="b-sec" id="bEtiquetaFicha" title="Imprimir etiqueta 100 × 50 mm">Etiqueta</button><button type="button" class="b-sec" id="bCerrarFicha" aria-label="Cerrar producto">✕</button></div>
+  <div id="avisosFicha" aria-live="polite"></div><p id="estadoBorradorConteo" class="borrador-conteo-aviso" role="status" hidden></p>
+  <div class="acciones acciones-item" aria-label="Acciones del producto">
+    <button type="button" class="b-sec" id="bAccionCodigo">▥ Código</button>
+    <button type="button" class="b-sec" id="bAccionHistorial">◷ Historial</button>
+    <button type="button" class="b-sec" id="bAccionEvidencias" title="Ver las fotos guardadas de este SKU y registrar evidencia independiente del conteo">▧ Ver fotos guardadas</button>
+  </div>
+  <div id="estadoCaceria" role="status"></div>
+  <button type="button" class="b-sec oculto" id="bDetenerCamaraFicha">Apagar cámara</button>
+  <button type="button" class="b-sec" id="bFotosItem" hidden>Ver imágenes del ítem</button>
+  <details class="oculto" id="fCodigos"><summary>Código de barras · opcional</summary>
+    <p class="mini">Una etiqueta nueva puede corresponder al mismo SKU. Asociarla conserva las anteriores y no registra conteos ni crea productos.</p>
+    <button class="b-sec" id="bAsociarCodigo">Registrar otro código de barras</button>
+  </details>
+  <button type="button" class="b-sec oculto" id="bCorregirFicha">Corregir conteo</button><button type="button" class="b-primario" id="bContarFicha">Registrar conteo</button>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
+    <div style="flex:2;min-width:200px">
+      <div class="id" style="font-size:22px" id="fSku"></div>
+      <div class="mini" id="fDesc"></div>
+      <div class="mini" id="fExtra" style="margin-top:4px"></div>
+    </div>
+    <div class="kpis" style="flex:3;min-width:220px">
+      <div class="kpi"><div class="v" id="fEsp">0</div>
+        <div class="e">Declarado</div></div>
+      <div class="kpi"><div class="v" id="fCont" style="color:var(--info)">0</div>
+        <div class="e">Contado</div></div>
+      <div class="kpi"><div class="v" id="fPend" style="color:var(--warning)">0</div>
+        <div class="e">Falta</div></div>
+    </div>
+  </div>
+
+  <!-- De qué lista sale esta cantidad. Solo aparece si la recepción consolida
+       varias y este producto está en más de una: en cualquier otro caso no hay
+       nada que decidir y preguntarlo solo estorba. -->
+  <div id="fOrigenCaja" class="oculto" style="margin-bottom:14px">
+    <div id="fOrigenNota"></div>
+    <label class="campo">
+      <span>¿De qué packing list es esta cantidad? *</span>
+      <select id="fOrigen"></select>
+    </label>
+  </div>
+
+  <!-- Lo que ya se registró de este producto -->
+  <div id="fHistorial" class="oculto" style="margin-bottom:14px"></div>
+
+  <div id="fUbicaciones" class="oculto" style="margin-bottom:14px">
+    <span class="mini" style="font-weight:800;text-transform:uppercase">
+      Ya guardado en esta recepción</span>
+    <div class="chips" id="fChips"></div>
+  </div>
+
+  <!-- Dónde lo tiene el WMS hoy: para decidir si lo que llega cabe junto a lo
+       que ya hay, o conviene abrir otra ubicación. -->
+  <div id="fDepot" class="oculto" style="margin-bottom:14px"></div>
+
+  <div class="rejilla">
+    <label class="campo"><span>Cantidad a registrar</span>
+      <input id="fCantidad" class="cantidad" type="number" inputmode="decimal" min="0" step="any" value="1"></label>
+    <label class="campo"><span>Pallet / subpallet *</span>
+      <input id="fPallet" placeholder="Escribe el pallet: B04, C12…" autocapitalize="characters">
+      <span class="mini">Escribe el identificador real del pallet. Puedes completar o corregir su posición por separado.</span></label>
+    <label class="campo"><span>Estado físico</span>
+      <select id="fEstado">
+        <option value="BUENO">Buen estado</option>
+        <option value="PNC">Registrar incidencia / PNC</option>
+      </select></label>
+  </div>
+  <div id="camposIncidencia" class="rejilla oculto">
+    <label class="campo"><span>Tipo de incidencia</span><select id="fTipoIncidencia"><option value="MAL_ESTADO">MAL ESTADO</option></select></label>
+    <label class="campo"><span>Pallet específico de la novedad</span><input id="fPalletIncidencia" placeholder="Ej.: B04" maxlength="40" autocapitalize="characters"><span class="mini">Indica dónde están las unidades afectadas de este conteo. Si abarcas varios pallets, selecciona uno específico.</span></label><label class="campo"><span>Unidades con esta incidencia</span><input id="fCantidadIncidencia" type="number" inputmode="decimal" min="0" step="any" placeholder="Ej.: 2 de las 6 contadas"><span class="mini">El resto se registra conforme. Faltantes y sobrantes se calculan automáticamente.</span></label>
+  </div>
+  <div class="chips" style="margin-top:9px">
+    <button type="button" class="chip" data-pallet-rapido="DP">DP · directo a posición</button>
+    <button type="button" class="chip oculto" id="chipUltimo"></button>
+  </div>
+
+  <div class="rejilla" style="margin-top:13px">
+    <label class="campo"><span>Posición real asignada</span>
+      <input id="fPosReal" placeholder="A-01-03-2" autocapitalize="characters"
+             autocomplete="off"></label>
+    <label class="campo" style="grid-column:span 2"><span>Observación</span>
+      <textarea id="fObs" rows="2" maxlength="500" placeholder="Observación opcional de este SKU" style="font-family:var(--font-ui)"></textarea></label>
+  </div>
+  <!-- Las fotos se acumulan de una en una.
+       En el handheld, un <input capture> abre la cámara y devuelve UNA foto:
+       el «multiple» lo ignora. Por eso hay un botón que se puede pulsar varias
+       veces en vez de confiar en que el navegador deje elegir dos de golpe. -->
+  <details id="filaFotos" style="margin-top:13px"><summary title="Seleccionar fotos nuevas para guardar con el conteo o por separado">📷 Fotos para este conteo · opcional</summary><p class="mini">Tomar foto y Elegir de la galería seleccionan imágenes nuevas. Guardar conteo las registra junto con las unidades; Guardar solo fotos conserva las imágenes sin añadir unidades. En Ver fotos guardadas revisas lo ya registrado.</p>
+    <label class="campo"><span>Fotos de la evidencia</span></label>
+    <div class="acciones" style="margin:0">
+      <button type="button" class="b-sec" id="bTomarFoto">📷 Tomar foto</button>
+      <a class="b-sec" id="bCamaraWindows" href="microsoft.windows.camera:" hidden>Cámara de Windows</a>
+      <button type="button" class="b-sec" id="bElegirFoto">Elegir de la galería</button>
+      <span class="mini" id="contadorFotos">Se recomiendan 2: una del bulto y otra del detalle.</span>
+    </div>
+    <input type="file" id="fCamara" accept="image/*" capture="environment" class="oculto">
+    <input type="file" id="fFotos" accept="image/*" multiple class="oculto">
+    <div id="listaFotos" style="margin-top:10px"></div>
+    <button type="button" class="b-sec" id="bGuardarFotos">Guardar solo fotos · sin unidades</button>
+  </details>
+
+  <div class="acciones">
+    <button class="b-primario" id="bRegistrar">Guardar conteo</button>
+    <button class="b-peligro" id="bNoApareció" hidden aria-hidden="true" tabindex="-1">No apareció</button>
+    <button class="b-sec" id="bCancelar">Cancelar</button>
+  </div>
+</div>
+
+<!-- Paso 8: no encontrado -->
+<div class="panel oculto" id="panelNoEncontrado" style="border:2px solid var(--warning)">
+  <h2>8 · Código no encontrado</h2>
+  <p id="txtNoEncontrado"></p>
+  <div id="coincidencias"></div>
+  <details class="oculto" id="vincularCodigo"><summary>¿Es una etiqueta nueva de un producto existente?</summary>
+    <label class="campo"><span>SKU que ya existe en el maestro</span><input id="skuVincular" list="sugerencias" autocomplete="off"></label>
+    <button class="b-sec" id="bVincularCodigo">Asociar código y consultar</button>
+  </details>
+  <div class="rejilla">
+    <label class="campo" style="grid-column:1/-1"><span>Buscar en el packing list</span>
+      <input id="fBuscar" placeholder="parte del código o de la descripción"
+             style="font-family:var(--font-ui)"></label>
+  </div>
+  <div id="resBusqueda"></div>
+  <div class="acciones">
+    <button class="b-sec" id="bAdicional">Registrar como adicional</button>
+    <button class="b-sec" id="bCerrarNoEnc">Cancelar</button>
+  </div>
+</div>
+
+<div class="panel oculto" id="panelEntrega" aria-label="Entrega del informe">
+  <div class="acciones"><h2 style="flex:1">Entrega del informe</h2><button class="b-sec" id="bActualizarEntrega">Actualizar estado</button></div>
+  <p id="estadoEntrega" role="status"></p>
+  <p class="mini" id="cuentasEntrega"></p>
+  <div class="acciones"><button class="b-sec" id="bFotosEntrega">Revisar fotos pendientes</button><button class="b-primario" id="bReintentarEntrega" hidden>Reintentar esta entrega</button></div>
+  <div id="archivosEntrega"></div>
+</div>
+
+<!-- Tabla -->
+<div class="acciones oculto" id="accesoBitacora"><button class="b-sec" id="bSoloBitacora">Bitácora</button></div>
+<div class="panel oculto" id="panelInventario">
+  <div class="acciones"><h2 style="flex:1">Recepción actual</h2><button class="b-sec" id="bPlegarInventario" aria-expanded="true" aria-controls="contenidoInventario">Ocultar lista</button><button class="b-sec" id="bBitacoraDirecta">Bitácora</button></div>
+  <div id="contenidoInventario">
+  <div class="acciones" style="margin:0 0 14px">
+    <input id="fFiltro" placeholder="Filtrar por SKU o descripción"
+           style="flex:2;min-width:180px;font-family:var(--font-ui)">
+    <select id="fEstadoFiltro" style="flex:1;min-width:140px">
+      <option value="">Todos</option>
+      <option value="PENDIENTE">Sin buscar</option>
+      <option value="FALTANTE">Faltan unidades</option>
+      <option value="NO_ENCONTRADO">No aparecieron</option>
+      <option value="SOBRANTE">Sobran unidades</option><option value="ADICIONAL">Adicionales fuera del packing list</option>
+      <option value="OK">Completos</option>
+    </select>
+  </div>
+  <nav class="acciones acciones-recepcion" aria-label="Acciones de la recepción">
+    <button class="b-sec" id="bFotosRecepcion">Fotos</button>
+    <button class="b-sec" id="bEntregasOperativas">Entregas</button>
+    <details class="menu-recepcion" id="menuInformes"><summary>Informes</summary><div class="menu-recepcion-opciones">
+      <button class="b-sec oculto" id="bExportar">Descargar informe</button>
+      <button class="b-sec" id="bCorreoRedactado">Correo final editable</button>
+      <button class="b-sec oculto" id="bColumnasInforme">Vista previa y columnas</button>
+      <button class="b-sec oculto" id="bHistorialInformes">Historial de informes</button>
+      <button class="b-sec oculto" id="bCsvDepot">CSV para Depot</button>
+    </div></details>
+    <details class="menu-recepcion"><summary>Más acciones</summary><div class="menu-recepcion-opciones">
+      <button class="b-sec" id="bBitacora">Bitácora de conteos</button>
+      <button class="b-sec oculto" id="bEtiquetasBultos">Etiquetas de bultos</button>
+      <button class="b-sec oculto" id="bFotosFinales">Fotos del estado final</button>
+      <button class="b-sec oculto" id="bPendientesDrive">Revisar copia a Drive</button>
+    </div></details>
+    <button class="b-sec oculto" id="bReabrir">Reabrir</button>
+    <button class="b-ok oculto" id="bCerrar">Finalizar</button>
+  </nav>
+  <div class="tabla-env">
+    <table>
+      <thead><tr>
+        <th>Referencia</th>
+        <th class="num">Declarado</th>
+        <th class="num">Contado</th>
+        <th class="num">Dif.</th><th>Pallets</th><th>Estado</th>
+      </tr></thead>
+      <tbody id="tSkus"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<!-- Bitácora -->
+<div class="panel oculto" id="panelBitacora">
+  <div class="acciones"><h2 style="flex:1">Bitácora de conteos activos</h2><button class="b-sec" id="bVolverLista">Volver a la lista</button></div>
+  <div class="rejilla"><label class="campo"><span>Buscar código en la bitácora</span><input id="bitacoraCodigo" type="search" placeholder="Código completo o parte del SKU" autocomplete="off"></label><label class="campo"><span>Estado actual del SKU</span><select id="bitacoraFiltro"><option value="">Todos</option><option value="PENDIENTE">Sin buscar</option><option value="FALTANTE">Faltan unidades</option><option value="SOBRANTE">Sobran unidades</option><option value="ADICIONAL">Adicionales fuera del packing list</option><option value="OK">Completos</option><option value="NO_ENCONTRADO">No aparecieron</option></select></label></div><button type="button" class="b-sec" id="bActualizarBitacora">Actualizar bitácora</button><p class="mini" id="bitacoraEstado" role="status" aria-live="polite"></p>
+  <label><input id="bitacoraAnulados" type="checkbox"> Mostrar anulados para auditoría</label>
+  <p>Cada conteo con su autor y su hora. Nada se borra: anular genera un
+     registro de reversa.</p>
+  <div class="tabla-env">
+    <table>
+      <thead><tr><th>Hora</th><th>Referencia</th><th class="num">Cant.</th>
+        <th>Pallet</th><th>Operario</th><th></th></tr></thead>
+      <tbody id="tBitacora"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<dialog id="galeriaFotos" class="modal" style="width:min(920px,94vw);max-width:94vw;max-height:90vh;overflow:auto">
+  <div class="acciones"><h3 id="tituloGaleria" style="flex:1">Fotos guardadas</h3><button class="b-sec" id="bCerrarGaleria">Cerrar</button></div>
+  <p id="estadoGaleria" role="status"></p><div id="carpetasGaleria"></div>
+  <div class="acciones"><input id="filtroGaleria" placeholder="Filtrar por SKU"><button class="b-sec" id="bBuscarFotos">Buscar imágenes</button></div>
+  <div id="imagenesGaleria" class="galeria-imagenes"></div>
+  <button class="b-sec oculto" id="bMasFotos">Ver más imágenes</button>
+</dialog>
+
+<script type="module">
+import {agregarDesglosePosicion} from './js/posiciones.js?v=20261023-68';
+import {asignarUbicacionFinal} from './js/ubicacion-final.js?v=20261023-68';
+import {revisarPlanCorreos} from './js/correos-embarques.js?v=20261023-68';
+import {abrirCorreo} from './js/correo-redactado.js?v=20261023-68';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261023-68';
+import {abrirCorreccion} from './js/corregir-conteo.js?v=20261023-68';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261023-68';
+import { mostrarAviso } from './js/notificaciones.js?v=20261023-68';
+import { abrirEtiqueta } from './js/etiquetas.js?v=20261023-68';
+import { abrirEtiquetasBultos } from './js/etiquetas-bultos.js?v=20261023-68';
+import { abrirEvidencias, cargarEvidencias, operacion } from './js/evidencias.js?v=20261023-68';
+import { abrirAyudaCierre } from './js/cierre-ayuda.js?v=20261023-68';
+import { consultarSku, finalizarConEntrega, destinatariosRecientes, entregasRecepcion, pedir } from './js/local.js?v=20261023-68';
+
+import { pedir as pedirLocal } from './js/local.js?v=20261023-68';
+const pedirOperacion=(ruta,opciones={})=>pedirLocal(ruta,{...opciones,base:'/api/operacion'});
+import {configurarColumnasInforme} from './js/columnas-informe.js?v=20261023-68';
+import {iniciarInforme,archivarInforme,descargarInforme,historialInformes,informeActual} from './js/informes-registro.js?v=20261023-68';
+import { observarSesion } from './js/auth.js?v=20261023-68';
+import {
+  obtenerRecepcion, escucharSkus, buscarEnCatalogo, cerrarRecepcion, listarRecepciones,
+  reabrirRecepcion, registrarEquivalencia, normalizarCodigo, ETIQUETA_ESTADO,
+  decodificarPallets, ubicacionesDepot,
+} from './js/datos.js?v=20261023-68';
+import {
+  registrarConteo, declararNoEncontrado, anularConteo, leerBitacora,
+  ubicacionesDe, resumir, nuevaClave, registrarAuditoria, registrosDe, porOrigenDe,
+} from './js/conteo.js?v=20261023-68';
+import {
+  reunirInforme, construirLibros, descargarLibro, destinoEnDrive, fotosDe,
+} from './js/informe.js?v=20261023-68';
+import { comprimir, tamanoLegible } from './js/imagen.js?v=20261023-68';
+import { camaraDisponible, motivoNoDisponible, abrirCamara, errorDeCamara, leerCodigoDeImagen, VERSION_LECTOR } from './js/camara.js?v=20261023-68';
+import { conectarGlosario } from './js/glosario.js?v=20261023-68';
+import { parecidos } from './js/sugerir.js?v=20261023-68';
+import { publicarAvance } from './js/barra-supervision.js?v=20261023-68';
+import { confirmar, pedirTexto, pedirDatos, elegir, avisarModal, modalAbierto } from './js/modal.js?v=20261023-68';
+import {
+  leerFormatos, csvDeCantidades, csvDeProductos, csvDeCodigosBarras, plantilla, descargarCsv, descargarModelo,
+} from './js/csv.js?v=20261023-68';
+import { Proxy } from './js/proxy.js?v=20261023-68';
+import { modoLocal } from './js/local.js?v=20261023-68';
+
+import {crearBorradorConteo} from './js/borrador-conteo.js?v=20261023-68';
+import {coordinarSku} from './js/sku-en-curso.js?v=20261023-68';
+import {escucharCambiosRecepcion} from './js/cambios-recepcion.js?v=20261023-68';
+import {tomarFotoEnPagina} from './js/captura-foto.js?v=20261023-68';
+import {verImagen} from './js/visor-imagen.js?v=20261023-68';
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const RECEPCION = params.get('r');
+
+let usuario = null, perfil = null, recepcion = null;
+let reglasCliente={palletRequerido:true,posicionRequerida:false,incidencias:[]};
+let presenciaIntervalo=null;
+const dispositivoPresencia=nuevaClave();
+let skus = [];                 // agregado en vivo
+let actual = null;             // SKU en curso
+let claveEnvio = null;         // idempotencia por intento
+let ultimoPallet = '';
+let skuOrigenFicha='';
+let eventosCache = [];
+let fotosSubidas = [];
+let fotosElegidas = [];   // las que el operario tomó, antes de subirlas
+
+// El borrador pertenece a esta sesión, recepción y pestaña; no registra unidades.
+const CAMPOS_BORRADOR=['fCantidad','fPallet','fEstado','fTipoIncidencia','fPalletIncidencia','fCantidadIncidencia','fPosReal','fObs','fOrigen'];
+let borradorConteo=null, copiaAlIniciar=null, restaurandoConteo=false, relojBorrador=null;
+let capturaExterna=null, protegerEscapeHasta=0, vistasFotosConteo=[],baseCamposConteo='';
+function datosBorrador(){
+ if(!actual)return null;
+ return {actual:{sku:actual.sku,codigoEscaneado:actual.codigoEscaneado||actual.sku,interpretacionLectura:actual.interpretacionLectura||'',enPackingList:actual.enPackingList},claveEnvio,
+  campos:Object.fromEntries(CAMPOS_BORRADOR.map(id=>[id,$(id).value])),fotosIds:fotosElegidas.map(f=>borradorConteo?.identificar(f)),fotosSubidas:[...fotosSubidas],
+  soloConsulta:$('ficha').classList.contains('solo-consulta'),fotosAbiertas:$('filaFotos').open};
+}
+function anotarBorrador(){if(restaurandoConteo||!borradorConteo||!actual)return;const datos=datosBorrador();borradorConteo.anotar(datos);clearTimeout(relojBorrador);relojBorrador=setTimeout(()=>persistirBorrador(),250);}
+async function persistirBorrador(){
+ clearTimeout(relojBorrador);if(restaurandoConteo||!borradorConteo||!actual)return false;
+ const datos=datosBorrador();try{await borradorConteo.guardar(datos,[...fotosElegidas],fotosElegidas.map(f=>cacheFotosConteo.get(f)||''));return true;}
+ catch{const p=$('estadoBorradorConteo');p.hidden=false;p.textContent='No se pudo respaldar el borrador en este navegador. Mantén esta pantalla abierta y guarda las fotos o el conteo antes de salir.';return false;}
+}
+async function restaurarBorrador(copia){
+ if(!copia?.datos?.actual?.sku||!borradorConteo)return;
+ if(recepcion?.estado==='CERRADA'){aviso('Hay un borrador local, pero la recepción está cerrada. No se registró ni se enviará automáticamente. Conserva este navegador y solicita revisión al supervisor.','warn','Borrador conservado');return;}
+ restaurandoConteo=true;
+ try{
+  const dato=copia.datos;await escanear(dato.actual.sku);
+  if(!actual||actual.sku!==dato.actual.sku)throw new Error('No se pudo recuperar el producto del borrador. Se conserva para revisión.');
+  claveEnvio=dato.claveEnvio;actual={...actual,...dato.actual};
+  for(const id of CAMPOS_BORRADOR){if(!(id in (dato.campos||{})))continue;const valor=String(dato.campos[id]??'');if($(id).tagName!=='SELECT'||[...$(id).options].some(o=>o.value===valor))$(id).value=valor;}
+  fotosElegidas=(copia.fotos||[]).map(f=>f.archivo);fotosSubidas=Array.isArray(dato.fotosSubidas)?dato.fotosSubidas:[];cacheFotosConteo.clear();
+  for(const f of copia.fotos||[])if(f.url)cacheFotosConteo.set(f.archivo,f.url);
+  $('ficha').classList.toggle('solo-consulta',dato.soloConsulta===true);$('bContarFicha').classList.toggle('oculto',dato.soloConsulta!==true);
+  $('camposIncidencia').classList.toggle('oculto',$('fEstado').value!=='PNC');$('filaFotos').open=dato.fotosAbiertas||fotosElegidas.length>0;pintarFotos();
+  const faltan=Math.max(0,(dato.fotosIds||[]).length-fotosElegidas.length);
+  const p=$('estadoBorradorConteo');p.hidden=false;p.textContent='Borrador recuperado: revisa los campos y las fotos antes de guardar. Recuperar no registra unidades.'+(faltan?` No se recuperaron ${faltan} fotos: vuelve a adjuntarlas antes de guardar.`:'');
+ }catch(e){aviso(e.message,'warn','Borrador conservado');}finally{restaurandoConteo=false;}
+}
+async function cerrarFichaSinGuardar(){
+ if(!actual)return;
+ const cambios=fotosElegidas.length||fotosSubidas.length||JSON.stringify(CAMPOS_BORRADOR.map(id=>$(id).value))!==baseCamposConteo;
+ if(!cambios){reiniciar();return;}
+ if(!await confirmar({titulo:'¿Cerrar la ficha sin guardar?',texto:'Se descartarán los campos y fotos que todavía estén solo en este borrador. Las fotos ya confirmadas en el servidor se conservan.',aceptar:'Descartar borrador y cerrar',cancelar:'Seguir registrando'}))return;
+ reiniciar();
+}
+for(const id of CAMPOS_BORRADOR)for(const ev of ['input','change'])$(id).addEventListener(ev,anotarBorrador);
+$('ficha').addEventListener('click',()=>{if(actual)anotarBorrador();});
+$('filaFotos').addEventListener('toggle',anotarBorrador);
+document.addEventListener('visibilitychange',()=>{if(document.hidden){anotarBorrador();persistirBorrador();}});
+window.addEventListener('pagehide',()=>{anotarBorrador();persistirBorrador();});
+window.addEventListener('beforeunload',()=>{if(actual&&borradorConteo)borradorConteo.anotar(datosBorrador());});
+function seleccionarFotos(input){
+ // El click sigue dentro del gesto del usuario: Safari puede bloquearlo tras un await.
+ if(!actual)return;anotarBorrador();persistirBorrador();
+ capturaExterna={sku:actual.sku,clave:claveEnvio};protegerEscapeHasta=Infinity;input.click();
+}
+async function recibirFotos(input){
+ const archivos=[...input.files];input.value='';const contexto=capturaExterna;capturaExterna=null;protegerEscapeHasta=Date.now()+1200;
+ if(!archivos.length)return;
+ if(contexto&&(!actual||actual.sku!==contexto.sku||claveEnvio!==contexto.clave))await restaurarBorrador(await borradorConteo?.recuperar());
+ if(!actual||contexto&&(actual.sku!==contexto.sku||claveEnvio!==contexto.clave)){aviso('La foto regresó a otra ficha. No se adjuntó a un producto distinto. Conserva el archivo original y recupera el borrador.','warn');return;}
+ await anadirFotos(archivos);
+}
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '') {
+  const destino = document.body.classList.contains('ficha-activa') && tipo !== 'ok' ? $('avisosFicha') : $('avisos');
+  return mostrarAviso(destino, texto, tipo, titulo);
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; $('avisosFicha').innerHTML = ''; };
+
+/* --- Sonido y vibración: el operario trabaja sin mirar la pantalla --- */
+let audioCtx = null;
+let buscandoCodigo = false;
+let modoCaceria = true;
+try { modoCaceria = localStorage.getItem("itsanet.caceria") !== "0"; } catch {}
+let vistaOperacion = "contar";
+function bip(tipo) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const dur = tipo === 'error' ? 0.35 : 0.12;
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = tipo === 'error' ? 'square' : 'sine';
+    o.frequency.value = tipo === 'error' ? 220 : 950;
+    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+    if (navigator.vibrate) navigator.vibrate(tipo === 'error' ? [60, 50, 60] : 40);
+  } catch { /* el audio nunca debe cortar el escaneo */ }
+}
+
+conectarGlosario('bGlosario', 'glosario', [
+  'declarado', 'contado', 'verificado', 'sinBuscar', 'noAparecio', 'sobrante',
+  'pallet', 'posicionReal', 'pnc', 'adicional',
+]);
+
+/**
+ * Sin recepción en la dirección: ofrecerlas en vez de mandar al operario de
+ * vuelta al listado. Pasaba a mitad de jornada, con el handheld en la mano.
+ */
+async function elegirRecepcion() {
+  $('panelElegir').classList.remove('oculto');
+  $('panelEscaneo').classList.add('oculto');
+  document.querySelector('.vistas-operacion').classList.add('oculto');
+  $('redOperacion').textContent='Selecciona una recepción o busca un producto';
+  $('redOperacion').dataset.estado='elegir';
+  document.querySelector('.detalle-indicadores').classList.add('oculto');
+  const caja = $('listaElegir');
+  caja.innerHTML = '<p class="mini">Buscando recepciones…</p>';
+
+  let todas = [];
+  try {
+    todas = (await listarRecepciones(500)).filter((r) => r.estado !== 'CERRADA');
+  } catch (err) {
+    caja.innerHTML = '';
+    aviso(err.message, 'err', 'No se pudo leer el listado');
+    return;
+  }
+  if (!todas.length) {
+    caja.innerHTML = '<p class="mini">No hay recepciones abiertas. '
+      + 'Crea una en <a href="./recepciones.html">Recepciones</a>.</p>';
+    return;
+  }
+
+  const pintar = () => {
+    const cerca = parecidos($('inElegir').value, todas, { max: 12, clave: (r) => r.codigo });
+    caja.innerHTML = cerca.length
+      ? `<table class="tabla"><tbody>${cerca.map((r) => `
+          <tr><td><a href="./validar.html?r=${encodeURIComponent(r.id)}"><b>${esc(r.codigo)}</b></a>
+              <div class="mini">${esc(r.cliente || '')} ${esc(r.descripcion || '')}</div></td>
+              <td><span class="pastilla ${{ ABIERTA: 'p-warn', EN_VALIDACION: 'p-ok' }[r.estado] || 'p-off'}">${
+                esc({ ABIERTA: 'Sin empezar', EN_VALIDACION: 'En validación' }[r.estado] || r.estado || '')
+              }</span></td></tr>`).join('')}
+         </tbody></table>`
+      : `<p class="mini">Ninguna recepción se parece a «${esc($('inElegir').value)}».</p>`;
+  };
+  let consulta=0;
+  const buscarProducto=async()=>{
+    if(!modoLocal() || !$('inElegir').value.trim())return;
+    const id=++consulta,codigo=$('inElegir').value.trim();
+    try {
+      const l=await import('./js/local.js?v=20261023-68');
+      const r=await l.pedir(`/recepciones-abiertas/por-codigo/${encodeURIComponent(codigo)}`);
+      if(id!==consulta || codigo!==$('inElegir').value.trim())return;
+      caja.innerHTML=r.recepciones.length ? `<p class="mini">${esc(r.sku)} está en estas recepciones. Elige cuál validar:</p>`+
+        r.recepciones.map(rec=>`<p><a href="./validar.html?r=${encodeURIComponent(rec.id)}&sku=${encodeURIComponent(codigo)}"><b>${esc(rec.codigo)}</b> · ${esc(rec.cliente)}</a></p>`).join('')
+        : '<p class="mini">El código no figura en los packing lists de las recepciones abiertas.</p>';
+    }catch(e){aviso(e.message,'err');}
+  };
+  const boton=document.createElement('button');boton.type='button';boton.className='b-primario';boton.textContent='Buscar producto en recepciones';boton.onclick=buscarProducto;
+  $('inElegir').after(boton);
+  $('inElegir').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();buscarProducto();}});
+  $('inElegir').addEventListener('input', ()=>{consulta++;pintar();});
+  pintar();
+  $('inElegir').focus();
+}
+
+// Vistas y ficha progresiva: conservan los campos y la logica de conteo.
+const detallesFicha = document.createElement('details'); detallesFicha.id = 'detallesProducto';
+detallesFicha.innerHTML = '<summary>Detalle, ubicaciones e historial</summary>';
+$('ficha').insertBefore(detallesFicha, $('fOrigenCaja'));
+$('ficha').insertBefore($('bContarFicha'), detallesFicha);
+for (const id of ['fExtra','fHistorial','fUbicaciones','fDepot']) detallesFicha.append($(id));
+agregarDesglosePosicion($('fPosReal'));
+const filaPosicion = $('fPosReal').closest('.rejilla');
+const detallesConteo = document.createElement('details'); detallesConteo.id = 'detallesConteo'; detallesConteo.className = 'controles-conteo';
+detallesConteo.innerHTML = '<summary>Posición y observaciones</summary>';detallesConteo.open=true;
+filaPosicion.before(detallesConteo); detallesConteo.append(filaPosicion);
+const ayudaPallet = $('fPallet').parentElement.querySelector('.mini'); if (ayudaPallet) detallesConteo.append(ayudaPallet);
+const bUbicacionFinal=document.createElement('button');bUbicacionFinal.className='b-sec';bUbicacionFinal.textContent='Posición final del pallet';bUbicacionFinal.title='Asignar o actualizar la ubicación de un conteo ya guardado, sin añadir unidades';bUbicacionFinal.onclick=()=>{if(actual&&modoLocal())asignarUbicacionFinal({recepcion:RECEPCION,sku:actual.sku,alGuardar:()=>refrescarEventos()}).then(r=>{if(r)aviso(r.sku+' · '+r.pallet+' → '+r.posicionReal,'ok');}).catch(e=>aviso(e.message,'err'));};if(modoLocal())$('fHistorial').before(bUbicacionFinal);
+const chipDP = document.querySelector('[data-pallet-rapido=DP]'); if (chipDP) detallesConteo.append(chipDP);
+$('fCantidad').closest('.rejilla').classList.add('controles-conteo');
+$('bRegistrar').closest('.acciones').classList.add('controles-conteo','acciones-guardar');
+$('fOrigenCaja').classList.add('controles-conteo');
+$('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
+$('fEstado').addEventListener('change', () => { if ($('fEstado').value === 'PNC') detallesConteo.open = true; });
+$('bNoApareció').addEventListener('click', () => { detallesConteo.open = true; }, {capture:true});
+$('bCerrarFicha').onclick = cerrarFichaSinGuardar;
+$('bContarFicha').onclick = () => { $('ficha').classList.remove('solo-consulta'); $('bContarFicha').classList.add('oculto'); $('fCantidad').focus(); };
+function presentarFicha(s) {
+  document.body.classList.add('ficha-activa');
+  if (matchMedia('(max-width:600px)').matches) for (const el of $('ficha').parentElement.children) { if (el !== $('ficha')) el.inert = true; }
+  $('ficha').classList.toggle('solo-consulta', modoCaceria);
+  $('bContarFicha').classList.toggle('oculto', !modoCaceria);
+  $('bContarFicha').textContent = s.verificado ? 'Agregar otro conteo' : 'Contar este producto';
+  $('estadoCaceria').className = s.verificado && s.estado === 'OK' && !s.tienePnc && !s.cantidadConIncidencia ? 'consulta-validada' : 'consulta-pendiente';
+  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${s.contado || 0} de ${s.esperado || 0} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC: '+(s.cantidadPnc??'cantidad por revisar')+' · conformes: '+(s.cantidadConforme??'—') : ''}` : `Por validar · faltan ${Math.max((s.esperado || 0) - (s.contado || 0), 0)} unidades`;
+  detallesConteo.open = true; detallesFicha.open = false;
+  if (!modoCaceria) $('fCantidad').focus();
+  else $('bContarFicha').focus();
+  $('ficha').scrollIntoView({block:'nearest'});
+}
+async function etiquetaDe(s, cantidad) {
+  let estadoEtiqueta=s.tienePnc?'PNC':'NUV',unidadesEtiqueta=cantidad||s.contado||1;
+  if(Number(s.cantidadPnc)>0&&Number(s.cantidadConforme)>0){
+    const grupo=await elegir({titulo:'¿Qué unidades vas a etiquetar?',texto:'Este SKU tiene unidades conformes y unidades no conformes. Cada etiqueta indica 1 unidad.',opciones:[{valor:'NUV',titulo:s.cantidadConforme+' unidades conformes'},{valor:'PNC',titulo:s.cantidadPnc+' unidades PNC'}]});
+    if(!grupo)return;estadoEtiqueta=grupo;unidadesEtiqueta=grupo==='PNC'?s.cantidadPnc:s.cantidadConforme;
+  }
+  abrirEtiqueta({sku:s.sku,descripcion:s.descripcion || actual?.producto?.descripcion || '',cliente:recepcion?.cliente || 'ITSANET',
+    cantidad:1,unidadesReferencia:unidadesEtiqueta,recepcion:RECEPCION,estado:estadoEtiqueta,responsable:'',unidad:actual?.producto?.unidad || 'CS'});
+}
+$('bAccionCodigo').onclick=()=>{if(actual)$('bAsociarCodigo').click();};
+$('bAccionHistorial').onclick=async()=>{
+  if(!actual)return;
+  try{const evs=(await leerBitacora(RECEPCION,400)).filter(e=>e.sku===actual.sku);
+    await avisarModal({titulo:'Historial · '+actual.sku,texto:evs.length ? evs.map(e=>`<p><b>${esc(fechaCompleta(e.creadoEn))}</b> · ${esc(e.tipo)} · ${esc(e.cantidad)} u. · ${esc(e.pallet || '')}<br>${esc(e.operadorNombre || 'Operador registrado')}<br>${esc(e.observacion || '')}${e.posicionReal?'<br>Posición final: '+esc(e.posicionReal):''}</p>`).join('') : 'Sin movimientos registrados.'});
+  }catch(e){aviso(e.message,'err');}
+};
+$('bAccionEvidencias').onclick=async()=>{
+  if(!actual)return;
+  apagarCamara();
+  const s=skus.find(s=>s.sku===actual.sku) || {};
+  const categoria=$('fEstado').value==='PNC' || s.tienePnc ? 'PNC' : s.estado==='SOBRANTE' || s.enPackingList===false ? 'SOBRANTE' : ['FALTANTE','NO_ENCONTRADO'].includes(s.estado) ? 'FALTANTE' : 'GENERAL';
+  try{if(modoLocal())await abrirEvidencias({recepcion:RECEPCION,sku:actual.sku,categoria,pallet:$('fPallet').value.includes('-')?'':$('fPallet').value.trim(),supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});
+    else {$('filaFotos').open=true;$('filaFotos').scrollIntoView({block:'center'});}
+  }catch(e){aviso(e.message,'err');}
+};
+function ofrecerEvidencias(avisoElemento,sku,categoria,pallet=''){
+  if(!modoLocal())return;
+  const b=document.createElement('button');b.className='b-sec';b.textContent='▧ Fotos de la novedad';
+  b.onclick=async()=>{apagarCamara();try{await abrirEvidencias({recepcion:RECEPCION,sku,categoria,pallet,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});}catch(e){aviso(e.message,'err');}};
+  avisoElemento.append(b);
+}
+function fechaCompleta(v){const f=v?.toDate ? v.toDate() : new Date(v);return !v || Number.isNaN(f.getTime()) ? '—' : f.toLocaleString('es-EC',{timeZone:'America/Guayaquil'});}
+function fechaOrden(v){return v?.toDate ? v.toDate().getTime() : new Date(v || 0).getTime() || 0;}
+$('bEtiquetaFicha').onclick = () => { if (actual) etiquetaDe(skus.find(s => s.sku === actual.sku) || actual); };
+$('tSkus').addEventListener('click', ev => {
+  const fotos = ev.target.closest('[data-fotos]'); if (fotos) abrirGaleria(fotos.dataset.fotos);
+  const ver = ev.target.closest('[data-ver]'); if (ver) escanear(ver.dataset.ver);
+  const etiqueta = ev.target.closest('[data-etiqueta]'); if (etiqueta) etiquetaDe(skus.find(s => s.sku === etiqueta.dataset.etiqueta));
+});
+function pintarModo() {
+  $('bCaceria').textContent = modoCaceria ? 'Consulta previa' : 'Conteo directo';
+  $('bCaceria').setAttribute('aria-pressed', String(modoCaceria));
+  $('ayudaCaceria').textContent = modoCaceria ? 'Escanea para consultar. Decide después si agregar un conteo.' : 'Escanea, indica cantidad y pallet, y guarda.';
+}
+$('bCaceria').onclick = () => { modoCaceria = !modoCaceria; try {localStorage.setItem('itsanet.caceria',modoCaceria ? '1' : '0');} catch {} pintarModo(); };
+pintarModo();
+for (const b of document.querySelectorAll('[data-vista]')) b.onclick = () => {
+  vistaOperacion = b.dataset.vista;
+  if (vistaOperacion === 'novedades') apagarCamara();
+  document.querySelectorAll('[data-vista]').forEach(x => x.setAttribute('aria-pressed',String(x === b)));
+  $('panelEscaneo').classList.toggle('oculto',vistaOperacion === 'novedades');
+  $('panelInventario').classList.toggle('oculto',vistaOperacion === 'contar');
+  $('fEstadoFiltro').value = '';
+  if (actual) reiniciar();
+  pintarTabla();
+};
+
+// --- Arranque ------------------------------------------------------------- //
+observarSesion(async (e) => {
+  globalThis.itsanetArranque?.listo();
+  if (e.error) aviso(e.error, 'err');
+  if (!e.usuario) { location.href = './'; return; }
+  usuario = e.usuario; perfil = e.perfil;
+  if(RECEPCION&&modoLocal()){borradorConteo=crearBorradorConteo({actor:usuario.uid,recepcion:RECEPCION});copiaAlIniciar=await borradorConteo.recuperar();}
+  iniciarAvisosEntregas({usuario,perfil,aviso});
+  for (const id of ['bFotosItem','bFotosRecepcion','bGuardarFotos']) $(id).classList.toggle('oculto', !modoLocal());
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  if (!RECEPCION) {
+    await elegirRecepcion();
+    return;
+  }
+
+  try {
+    recepcion = await obtenerRecepcion(RECEPCION);
+    $('lblRecepcion').textContent = recepcion.codigo;
+    document.title = recepcion.codigo + ' — Validación';
+    if(modoLocal()){
+      reglasCliente=await pedirOperacion('/reglas/'+encodeURIComponent(recepcion.cliente));
+      $('fPallet').closest('label').querySelector('span').textContent='Pallet / subpallet'+(reglasCliente.palletRequerido?' *':' · opcional');
+      $('fPallet').required=reglasCliente.palletRequerido;
+      $('fPosReal').required=reglasCliente.posicionRequerida;
+      $('fTipoIncidencia').innerHTML=reglasCliente.incidencias.filter(i=>i.activo&&!['OK','FALTANTE','SOBRANTE'].includes(i.codigo)).map(i=>`<option value="${esc(i.codigo)}">${esc(i.nombre)}</option>`).join('');
+      $('fTipoIncidencia').value='MAL_ESTADO';
+      if(!globalThis.coordinacionSkuActual)globalThis.coordinacionSkuActual=coordinarSku({recepcion:RECEPCION,obtenerSku:()=>!$('ficha').classList.contains('oculto')?actual?.sku:'',contando:()=>!$('ficha').classList.contains('solo-consulta'),contenedor:$('ficha')});
+      clearInterval(presenciaIntervalo);
+      const latido=async()=>{if(document.hidden)return;try{
+        await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/presencia',{metodo:'PUT',cuerpo:{dispositivo:dispositivoPresencia,actividad:vistaOperacion==='contar'?'CONTANDO':'REVISANDO'}});
+        if(perfil?.permisos?.verEquipo){const e=await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/equipo');$('equipoActivo').textContent='En esta recepción: '+(e.equipoActivo.map(x=>x.nombre+' · '+x.actividad.toLowerCase()).join(' | ')||'sin otros usuarios activos');}
+      }catch{/* La presencia no bloquea el registro físico. */}};
+      latido();presenciaIntervalo=setInterval(latido,45000);
+    }
+    pintarListas();
+    aplicarEstado();
+  } catch (err) {
+    $('redOperacion').textContent='No se pudo abrir la recepción';
+    $('redOperacion').dataset.estado='error';
+    $('panelEscaneo').classList.add('oculto');
+    aviso(err.message, 'err');
+    return;
+  }
+
+  // Tiempo real: lo que cuenta un operario lo ven los demás al instante.
+  // El historial del producto sale de la bitácora; se refresca al abrir cada
+  // ficha, no en cada escaneo, para no leerla una vez por código.
+  refrescarEventos();
+
+  let codigoInicial=copiaAlIniciar?.datos?.actual?.sku?null:params.get('sku');
+  escucharSkus(RECEPCION, (lista) => {
+    $('panelEscaneo').classList.toggle('oculto',vistaOperacion === 'novedades');
+    $('redOperacion').textContent = '● Servidor conectado';
+    $('redOperacion').dataset.estado = 'ok';
+    skus = lista.sort((a, b) => (a.sku < b.sku ? -1 : 1));
+    // El <datalist> del escáner: al teclear a mano, el navegador va ofreciendo
+    // los códigos de esta recepción. Con la pistola no estorba.
+    $('sugerencias').innerHTML = skus
+      .map((s) => `<option value="${esc(s.sku)}">${esc(s.descripcion || '')}</option>`).join('');
+    pintarKpis();
+    pintarTabla();
+    if(!modoLocal()&&!$('panelBitacora').classList.contains('oculto'))actualizarBitacora().catch(()=>{});
+    if(copiaAlIniciar){const copia=copiaAlIniciar;copiaAlIniciar=null;restaurarBorrador(copia);}
+    if(codigoInicial) {const codigo=codigoInicial;codigoInicial=null;$('inEscaner').value=codigo;escanear(codigo);}
+    if (actual) {
+      const s = skus.find((x) => x.sku === actual.sku);
+      if (s) refrescarFicha(s);
+    }
+  }, (err) => { publicarEstadoAvance(false); $('redOperacion').textContent = '● Sin conexión con el servidor'; $('redOperacion').dataset.estado = 'error'; aviso(err.message, 'err', 'Sin conexión'); });
+
+  if(modoLocal())escucharCambiosRecepcion(RECEPCION,async cambio=>{
+    if(!cambio.secciones.some(s=>['conteos','recepcion'].includes(s)))return;
+    await refrescarEventos();
+    if(actual){const s=skus.find(x=>x.sku===actual.sku);if(s)pintarHistorial(s);}
+    if(!$('panelBitacora').classList.contains('oculto'))pintarBitacora();
+    if(cambio.secciones.includes('recepcion')){
+      const nueva=await obtenerRecepcion(RECEPCION),cambioEstado=nueva.estado!==recepcion.estado;
+      recepcion=nueva;pintarListas();if(cambioEstado)aplicarEstado();
+    }
+  },()=>{});
+  $('inEscaner').focus();
+});
+
+/**
+ * Qué puede hacer cada quien, según el estado de la recepción.
+ *
+ * El operario entra y sale de las recepciones que estén en curso: contar es
+ * su trabajo y no bloquea a nadie. Cerrar, exportar y reabrir son del
+ * supervisor, porque son las que dejan constancia hacia fuera.
+ */
+/**
+ * Qué packing lists tiene esta recepción, y cuántas líneas trajo cada uno.
+ *
+ * Una consolidación que salió mal —una lista que no llegó a guardarse, o que
+ * piso a la anterior— no se nota hasta que falta media hoja en el informe
+ * final, con la recepción ya cerrada. Aquí se ve antes de empezar a contar.
+ */
+function pintarListas() {
+  const listas = recepcion?.origenes || [];
+  const porLista = decodificarPallets(recepcion?.lineasPorOrigen);
+  const totalLineas = recepcion?.totales?.lineas || 0;
+
+  if (!listas.length) {
+    $('lblListas').textContent = totalLineas ? `${totalLineas} líneas` : '';
+    return;
+  }
+
+  $('lblListas').innerHTML = listas.length === 1
+    ? `${esc(listas[0])} · ${porLista[listas[0]] ?? totalLineas} líneas`
+    : `<b>${listas.length} listas:</b> ` + listas.map((o) =>
+        `${esc(o)} (${porLista[o] ?? '?'})`).join(' · ') +
+      ` · ${totalLineas} líneas en total`;
+
+  // La suma de las partes tiene que dar el total. Si no da, algo se perdió.
+  const suma = listas.reduce((a, o) => a + (porLista[o] || 0), 0);
+  if (listas.length > 1 && suma && suma !== totalLineas) {
+    aviso(`Las listas suman ${suma} líneas pero la recepción tiene ${totalLineas}. ` +
+          'Algo se perdió al consolidar: revisa el informe antes de cerrar.',
+          'warn', 'Las cuentas no cuadran');
+  }
+}
+
+function aplicarEstado() {
+  const manda = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
+  const cerrada = recepcion.estado === 'CERRADA';
+  if(skus.length)publicarEstadoAvance();
+
+  $('inEscaner').disabled = cerrada;
+  $('bContarFicha').disabled = cerrada;
+  $('bRegistrar').disabled = cerrada;
+  $('bBuscar').disabled = cerrada;
+  $('bCamara').disabled = cerrada;
+  $('bCorreoRedactado').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.redactarCorreo);
+  $('bExportar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.exportarInformes:manda));
+  $('bColumnasInforme').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes||cerrada);
+  $('bHistorialInformes').classList.toggle('oculto',!modoLocal()||!perfil?.permisos?.exportarInformes);
+  $('bCsvDepot').classList.toggle('oculto', !manda);
+  $('bEtiquetasBultos').classList.toggle('oculto',!modoLocal()||!manda||cerrada);
+  $('bFotosFinales').classList.toggle('oculto',!modoLocal()||!manda);
+  $('bCerrar').classList.toggle('oculto', !(modoLocal()?perfil?.permisos?.cerrarRecepciones:manda) || cerrada);
+  $('bPendientesDrive').classList.toggle('oculto', !modoLocal() || !perfil?.permisos?.cerrarRecepciones || cerrada);
+  $('bReabrir').classList.toggle('oculto', !manda || !cerrada);
+  $('bEntregasOperativas').classList.toggle('oculto',!manda);
+  $('panelEntrega').classList.toggle('oculto', !modoLocal() || !manda || !cerrada);
+  $('menuInformes').hidden=[...$('menuInformes').querySelectorAll('button')].every(b=>b.classList.contains('oculto'));
+  if (modoLocal() && manda && cerrada) actualizarEntrega();
+
+  if (cerrada) {
+    apagarCamara();
+    aviso(manda
+      ? 'Recepción cerrada: no admite más conteos. Puedes volver a exportar el ' +
+        'informe, o reabrirla si hay que completarla.'
+      : 'Esta recepción está cerrada. Habla con tu supervisor si falta algo.',
+      'warn', 'Cerrada');
+  }
+}
+
+async function actualizarEntrega() {
+  $('bActualizarEntrega').disabled = true;
+  try {
+    const [e] = await entregasRecepcion(RECEPCION);
+    $('bReintentarEntrega').hidden = !e || !['PENDIENTE','REVISION'].includes(e.estado) || e.estado==='REVISION'&&e.revisionMotivo!=='ENTREGAS_MULTIPLES';
+    $('bReintentarEntrega').dataset.entrega=e?.id || '';
+    $('estadoEntrega').textContent = e ? `${e.estado} · ${e.mensaje}` : 'Esta recepción no tiene una entrega registrada.';
+    $('cuentasEntrega').textContent = e ? `Remitente: ${e.remitente || e.supervisor} · Para: ${e.destinatarios || 'Sin correo'} · Solicitado por: ${e.supervisor}` : '';
+    $('archivosEntrega').replaceChildren();
+    for (const [campo, titulo] of [['carpeta', 'Ver archivos y evidencias'], ['sheet', 'Ver exportación en Sheets']]) {
+      const url = e?.resultado?.[campo];
+      if (!url || !/^https:\/\/(drive|docs)\.google\.com\//.test(url)) continue;
+      const a = document.createElement('a'); a.href = url; a.textContent = titulo;
+      a.target = '_blank'; a.rel = 'noopener'; a.className = 'b-sec'; $('archivosEntrega').append(a);
+    }
+  } catch {
+    $('estadoEntrega').textContent = 'No se pudo consultar la entrega. Vuelve a actualizar el estado.';
+  } finally { $('bActualizarEntrega').disabled = false; }
+}
+$('bActualizarEntrega').onclick = actualizarEntrega;
+$('bFotosEntrega').onclick = () => abrirAyudaCierre({recepcion:RECEPCION}).catch(e=>aviso(e.message,'err'));
+$('bReintentarEntrega').onclick = async () => {
+  const b=$('bReintentarEntrega');if(b.disabled || !b.dataset.entrega)return;b.disabled=true;
+  try{await abrirEntregas(aviso,RECEPCION);}
+  catch(e){aviso(e.message,'warn');}
+  finally{await actualizarEntrega();b.disabled=false;}
+};
+
+async function refrescarEventos() {
+  try { eventosCache = await leerBitacora(RECEPCION, 0); } catch { /* sin historial */ }
+}
+
+// --- Indicadores ---------------------------------------------------------- //
+/**
+ * Las cifras de arriba son botones: tocar «Faltantes» deja en la tabla
+ * justo lo que hay que volver a buscar, que es lo que se hace con ellas.
+ */
+function publicarEstadoAvance(conectado=$('redOperacion').dataset.estado!=='error'){
+ const r=resumir(skus);publicarAvance({codigo:RECEPCION,estado:recepcion?.estado,avance:r.avance,total:r.skus,verificadas:r.skus-r.sinVerificar,unidades:r.unidadesFisicas,conectado});
+}
+function pintarKpis() {
+  const r = resumir(skus);
+  const sel = $('fEstadoFiltro').value;
+  const tarjeta = (filtro, valor, etiqueta, color) => `
+    <button type="button" class="kpi${filtro !== null ? ' kpi-boton' : ''}"
+            ${filtro !== null ? `data-filtro="${filtro}"` : 'disabled'}
+            ${filtro !== null && filtro === sel ? 'style="border-color:var(--accent)"' : ''}>
+      <div class="v"${color ? ` style="color:${color}"` : ''}>${valor}</div>
+      <div class="e">${etiqueta}</div></button>`;
+
+  $('kpis').innerHTML =
+    tarjeta('', r.skus, 'Referencias') +
+    tarjeta('OK', r.ok, 'Completos', 'var(--success)') +
+    tarjeta('PENDIENTE', r.sinContar, 'Sin buscar', 'var(--secondary)') +
+    tarjeta('NO_ENCONTRADO', r.noEncontrado, 'No aparecieron', 'var(--danger)') +
+    tarjeta('FALTANTE', r.faltante - r.noEncontrado - r.sinContar,
+            'Faltan unidades', 'var(--warning)') +
+    tarjeta('SOBRANTE', r.sobrante, 'Sobran unidades', 'var(--info)') +
+    tarjeta(null, r.unidadesEsperadas, 'Declarado') +
+    tarjeta(null, r.unidadesFisicas, 'Contado', 'var(--accent)') +
+    tarjeta(null, r.avance + '%', 'Verificado');
+
+  $('barraAvance').style.width = r.avance + '%';
+  $('progresoOperacion').textContent = `${r.avance}% verificado`;
+  publicarEstadoAvance();
+  $('resumenOperacion').innerHTML = `<div><b>${r.ok}</b><span>Completas</span></div><div><b>${r.sinVerificar}</b><span>Por validar</span></div><div><b>${r.unidadesFisicas}</b><span>Unidades</span></div>`;
+}
+
+$('kpis').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-filtro]');
+  if (!b) return;
+  // Volver a tocar la misma quita el filtro.
+  $('fEstadoFiltro').value = $('fEstadoFiltro').value === b.dataset.filtro
+    ? '' : b.dataset.filtro;
+  pintarKpis();
+  pintarTabla();
+  $('fFiltro').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+function pintarTabla() {
+  const filtro = $('fFiltro').value.trim().toUpperCase();
+  const estado = $('fEstadoFiltro').value;
+  const filas = skus.filter((s) => {
+    if (vistaOperacion === 'novedades' && (!s.verificado || (s.estado === 'OK' && !s.tienePnc && !s.cantidadConIncidencia))) return false;
+    if (estado && (estado==='ADICIONAL'?s.enPackingList!==false:s.estado!==estado)) return false;
+    if (!filtro) return true;
+    return s.sku.includes(filtro) || (s.descripcion || '').toUpperCase().includes(filtro);
+  }).sort((a,b)=>Number(!!b.verificado)-Number(!!a.verificado) || fechaOrden(b.actualizadoEn)-fechaOrden(a.actualizadoEn) || a.sku.localeCompare(b.sku));
+
+  const clase = { OK: 'p-ok', FALTANTE: 'p-warn', NO_ENCONTRADO: 'p-err',
+                  SOBRANTE: 'p-info', PENDIENTE: 'p-off' };
+  $('tSkus').innerHTML = filas.length ? filas.map((s) => {
+    const dif = (s.contado || 0) - (s.esperado || 0);
+    const pallets = ubicacionesDe(s).map((u) =>
+      `${esc(u.pallet)}<span class="mini">(${u.cantidad})</span>`).join(' · ');
+    return `<tr data-estado="${esc(s.estado)}">
+      <td class="id"><button type="button" class="referencia-operacion" data-ver="${esc(s.sku)}">${esc(s.sku)}</button>
+        ${s.enPackingList === false ? '<br><span class="pastilla p-info">ADICIONAL</span>' : ''}
+        ${s.tienePnc ? `<br><span class="pastilla p-err">PNC: ${s.cantidadPnc??'cantidad por revisar'} · conformes: ${s.cantidadConforme??'—'}</span>` : ''}
+        ${!s.tienePnc&&s.cantidadConIncidencia?`<br><span class="pastilla p-warn">${esc((s.incidencias||[]).map(i=>i.nombre+' ('+i.cantidad+')').join(' · '))}</span>`:''}
+        <br><span class="mini">${esc((s.descripcion || '').slice(0, 42))}</span>${s.verificado ? `<br><time class="mini">${esc(fechaCompleta(s.actualizadoEn))}</time>` : ''}</td>
+      <td class="num">${s.esperado || 0}</td>
+      <td class="num">${s.contado || 0}</td>
+      <td class="num" style="color:${dif === 0 ? 'var(--secondary)' : dif > 0 ? 'var(--info)' : 'var(--warning)'}">
+        ${dif > 0 ? '+' + dif : dif}</td>
+      <td class="mini">${pallets || '—'}</td>
+      <td><span class="pastilla ${clase[s.estado] || 'p-off'}">
+        ${esc(ETIQUETA_ESTADO[s.estado] || s.estado || '')}</span>
+        <div class="acciones acciones-sku">${modoLocal() ? `<button type="button" class="b-sec" data-fotos="${esc(s.sku)}">Fotos</button>` : ''}
+        <details class="menu-recepcion"><summary>Acciones</summary><div class="menu-recepcion-opciones">
+        ${modoLocal()&&s.verificado&&perfil?.permisos?.cerrarRecepciones&&recepcion.estado!=='CERRADA'?`<button class="b-sec" type="button" data-corregir-sku="${esc(s.sku)}">Editar conteo</button>`:''}
+        <button type="button" class="b-sec etiqueta-fila" data-etiqueta="${esc(s.sku)}" title="Etiqueta 100 × 50 mm">Imprimir etiqueta</button>
+        </div></details></div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="mini">Sin resultados.</td></tr>';
+}
+
+$('panelInventario').addEventListener('click',ev=>{const b=ev.target.closest('button');if(b)b.closest('details.menu-recepcion')?.removeAttribute('open');});
+$('fFiltro').addEventListener('input', pintarTabla);
+$('fEstadoFiltro').addEventListener('change', () => { pintarKpis(); pintarTabla(); });
+
+// --- La cámara como lector ------------------------------------------------ //
+let cerrarCamara = null;
+let solicitudCamara = 0;
+const fotoCodigo=document.createElement('input');fotoCodigo.type='file';fotoCodigo.accept='image/*';fotoCodigo.hidden=true;document.body.append(fotoCodigo);
+fotoCodigo.onchange=async()=>{const archivo=fotoCodigo.files[0];fotoCodigo.value='';if(!archivo||buscandoCodigo)return;$('bCamara').disabled=true;try{const codigo=await leerCodigoDeImagen(archivo);$('inEscaner').value=codigo;await escanear(codigo);}catch(e){aviso(e.message,'warn','Leer una foto del código');}finally{$('bCamara').disabled=recepcion?.estado==='CERRADA';}};
+
+$('bCamara').classList.remove('oculto');
+
+$('bCamara').addEventListener('click', async () => {
+  if (cerrarCamara) return apagarCamara();
+  limpiarAvisos();
+
+  if (!camaraDisponible()) {
+    const opcion=await elegir({titulo:'Leer un código con la cámara del teléfono',texto:'El video en vivo necesita HTTPS. Puedes tomar una foto del código o elegir una imagen; solo se consultará el producto, sin guardar evidencia ni registrar cantidades.',opciones:[{valor:'foto',titulo:'Tomar foto del código'},{valor:'galeria',titulo:'Elegir imagen del código'},{valor:'https',titulo:'Cómo habilitar cámara en vivo con HTTPS'}]});
+    if(opcion==='foto'||opcion==='galeria'){if(opcion==='foto')fotoCodigo.setAttribute('capture','environment');else fotoCodigo.removeAttribute('capture');fotoCodigo.click();}else if(opcion==='https')aviso(motivoNoDisponible()+' Consulta el manual de conexiones en Ayuda.','info','Acceso HTTPS');
+    return;
+  }
+
+  const solicitud = ++solicitudCamara;
+  $('bCamara').disabled = true;
+  try {
+    document.activeElement?.blur();$('visorCamara').classList.remove('oculto');$('estadoLector').textContent='Iniciando cámara y enfoque…';
+    const cerrar = await abrirCamara($('video'), (codigo) => {
+      // La cámara se queda encendida: se escanea una caja tras otra sin volver
+      // a pulsar nada, que es como se trabaja con la pistola.
+      if (solicitud !== solicitudCamara || actual || modalAbierto()) return;
+      $('inEscaner').value = codigo;
+      return escanear(codigo);
+    }, {puedeLeer:()=>solicitud === solicitudCamara && !actual && !buscandoCodigo && !modalAbierto()});
+    if (solicitud !== solicitudCamara || document.hidden) { cerrar(); return; }
+    cerrarCamara = cerrar;
+    $('bLinterna').hidden=!cerrar.tieneLinterna;$('bLinterna').setAttribute('aria-pressed','false');$('bLinterna').textContent='Encender linterna';
+    $('controlZoom').hidden=!cerrar.zoom;if(cerrar.zoom){Object.assign($('zoomCamara'),{min:cerrar.zoom.min,max:cerrar.zoom.max,step:cerrar.zoom.step,value:cerrar.zoom.valor});$('valorZoom').textContent=Number(cerrar.zoom.valor).toFixed(1)+'×';}
+    const info=cerrar.diagnostico;$('datosLector').textContent=`Interfaz ${VERSION_LECTOR} · ${info.motor} · video ${info.resolucion.join(' × ')} · ${info.fps||'—'} fps · origen ${location.origin}. Producción y pruebas usan el mismo lector cuando tienen la misma versión; el equipo determina resolución, enfoque y controles.`;
+    $('estadoLector').textContent='Lectura automática activa. Encuadra una sola etiqueta o pulsa Leer ahora. No se registran unidades.';
+    $('bDetenerCamaraFicha').classList.remove('oculto');
+    $('bCamara').textContent = '📷 Apagar';$('visorCamara').scrollIntoView({behavior:'smooth',block:'center'});
+  } catch (e) {
+    if (solicitud !== solicitudCamara) return;
+    $('visorCamara').classList.add('oculto');
+    aviso(errorDeCamara(e), 'warn', 'Sin cámara');
+  } finally { if (solicitud === solicitudCamara) $('bCamara').disabled = recepcion?.estado === 'CERRADA'; }
+});
+
+function apagarCamara() {
+  solicitudCamara++;
+  if (cerrarCamara) cerrarCamara();
+  cerrarCamara = null;
+  $('bDetenerCamaraFicha').classList.add('oculto');
+  $('visorCamara').classList.add('oculto');
+  $('bCamara').textContent = '📷 Cámara';$('bLinterna').hidden=true;$('controlZoom').hidden=true;
+  $('bCamara').disabled = recepcion?.estado === 'CERRADA';
+}
+
+$('bLeerAhora').onclick=async()=>{if(!cerrarCamara)return;const b=$('bLeerAhora');b.disabled=true;$('estadoLector').textContent='Leyendo el encuadre…';try{const resultado=await cerrarCamara.leerAhora();$('estadoLector').textContent=({LEIDO:'Código leído. Revisa el producto antes de registrar.',SIN_CODIGO:'No se distinguió el código. Acércate, enfoca y evita reflejos; puedes usar zoom o linterna.',VARIOS:'Hay varios códigos: encuadra una sola etiqueta.',PAUSADA:'Revisa o cierra el producto o diálogo abierto para continuar.',REPETIDO:'Este código acaba de leerse. Revisa el producto mostrado.',OCUPADA:'El lector está procesando un fotograma. Vuelve a pulsar en un momento.',APAGADA:'Activa la cámara para leer.'})[resultado]||'Mantén la etiqueta enfocada.';}finally{b.disabled=false;}};
+$('zoomCamara').onchange=async ev=>{try{if(await cerrarCamara?.ajustarZoom(Number(ev.target.value)))$('valorZoom').textContent=Number(ev.target.value).toFixed(1)+'×';}catch{$('estadoLector').textContent='La cámara no aceptó este nivel de zoom. Puedes acercarte a la etiqueta.';}};
+$('bLinterna').onclick=async()=>{const b=$('bLinterna'),encender=b.getAttribute('aria-pressed')!=='true';b.disabled=true;try{if(await cerrarCamara?.linterna(encender)){b.setAttribute('aria-pressed',String(encender));b.textContent=encender?'Apagar linterna':'Encender linterna';}}catch{$('estadoLector').textContent='No se pudo ajustar la linterna en este navegador.';}finally{b.disabled=false;}};
+$('bCerrarCamara').addEventListener('click', apagarCamara);
+$('bDetenerCamaraFicha').addEventListener('click', apagarCamara);
+
+// Una cámara encendida se come la batería del handheld en una jornada.
+addEventListener('pagehide', apagarCamara);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) apagarCamara();
+});
+
+// --- Paso 1 y 2: escanear y validar --------------------------------------- //
+// La pistola manda Enter: desde el campo de cantidad el foco vuelve al escáner.
+$('inCantidad').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') { ev.preventDefault(); $('inEscaner').focus(); }
+});
+
+// El botón «Buscar», la pistola y la tecla «Ir» del teclado del móvil hacen lo
+// mismo: ENVIAR el formulario. Sin este manejador el navegador lo enviaba de
+// verdad, y como los campos no llevan «name» la dirección pasaba de
+// «validar.html?r=REC-0001» a «validar.html?»: la recepción desaparecía a mitad
+// de la validación y salía «Falta indicar la recepción». Pasaba sobre todo en
+// el móvil, donde se toca el botón en vez de pulsar Intro.
+//
+// El preventDefault no se quita nunca. Hay una prueba que lo vigila.
+$('formEscaner').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const v = $('inEscaner').value.trim();
+  if (v) escanear(v);
+});
+
+async function escanear(codigo) {
+  if (!recepcion) {aviso('Selecciona primero la recepción que vas a validar.','warn');return;}
+  if (buscandoCodigo || $('bRegistrar').disabled) return;
+  buscandoCodigo = true; $('bBuscar').disabled = true;
+  try {
+  limpiarAvisos();
+  $('panelNoEncontrado').classList.add('oculto');
+  let c = normalizarCodigo(codigo);
+  let interpretacionLectura='';
+  if(modoLocal()) {
+    const lectura=await operacion('/lecturas/resolver',{cuerpo:{lectura:codigo,recepcion:RECEPCION}});
+    interpretacionLectura=lectura.motivo;
+    if(lectura.confirmar) {
+      const elegido=await elegir({titulo:'Confirma el código de la etiqueta',texto:`<p>Lectura recibida: <code>${esc(codigo)}</code></p><p>${esc(lectura.motivo)} Revisa cada carácter antes de elegir.</p>`,
+        opciones:[...lectura.candidatos.map(sku=>{const p=lectura.detallesCandidatos?.find(p=>p.sku===sku);return {valor:sku,titulo:sku,
+          detalle:[p?.enCatalogo?'Catálogo de '+(p.cliente||'cliente sin identificar'):'Solo en packing list',p?.enPackingList?'Incluido en esta recepción':'Fuera de este packing list',p?.descripcion,'Consultar sin registrar conteo ni guardar equivalencia'].filter(Boolean).join(' · ')};}),...(lectura.sku?[{valor:'__ORIGINAL__',titulo:'Ninguno coincide · usar '+lectura.sku,detalle:'Consultar el código leído y, si no está en la lista, registrarlo como adicional o sobrante. No se modifica ningún código existente.'}]:[])]});
+      if(!elegido)return;c=elegido==='__ORIGINAL__'?lectura.sku:elegido;
+      aviso(`Lectura revisada: ${codigo} → ${c}. Confirmado por el operario.`,'info');
+    } else if(lectura.resuelto) {
+      c=lectura.sku;if(lectura.transformado)aviso(`Lectura interpretada: ${codigo} → ${c}. ${lectura.motivo}`,'info');
+    } else if(!lectura.sku) {aviso(lectura.motivo,'warn');return;}
+    else c=lectura.sku;
+  }
+
+  // La cantidad pre-digitada se respeta: si el operario contó 5 y escaneó una
+  // vez, se registran 5. Si no tocó nada, 1.
+  const cantidadPrevia = parseFloat($('inCantidad').value);
+
+  let enLista = skus.find((s) => s.sku === c);
+  let producto = null;
+  try {
+    producto = modoLocal() ? await pedir(`/catalogo/${encodeURIComponent(c)}?cliente=${encodeURIComponent(recepcion.cliente || '')}`).then(p=>p.existe ? p : null) : await buscarEnCatalogo(c);
+  } catch { /* el catálogo es un apoyo, no un bloqueo */ }
+
+  // Si el catálogo no lo conoce, se pregunta al WMS en vivo. Es la consulta
+  // lenta (≈1-3 s), así que solo ocurre cuando el precalentado no alcanzó.
+  if (!producto && !modoLocal()) {
+    const d = aviso('Consultando Depot…', 'info');
+    try {
+      const r = await Proxy.producto(c);
+      if (r.producto) {
+        producto = r.producto;
+        // Se recuerda la equivalencia: el siguiente escaneo ya no consulta.
+        if (producto.sku && producto.sku !== c) {
+          registrarEquivalencia(c, producto.sku, usuario).catch(() => {});
+        }
+      }
+    } catch (e) {
+      if (!enLista) { d.remove(); bip('error'); aviso(e.message, 'warn', 'Depot no responde'); }
+    }
+    d.remove();
+  }
+
+  if (!enLista && !producto) {
+    bip('error');
+    mostrarNoEncontrado(c);
+    return;
+  }
+
+  if(producto?.otroCliente)aviso(`El SKU ${producto.sku} está en el catálogo de ${producto.clientesCatalogo.join(', ')}; esta recepción es de ${recepcion.cliente}. ${producto.existeDepot?'Está registrado en Depot para otro cliente.':'No hay alta confirmada en Depot.'} Verifica el cliente antes de contar.`,'warn','Revisar cliente del SKU');
+  const sku = producto?.sku || c;
+  enLista = skus.find((s) => s.sku === sku) || enLista;
+  let s = skus.find((x) => x.sku === sku) || enLista ||
+            { sku, esperado: 0, contado: 0, descripcion: producto?.descripcion || '' };
+
+  if (modoLocal()) { const vigente = await consultarSku(RECEPCION, sku); if (vigente) s = vigente; }
+  actual = { sku, producto, codigoEscaneado: codigo, interpretacionLectura, enPackingList: s.enPackingList !== false && !!enLista };
+  $('fCodigos').classList.toggle('oculto', !modoLocal() || !producto);
+  $('bAccionCodigo').disabled=!modoLocal() || !producto;
+  claveEnvio = nuevaClave();
+  fotosSubidas = [];
+
+  $('ficha').classList.remove('oculto');
+  skuOrigenFicha='';refrescarFicha(s);
+
+  // Si pre-digitó una cantidad, manda esa. Si no, se propone lo que falta.
+  $('fCantidad').value = Number.isFinite(cantidadPrevia) && cantidadPrevia > 0 ? cantidadPrevia : 1;
+  $('fPallet').value = '';
+  $('fObs').value = '';
+  $('fPosReal').value = '';
+  $('fEstado').value = 'BUENO'; $('camposIncidencia').classList.add('oculto'); $('fCantidadIncidencia').value='';$('fPalletIncidencia').value='';
+  $('filaFotos').classList.toggle('oculto', recepcion.estado === 'CERRADA');
+  $('filaFotos').open = false;
+  $('fFotos').value = '';
+  $('fCamara').value = '';
+  fotosElegidas = [];cacheFotosConteo.clear();
+  pintarFotos();
+
+  if (!enLista) {
+    aviso(`${sku} existe en Depot pero NO está en el packing list. ` +
+          'Lo que registre quedará como adicional.', 'warn', 'Fuera de la lista');
+  }
+  if (producto && producto.codigoVigente === false) {
+    aviso('Este código fue reemplazado. Se registra contra el producto correcto.',
+          'info', 'Código antiguo');
+  }
+
+  bip('ok');
+  $('inEscaner').value = '';
+  presentarFicha(s);baseCamposConteo=JSON.stringify(CAMPOS_BORRADOR.map(id=>$(id).value));anotarBorrador();
+  if(String(codigo).trim().toUpperCase()!==sku)aviso(`${codigo} → ${sku}. ${interpretacionLectura}`,'info','Código interpretado');
+  } catch(e) { aviso(e.message, 'err', 'No se pudo consultar'); }
+  finally { buscandoCodigo = false; $('bBuscar').disabled = recepcion?.estado === 'CERRADA'; }
+}
+
+function refrescarFicha(s) {
+  const esperado = s.esperado || 0;
+  const contado = s.contado || 0;
+  $('estadoCaceria').textContent = s.verificado ? `Ya validado · ${contado} de ${esperado} · ${ETIQUETA_ESTADO[s.estado] || s.estado}${s.tienePnc ? ' · PNC: '+(s.cantidadPnc??'cantidad por revisar')+' · conformes: '+(s.cantidadConforme??'—') : ''}` : `Por validar · faltan ${Math.max(esperado - contado,0)} unidades`;
+  $('fSku').textContent = s.sku;
+  $('fDesc').textContent = s.descripcion || actual?.producto?.descripcion || '(sin descripción)';
+
+  const p = actual?.producto;
+  // Lo que identifica al producto, y de qué lista viene: en una recepción
+  // consolidada eso último es tan parte de su identidad como el cliente.
+  // Aquí solo va lo que IDENTIFICA al producto. La existencia y las ubicaciones
+  // de Depot estaban también en esta línea y ahora viven en su panel plegable:
+  // repetirlas aquí volvería a llenar la ficha de lo que no es lo primero.
+  $('bCorregirFicha').classList.toggle('oculto',!modoLocal()||!s.verificado||!perfil?.permisos?.cerrarRecepciones||recepcion.estado==='CERRADA');
+  $('bCorregirFicha').dataset.sku=s.sku;
+  const listas = s.origenes || [];
+  $('fExtra').textContent = [
+    p?.unidad && 'Unidad ' + p.unidad,
+    p?.cliente && 'Cliente ' + p.cliente,
+    listas.length ? 'Lista ' + listas.join(' + ') : null,
+  ].filter(Boolean).join(' · ');
+
+  $('fEsp').textContent = esperado;
+  $('fCont').textContent = contado;
+  $('fPend').textContent = Math.max(esperado - contado, 0);
+
+  // Repetir el pallet anterior tiene que ser una decisión, no un descuido.
+  const chip = $('chipUltimo');
+  chip.classList.toggle('oculto', !ultimoPallet);
+  if (ultimoPallet) {
+    chip.textContent = `↺ ${ultimoPallet}`;
+    chip.dataset.palletRapido = ultimoPallet;
+  }
+
+  const origenElegido=skuOrigenFicha===s.sku?$('fOrigen').value:'';pintarOrigen(s);skuOrigenFicha=s.sku;
+  if([...$('fOrigen').options].some(o=>o.value===origenElegido))$('fOrigen').value=origenElegido;
+  pintarHistorial(s);
+  pintarPosicionesDepot();
+
+  const ubic = ubicacionesDe(s);
+  if (ubic.length) {
+    $('fUbicaciones').classList.remove('oculto');
+    $('fChips').innerHTML = ubic.map((u) =>
+      `<button type="button" class="chip" data-pallet="${esc(u.pallet)}">📦 ${esc(u.pallet)} · ${u.cantidad}</button>`
+    ).join('');
+    // NO se rellena solo. Arrastrar el pallet del conteo anterior registra
+    // mercadería en un sitio donde no está, y el error no se ve: el campo
+    // parece confirmado porque trae algo escrito. Los botones de arriba están
+    // para elegirlo en un toque.
+  } else {
+    $('fUbicaciones').classList.add('oculto');
+    $('fChips').innerHTML = '';
+    // El pallet NO se rellena solo, ni aquí ni arriba. Me había quedado esta
+    // línea del comportamiento anterior, y como `escucharSkus` vuelve a pintar
+    // la ficha con cada conteo de cualquier operario, el campo se rellenaba
+    // solo mientras el de al lado estaba escribiendo otro pallet.
+  }
+}
+
+/**
+ * El selector de packing list.
+ *
+ * Si la recepción consolida varias listas y el producto está en más de una, la
+ * cantidad tiene que imputarse a una concreta. Antes lo resolvía el informe
+ * llenando líneas en orden, que es una convención: el operario no decía de qué
+ * embarque salía cada pieza. Preguntándolo deja de ser una suposición.
+ *
+ * Con una sola lista no hay nada que decidir, así que no se pregunta.
+ */
+function pintarOrigen(s) {
+  const caja = $('fOrigenCaja');
+  const sel = $('fOrigen');
+  const nota = $('fOrigenNota');
+  const listas = s.origenes || [];
+  const contado = porOrigenDe(s);
+  const declarado = decodificarPallets(s.esperadoPorOrigen);
+
+  if (!listas.length) {
+    caja.classList.add('oculto');
+    sel.innerHTML = '';
+    return;
+  }
+
+  // Con una sola lista no hay nada que elegir, pero sí que saber: en una
+  // recepción consolidada, de qué packing list sale este producto es parte de
+  // su identidad. Se dice, sin pedir nada.
+  if (listas.length === 1) {
+    const unica = listas[0];
+    sel.innerHTML = `<option value="${esc(unica)}" selected>${esc(unica)}</option>`;
+    sel.classList.add('oculto');
+    const varias = (recepcion?.origenes || []).length > 1;
+    caja.classList.toggle('oculto', !varias);
+    nota.innerHTML = varias
+      ? `<div class="msg info" style="margin:0"><b>Packing list</b>
+         Este producto solo está en <b>${esc(unica)}</b>${
+           contado[unica] ? ` · lleva ${contado[unica]} contadas` : ''}.</div>`
+      : '';
+    return;
+  }
+
+  // En más de una: hay que elegir, y con el contexto delante.
+  caja.classList.remove('oculto');
+  sel.classList.remove('oculto');
+  nota.innerHTML = '';
+  sel.innerHTML = '<option value="">— elige la lista —</option><option value="__REPARTIR__">Repartir entre las listas pendientes · confirmar</option>' +
+    listas.map((o) => {
+      const ya = contado[o] || 0;
+      const dec = declarado[o];
+      return `<option value="${esc(o)}">${esc(o)}` +
+        (dec != null ? ` · declara ${dec}` : '') + ` · lleva ${ya}</option>`;
+    }).join('');
+}
+
+/**
+ * Lo que ya se hizo con este producto.
+ *
+ * Al escanearlo otra vez para otro pallet, lo primero que hace falta es ver qué
+ * se registró antes: de qué lista salió, dónde quedó y cuándo. Sin eso el
+ * segundo registro se hace a ciegas y se duplica o se contradice.
+ */
+$('fHistorial').addEventListener('click',ev=>{const b=ev.target.closest('[data-editar-historial]');if(b&&actual)corregirSku(actual.sku,b.dataset.editarHistorial).catch(e=>aviso(e.message,'err'));});
+function pintarHistorial(s) {
+  const caja = $('fHistorial');
+  const previos = registrosDe(eventosCache, s.sku || actual?.sku);
+
+  if (!previos.length) {
+    caja.classList.add('oculto');
+    caja.innerHTML = '';
+    return;
+  }
+
+  caja.classList.remove('oculto');
+  caja.innerHTML = `
+    <span class="mini" style="font-weight:800;text-transform:uppercase">
+      Ya registrado en esta recepción · ${previos.reduce((a, r) => a + r.cantidad, 0)} u.
+      en ${previos.length} ${previos.length === 1 ? 'registro' : 'registros'}</span>
+    <div class="tabla-env" style="margin-top:7px"><table>
+      <thead><tr><th>Cuándo</th><th class="num">Cant.</th><th>Pallet</th>
+        <th>Posición final</th><th>Lista</th><th>Operario y observación</th><th>Acciones</th></tr></thead>
+      <tbody>${previos.slice(0, 8).map((r) => `<tr>
+        <td class="mini">${r.cuando ? esc(r.cuando.toLocaleString('es-EC', {
+          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) : ''}</td>
+        <td class="num">${r.cantidad}</td>
+        <td class="id" style="font-size:12px">${esc(r.pallet)}</td>
+        <td class="mini">${esc(r.posicionReal)}</td>
+        <td class="mini">${esc(r.origen || '—')}</td>
+        <td class="mini">${esc(r.operador || 'Operador registrado')}<br>${esc(r.observacion||'')}</td><td>${modoLocal()&&recepcion.estado!=='CERRADA'&&perfil?.permisos?.cerrarRecepciones?'<button class="b-sec" data-editar-historial="'+esc(r.id)+'">Editar conteo / pallet / posición</button>':''}</td>
+      </tr>`).join('')}</tbody></table></div>`;
+}
+
+/**
+ * Dónde está hoy el producto en Depot.
+ *
+ * Solo información. La app NO opina sobre si lo que llega cabe: no ve la
+ * ubicación, no conoce su capacidad y no sabe el volumen de la mercadería.
+ * Quien está delante del pallet sí. Sugerirlo sería una opinión disfrazada de
+ * dato, y es peor que no decir nada.
+ *
+ * Una misma posición puede traer varias filas del mismo código. No se agrupan:
+ * lo que las distingue —lote, serie, partida, estado— es justo lo que se mira
+ * para decidir dónde va lo que acaba de llegar.
+ */
+// Tocar una posición de Depot la copia al campo: es la que se va a usar en la
+// mayoría de los casos, y teclearla con guantes es donde aparecen los errores.
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-posicion]');
+  if (!b) return;
+  $('fPosReal').value = b.dataset.posicion;
+  $('fPosReal').dispatchEvent(new Event('input',{bubbles:true}));
+});
+
+/**
+ * Lo que Depot sabe del producto: plegado, y solo si se pide.
+ *
+ * Lo primero es contar. Una tabla de ubicaciones, lotes y existencias abierta
+ * encima de la ficha empuja hacia abajo lo único imprescindible —la cantidad
+ * física encontrada— y en el handheld eso significa desplazarse para registrar.
+ *
+ * Así que se resume en una línea y el detalle se abre a propósito. La elección
+ * se recuerda: quien lo quiera abierto todo el día lo abre una vez.
+ */
+const CLAVE_DEPOT = 'itsanet.depot.abierto';
+const depotAbierto = () => {
+  try { return localStorage.getItem(CLAVE_DEPOT) === '1'; } catch { return false; }
+};
+
+function pintarPosicionesDepot() {
+  const caja = $('fDepot');
+  const p = actual?.producto;
+  if (!p) { caja.classList.add('oculto'); caja.innerHTML = ''; return; }
+
+  const posiciones = ubicacionesDepot(p);
+  const abierto = depotAbierto();
+  caja.classList.remove('oculto');
+
+  // --- El resumen, siempre una línea --- //
+  let resumen;
+  let detalle = '';
+
+  if (posiciones.length) {
+    const total = posiciones.reduce((a, u) => a + (u.stock || 0), 0);
+    const sitios = new Set(posiciones.map((u) => u.posicion)).size;
+    const hayDetalle = posiciones.some((u) => u.lote || u.serie || u.partida);
+    resumen = `En Depot hoy: ${total} ${esc(p.unidad || 'u')} en ${sitios} `
+            + `${sitios === 1 ? 'ubicación' : 'ubicaciones'}`;
+
+    detalle = `<div class="tabla-env" style="margin-top:7px"><table>
+      <thead><tr><th>Posición</th><th class="num">Cant.</th>
+        ${hayDetalle ? '<th>Lote</th><th>Serie</th><th>Partida</th>' : ''}
+        <th>Estado</th></tr></thead>
+      <tbody>${posiciones
+        .sort((a, b) => String(a.posicion).localeCompare(String(b.posicion))
+                     || (b.stock || 0) - (a.stock || 0))
+        .map((u) => `<tr>
+          <td><button type="button" class="chip" style="padding:5px 11px;font-size:12px"
+                data-posicion="${esc(u.posicion)}">${esc(u.posicion)}</button></td>
+          <td class="num">${u.stock}</td>
+          ${hayDetalle ? `
+            <td class="mini">${esc(u.lote || '')}</td>
+            <td class="mini">${esc(u.serie || '')}</td>
+            <td class="mini">${esc(u.partida || '')}</td>` : ''}
+          <td class="mini">${esc(u.estado || '')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
+  } else if (p.stockDisponible === false) {
+    resumen='Posiciones de Depot pendientes de sincronización';
+    detalle='<p class="mini">El maestro reconoce el producto, pero no hay una consulta de stock confirmada para este cliente. Puedes contar indicando la posición física real.</p>';
+  } else if (Number(p.stock) > 0) {
+    // Con existencia pero sin ubicación, el catálogo está incompleto; decir
+    // «sin existencia» sería afirmar algo que no se sabe.
+    resumen = `En Depot hoy: ${esc(String(p.stock))} ${esc(p.unidad || 'u')}, `
+            + 'sin ubicación en el catálogo';
+    detalle = `<div class="msg info" style="margin:7px 0 0">
+      <b>Ubicación no disponible</b>
+      Depot reporta existencia de ${esc(p.sku || '')} pero el catálogo descargado
+      no trae en qué ubicación. Vuelve a descargarlo desde Recepciones para
+      verlas. No afecta a lo que registres aquí.</div>`;
+  } else {
+    // Que Depot no devuelva ubicaciones es un dato, no la ausencia de un dato:
+    // el producto existe en el maestro pero hoy no hay existencia en bodega.
+    resumen = 'En Depot hoy: sin existencia — será su primer ingreso';
+    detalle = `<div class="msg warn" style="margin:7px 0 0">
+      <b>Sin existencia en bodega</b>
+      ${esc(p.sku || '')} está en el maestro de Depot${
+        p.cliente ? ` (cliente ${esc(p.cliente)})` : ''}, pero ahora mismo no
+      tiene ninguna ubicación con existencia en BM — Bodega Matriz. Lo que
+      registres será su primer ingreso.</div>`;
+  }
+
+  caja.innerHTML = `
+    <button type="button" class="enlace-ayuda" id="bDepot"
+            aria-expanded="${abierto ? 'true' : 'false'}">
+      ${abierto ? '▾' : '▸'} ${resumen}</button>
+    <div id="detalleDepot"${abierto ? '' : ' class="oculto"'}>${p.actualizadoStock ? `<p class="mini">Consulta: ${esc(fechaCompleta(p.actualizadoStock))}</p>` : ''}${detalle}</div>`;
+}
+
+$('fDepot').addEventListener('click', (ev) => {
+  if (!ev.target.closest('#bDepot')) return;
+  const abierto = !depotAbierto();
+  try { localStorage.setItem(CLAVE_DEPOT, abierto ? '1' : '0'); } catch { /* da igual */ }
+  pintarPosicionesDepot();
+});
+
+/**
+ * Pallet genérico para lo que no pasa por un pallet.
+ *
+ * Parte de la mercadería va directa a su ubicación sin armar pallet. Obligar a
+ * inventarse uno ensucia el dato: queda un «A1» que no existe en el almacén.
+ * `DP` dice exactamente eso —directo a posición— y el sitio real se anota en
+ * «Posición real asignada», que viaja al informe final en su propia columna.
+ */
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-pallet-rapido]');
+  if (!b) return;
+  $('fPallet').value = b.dataset.palletRapido;
+  if (b.dataset.palletRapido === 'DP') $('fPosReal').focus();
+});
+
+$('fChips').addEventListener('click', (ev) => {
+  const p = ev.target.dataset.pallet;
+  if (!p) return;
+  $('fPallet').value = p;
+  $('fCantidad').focus();
+  $('fCantidad').select();
+});
+
+$('fPallet').addEventListener('input', () => { if ($('fPallet').value.trim().toUpperCase() === 'DP') detallesConteo.open = true; });
+$('fEstado').addEventListener('change', () => {
+  $('camposIncidencia').classList.toggle('oculto',$('fEstado').value!=='PNC');
+  if ($('fEstado').value === 'PNC') $('filaFotos').open = true;
+});
+
+// --- Paso 7: registrar ---------------------------------------------------- //
+$('fCantidad').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); $('fPallet').focus(); }
+});
+$('fPallet').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); registrar(false); }
+});
+$('bRegistrar').addEventListener('click', () => registrar(false));
+
+/**
+ * Lo busqué y no está.
+ *
+ * Ningún SKU puede quedarse sin dato: dejarlo en blanco significa «no sé», y
+ * en el informe eso es indistinguible de «no llegó». Declararlo cambia el
+ * estado a NO APARECIÓ, que sí se puede reclamar, y deja la traza de quién lo
+ * buscó. Se puede anular desde la bitácora si luego aparece.
+ */
+$('bNoApareció').addEventListener('click', async () => {
+  if (!actual) return;
+  limpiarAvisos();
+  if (!$('fObs').value.trim()) {
+    $('fObs').focus();
+    return aviso('Escribe en la observación dónde buscaste o qué viste. Un ' +
+                 'faltante sin motivo no se le puede reclamar a nadie.',
+                 'warn', 'Falta la nota');
+  }
+  if(!$('fOrigen').classList.contains('oculto')&&(!$('fOrigen').value||$('fOrigen').value==='__REPARTIR__')){$('fOrigen').focus();return aviso('Elige el packing list del producto antes de declarar que no apareció.','warn','Falta el packing list');}
+  // Declarar que algo no llegó es una reclamación al proveedor. Se confirma.
+  if (!await confirmar({
+    titulo: `¿${actual.sku} no apareció?`,
+    texto: `Queda registrado con <b>0 unidades</b> contra las `
+         + `<b>${skus.find(s=>s.sku===actual.sku)?.esperado ?? '—'}</b> declaradas, con tu nota y tu nombre. `
+         + 'Si aparece después, se anula desde la bitácora y vuelve a quedar pendiente.',
+    aceptar: 'Sí, no apareció',
+    peligro: true,
+  })) return;
+
+  $('bNoApareció').disabled = true;
+  try {
+    await persistirBorrador();
+    if(fotosElegidas.length&&!fotosSubidas.length)fotosSubidas=await subirFotos(actual.sku,true);
+    const r = await declararNoEncontrado(RECEPCION, usuario, {
+      fotos:fotosSubidas,origen:$('fOrigen').value,
+      sku: actual.sku,
+      codigoEscaneado: actual.codigoEscaneado || actual.sku,
+      interpretacionLectura: actual.interpretacionLectura || '',
+      observacion: $('fObs').value,
+      descripcion: actual.producto?.descripcion || '',
+      idempotencyKey: claveEnvio,
+    });
+    bip('ok');
+    const mensaje=aviso(`${r.sku} queda como NO APARECIÓ. Si aparece después, anula este ` +
+          'registro desde la bitácora.', 'ok', 'Declarado');
+    ofrecerEvidencias(mensaje,r.sku,'FALTANTE');
+
+    reiniciar();
+  } catch (e) {
+    bip('error');
+    aviso(e.message, 'err', 'No se registró');
+  } finally {
+    $('bNoApareció').disabled = false;
+  }
+});
+$('bCancelar').addEventListener('click', cerrarFichaSinGuardar);
+document.addEventListener('keydown', (e) => {
+  // Con un diálogo abierto, Escape es suyo: lo cierra el navegador. Si además
+  // reseteáramos la ficha, cancelar una confirmación borraría lo escrito.
+  if(e.key==='Escape'&&!modalAbierto()&&!capturaExterna&&Date.now()>protegerEscapeHasta)cerrarFichaSinGuardar();
+});
+
+function errorCampo(id,texto){const campo=$(id);campo.closest('details')?.setAttribute('open','');campo.setAttribute('aria-invalid','true');
+  let ayuda=campo.parentElement.querySelector('[data-error-campo]');if(!ayuda){ayuda=document.createElement('span');ayuda.dataset.errorCampo='1';ayuda.className='mini';ayuda.style.color='var(--danger)';campo.after(ayuda);}ayuda.textContent=texto;campo.focus();campo.scrollIntoView({behavior:'smooth',block:'center'});return new Error(texto);}
+for(const id of ['fPallet','fCantidad','fObs','fOrigen','fPalletIncidencia','fCantidadIncidencia','fPosReal'])$(id).addEventListener('input',()=>{$(id).removeAttribute('aria-invalid');$(id).parentElement.querySelector('[data-error-campo]')?.remove();});
+async function registrar(confirmarSobrante) {
+  if (!actual) return;
+  limpiarAvisos();
+  $('bRegistrar').disabled = true;
+
+  try {
+    if (!Number.isFinite(Number($('fCantidad').value)) || Number($('fCantidad').value) <= 0) {
+      throw errorCampo('fCantidad','Registra una cantidad mayor que 0. Si no apareció, usa «No apareció» para declarar 0.');
+    }
+    if(!$('fPosReal').checkValidity())throw errorCampo('fPosReal',$('fPosReal').validationMessage);
+    if(reglasCliente.palletRequerido&&!$('fPallet').value.trim())throw errorCampo('fPallet','Indica el pallet o bulto del conteo.');
+    if($('fPallet').value.trim()&&!/^[A-Z0-9]+(?:\.[A-Z0-9]+)*(?:-[A-Z0-9]+(?:\.[A-Z0-9]+)*)*$/.test($('fPallet').value.trim().toUpperCase()))throw errorCampo('fPallet','Usa B02, B02.1 o B02-B03. No se admiten comillas ni otros caracteres.');
+    if(modoLocal()&&$('fEstado').value==='PNC'&&!(Number($('fCantidadIncidencia').value)>0&&Number($('fCantidadIncidencia').value)<=Number($('fCantidad').value)))throw errorCampo('fCantidadIncidencia','Indica cuántas de las unidades contadas tienen esta incidencia.');
+    if(modoLocal()&&$('fEstado').value==='PNC'&&!/^[A-Z0-9]+(?:\.[A-Z0-9]+)*$/.test(($('fPalletIncidencia').value.trim()||$('fPallet').value.trim()).toUpperCase()))throw errorCampo('fPalletIncidencia','Indica el pallet individual de la novedad.');
+    if(modoLocal()&&$('fEstado').value==='PNC'&&$('fPallet').value.trim()&&!$('fPallet').value.trim().toUpperCase().split('-').includes(($('fPalletIncidencia').value.trim()||$('fPallet').value.trim()).toUpperCase()))throw errorCampo('fPalletIncidencia','El pallet de la novedad debe pertenecer a este conteo.');
+    if (fotosElegidas.length && !fotosSubidas.length) {
+      fotosSubidas = await subirFotos(actual.sku,true);
+    }
+
+    if (!$('fOrigenCaja').classList.contains('oculto')
+        && !$('fOrigen').classList.contains('oculto')
+        && !$('fOrigen').value) {
+      $('fOrigen').focus();
+      throw new Error('Elige de qué packing list es esta cantidad.');
+    }
+
+    const parametros = {
+      sku: actual.sku,
+      origen: $('fOrigen').value,
+      codigoEscaneado: actual.codigoEscaneado || actual.sku,
+      interpretacionLectura: actual.interpretacionLectura || '',
+      cantidad: parseFloat($('fCantidad').value),
+      pallet: $('fPallet').value,
+      estadoFisico: $('fEstado').value,
+      ...(modoLocal()?{incidencias:$('fEstado').value==='PNC'?[{tipo:$('fTipoIncidencia').value,cantidad:Number($('fCantidadIncidencia').value),pallet:$('fPalletIncidencia').value.trim()||$('fPallet').value.trim()}]:[]}:{}),
+      posicionReal: $('fPosReal').value,
+      observacion: $('fObs').value,
+      fotos: fotosSubidas,
+      descripcion: actual.producto?.descripcion || '',
+      idempotencyKey: claveEnvio,
+      confirmarSobrante,
+    };
+    await persistirBorrador();
+    const s=skus.find(x=>x.sku===actual.sku),dec=decodificarPallets(s?.esperadoPorOrigen),contados=porOrigenDe(s);
+    const automatico=parametros.origen==='__REPARTIR__';
+    const pendiente=Math.max(Number(dec[parametros.origen]||0)-Number(contados[parametros.origen]||0),0);
+    const otras=(s?.origenes||[]).filter(o=>o!==parametros.origen&&Number(dec[o]||0)>Number(contados[o]||0));
+    let reparto=null;
+    if(modoLocal()&&(s?.origenes||[]).length>1&&(automatico||parametros.cantidad>pendiente&&otras.length&&!confirmarSobrante)){
+      let queda=parametros.cantidad;const orden=automatico?s.origenes:[parametros.origen,...s.origenes.filter(o=>o!==parametros.origen)];
+      const propuesta=[];for(const origen of orden){const cantidad=Math.min(queda,Math.max(Number(dec[origen]||0)-Number(contados[origen]||0),0));if(cantidad>0){propuesta.push({origen,cantidad});queda-=cantidad;}}
+      if(queda>0){const ultima=propuesta.at(-1);if(ultima)ultima.cantidad+=queda;else propuesta.push({origen:orden[0],cantidad:queda});}
+      if(await confirmar({titulo:'Confirmar packing lists de este conteo',texto:propuesta.map(p=>esc(p.origen)+': <b>'+p.cantidad+' unidades</b>').join('<br>')+'<p>Confirma que las unidades corresponden a estos embarques. El reparto se guarda completo en una sola operación.</p>',aceptar:'Guardar este reparto',cancelar:automatico?'Volver a seleccionar':'Mantener la lista seleccionada'}))reparto=propuesta;
+      else if(automatico)return;
+    }
+    const r=reparto?await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/conteos-repartidos',{cuerpo:{...parametros,reparto,contadoEsperado:s.contado}}):await registrarConteo(RECEPCION,usuario,parametros);
+
+    const actualizado = skus.find(s => s.sku === r.sku);
+    if (actualizado) { actualizado.contado = r.contado; actualizado.estado = r.estado; actualizado.verificado = true; if(r.pallets)actualizado.pallets=r.pallets;if(r.porOrigen)actualizado.porOrigen=r.porOrigen; for(const k of ['cantidadPnc','cantidadConforme','cantidadConIncidencia','incidencias'])if(k in r)actualizado[k]=r[k]; actualizado.tienePnc=Number(r.cantidadPnc)>0; if(r.actualizadoEn)actualizado.actualizadoEn=r.actualizadoEn; }
+    pintarKpis(); pintarTabla();
+    bip('ok');
+    ultimoPallet = r.pallet || ultimoPallet;   // solo para el chip de «el mismo»
+    refrescarEventos();
+    const mensajeGuardado = aviso(r.duplicado?`${r.sku} · este conteo ya estaba guardado. Contado ${r.contado} de ${r.esperado}`:`${r.sku} · ${r.cantidadRegistrada} u. en ${r.pallet} — contado ${r.contado} de ${r.esperado}`,
+          'ok', r.duplicado ? 'Ya estaba registrado (no se duplicó)' : 'Registrado');
+    const paraEtiqueta = {...(actualizado || {}), sku:r.sku, contado:r.contado, descripcion:actualizado?.descripcion || actual?.producto?.descripcion || '', tienePnc:$('fEstado').value === 'PNC' || actualizado?.tienePnc};
+    const imprimir = document.createElement('button'); imprimir.className = 'b-sec'; imprimir.textContent = 'Imprimir etiqueta';
+    imprimir.onclick = () => etiquetaDe(paraEtiqueta, r.cantidadRegistrada); mensajeGuardado.append(imprimir);
+    if(paraEtiqueta.tienePnc || ['FALTANTE','SOBRANTE','NO_ENCONTRADO'].includes(r.estado))ofrecerEvidencias(mensajeGuardado,r.sku,paraEtiqueta.tienePnc ? 'PNC' : r.estado==='SOBRANTE' ? 'SOBRANTE' : 'FALTANTE',parametros.incidencias?.[0]?.pallet||r.pallet||'');
+    if(modoLocal()){const ubicar=document.createElement('button');ubicar.className='b-sec';ubicar.textContent='Asignar posición final';ubicar.onclick=()=>asignarUbicacionFinal({recepcion:RECEPCION,sku:r.sku,eventoId:reparto?undefined:r.eventoId,alGuardar:()=>refrescarEventos()}).then(u=>{if(u)aviso(r.sku+' · '+u.pallet+' → '+u.posicionReal,'ok');}).catch(e=>aviso(e.message,'err'));mensajeGuardado.append(ubicar);}
+    reiniciar();
+  } catch (e) {
+    bip('error');
+    if (e.codigo === 'CONFIRMAR_SOBRANTE') {
+      // Un sobrante es una novedad que alguien va a tener que explicar. El botón
+      // dentro del aviso se perdía de vista al escanear lo siguiente.
+      if (await confirmar({
+        titulo: 'Esto suma más de lo declarado',
+        texto: esc(e.message) + '<p style="margin:12px 0 0">Si lo registras queda '
+             + 'como <b>sobrante</b> en el informe. Si fue un error de conteo, '
+             + 'cancela y corrige la cantidad.</p>',
+        aceptar: 'Sí, registrar el sobrante',
+        cancelar: 'Corregir la cantidad',
+      })) return registrar(true);
+      $('fCantidad').focus();
+      $('fCantidad').select?.();
+    } else {
+      aviso(e.message, 'err', 'No se registró');
+    }
+  } finally {
+    $('bRegistrar').disabled = false;
+  }
+}
+
+/**
+ * Sube las fotos a Drive a través del proxy: Spark no incluye Cloud Storage.
+ *
+ * Se comprimen antes. Sin eso, una foto de handheld son varios MB que el proxy
+ * no alcanza a procesar dentro de su tiempo, y el operario ve «el proxy tardó
+ * demasiado» justo cuando acaba de documentar un producto dañado.
+ */
+// Sin tope de cantidad. La compresión y subida secuencial mantienen el consumo acotado.
+
+function pintarFotos() {
+  vistasFotosConteo.forEach(u=>URL.revokeObjectURL(u));vistasFotosConteo=[];
+  const n=fotosElegidas.length;$('contadorFotos').textContent=n?`${n} foto${n===1?'':'s'} seleccionadas · falta guardar en el servidor`:'Se recomiendan 2: una del bulto y otra del detalle.';
+  $('listaFotos').className='fotos-conteo-previa';$('listaFotos').innerHTML=fotosElegidas.map((f,i)=>{const url=URL.createObjectURL(f);vistasFotosConteo.push(url);return `<figure><button type="button" class="b-sec" data-ver-foto-conteo="${i}" title="Ampliar la foto seleccionada"><img src="${url}" alt="Foto ${i+1} del conteo"></button><figcaption>${i+1} · ${esc(f.name||'foto')} · ${esc(tamanoLegible(f.size))}</figcaption><button type="button" class="chip" data-quitar-foto="${i}">Quitar foto</button></figure>`;}).join('');
+  $('bTomarFoto').disabled=false;$('bElegirFoto').disabled=false;
+}
+async function anadirFotos(lista){
+ fotosElegidas.push(...lista);fotosSubidas=[];pintarFotos();const respaldada=await persistirBorrador();
+ if(fotosElegidas.length){$('estadoBorradorConteo').hidden=false;$('estadoBorradorConteo').textContent=respaldada?'Foto seleccionada y respaldada localmente. Guarda el conteo o pulsa Guardar solo fotos para confirmarla en el servidor.':'Foto en memoria: no se pudo crear copia local. Guarda las fotos o el conteo antes de salir de esta pantalla.';}
+}
+
+const fotosWindows=/Win/i.test(navigator.userAgentData?.platform || navigator.platform || '');
+$('bCamaraWindows').hidden=!fotosWindows;
+$('bCamaraWindows').onclick=()=>{persistirBorrador();apagarCamara();aviso('Toma la foto en Cámara de Windows. Regresa y pulsa Elegir de la galería para adjuntarla al ítem.','info');};
+$('bTomarFoto').textContent=fotosWindows ? '📎 Elegir archivo' : '📷 Tomar foto';
+if(fotosWindows)$('bElegirFoto').hidden=true;
+$('bTomarFoto').addEventListener('click',async()=>{if(!actual)return;apagarCamara();if(fotosWindows)return seleccionarFotos($('fCamara'));await persistirBorrador();const foto=await tomarFotoEnPagina({titulo:'Foto del producto · '+actual.sku,alUsarNativa:()=>{capturaExterna={sku:actual.sku,clave:claveEnvio};protegerEscapeHasta=Infinity;$('fCamara').click();}});if(foto)await anadirFotos([foto]);});
+$('bElegirFoto').addEventListener('click',()=>seleccionarFotos($('fFotos')));
+
+// Se limpia el valor para que tomar dos veces la misma foto vuelva a disparar
+// el evento: sin esto, la segunda captura idéntica no se notaba.
+for(const id of ['fCamara','fFotos']){
+ $(id).addEventListener('change',()=>recibirFotos($(id)).catch(e=>aviso(e.message,'err','Foto pendiente')));
+ $(id).addEventListener('cancel',()=>{capturaExterna=null;protegerEscapeHasta=Date.now()+1200;});
+}
+$('listaFotos').addEventListener('click',ev=>{
+ const ver=ev.target.closest('[data-ver-foto-conteo]');if(ver){const i=Number(ver.dataset.verFotoConteo);verImagen({url:vistasFotosConteo[i],nombre:fotosElegidas[i].name});return;}
+ const quitar=ev.target.closest('[data-quitar-foto]');if(!quitar)return;
+ fotosElegidas.splice(Number(quitar.dataset.quitarFoto),1);fotosSubidas=[];pintarFotos();persistirBorrador();
+});
+
+const cacheFotosConteo=new Map();
+async function subirFotos(sku,conteoPendiente=false) {
+  if(modoLocal())return cargarEvidencias(RECEPCION,fotosElegidas,{sku,desdeSku:true,conteoPendiente,registroAdicional:actual?.enPackingList===false,
+    palletEvidencia:$('fEstado').value==='PNC'?$('fPalletIncidencia').value.trim()||$('fPallet').value.trim():($('fPallet').value.includes('-')?'':$('fPallet').value.trim()),categoria:'VALIDACION',tipoEvidencia:'ADICIONAL',protocolo:'GENERAL',origen:$('fOrigen').value==='__REPARTIR__'?'':$('fOrigen').value},
+    (n,total)=>{$('bGuardarFotos').textContent=`Guardando fotos ${n}/${total}…`;persistirBorrador();},cacheFotosConteo)
+    .finally(()=>{$('bGuardarFotos').textContent='Guardar solo fotos · sin unidades';});
+  const subidas=[];
+  for(const f of fotosElegidas){const img=await comprimir(f);const r=await Proxy.subirFoto({base64:img.base64,sku,recepcion:RECEPCION,tipo:img.tipo,...destinoEnDrive(recepcion)});if(r.url)subidas.push(r.url);}
+  return subidas;
+}
+
+$('bGuardarFotos').onclick = async () => {
+  if (!actual || !fotosElegidas.length) { aviso('Elige al menos una foto del ítem.', 'warn'); return; }
+  $('bGuardarFotos').disabled = true;
+  try {
+    if (!fotosSubidas.length) fotosSubidas = await subirFotos(actual.sku);
+    const guardadas=fotosSubidas.length;
+    fotosElegidas=[];fotosSubidas=[];cacheFotosConteo.clear();pintarFotos();await persistirBorrador();
+    $('estadoBorradorConteo').textContent=`${guardadas} fotos confirmadas en el servidor. Las unidades del formulario siguen pendientes de guardar.`;
+    aviso(`${guardadas} fotos guardadas para ${actual.sku}. No se registró un conteo. Puedes revisarlas en «Fotos» del producto.`, 'ok');
+  } catch(e) { aviso(e.message, 'err', 'No se guardaron las fotos'); }
+  finally { $('bGuardarFotos').disabled=false; }
+};
+
+let offsetFotos = 0;
+async function cargarGaleria(reiniciarLista=true) {
+  if (reiniciarLista) { offsetFotos=0; $('imagenesGaleria').replaceChildren(); }
+  $('bBuscarFotos').disabled=true; $('bMasFotos').disabled=true;
+  try {
+    const params=new URLSearchParams({sku:$('filtroGaleria').value.trim(),offset:offsetFotos});
+    const r=await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/imagenes?${params}`);
+    $('carpetasGaleria').replaceChildren();
+    if (/^https:\/\/drive\.google\.com\//.test(r.carpetaDrive || '')) {
+      const a=document.createElement('a');a.href=r.carpetaDrive;a.target='_blank';a.rel='noopener';a.className='b-sec';a.textContent='Abrir carpeta de imágenes en Drive';$('carpetasGaleria').append(a);
+    } else $('carpetasGaleria').textContent='Las imágenes se copian a Drive en segundo plano; la copia local se conserva hasta confirmarlo.';
+    for (const f of r.archivos) {
+      const figura=document.createElement('figure');
+      const enlace=/^https:\/\/drive\.google\.com\//.test(f.driveUrl || '') ? f.driveUrl : f.url;
+      figura.innerHTML=`<a href="${esc(enlace)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(f.url)}?miniatura=1" alt="${esc(f.nombre)}">Abrir imagen</a>
+        <figcaption><b>${esc(f.skus.join(', ') || 'Evidencia de recepción')}</b><br>${esc(f.nombre)}<br><span class="mini">${esc(f.almacen)} · ${esc(tamanoLegible(f.bytes))}</span></figcaption>
+        ${f.rutaServidor ? `<details><summary>Ubicación en servidor</summary><code>${esc(f.rutaServidor)}</code></details>` : ''}`;
+      figura.querySelector('img').onerror=ev=>{ev.target.hidden=true;};
+      $('imagenesGaleria').append(figura);
+    }
+    offsetFotos+=r.archivos.length;
+    $('estadoGaleria').textContent=`${r.total} imágenes · ${offsetFotos} mostradas`;
+    $('bMasFotos').classList.toggle('oculto',offsetFotos>=r.total);
+  } catch(e) { $('estadoGaleria').textContent=e.message; }
+  finally { $('bBuscarFotos').disabled=false; $('bMasFotos').disabled=false; }
+}
+function abrirGaleria(sku='') {
+  if(modoLocal()){apagarCamara();return abrirEvidencias({recepcion:RECEPCION,sku,supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)}).catch(e=>aviso(e.message,'err'));}
+  $('filtroGaleria').value=sku;$('tituloGaleria').textContent=sku ? `Fotos guardadas · ${sku}` : `Fotos guardadas · ${RECEPCION}`;
+  $('galeriaFotos').showModal();cargarGaleria();
+}
+$('bFotosItem').onclick=()=>{if(actual)abrirGaleria(actual.sku);};
+$('bFotosRecepcion').onclick=async()=>{apagarCamara();try{await abrirEvidencias({recepcion:RECEPCION,categoria:'RECEPCION',supervisor:['ADMIN','SUPERVISOR'].includes(perfil?.rol)});}catch(e){aviso(e.message,'err');}};
+$('bEtiquetasBultos').onclick=async()=>{try{await abrirEtiquetasBultos(RECEPCION);}catch(e){aviso(e.message,'err');}};
+$('bFotosFinales').onclick=async()=>{apagarCamara();try{await abrirEvidencias({recepcion:RECEPCION,tipo:'ESTADO_FINAL',categoria:'RECEPCION',supervisor:true});}catch(e){aviso(e.message,'err');}};
+$('bCerrarGaleria').onclick=()=>$('galeriaFotos').close();
+$('bBuscarFotos').onclick=()=>cargarGaleria();
+$('bMasFotos').onclick=()=>cargarGaleria(false);
+
+// --- Paso 9: volver al escáner -------------------------------------------- //
+function reiniciar() {
+  clearTimeout(relojBorrador);borradorConteo?.borrar().catch(()=>{});capturaExterna=null;fotosElegidas=[];cacheFotosConteo.clear();pintarFotos();$('estadoBorradorConteo').hidden=true;
+  document.body.classList.remove('ficha-activa');
+  for (const el of $('ficha').parentElement.children) el.inert = false;
+  actual = null; claveEnvio = null; fotosSubidas = [];skuOrigenFicha='';
+  $('ficha').classList.add('oculto');
+  $('panelNoEncontrado').classList.add('oculto');
+  $('fDepot').classList.add('oculto');
+  $('fCodigos').classList.add('oculto');
+  $('pistaCodigo').innerHTML = '';
+  $('inEscaner').value = '';
+  $('inCantidad').value = '1';
+  $('fCantidad').value = '1';
+  if(cerrarCamara)$('bLeerAhora').focus({preventScroll:true});else $('inEscaner').focus();
+}
+
+// --- Paso 8: no encontrado ------------------------------------------------ //
+function mostrarNoEncontrado(codigo) {
+  actual = { sku: codigo, producto: null, enPackingList: false };
+  claveEnvio = nuevaClave();
+  $('ficha').classList.add('oculto');
+  $('panelNoEncontrado').classList.remove('oculto');
+  $('txtNoEncontrado').textContent =
+    `El código ${codigo} no está en el packing list ni en el catálogo de Depot. ` +
+    'Búscalo en la lista por si llegó con otro código, o regístralo como adicional.';
+  $('fBuscar').value = '';
+  $('vincularCodigo').classList.toggle('oculto', !modoLocal());
+  $('skuVincular').value = '';
+  $('resBusqueda').innerHTML = '';
+  buscarParecidos(codigo);
+  $('fBuscar').focus();
+}
+
+/**
+ * Los códigos del packing list que más se parecen al que no se encontró.
+ *
+ * Antes se exigía que coincidieran los seis primeros caracteres: un dígito mal
+ * leído por la pistola en medio del código, o uno de más al teclearlo, dejaba
+ * al operario sin ninguna pista delante de un código que sí estaba en la lista.
+ */
+function buscarParecidos(codigo) {
+  const cerca = parecidos(codigo, skus.filter((s) => s.sku !== codigo),
+                          { max: 6, minimo: 0.5, clave: (s) => s.sku });
+  $('coincidencias').innerHTML = cerca.length
+    ? `<div class="msg info"><b>Códigos parecidos en el packing list</b>
+       ${cerca.map((s) => `<button type="button" class="chip" data-sku="${esc(s.sku)}">${esc(s.sku)}</button>`).join(' ')}</div>`
+    : '';
+}
+
+$('fBuscar').addEventListener('input', () => {
+  const q = $('fBuscar').value.trim().toUpperCase();
+  if (q.length < 2) { $('resBusqueda').innerHTML = ''; return; }
+  const hits = skus.filter((s) =>
+    s.sku.includes(q) || (s.descripcion || '').toUpperCase().includes(q)).slice(0, 8);
+  $('resBusqueda').innerHTML = hits.length
+    ? `<div class="tabla-env"><table><tbody>${hits.map((s) => `
+       <tr><td class="id">${esc(s.sku)}</td>
+       <td class="mini">${esc(s.descripcion || '')}</td>
+       <td class="num">${s.contado || 0}/${s.esperado || 0}</td>
+       <td><button class="b-sec" data-sku="${esc(s.sku)}">Usar</button></td></tr>`).join('')}
+       </tbody></table></div>`
+    : '<p class="mini">Ninguna coincidencia.</p>';
+});
+
+async function vincularCodigo(sku) {
+  if (!actual || !sku.trim()) return;
+  const codigo = actual.sku;
+  if (!await confirmar({titulo:'¿Asociar esta etiqueta?',texto:`<b>${esc(codigo)}</b> corresponde al SKU <b>${esc(sku)}</b>. Se conserva el producto y sus códigos anteriores. No se registra un conteo.`,aceptar:'Asociar y consultar'})) return;
+  try {
+    await registrarEquivalencia(codigo, sku, usuario);
+    await escanear(codigo);
+  } catch(e) { aviso(e.message, 'err', 'No se asoció el código'); }
+}
+$('bVincularCodigo').onclick = () => vincularCodigo($('skuVincular').value);
+$('bAsociarCodigo').onclick = async () => {
+  if (!actual) return;
+  const sku = actual.sku;
+  const codigo = await pedirTexto({titulo:`Código de barras para ${sku}`,texto:'Escanea o escribe la nueva etiqueta. El SKU permanece igual; no se crea otro producto.',etiqueta:'Código de barras',obligatorio:true,aceptar:'Guardar código'});
+  if (!codigo) return;
+  try { await registrarEquivalencia(codigo, sku, usuario); aviso(`Código ${codigo} asociado a ${sku}.`, 'ok'); }
+  catch(e) { aviso(e.message, 'err', 'No se guardó el código'); }
+};
+
+for (const id of ['coincidencias', 'resBusqueda']) {
+  $(id).addEventListener('click', async (ev) => {
+    const sku = ev.target.dataset.sku;
+    if (!sku) return;
+    if (modoLocal()) await vincularCodigo(sku);
+    else { $('panelNoEncontrado').classList.add('oculto'); escanear(sku); }
+  });
+}
+
+$('bAdicional').addEventListener('click', () => {
+  if (!actual) return;
+  $('panelNoEncontrado').classList.add('oculto');
+  $('ficha').classList.remove('oculto');
+  refrescarFicha({ sku: actual.sku, esperado: 0, contado: 0, descripcion: '' });
+  $('fCantidad').value = 1;
+  presentarFicha({sku:actual.sku,esperado:0,contado:0});
+  $('ficha').classList.remove('solo-consulta'); $('bContarFicha').classList.add('oculto');
+  aviso('Se registrará como ADICIONAL. No se añade al packing list: va en una ' +
+        'pestaña aparte del informe final.', 'warn', 'Adicional');
+  $('fCantidad').focus();
+});
+$('bCerrarNoEnc').addEventListener('click', reiniciar);
+
+async function corregirSku(sku,eventoId) {
+  const s=skus.find(x=>x.sku===sku);if(!s)return;
+  await abrirCorreccion({recepcion:RECEPCION,sku,contado:s.contado,origenes:s.origenes||[],incidencias:reglasCliente.incidencias||[],eventoId,posiciones:actual?.sku===sku?ubicacionesDepot(actual.producto).map(p=>p.posicion):[],
+    alGuardar:async()=>{await refrescarOperacion();reiniciar();aviso('Conteo corregido. El registro anterior queda solo en auditoría.','ok');}});
+}
+$('bCorregirFicha').onclick=()=>corregirSku($('bCorregirFicha').dataset.sku).catch(e=>aviso(e.message,'err'));
+$('tSkus').addEventListener('click',ev=>{const b=ev.target.closest('[data-corregir-sku]');if(b)corregirSku(b.dataset.corregirSku).catch(e=>aviso(e.message,'err'));});
+
+$('bCorreoRedactado').onclick=()=>abrirCorreo(RECEPCION).catch(e=>aviso(e.message,'err'));
+$('bPlegarInventario').onclick=()=>{const contenido=$('contenidoInventario');contenido.hidden=!contenido.hidden;$('bPlegarInventario').textContent=contenido.hidden?'Mostrar lista':'Ocultar lista';$('bPlegarInventario').setAttribute('aria-expanded',String(!contenido.hidden));};
+async function soloBitacora(){if($('panelBitacora').classList.contains('oculto'))await $('bBitacora').click();$('contenidoInventario').hidden=true;$('bPlegarInventario').textContent='Mostrar lista';$('bPlegarInventario').setAttribute('aria-expanded','false');$('panelBitacora').scrollIntoView({behavior:'smooth',block:'start'});}
+$('bBitacoraDirecta').onclick=soloBitacora;$('bSoloBitacora').onclick=soloBitacora;
+$('bVolverLista').onclick=()=>{$('panelBitacora').classList.add('oculto');$('contenidoInventario').hidden=false;$('bPlegarInventario').textContent='Ocultar lista';$('bPlegarInventario').setAttribute('aria-expanded','true');$('panelInventario').scrollIntoView({behavior:'smooth',block:'start'});};
+// --- Bitácora ------------------------------------------------------------- //
+let bitacoraCarga=0;
+async function refrescarOperacion(){
+  const carga=++bitacoraCarga;
+  const [lista,eventos]=await Promise.all([modoLocal()?pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/skus`):Promise.resolve(skus),leerBitacora(RECEPCION,0)]);
+  if(carga!==bitacoraCarga)return;
+  skus=lista.sort((a,b)=>a.sku.localeCompare(b.sku));eventosCache=eventos;
+  pintarTabla();pintarKpis();
+  if(actual){const s=skus.find(x=>x.sku===actual.sku);if(s){refrescarFicha(s);pintarHistorial(s);}}
+  if(!$('panelBitacora').classList.contains('oculto'))pintarBitacora();
+}
+function pintarBitacora(){
+  const codigo=normalizarCodigo($('bitacoraCodigo').value),estado=$('bitacoraFiltro').value;
+  const evs=eventosCache.filter(e=>['CONTEO','CERO','NO_ENCONTRADO','ANULACION'].includes(e.tipo)&&($('bitacoraAnulados').checked||!e.anulado&&e.tipo!=='ANULACION')&&(!estado||(estado==='ADICIONAL'?skus.find(s=>s.sku===e.sku)?.enPackingList===false:skus.find(s=>s.sku===e.sku)?.estado===estado))&&(!codigo||normalizarCodigo(e.sku).includes(codigo)));
+  $('bitacoraEstado').textContent=evs.length+' registros en esta selección · datos actualizados';
+  $('tBitacora').innerHTML=evs.length?evs.map(e=>{
+    const tachado=e.anulado||e.tipo==='ANULACION';
+    const propio=e.operadorUid===usuario.uid||modoLocal()&&e.operadorEmail===usuario.email;
+    const puede=recepcion.estado!=='CERRADA'&&!tachado&&['CONTEO','CERO','NO_ENCONTRADO'].includes(e.tipo)&&(propio||['SUPERVISOR','ADMIN'].includes(perfil?.rol));
+    return `<tr${tachado?' style="opacity:.45"':''}>
+      <td class="mini">${esc(fechaCompleta(e.creadoEn))}</td><td class="id" style="font-size:12px${tachado?';text-decoration:line-through':''}">${esc(e.sku)}</td><td class="num">${e.cantidad}</td>
+      <td class="mini">${esc(e.pallet||'')}${e.posicionReal?'<br>Posición: '+esc(e.posicionReal):''}</td><td class="mini">${esc(e.operadorNombre||'Operador registrado')}<br>${esc(e.observacion||'')}</td>
+      <td>${puede&&modoLocal()&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-corregir-evento="${esc(e.id)}" data-sku="${esc(e.sku)}">Editar conteo</button>`:''}${puede?`<button class="b-sec" data-anular="${esc(e.id)}">Anular</button>`:''}${modoLocal()&&recepcion.estado!=='CERRADA'&&!tachado&&Number(e.cantidad)>0&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-calidad="${esc(e.id)}" data-pallet="${esc(e.pallet||'')}" data-total="${Number(e.cantidad)}">Clasificar unidades</button>`:''}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="mini">No hay registros para ese código o estado.</td></tr>';
+}
+async function actualizarBitacora(){
+  $('bActualizarBitacora').disabled=true;$('bitacoraEstado').textContent='Consultando conteos y estados…';
+  try{await refrescarOperacion();}catch(e){$('bitacoraEstado').textContent=e.message;throw e;}finally{$('bActualizarBitacora').disabled=false;}
+}
+$('bBitacora').addEventListener('click',async()=>{
+  const p=$('panelBitacora');p.classList.toggle('oculto');if(p.classList.contains('oculto'))return;
+  try{await actualizarBitacora();}catch(e){aviso(e.message,'err');}
+});
+$('bActualizarBitacora').onclick=()=>actualizarBitacora().catch(e=>aviso(e.message,'err'));
+for(const id of ['bitacoraCodigo','bitacoraFiltro','bitacoraAnulados'])$(id).addEventListener(id==='bitacoraCodigo'?'input':'change',pintarBitacora);
+$('tBitacora').addEventListener('click',ev=>{const b=ev.target.closest('[data-corregir-evento]');if(b)corregirSku(b.dataset.sku,b.dataset.corregirEvento).catch(e=>aviso(e.message,'err'));});
+$('tBitacora').addEventListener('click',async ev=>{const b=ev.target.closest('[data-calidad]');if(!b)return;
+ const d=await pedirDatos({titulo:'Clasificar unidades del conteo',texto:`Total físico: ${b.dataset.total}. Esta corrección no cambia lo contado y conserva el registro original.`,campos:[
+ {clave:'tipo',etiqueta:'Incidencia',tipo:'lista',valor:'MAL_ESTADO',opciones:[{valor:'OK',titulo:'Todo conforme'},...reglasCliente.incidencias.filter(i=>i.activo&&!['OK','FALTANTE','SOBRANTE'].includes(i.codigo)).map(i=>({valor:i.codigo,titulo:i.nombre}))]},
+ {clave:'cantidad',etiqueta:'Unidades con incidencia (0 si todo es conforme)',tipo:'numero',valor:'',obligatorio:true},
+ {clave:'pallet',etiqueta:'Pallet específico de la novedad (uno solo)',valor:b.dataset.pallet.includes('-')?'':b.dataset.pallet},
+ {clave:'motivo',etiqueta:'Motivo de la corrección',obligatorio:true}]});if(!d)return;
+ try{await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/eventos/'+encodeURIComponent(b.dataset.calidad)+'/calidad',{cuerpo:{motivo:d.motivo,incidencias:d.tipo==='OK'?[]:[{tipo:d.tipo,cantidad:Number(d.cantidad),pallet:d.pallet}]}});aviso('Clasificación corregida con fecha, hora y responsable. El total físico se conserva.','ok');await refrescarOperacion();}catch(e){aviso(e.message,'err');}
+});
+$('tBitacora').addEventListener('click', async (ev) => {
+  const id = ev.target.dataset.anular;
+  if (!id) return;
+  const motivo = await pedirTexto({
+    titulo: 'Anular este conteo',
+    texto: 'El conteo original no se borra: queda tachado en la bitácora con el '
+         + 'motivo y tu nombre. Se registra uno contrario que descuenta las unidades.',
+    etiqueta: 'Motivo de la anulación',
+    marcador: 'Se contó en el pallet equivocado',
+    obligatorio: true,
+    aceptar: 'Anular',
+    lineas: 2,
+  });
+  if (!motivo) return;
+  try {
+    await anularConteo(RECEPCION, usuario, id, motivo);
+    aviso('Conteo anulado. El registro original queda en la bitácora.', 'ok');
+    await refrescarOperacion();
+  } catch (e) { aviso(e.message, 'err'); }
+});
+
+/**
+ * Qué archivo se quiere, dicho con lo que cada uno sirve.
+ *
+ * Antes era un confirm() con «Aceptar = auditable / Cancelar = solo el packing
+ * list»: dos botones genéricos que obligan a traducir mentalmente cuál es cuál,
+ * y se elegía mal justo en el paso que genera lo que se le manda al cliente.
+ */
+const elegirVersion = (titulo,porEmbarque=false) => elegir({
+  titulo,
+  texto: 'Las dos traen las mismas filas del packing list. Cambia lo que va además.',
+  opciones: [
+    {valor:'envio-ampliado',titulo:'Cliente: informe ampliado y organizado',detalle:'Archivos separados según el embarque revisado. Marca y Cliente al inicio, resultados y enlaces. Adicionales y sobrantes en otra hoja.'},
+    { valor: 'envio',
+      titulo: 'Para enviar al ejecutivo de cuenta',
+      detalle: 'Packing list con su formato de origen y hoja ADICIONALES cuando corresponda, con sus enlaces de Drive.' },
+    ...(!porEmbarque?[{ valor: 'auditable',
+      titulo: 'Auditable',
+      detalle: 'Añade adicionales, bitácora con fechas de Ecuador y detalle por pallet. Sin hoja AUDITORIA. '
+             + 'Para reclamar, analizar o transferir datos.' }]:[]),
+  ],
+});
+
+/**
+ * Exportar sin cerrar.
+ *
+ * Una validación de 300 líneas dura dos turnos. Tener que cerrarla para
+ * enseñarle a alguien cómo va obliga a elegir entre informar y seguir
+ * trabajando. El archivo sale igual, marcado como parcial, y queda en la
+ * auditoría igual que cualquier otra exportación.
+ */
+$('bColumnasInforme').onclick=async()=>{try{if(await configurarColumnasInforme(RECEPCION)){recepcion=await obtenerRecepcion(RECEPCION);aviso('Columnas del informe guardadas.','ok');}}catch(e){aviso(e.message,'err');}};
+$('bHistorialInformes').onclick=async()=>{try{const hs=await historialInformes(RECEPCION);if(!hs.length){aviso('Aún no se generaron informes de esta recepción.');return;}
+ const dialogo=document.createElement('dialog');dialogo.className='modal-operativa';const cerrar=document.createElement('button');cerrar.textContent='Cerrar';cerrar.className='b-sec';cerrar.onclick=()=>dialogo.close();dialogo.append(cerrar);
+ for(const h of hs){const p=document.createElement('p');p.textContent=`R${String(h.numero).padStart(4,'0')} · ${h.estado} · ${h.usuario} · ${fechaCompleta(h.creadoEn)} · ${h.descargas?.length||0} descargas solicitadas${h.confirmadoEn?' · Entrega confirmada: '+fechaCompleta(h.confirmadoEn):''}`;if(h.archivos?.length){const b=document.createElement('button');b.textContent='Descargar esta versión';b.className='b-sec';b.onclick=async()=>{b.disabled=true;try{await descargarInforme(h);}catch(e){aviso(e.message,'err');}finally{b.disabled=false;}};p.append(b);}dialogo.append(p);if(h.descargas?.length){const detalle=document.createElement('details'),titulo=document.createElement('summary');titulo.textContent='Quién solicitó las descargas';detalle.append(titulo);for(const x of h.descargas){const linea=document.createElement('p');linea.className='mini';linea.textContent=x.usuario+' · '+fechaCompleta(x.fecha);detalle.append(linea);}dialogo.append(detalle);}}
+ document.body.append(dialogo);dialogo.addEventListener('close',()=>dialogo.remove());dialogo.showModal();
+ }catch(e){aviso(e.message,'err');}};
+let descargaEnCurso=false;
+$('bExportar').addEventListener('click', async () => {
+  if(descargaEnCurso)return;descargaEnCurso=true;
+  try{
+  limpiarAvisos();
+  const versionElegida = await elegirVersion('Descargar un avance');
+  if (!versionElegida) return;
+  if(modoLocal()&&['envio','envio-ampliado'].includes(versionElegida)){
+    const p=await pedirOperacion('/recepciones/'+encodeURIComponent(RECEPCION)+'/correos-embarques');
+    if(p.embarques.length>1&&p.modo==='PACKING_LIST'&&!p.consolidadoConfirmado&&!await revisarPlanCorreos(RECEPCION))return;
+  }
+  $('bExportar').disabled = true;
+  const d = aviso('Armando el informe…', 'info');
+  try {
+    if(modoLocal()){const actual=await informeActual(RECEPCION,versionElegida);if(actual.actual){d.remove();if(!await descargarInforme(actual.informe))return;aviso('Informe actualizado descargado. Se reutilizaron los documentos vigentes; no se creó otra versión ni se envió correo.','ok');return;}}
+    const informe=modoLocal()?await iniciarInforme(RECEPCION,'DESCARGA',versionElegida):null;
+    if(modoLocal()&&!informe)return;
+    const datos = await reunirInforme(RECEPCION, recepcion);
+    if(informe)datos.recepcion={...datos.recepcion,informe};
+    const libros = informe?.estado==='GENERADO'?[]:construirLibros(datos, { version: versionElegida });
+    const archivado=informe?(informe.estado==='GENERADO'?informe:await archivarInforme(RECEPCION,informe,libros)):null;
+    d.remove();
+    if(archivado){if(!await descargarInforme(archivado))return;}else libros.forEach(descargarLibro);
+    const libro = { filas: libros.length?libros.reduce((a, l) => a + l.filas, 0):datos.detalle.length,
+                    nombre: libros.map((l) => l.nombre).join(', ') };
+
+    const r = resumir(skus);
+    aviso(`${libro.filas} filas, ${r.avance}% verificado.` +
+          (recepcion.estado === 'CERRADA' ? '' :
+           ` Quedan ${r.sinVerificar} referencias sin buscar: este archivo es un avance, no el final.`),
+          'ok', recepcion.estado === 'CERRADA' ? 'Informe' : 'Avance descargado');
+
+    if(!modoLocal())await registrarAuditoria(RECEPCION, usuario, 'EXPORTACION', {
+      destino: 'DESCARGA',
+      archivo: libro.nombre,
+      parcial: recepcion.estado !== 'CERRADA',
+      avance: r.avance,
+      sinVerificar: r.sinVerificar,
+    }).catch(() => {});
+  } catch (e) {
+    d.remove();
+    aviso(e.message, 'err', 'No se pudo exportar');
+  } finally {
+    $('bExportar').disabled = false;
+  }
+  }finally{descargaEnCurso=false;}
+});
+
+/**
+ * El archivo que se sube a Depot.
+ *
+ * No sale del informe sino de la bitácora: el informe entrega una fila por línea
+ * del packing list, y de las 30 unidades de una línea pueden haber ido 12 a una
+ * posición real y 18 a un pallet. Cargar eso como una sola fila mete en el
+ * sistema algo que no está donde dice.
+ *
+ * Las columnas las mantiene el administrador, así que el día que Depot cambie
+ * una no hay que esperar a un despliegue.
+ */
+$('bCsvDepot').addEventListener('click', async () => {
+  limpiarAvisos();
+  const cual = await elegir({
+    titulo: 'Exportar para Depot',
+    texto: 'Los dos formatos de Depot se mantienen en Administración. Los códigos de barras nuevos se incluyen en el packing list cuando se asigna su columna.',
+    opciones: [
+      { valor: 'cantidades',
+        titulo: 'Cantidades contadas',
+        detalle: 'Una fila por producto y sitio: lo que hay que cargar como '
+               + 'existencia de esta recepción.' },
+      { valor: 'productos',
+        titulo: 'Productos nuevos',
+        detalle: 'Los códigos que aparecieron y no estaban en el catálogo. Hay '
+               + 'que darlos de alta ANTES de cargarles cantidad.' },
+
+      { valor: 'plantilla',
+        titulo: 'Plantilla vacía',
+        detalle: 'Solo los encabezados, para rellenar a mano o para comparar con '
+               + 'lo que pide Depot.' },
+    ],
+  });
+  if (!cual) return;
+
+  $('bCsvDepot').disabled = true;
+  const d = aviso('Armando el archivo…', 'info');
+  try {
+    const [formatos, datos] = await Promise.all([
+      leerFormatos(), reunirInforme(RECEPCION, recepcion),
+    ]);
+    if (modoLocal()) datos.catalogo = await import('./js/local.js?v=20261023-68').then(l => l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/catalogo-exportacion`));
+    if (cual === 'barras') datos.codigosBarras = await import('./js/local.js?v=20261023-68').then(l=>l.pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/codigos-barras`));
+    if(cual==='cantidades'){const categoria=await elegir({titulo:'Categoría lógica de las cantidades',texto:'Selecciona el código que está configurado en Depot. La posición real y el pallet se conservan por cada conteo. Revisa aparte las unidades PNC.',opciones:[{valor:'NUV',titulo:'NUV · Nuevo',detalle:'Recepción de productos nuevos'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Mercadería devuelta'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo unidades autorizadas como scrap'}]});if(!categoria){d.remove();return;}datos.categoriaLogica=categoria;
+      if(datos.skus.some(s=>s.tienePnc||Number(s.cantidadPnc)>0)){
+        const pnc=await elegir({titulo:'Categoría de las unidades PNC',texto:'Se exportan separadas de las unidades conformes. Selecciona el destino autorizado en Depot o completa esas filas en Excel.',opciones:[{valor:'REVISAR',titulo:'Completar PNC en Excel',detalle:'Deja pendiente su categoría; no permite cargar un CSV incompleto'},{valor:'DEV',titulo:'DEV · Devoluciones',detalle:'Cuando se autorizó su devolución'},{valor:'SCRAP',titulo:'SCRAP',detalle:'Solo cuando existe autorización para scrap'}]});if(!pnc){d.remove();return;}datos.categoriaLogicaPnc=pnc==='REVISAR'?'':pnc;
+      }
+    }
+    const r = cual === 'cantidades' ? csvDeCantidades(formatos[0], datos)
+            : cual === 'productos' ? csvDeProductos(formatos[1], datos)
+            : cual === 'barras' ? csvDeCodigosBarras(formatos[2], datos)
+            : { texto: plantilla(formatos[0]), filas: 1,
+                nombre: `${formatos[0].archivo}-plantilla.csv` };
+    d.remove();
+
+    if (!r.filas && cual !== 'plantilla') {
+      return aviso(cual === 'cantidades'
+        ? 'Todavía no hay nada contado en esta recepción.'
+        : cual === 'barras' ? 'No hay códigos de barras nuevos asociados a los productos de esta recepción.'
+        : 'No hay productos nuevos: todo lo contado ya existía en el catálogo. '
+          + 'No hace falta dar de alta nada.',
+        'warn', 'No hay nada que cargar');
+    }
+
+    if (cual !== 'plantilla') {
+      const salida = await elegir({titulo:'Formato de descarga',texto: r.incidencias.length
+        ? `${r.incidencias.length} campos requieren revisión. No se genera CSV de carga incompleto. ${r.incidencias.slice(0,4).map(i=>`Fila ${i.fila}: ${i.encabezado} (${i.problema})`).join('; ')}`
+        : cual === 'barras' ? 'Excel de revisión. Falta confirmar el modelo de actualización de códigos con Depot; no se envía al WMS.'
+        : 'Datos listos para revisar y cargar en Depot.',opciones:[
+          {valor:'excel',titulo:r.incidencias.length ? 'Excel para completar' : 'Excel · Modelo a Utilizar',detalle:'Una sola hoja, sin filas de ejemplo. Los campos pendientes llevan comentario.'},
+          ...(!r.incidencias.length && cual !== 'barras' ? [{valor:'csv',titulo:'CSV para Depot',detalle:'Con las columnas y separador configurados por ADMIN.'}] : [])]});
+      if (!salida) return;
+      if (salida === 'excel') { descargarModelo(r); r.nombre=r.nombre.replace(/\.csv$/i,'.xlsx'); }
+      else descargarCsv(r.texto,r.nombre);
+    } else descargarCsv(r.texto, r.nombre);
+    aviso(cual === 'plantilla'
+      ? `${r.nombre}: solo los encabezados. Si no coinciden con lo que pide `
+        + 'Depot, se ajustan en Administración.'
+      : `${r.filas} ${r.filas === 1 ? 'fila' : 'filas'} en ${r.nombre}. `
+        + 'Revísalo antes de subirlo: si Depot lo rechaza, el formato se ajusta '
+        + 'en Administración.', 'ok', 'Descargado');
+
+    registrarAuditoria(RECEPCION, usuario, 'EXPORTACION',
+      { destino: 'CSV_DEPOT', archivo: r.nombre, filas: r.filas }).catch(() => {});
+  } catch (e) {
+    d.remove();
+    aviso(e.message, 'err', 'No se pudo armar el CSV');
+  } finally {
+    $('bCsvDepot').disabled = false;
+  }
+});
+
+/** Reabrir: el cierre anterior no se borra, queda en la auditoría. */
+$('bReabrir').addEventListener('click', async () => {
+  const motivo = await pedirTexto({
+    titulo: `Reabrir ${recepcion.codigo}`,
+    texto: 'Los conteos anteriores siguen donde estaban. El cierre anterior no se '
+         + 'borra: queda en la auditoría junto a este motivo y tu nombre.',
+    etiqueta: '¿Por qué se reabre?',
+    marcador: 'Llegó un bulto que faltaba',
+    obligatorio: true,
+    aceptar: 'Reabrir',
+    lineas: 2,
+  });
+  if (!motivo || !motivo.trim()) return;
+  limpiarAvisos();
+  try {
+    await reabrirRecepcion(RECEPCION);
+    await registrarAuditoria(RECEPCION, usuario, 'REAPERTURA', { motivo: motivo.trim() });
+    recepcion = await obtenerRecepcion(RECEPCION);
+    aplicarEstado();
+    aviso('Recepción reabierta. Los conteos anteriores siguen donde estaban y el ' +
+          'cierre anterior queda en la auditoría.', 'ok', 'Reabierta');
+  } catch (e) {
+    aviso(traducirErrorLocal(e), 'err', 'No se pudo reabrir');
+  }
+});
+
+const traducirErrorLocal = (e) =>
+  /permission/i.test(e?.message || '') ? 'Solo un supervisor puede reabrir.' : e.message;
+
+// --- Finalizar ------------------------------------------------------------ //
+const revisarCierre = () => abrirAyudaCierre({recepcion: RECEPCION,
+  alFinalizar: () => $('bCerrar').click(),
+  alDescargar: perfil?.permisos?.exportarInformes ? () => $('bExportar').click() : undefined});
+$('bEntregasOperativas').onclick=()=>abrirEntregas(aviso,RECEPCION).catch(e=>aviso(e.message,'err'));
+$('bPendientesDrive').onclick = () => revisarCierre().catch(e => aviso(e.message, 'err'));
+let cierreEnCurso=false;
+$('bCerrar').addEventListener('click', async () => {
+  if(cierreEnCurso)return;cierreEnCurso=true;
+  try {
+  let modoEntrega='AUTOMATICO',planCierre=null;
+  const r = resumir(skus);
+
+  // Ningún SKU puede quedarse sin dato. Dejarlo en blanco significa «no sé», y
+  // en el informe eso es indistinguible de «no llegó»: quien reciba el archivo
+  // no puede saber cuál de las dos cosas pasó.
+  if (r.sinVerificar > 0) {
+    $('fEstadoFiltro').value = 'PENDIENTE';
+    pintarKpis(); pintarTabla();
+    const revisar=await elegir({titulo:'Faltan referencias por validar',texto:`Quedan ${r.sinVerificar} referencias. Registra la cantidad encontrada, incluyendo cero; no se marcarán como faltantes automáticamente.`,opciones:[{valor:'primera',titulo:'Revisar la primera pendiente'},{valor:'lista',titulo:'Ver todas las pendientes'}]});
+    if(revisar==='primera'){const siguiente=skus.find(s=>!s.verificado&&!Number(s.contado));if(siguiente)await escanear(siguiente.sku);return;}
+    if(!revisar)return;
+    return aviso(
+      `Quedan ${r.sinVerificar} ${r.sinVerificar === 1 ? 'referencia' : 'referencias'} ` +
+      'sin buscar. Registra su cantidad, incluyendo cero con su observación. La tabla ya ' +
+      'está filtrada por las que faltan.',
+      'warn', 'No se puede cerrar todavía');
+  }
+
+  if(modoLocal()){try{planCierre=await revisarPlanCorreos(RECEPCION);if(!planCierre)return;}catch(e){aviso(e.message,'err','No se pudo revisar el cierre por embarque');return;}}
+  if (modoLocal()) {
+    try {
+      const pendientes = await pedirOperacion(`/recepciones/${encodeURIComponent(RECEPCION)}/pendientes-cierre?limite=1`);
+      if (pendientes.bloqueaCierre) {const opcion=await elegir({titulo:'Las fotos están guardadas; falta confirmar Drive',texto:`${pendientes.total} fotos pendientes. Puedes revisar su copia o cerrar con los documentos preparados para envío manual.`,opciones:[{valor:'fotos',titulo:'Revisar fotografías pendientes'},{valor:'manual',titulo:'Continuar con cierre y envío manual',detalle:'Guarda los documentos finales; no programa un correo automático.'}]});if(opcion==='fotos'){await revisarCierre();return;}if(opcion!=='manual')return;modoEntrega='MANUAL';}
+    } catch (e) { aviso(e.message, 'err', 'No se pudo comprobar el cierre'); return; }
+  }
+
+  // Las cifras del cierre, cada una en su línea. En el confirm() del navegador
+  // iban todas en un párrafo gris y nadie las leía.
+  const linea = (n, t) => `<li><b>${n}</b> ${t}</li>`;
+  if (!await confirmar({
+    titulo: `¿Cerrar ${recepcion.codigo}?`,
+    texto: `<ul>
+        ${linea(`${r.unidadesFisicas} de ${r.unidadesEsperadas}`, 'unidades contadas')}
+        ${linea(r.ok, 'referencias completas')}
+        ${linea(r.noEncontrado, 'no aparecieron')}
+        ${linea(r.faltante - r.noEncontrado, 'con faltante')}
+        ${linea(r.sobrante, 'con sobrante')}
+      </ul>
+      <p style="margin:12px 0 0">Después no se podrán registrar más conteos.
+      Un supervisor puede reabrirla, y queda registrado.</p>`,
+    aceptar: 'Cerrar la recepción',
+    peligro: true,
+  })) return;
+
+  // Antes esto no se preguntaba y la variable «version» ni siquiera existía:
+  // cerrar lanzaba un error y la recepción no llegaba a cerrarse nunca.
+  const version = await elegirVersion('¿Qué informe se genera?',modoLocal()&&((planCierre?.grupos?.length||recepcion.origenes?.length||0)>1||['EMBARQUE','RECEPCION'].includes(planCierre?.modo)));
+  if (!version) return;
+
+  let recientes = [];
+  let cuentasRemitentes = null;
+  if (modoLocal()) {
+    try {
+      cuentasRemitentes = await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/remitentes`);
+      if (modoEntrega!=='MANUAL'&&!cuentasRemitentes.opciones.some(o=>o.modo===cuentasRemitentes.predeterminado&&o.disponible)) {
+        if(!await confirmar({titulo:'Preparar envío manual',texto:'Tu cuenta todavía no tiene una conexión Google disponible. Puedes cerrar, guardar los documentos finales y copiar el correo para enviarlo desde Gmail u Outlook. No se programará un envío automático.',aceptar:'Continuar con envío manual',cancelar:'Volver'}))return;
+        modoEntrega='MANUAL';
+      }
+    } catch(e) { aviso(e.message,'err','No se pudo comprobar el remitente'); return; }
+    try { recientes = (await destinatariosRecientes(RECEPCION)).map(r => r.destinatarios); }
+    catch { aviso('No se pudieron cargar los destinatarios recientes. Puedes escribir los correos de destino.', 'warn'); }
+  }
+  const envio = await pedirTexto({
+    titulo: '¿A quién se le envía?',
+    texto: (modoLocal() ? '<p>Se propone tu correo de supervisor autorizado. La conexión y su clave se guardan una sola vez por ADMIN.</p>' : '')
+         + 'Se adjuntan los packing lists finales y el resumen de novedades, con el enlace a las fotos en Drive. '
+         + 'Déjalo vacío para guardar en Drive sin enviar correo.',
+    etiqueta: 'Correos, separados por coma',
+    valor: modoLocal() ? (recientes[0] || '') : usuario.email,
+    sugerencias: recientes,
+    seleccion: cuentasRemitentes&&modoEntrega!=='MANUAL' ? {etiqueta:'Enviar desde',valor:cuentasRemitentes.predeterminado,
+      opciones:cuentasRemitentes.opciones.filter(o=>o.modo===cuentasRemitentes.predeterminado).map(o=>({valor:o.modo,
+        titulo:`${o.modo==='RESPONSABLE'?'Responsable':'Mi correo'}: ${o.correo || 'por configurar'}${o.disponible?'':' · falta configurar'}`,disabled:!o.disponible}))} : null,
+    aceptar: modoEntrega==='MANUAL'?'Preparar documentos y correo':'Revisar documentos y correo',
+  });
+  if (envio === null) return;
+  const destinatarios = typeof envio==='string'?envio:envio.texto;
+  const modoRemitente = modoLocal() ? (envio.seleccion||'PERSONAL') : null;
+  if(modoLocal()){try{const ruta=`/recepciones/${encodeURIComponent(RECEPCION)}/correo`,v=await pedirOperacion(ruta);await pedirOperacion(ruta,{metodo:'PUT',cuerpo:{version:v.version,campos:{...v.campos,destinatarios:destinatarios.trim()}}});}catch(e){aviso(e.message,'err');return;}}
+
+  if(modoLocal()&&((planCierre?.grupos?.length||recepcion.origenes?.length||0)>1||['EMBARQUE','RECEPCION'].includes(planCierre?.modo))){try{for(const origen of (planCierre?.grupos?.map(g=>g.id)||recepcion.origenes)){const ruta=`/recepciones/${encodeURIComponent(RECEPCION)}/correo`,v=await pedirOperacion(ruta+'?origen='+encodeURIComponent(origen));if(!v.campos.destinatarios)await pedirOperacion(ruta,{metodo:'PUT',cuerpo:{origen,version:v.version,campos:{...v.campos,destinatarios:destinatarios.trim()}}});}}catch(e){aviso(e.message,'err');return;}}
+
+  if(modoLocal()&&modoEntrega!=='MANUAL'&&destinatarios.trim()){try{await pedir(`/recepciones/${encodeURIComponent(RECEPCION)}/comprobar-envio`,{cuerpo:{correoEditable:true,remitenteConfirmado:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo}});}catch(e){if(!await confirmar({titulo:'Google no confirmó la conexión',texto:esc(e.message)+'<p>Puedes preparar el correo manual con sus documentos finales. No se programará el envío automático.</p>',aceptar:'Continuar con envío manual',cancelar:'Volver'}))return;modoEntrega='MANUAL';}}
+
+  let correoRevisado=null;
+  const exportarSheet = modoLocal() && modoEntrega!=='MANUAL' && await confirmar({ titulo: '¿Crear también una copia en Google Sheets?', texto: 'Es opcional para presentar esta recepción. Los datos oficiales permanecen en MySQL.', aceptar: 'Crear copia en Sheets', cancelar: 'Continuar sin Sheets' });
+
+  limpiarAvisos();
+  $('bCerrar').disabled = true;
+  let d = aviso('Armando el informe…', 'info');
+  try {
+    // El archivo se arma ANTES de cerrar: si algo falla, la recepción sigue
+    // abierta y se puede reintentar sin haber perdido nada.
+    const informe=modoLocal()?await iniciarInforme(RECEPCION,modoEntrega==='MANUAL'?'DESCARGA':'CORREO',version):null;
+    if(modoLocal()&&!informe)return;
+    const datos = await reunirInforme(RECEPCION, recepcion);
+    if(informe)datos.recepcion={...datos.recepcion,informe};
+    // Un archivo POR packing list: si la recepción consolidó dos listas, salen
+    // dos archivos, cada uno con las filas de la suya. Quien recibe cada uno
+    // espera el suyo, no un libro con las dos hojas que tenga que separar.
+    const libros = informe?.estado==='GENERADO'?[]:construirLibros(datos, { version });
+    const filas = libros.reduce((a, l) => a + l.filas, 0);
+    const destino = destinoEnDrive(recepcion);
+    d.remove();
+
+    if (modoLocal()) {
+      d = aviso('Guardando informes y preparando la entrega al ejecutivo…', 'info');
+      const archivado=informe.estado==='GENERADO'?informe:await archivarInforme(RECEPCION,informe,libros);
+      correoRevisado=await abrirCorreo(RECEPCION,{confirmarEnvio:true,modoEntrega});
+      if(!correoRevisado){d.remove();return;}
+      modoEntrega=correoRevisado.modoEntrega;
+      const entrega = await finalizarConEntrega(RECEPCION, {
+        informeId:informe.id,confirmarEnviadoManual:correoRevisado.confirmarEnviadoManual,motivoManual:correoRevisado.motivoManual,
+        correos:correoRevisado.correos,destinatarios: correoRevisado.destinatarios.trim(), correoVersion:correoRevisado.correoVersion, modoRemitente, modoEntrega,
+        remitenteConfirmado: modoEntrega.startsWith('MANUAL')?usuario.email:cuentasRemitentes.opciones.find(o=>o.modo===modoRemitente).correo, ...destino,
+        eventos: datos.eventos.map((e) => e.id), exportarSheet,
+        duracion: duracionDe(recepcion),
+        adjuntos: [],
+        resumen: {
+          unidadesEsperadas: r.unidadesEsperadas, unidadesFisicas: r.unidadesFisicas,
+          exactitud: r.exactitud, ok: r.ok, faltante: r.faltante,
+          sobrante: r.sobrante, adicionales: datos.adicionales.length, discrepancias: r.discrepancias,
+        },
+      });
+      recepcion.estado = 'CERRADA';
+      aplicarEstado();
+      const descargar=document.createElement('button');descargar.className='b-sec';descargar.textContent='Descargar documentos finales';descargar.onclick=()=>descargarInforme(archivado).catch(e=>aviso(e.message,'err'));aviso('Documentos finales conservados. Descárgalos cuando los necesites desde Informes.','ok').append(descargar);
+      d.remove();
+      if(modoEntrega==='MANUAL_ENVIADO'){aviso('Recepción cerrada. Envío manual declarado y documentos conservados; no se programó correo automático.','ok','Cierre completado');return;}
+      if(modoEntrega==='MANUAL'){aviso('Recepción cerrada y documentos finales guardados. No se programó correo automático. Copia el correo, adjunta los documentos y registra después el envío manual.','info','Preparado para envío manual');await abrirCorreo(RECEPCION,{entregaId:entrega.id});return;}
+      aviso('Recepción cerrada. Informes y fotos guardados en el servidor. ' +
+        'La copia a Drive' + (destinatarios.trim() ? ' y el correo' : '') +
+        ' quedan pendientes de confirmación. Consulta «Entrega del informe» en esta recepción.', 'warn', 'Entrega pendiente');
+      return;
+    }
+
+    await cerrarRecepcion(RECEPCION);
+    recepcion.estado = 'CERRADA';
+    aplicarEstado();
+
+    // Qué se cerró, con qué cifras y quién. El agregado se puede volver a
+    // calcular; lo que se entregó aquel día, no.
+    await registrarAuditoria(RECEPCION, usuario, 'CIERRE', {
+      filas,
+      unidadesEsperadas: r.unidadesEsperadas,
+      unidadesFisicas: r.unidadesFisicas,
+      ok: r.ok, faltante: r.faltante, noEncontrado: r.noEncontrado,
+      sobrante: r.sobrante, adicionales: datos.adicionales.length,
+      exactitud: r.exactitud,
+      archivos: libros.map((l) => l.nombre),
+      carpeta: destino.carpetaRecepcion,
+      version,
+    }).catch(() => {});
+    aviso(libros.length === 1
+      ? `Recepción cerrada. El archivo entrega ${filas} filas, las mismas del `
+        + 'packing list original.'
+      : `Recepción cerrada. ${libros.length} archivos, uno por packing list: `
+        + libros.map((l) => `${l.origen} (${l.filas} filas)`).join(' · '),
+      'ok', 'Cerrada');
+
+    libros.forEach(descargarLibro);
+
+    // Archivar en Drive antes del correo: el correo se borra y la descarga se
+    // pierde con el equipo. Si falla, no se tumba el cierre.
+    try {
+      const guardados = [];
+      for (const libro of libros) {
+        const g = await Proxy.guardarInforme({
+          base64: libro.base64, nombre: libro.nombre,
+          recepcion: recepcion.codigo, ...destino,
+        });
+        guardados.push(g.nombre);
+        registrarAuditoria(RECEPCION, usuario, 'EXPORTACION',
+          { destino: modoLocal() ? 'SERVIDOR' : 'DRIVE', archivo: g.nombre, enlace: g.enlace || null }).catch(() => {});
+      }
+      aviso(modoLocal()
+        ? `Copia guardada en el servidor de bodega: ${guardados.join(', ')}.`
+        : `En Drive, carpeta ${destino.carpetaRecepcion}: ${guardados.join(', ')}. Las fotos están en su subcarpeta «imagenes».`,
+        'ok', 'Copia guardada');
+    } catch (e) {
+      // El detalle del proxy puede ser una URL larga de Google: no le dice nada
+      // a quien está cerrando una recepción, y tapa lo único que importa.
+      aviso('El informe se descargó en este equipo, pero no se pudo archivar la copia. La recepción sí quedó cerrada. Conserva el archivo descargado.',
+            'warn', 'Copia pendiente');
+      console.warn('guardarInforme:', e);
+    }
+
+    if (destinatarios.trim()) {
+      d = aviso('Enviando el correo…', 'info');
+      const env = await Proxy.enviarInforme({
+        destinatarios: destinatarios.trim(),
+        recepcion: recepcion.codigo,
+        duracion: duracionDe(recepcion),
+        adjuntos: libros.map((l) => ({ base64: l.base64, nombre: l.nombre })),
+        fotos: fotosDe(datos.eventos),
+        resumen: {
+          unidadesEsperadas: r.unidadesEsperadas, unidadesFisicas: r.unidadesFisicas,
+          exactitud: r.exactitud, ok: r.ok, faltante: r.faltante,
+          sobrante: r.sobrante, adicionales: datos.adicionales.length,
+          discrepancias: r.discrepancias,
+        },
+      });
+      d.remove();
+      aviso(`Informe enviado a ${env.enviadoA} con `
+          + `${(env.adjuntos || []).length || libros.length} archivo(s) adjunto(s).`
+          + (env.cuotaRestante != null ? ` Quedan ${env.cuotaRestante} correos hoy.` : ''),
+            'ok', 'Enviado');
+      registrarAuditoria(RECEPCION, usuario, 'CORREO',
+        { destinatarios: env.enviadoA, archivos: env.adjuntos || libros.map((l) => l.nombre) })
+        .catch(() => {});
+    }
+  } catch (e) {
+    d.remove();
+    aviso(e.message, 'err', 'No se completó el cierre');
+    if (e.codigo === 'EVIDENCIAS_PENDIENTES') await revisarCierre();
+  } finally {
+    $('bCerrar').disabled = recepcion?.estado==='CERRADA';
+  }
+  } finally {cierreEnCurso=false;}
+});
+
+function duracionDe(rec) {
+  const ini = rec?.iniciadoEn?.toDate ? rec.iniciadoEn.toDate() : null;
+  if (!ini) return '—';
+  const min = Math.round((Date.now() - ini.getTime()) / 60000);
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
+}
+</script>
+<script>
+// PWA: se instala desde el navegador y abre sin red. El registro va aparte del
+// módulo para que un fallo aquí nunca impida que la página cargue.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
+}
+</script>
+</body>
+</html>

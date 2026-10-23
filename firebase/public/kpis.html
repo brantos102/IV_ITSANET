@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<script src="./js/arranque.js?v=20261023-68"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>Indicadores de recepción — ITSANET</title>
+<link rel="stylesheet" href="./css/app.css">
+<link rel="stylesheet" href="./css/marca.css?v=20261023-68">
+<script src="./vendor/xlsx.full.min.js?v=20261023-68" defer></script>
+<script src="./vendor/jspdf.umd.min.js?v=20261023-68" defer></script>
+<script src="./vendor/jspdf.plugin.autotable.min.js?v=20261023-68" defer></script>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icono.png">
+<link rel="icon" type="image/png" href="./icono.png">
+<style>
+  .filtros { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+             gap:12px; align-items:end; }
+  .pestanas { display:flex; gap:5px; background:var(--bg); border:1px solid var(--border);
+              border-radius:12px; padding:4px; margin-bottom:18px; overflow-x:auto; }
+  .pestana { flex:1; min-width:110px; padding:11px 8px; border:none; border-radius:9px;
+             cursor:pointer; background:transparent; color:var(--secondary);
+             font-family:inherit; font-size:12.5px; font-weight:800; white-space:nowrap; }
+  .pestana.activa { background:var(--surface); color:var(--primary);
+                    box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .barras { display:flex; flex-direction:column; gap:9px; }
+  .barras .linea { display:grid; grid-template-columns:110px 1fr 74px; gap:10px;
+                   align-items:center; font-size:12px; }
+  .barras .pista { height:22px; background:var(--bg); border-radius:6px; overflow:hidden; }
+  .barras .pista i { display:block; height:100%; border-radius:6px;
+                     transition:width .5s cubic-bezier(.16,1,.3,1); }
+  .clicable { cursor:pointer; }
+  .clicable:hover td { background:var(--bg); }
+  .dashboard-resumen{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;margin:20px 0}.anillo-kpi{width:170px;height:170px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#10b981 var(--avance),#e6edf7 0);margin:auto}.anillo-kpi>div{width:132px;height:132px;border-radius:50%;background:var(--surface);display:grid;place-content:center;text-align:center}.anillo-kpi b{font-size:34px}.anillo-kpi span{font-size:11px;color:var(--secondary)}.etiquetas-kpi{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.etiquetas-kpi [aria-pressed=true]{background:var(--accent);color:white}.resumen-filtros{color:var(--secondary);font-size:12px;margin-top:12px}
+  @media(max-width:600px){.dashboard-resumen{grid-template-columns:1fr}.filtros{grid-template-columns:1fr 1fr}.filtros .campo:has(#fProducto){grid-column:1/-1}.filtros .acciones{grid-column:1/-1;flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div class="envoltorio">
+
+<header>
+  <div>
+    <a class="marca marca-inicio" href="./" aria-label="ITSANET · Inicio"><img class="logo-empresa" src="./logo-itsa.png" width="132" height="44" alt="ITSA" style="width:132px;height:44px;max-width:40vw;object-fit:contain"></a>
+    <div class="sub">Indicadores</div>
+  </div>
+  <div class="sp"></div>
+  <div class="usuario" id="uUsuario"></div>
+  <a href="./"><button class="b-sec">Inicio</button></a>
+</header>
+
+<div id="avisos"></div>
+
+<div class="panel oculto" id="sinPermiso">
+  <h2>Sin permiso</h2>
+  <p>Los indicadores son para supervisores y administradores.</p>
+</div>
+
+<div id="panelKpis" class="oculto">
+
+  <!-- Filtros -->
+  <div class="panel">
+    <div class="filtros">
+      <label class="campo"><span>Desde</span><input id="fDesde" type="date"></label>
+      <label class="campo"><span>Hasta</span><input id="fHasta" type="date"></label>
+      <label class="campo"><span>Código de recepción</span>
+        <input id="fCodigo" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" placeholder="todas">
+        <span class="mini" id="pistaCodigo" style="color:var(--warning)"></span></label>
+      <label class="campo"><span>Cliente</span>
+        <select id="fCliente"><option value="">Todos</option></select></label>
+      <label class="campo"><span>Estado</span>
+        <select id="fEstado">
+          <option value="">Todas</option>
+          <option value="CERRADA">Cerradas</option>
+          <option value="EN_VALIDACION">En validación</option>
+          <option value="ABIERTA">Abiertas</option>
+        </select></label>
+      <label class="campo"><span>Buscar producto</span><input id="fProducto" placeholder="SKU o descripción" autocomplete="off"></label>
+      <label class="campo"><span>Exportar</span><select id="fAlcance"><option value="filtrado">Filtros aplicados</option><option value="total">Total del periodo (sin filtros)</option></select></label>
+      <div class="acciones" style="margin:0">
+        <button class="b-primario" id="bAplicar">Aplicar</button>
+        <button class="b-sec" id="bExcel">Excel</button>
+        <button class="b-sec" id="bPdf">PDF</button>
+      </div>
+    </div>
+    <div id="etiquetasKpi" class="etiquetas-kpi" aria-label="Etiquetas de referencias">
+      <button class="chip" data-etiqueta="" aria-pressed="true">Todas</button>
+      <button class="chip" data-etiqueta="COMPLETO" aria-pressed="false">Completos</button>
+      <button class="chip" data-etiqueta="PENDIENTE" aria-pressed="false">Por validar</button>
+      <button class="chip" data-etiqueta="FALTANTE" aria-pressed="false">Faltantes</button>
+      <button class="chip" data-etiqueta="SOBRANTE" aria-pressed="false">Sobrantes</button>
+      <button class="chip" data-etiqueta="PNC" aria-pressed="false">PNC</button>
+      <button class="chip" data-etiqueta="ADICIONAL" aria-pressed="false">Adicionales</button>
+    </div><p id="resumenFiltros" class="resumen-filtros" role="status"></p>
+    <div class="chips" style="margin-top:12px">
+      <button class="chip" data-rango="7">Últimos 7 días</button>
+      <button class="chip" data-rango="30">30 días</button>
+      <button class="chip" data-rango="90">90 días</button>
+      <button class="chip" data-rango="0">Todo</button>
+    </div>
+  </div>
+
+  <!-- Cifras -->
+  <div class="panel">
+    <h2>Control de recepciones</h2><div class="dashboard-resumen"><div class="anillo-kpi" id="anilloKpi"><div><b id="porcentajeKpi">0%</b><span>Unidades verificadas</span></div></div><div class="kpis" id="kpis"></div></div>
+    <p class="mini" id="alcance" style="margin-top:14px"></p>
+    <button type="button" class="enlace-ayuda" id="bGlosario">
+      ¿Qué significa cada cifra?</button>
+    <div id="glosario" class="oculto"></div>
+  </div>
+
+  <div class="pestanas">
+    <button class="pestana activa" data-vista="recepciones">Recepciones</button>
+    <button class="pestana" data-vista="skus">Referencias</button>
+    <button class="pestana" data-vista="operarios">Operarios</button>
+    <button class="pestana" data-vista="dias">Tendencia</button>
+    <button class="pestana" data-vista="traza">Trazabilidad</button>
+  </div>
+
+  <div class="panel" id="vista">
+    <div id="cuerpo"><p class="mini">Cargando…</p></div>
+  </div>
+
+</div>
+</div>
+
+<script type="module">
+import { mostrarAviso } from './js/notificaciones.js?v=20261023-68';
+import { observarSesion, traducirError, modoLocal } from './js/auth.js?v=20261023-68';
+import { conectarGlosario } from './js/glosario.js?v=20261023-68';
+import {escucharCambiosRecepcion} from './js/cambios-recepcion.js?v=20261023-68';
+import { parecidos, avisoDeParecidos } from './js/sugerir.js?v=20261023-68';
+import {
+  recepcionesDesde, detalleDe, indicadoresDe, consolidar, porOperario,
+  skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf, filtrarDetalles, referenciasDe,
+} from './js/kpi.js?v=20261023-68';
+
+const $ = (id) => document.getElementById(id);
+let perfil = null, usuario = null;
+let detallesTodos = []; // lo leído del periodo, sin filtrar por código
+let detalles = [];      // [{ recepcion, skus, eventos }] ya filtrado
+let indicadores = [];   // una fila por recepción, del conjunto filtrado
+let vista = 'recepciones';
+let skuElegido = null;
+let etiquetaActiva='';
+let cargandoPeriodo=false,actualizandoPeriodo=false,revisarPeriodoCompleto=false,periodoActivo=null,esperaActualizacion=null;
+const recepcionesPendientes=new Set();
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g,
+    (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function aviso(texto, tipo = 'info', titulo = '') {
+  return mostrarAviso($('avisos'), texto, tipo, titulo);
+}
+const limpiarAvisos = () => { $('avisos').innerHTML = ''; };
+const num = (n) => (n || 0).toLocaleString('es-EC');
+
+// --- Arranque ------------------------------------------------------------- //
+conectarGlosario('bGlosario', 'glosario', [
+  'declarado', 'contado', 'exactitud', 'verificado', 'noAparecio', 'sobrante',
+  'adicional', 'pnc',
+]);
+
+observarSesion(async (e) => {
+  globalThis.itsanetArranque?.listo();
+  if (e.error) aviso(e.error, 'err');
+  if (!e.usuario) { location.href = './'; return; }
+  usuario = e.usuario; perfil = e.perfil;
+  $('uUsuario').innerHTML =
+    `${esc(perfil?.nombre || usuario.email)}<br><span class="mini">${esc(perfil?.rol || '')}</span>`;
+
+  if (!['SUPERVISOR', 'ADMIN'].includes(perfil?.rol)) {
+    $('sinPermiso').classList.remove('oculto');
+    return;
+  }
+  $('panelKpis').classList.remove('oculto');
+
+  const hoy = new Date();
+  const hace = new Date(hoy.getTime() - 30 * 86400000);
+  $('fHasta').value = soloDia(hoy);
+  $('fDesde').value = soloDia(hace);
+  cargar();
+  if(modoLocal())escucharCambiosRecepcion('',e=>{if(e.secciones.includes('operacion'))solicitarActualizacion(e);});
+});
+
+// --- Carga ---------------------------------------------------------------- //
+async function cargar() {
+  if(cargandoPeriodo)return;cargandoPeriodo=true;periodoActivo={desde:$('fDesde').value,hasta:$('fHasta').value};
+  limpiarAvisos();
+  $('cuerpo').innerHTML = '<p class="mini">Cargando…</p>';
+  $('bAplicar').disabled = true;$('bExcel').disabled=true;$('bPdf').disabled=true;
+
+  try {
+    const recepciones = await recepcionesDesde(periodoActivo.desde, periodoActivo.hasta);
+    const estado = $('fEstado').value;
+    const cliente = $('fCliente').value;
+
+    const filtradas = recepciones;
+
+    // Cada recepción son 2 lecturas de colección. En paralelo, por tandas, para
+    // no abrir doscientas conexiones de golpe desde un handheld.
+    detallesTodos = [];
+    const TANDA = 6;
+    for (let i = 0; i < filtradas.length; i += TANDA) {
+      const lote = await Promise.all(filtradas.slice(i, i + TANDA).map(async (r) => {
+        const d = await detalleDe(r.id);
+        return { recepcion: r, ...d };
+      }));
+      detallesTodos.push(...lote);
+      $('cuerpo').innerHTML =
+        `<p class="mini">Leyendo ${detallesTodos.length} de ${filtradas.length} recepciones…</p>`;
+    }
+
+    llenarClientes(recepciones);
+    filtrarPorCodigo();$('bExcel').disabled=false;$('bPdf').disabled=false;
+  } catch (e) {
+    $('cuerpo').innerHTML = '';
+    aviso(traducirError(e), 'err', 'No se pudieron leer los datos');
+  } finally {
+    $('bAplicar').disabled = false;cargandoPeriodo=false;
+    if(revisarPeriodoCompleto||recepcionesPendientes.size)esperaActualizacion=setTimeout(actualizarPeriodoEnVivo,200);
+  }
+}
+
+function solicitarActualizacion(e){
+ if(!usuario||document.hidden)return;
+ if(e.recepciones?.length)e.recepciones.forEach(c=>recepcionesPendientes.add(c));else revisarPeriodoCompleto=true;
+ clearTimeout(esperaActualizacion);esperaActualizacion=setTimeout(actualizarPeriodoEnVivo,200);
+}
+async function actualizarPeriodoEnVivo(){
+ if(cargandoPeriodo||actualizandoPeriodo||!periodoActivo||document.hidden)return;
+ actualizandoPeriodo=true;const periodo=periodoActivo,pendientes=new Set(recepcionesPendientes),completo=revisarPeriodoCompleto;recepcionesPendientes.clear();revisarPeriodoCompleto=false;
+ try{
+  const recepciones=await recepcionesDesde(periodo.desde,periodo.hasta),cache=new Map(detallesTodos.map(d=>[d.recepcion.id,d]));
+  const leer=recepciones.filter(r=>completo||pendientes.has(r.id)||!cache.has(r.id));
+  for(let i=0;i<leer.length;i+=6){await Promise.all(leer.slice(i,i+6).map(async r=>cache.set(r.id,{recepcion:r,...await detalleDe(r.id)})));}
+  if(periodo!==periodoActivo)return;
+  detallesTodos=recepciones.map(r=>({...cache.get(r.id),recepcion:r}));llenarClientes(recepciones);filtrarPorCodigo();
+ }catch{aviso('No se pudo actualizar el último cambio. Conservamos la vista; pulsa Aplicar para consultar de nuevo.','warn','Actualización pendiente');}
+ finally{actualizandoPeriodo=false;if(revisarPeriodoCompleto||recepcionesPendientes.size)esperaActualizacion=setTimeout(actualizarPeriodoEnVivo,200);}
+}
+
+/**
+ * Buscar una recepción por su código sin tener que escribirlo exacto.
+ *
+ * Los códigos se parecen demasiado entre sí —REC0260002 y REC026002— y hasta
+ * ahora un dígito de más devolvía la tabla vacía sin decir que había algo al
+ * lado. Ahora se ordena por parecido y, si no hay coincidencia exacta, se dice
+ * cuál se parece.
+ *
+ * Filtra lo ya leído: no vuelve a la base en cada tecla. Y filtra de verdad, así
+ * que las cifras de arriba y lo que se exporta a Excel o PDF son lo que se ve.
+ */
+function filtrarPorCodigo() {
+  detalles = filtrarDetalles(detallesTodos,{codigo:$('fCodigo').value,cliente:$('fCliente').value,estado:$('fEstado').value,producto:$('fProducto').value,etiqueta:etiquetaActiva});
+  indicadores = detalles.map(indicadoresDe);
+  $('pistaCodigo').textContent='';
+  $('resumenFiltros').textContent=`${detalles.length} de ${detallesTodos.length} recepciones del periodo · ${detalles.reduce((n,d)=>n+d.skus.length,0)} referencias en el resultado · Horario Ecuador`;
+  pintarKpis();
+  pintar();
+}
+
+for(const id of ['fCodigo','fProducto']) $(id).addEventListener('input',filtrarPorCodigo);
+for(const id of ['fCliente','fEstado']) $(id).addEventListener('change',filtrarPorCodigo);
+$('etiquetasKpi').onclick=ev=>{const b=ev.target.closest('[data-etiqueta]');if(!b)return;etiquetaActiva=b.dataset.etiqueta;
+  for(const e of $('etiquetasKpi').querySelectorAll('button'))e.setAttribute('aria-pressed',String(e===b));filtrarPorCodigo();};
+
+function llenarClientes(recepciones) {
+  const actual = $('fCliente').value;
+  const clientes = [...new Set(recepciones.map((r) => r.cliente).filter(Boolean))].sort();
+  $('fCliente').innerHTML = '<option value="">Todos</option>' +
+    clientes.map((c) => `<option${c === actual ? ' selected' : ''}>${esc(c)}</option>`).join('');
+}
+
+function pintarKpis() {
+  const t = consolidar(indicadores);
+  $('anilloKpi').style.setProperty('--avance',`${Math.min(100,t.avance)}%`);$('porcentajeKpi').textContent=t.avance+'%';
+  const color = (v, bueno) => v >= bueno ? 'var(--success)'
+    : v >= bueno - 15 ? 'var(--warning)' : 'var(--danger)';
+
+  $('kpis').innerHTML = `
+    <div class="kpi"><div class="v">${num(t.recepciones)}</div><div class="e">Recepciones</div></div>
+    <div class="kpi"><div class="v">${num(t.skus)}</div><div class="e">Referencias</div></div>
+    <div class="kpi"><div class="v" style="color:${color(t.exactitud, 95)}">${t.exactitud}%</div>
+      <div class="e">Exactitud</div></div>
+    <div class="kpi"><div class="v" style="color:${color(t.avance, 99)}">${t.avance}%</div>
+      <div class="e">Verificado</div></div>
+    <div class="kpi"><div class="v" style="color:var(--warning)">${num(t.faltante)}</div>
+      <div class="e">Faltantes</div></div>
+    <div class="kpi"><div class="v" style="color:var(--info)">${num(t.sobrante)}</div>
+      <div class="e">Sobrantes</div></div>
+    <div class="kpi"><div class="v" style="color:var(--danger)">${num(t.conPnc)}</div>
+      <div class="e">Con PNC</div></div>
+    <div class="kpi"><div class="v">${num(t.unidadesHora)}</div><div class="e">Unid./hora</div></div>`;
+
+  $('alcance').innerHTML =
+    `${num(t.esperadas)} unidades declaradas · ${num(t.fisicas)} contadas · ` +
+    `<b style="color:${t.diferencia === 0 ? 'var(--success)' : 'var(--warning)'}">` +
+    `${t.diferencia > 0 ? '+' : ''}${num(t.diferencia)}</b> de diferencia · ` +
+    `${num(t.conteos)} conteos` +
+    (t.anulaciones ? ` · ${num(t.anulaciones)} anulados` : '') +
+    (t.adicionales ? ` · ${num(t.adicionales)} adicionales` : '');
+}
+
+// --- Pestañas ------------------------------------------------------------- //
+for (const b of document.querySelectorAll('.pestana')) {
+  b.addEventListener('click', () => {
+    for (const o of document.querySelectorAll('.pestana')) o.classList.remove('activa');
+    b.classList.add('activa');
+    vista = b.dataset.vista;
+    pintar();
+  });
+}
+
+function pintar() {
+  if (!indicadores.length) {
+    const buscando = $('fCodigo').value.trim();
+    $('cuerpo').innerHTML = buscando
+      ? `<p class="mini">Ninguna recepción del periodo se parece a «${esc(buscando)}».`
+        + (detallesTodos.length
+            ? ` Hay ${detallesTodos.length} en estas fechas: vacía el código para verlas.`
+            : '')
+        + '</p>'
+      : '<p class="mini">No hay recepciones en ese periodo. Prueba a ampliar las fechas.</p>';
+    return;
+  }
+  ({ recepciones: pRecepciones, skus: pSkus, operarios: pOperarios,
+     dias: pDias, traza: pTraza }[vista] || pRecepciones)();
+}
+
+const tabla = (cabeceras, filas) => `
+  <div class="tabla-env"><table>
+    <thead><tr>${cabeceras.map((c) =>
+      `<th${c.num ? ' class="num"' : ''}>${esc(c.t)}</th>`).join('')}</tr></thead>
+    <tbody>${filas}</tbody>
+  </table></div>`;
+
+const pastillaEstado = (e) => {
+  const c = { CERRADA: 'p-ok', EN_VALIDACION: 'p-info', ABIERTA: 'p-off' }[e] || 'p-off';
+  return `<span class="pastilla ${c}">${esc((e || '').replace('_', ' '))}</span>`;
+};
+
+function pRecepciones() {
+  const filas = [...indicadores].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''))
+    .map((r) => `<tr>
+      <td class="id">${esc(r.codigo)}<br><span class="mini">${esc(r.fecha)}</span></td>
+      <td class="mini">${esc(r.cliente)}</td>
+      <td>${pastillaEstado(r.estado)}</td>
+      <td class="num">${num(r.skus)}</td>
+      <td class="num">${num(r.esperadas)}</td>
+      <td class="num">${num(r.fisicas)}</td>
+      <td class="num" style="color:${r.diferencia === 0 ? 'var(--secondary)'
+        : r.diferencia > 0 ? 'var(--info)' : 'var(--warning)'}">
+        ${r.diferencia > 0 ? '+' : ''}${num(r.diferencia)}</td>
+      <td class="num">${r.exactitud}%</td>
+      <td class="num">${num(r.unidadesHora)}</td>
+      <td class="num">${num(r.operarios)}</td>
+      <td><a href="./validar.html?r=${encodeURIComponent(r.id)}">
+        <button class="b-sec">Ver</button></a></td>
+    </tr>`).join('');
+
+  $('cuerpo').innerHTML = `
+    <h2>Recepciones del periodo</h2>
+    <p>Una fila por recepción. «Verificado» y «exactitud» salen de las mismas
+       cifras que ve el operario en pantalla.</p>` +
+    tabla([{ t: 'Código' }, { t: 'Cliente' }, { t: 'Estado' }, { t: 'SKU', num: 1 },
+           { t: 'Declarado', num: 1 }, { t: 'Contado', num: 1 }, { t: 'Dif.', num: 1 },
+           { t: 'Exactitud', num: 1 }, { t: 'Unid./h', num: 1 }, { t: 'Operarios', num: 1 },
+           { t: '' }], filas);
+}
+
+function pSkus() {
+  const referencias=referenciasDe(detalles);
+  $('cuerpo').innerHTML='<h2>Referencias del resultado</h2><p class="mini">Cantidades actuales por producto y recepción. Pulsa para abrir su trazabilidad.</p>'+
+    tabla([{t:'Referencia'},{t:'Recepción'},{t:'Declarado',num:1},{t:'Contado',num:1},{t:'Diferencia',num:1},{t:'Estado'}],referencias.map(s=>`<tr class="clicable" data-sku="${esc(s.sku)}"><td class="id">${esc(s.sku)}<br><span class="mini">${esc(s.descripcion)}</span></td><td>${esc(s.recepcion)}</td><td class="num">${num(s.esperado)}</td><td class="num">${num(s.contado)}</td><td class="num">${num(s.diferencia)}</td><td>${esc(s.estado)}${s.pnc ? ' · PNC' : ''}</td></tr>`).join(''));
+  for(const tr of $('cuerpo').querySelectorAll('[data-sku]'))tr.onclick=()=>{skuElegido=tr.dataset.sku;vista='traza';
+    for(const o of document.querySelectorAll('.pestana'))o.classList.toggle('activa',o.dataset.vista==='traza');pintar();};
+}
+
+function pOperarios() {
+  const todos = detalles.flatMap((d) => d.eventos);
+  const filas = porOperario(todos);
+  const tope = Math.max(...filas.map((o) => o.unidades), 1);
+
+  $('cuerpo').innerHTML = `
+    <h2>Productividad por operario</h2>
+    <p>Sale del libro mayor: cada conteo lleva la firma de quien lo hizo. Las
+       unidades por hora se miden entre su primer y su último conteo, así que
+       solo son comparables dentro de un mismo turno.</p>
+    <div class="barras" style="margin-bottom:22px">
+      ${filas.map((o) => `
+        <div class="linea">
+          <span class="mini" style="font-weight:800">${esc((o.nombre || '').split(' ')[0])}</span>
+          <div class="pista"><i style="width:${Math.round((o.unidades / tope) * 100)}%;
+            background:linear-gradient(90deg,var(--accent),#00e5ff)"></i></div>
+          <span class="id" style="font-size:12px;text-align:right">${num(o.unidades)}</span>
+        </div>`).join('')}
+    </div>` +
+    tabla([{ t: 'Operario' }, { t: 'Conteos', num: 1 }, { t: 'Unidades', num: 1 },
+           { t: 'SKU', num: 1 }, { t: 'Pallets', num: 1 }, { t: 'PNC', num: 1 },
+           { t: 'Anulados', num: 1 }, { t: 'Unid./h', num: 1 }],
+      filas.map((o) => `<tr>
+        <td>${esc(o.nombre)}<br><span class="mini">${esc(o.email)}</span></td>
+        <td class="num">${num(o.conteos)}</td>
+        <td class="num">${num(o.unidades)}</td>
+        <td class="num">${num(o.skus)}</td>
+        <td class="num">${num(o.pallets)}</td>
+        <td class="num" style="color:${o.pnc ? 'var(--danger)' : 'var(--secondary)'}">${num(o.pnc)}</td>
+        <td class="num" style="color:${o.anulaciones ? 'var(--warning)' : 'var(--secondary)'}">
+          ${num(o.anulaciones)}</td>
+        <td class="num">${num(o.unidadesHora)}</td>
+      </tr>`).join(''));
+}
+
+function pDias() {
+  const serie = porDia(indicadores);
+  const tope = Math.max(...serie.map((d) => d.fisicas), 1);
+
+  $('cuerpo').innerHTML = `
+    <h2>Tendencia por día</h2>
+    <p>Unidades contadas y exactitud de cada jornada.</p>
+    <div class="barras" style="margin-bottom:22px">
+      ${serie.map((d) => `
+        <div class="linea">
+          <span class="mini" style="font-weight:800">${esc(d.fecha.slice(5))}</span>
+          <div class="pista"><i style="width:${Math.round((d.fisicas / tope) * 100)}%;
+            background:${d.exactitud >= 95 ? 'var(--success)'
+                       : d.exactitud >= 80 ? 'var(--warning)' : 'var(--danger)'}"></i></div>
+          <span class="id" style="font-size:12px;text-align:right">${num(d.fisicas)}</span>
+        </div>`).join('')}
+    </div>` +
+    tabla([{ t: 'Día' }, { t: 'Recepciones', num: 1 }, { t: 'SKU', num: 1 },
+           { t: 'Sistema', num: 1 }, { t: 'Físico', num: 1 }, { t: 'Exactitud', num: 1 }],
+      serie.map((d) => `<tr>
+        <td class="id" style="font-size:12px">${esc(d.fecha)}</td>
+        <td class="num">${num(d.recepciones)}</td>
+        <td class="num">${num(d.skus)}</td>
+        <td class="num">${num(d.esperadas)}</td>
+        <td class="num">${num(d.fisicas)}</td>
+        <td class="num">${d.exactitud}%</td>
+      </tr>`).join(''));
+}
+
+function pTraza() {
+  const opciones = [...new Set(detalles.flatMap((d) => d.skus.map((s) => s.sku)))].sort();
+  if (!opciones.includes(skuElegido)) skuElegido = opciones[0] || null;
+
+  const historial = skuElegido ? historialDe(skuElegido, detalles) : [];
+
+  $('cuerpo').innerHTML = `
+    <h2>Trazabilidad por referencia</h2>
+    <p>Todo lo que le ha pasado a un producto en el periodo: en qué recepción,
+       cuánto declaraba el sistema, cuánto apareció y quién lo contó.</p>
+    <label class="campo" style="max-width:360px;margin-bottom:18px">
+      <span>Referencia</span>
+      <select id="selSku">${opciones.map((s) =>
+        `<option${s === skuElegido ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select>
+    </label>` +
+    (historial.length
+      ? tabla([{ t: 'Recepción' }, { t: 'Fecha' }, { t: 'Sistema', num: 1 },
+               { t: 'Físico', num: 1 }, { t: 'Dif.', num: 1 }, { t: 'Estado' },
+               { t: 'Conteos', num: 1 }, { t: 'Operarios' }],
+        historial.map((h) => `<tr>
+          <td class="id" style="font-size:12px">${esc(h.recepcion)}</td>
+          <td class="mini">${esc(h.fecha)}</td>
+          <td class="num">${num(h.esperado)}</td>
+          <td class="num">${num(h.contado)}</td>
+          <td class="num" style="color:${h.diferencia === 0 ? 'var(--secondary)'
+            : h.diferencia > 0 ? 'var(--info)' : 'var(--warning)'}">
+            ${h.diferencia > 0 ? '+' : ''}${num(h.diferencia)}</td>
+          <td><span class="pastilla ${{ OK: 'p-ok', FALTANTE: 'p-warn',
+            SOBRANTE: 'p-info' }[h.estado] || 'p-off'}">${esc(h.estado)}</span>
+            ${h.pnc ? ' <span class="pastilla p-err">PNC</span>' : ''}</td>
+          <td class="num">${num(h.conteos)}</td>
+          <td class="mini">${esc(h.operarios.join(', '))}</td>
+        </tr>`).join(''))
+      : '<p class="mini">Esa referencia no aparece en el periodo elegido.</p>');
+
+  const sel = $('selSku');
+  if (sel) sel.addEventListener('change', () => { skuElegido = sel.value; pTraza(); });
+}
+
+// --- Filtros y exportación ------------------------------------------------ //
+$('bAplicar').addEventListener('click', cargar);
+
+for (const c of document.querySelectorAll('[data-rango]')) {
+  c.addEventListener('click', () => {
+    const dias = Number(c.dataset.rango);
+    $('fHasta').value = soloDia(new Date());
+    $('fDesde').value = dias
+      ? soloDia(new Date(Date.now() - dias * 86400000))
+      : '';
+    cargar();
+  });
+}
+
+/**
+ * Qué se está viendo, en columnas.
+ *
+ * Una sola definición por vista: el Excel y el PDF salen de la misma, así que
+ * no pueden decir cosas distintas.
+ */
+function vistaActual(fuente=detalles) {
+  const filasIndicadores=fuente.map(indicadoresDe);
+  if (vista === 'operarios') {
+    return {
+      titulo: 'Productividad por operario',
+      nombre: 'kpi-operarios',
+      filas: porOperario(fuente.flatMap((d) => d.eventos)),
+      columnas: [
+        { titulo: 'Operario', valor: (o) => o.nombre },
+        { titulo: 'Correo', valor: (o) => o.email },
+        { titulo: 'Conteos', valor: (o) => o.conteos },
+        { titulo: 'Unidades', valor: (o) => o.unidades },
+        { titulo: 'SKU', valor: (o) => o.skus },
+        { titulo: 'Pallets', valor: (o) => o.pallets },
+        { titulo: 'PNC', valor: (o) => o.pnc },
+        { titulo: 'Anulados', valor: (o) => o.anulaciones },
+        { titulo: 'Unid./hora', valor: (o) => o.unidadesHora },
+      ],
+    };
+  }
+
+  if (vista === 'skus') {
+    return {
+      titulo: 'Referencias del resultado',nombre:'kpi-referencias',filas:referenciasDe(fuente),columnas:[
+        {titulo:'Referencia',valor:s=>s.sku},{titulo:'Descripción',valor:s=>s.descripcion},{titulo:'Recepción',valor:s=>s.recepcion},
+        {titulo:'Declarado',valor:s=>s.esperado},{titulo:'Contado',valor:s=>s.contado},{titulo:'Diferencia',valor:s=>s.diferencia},
+        {titulo:'Estado',valor:s=>s.estado},{titulo:'PNC',valor:s=>s.pnc ? 'SI' : 'NO'}]
+    };
+  }
+
+  if (vista === 'dias') {
+    return {
+      titulo: 'Tendencia por día',
+      nombre: 'kpi-tendencia',
+      filas: porDia(filasIndicadores),
+      columnas: [
+        { titulo: 'Día', valor: (d) => d.fecha },
+        { titulo: 'Recepciones', valor: (d) => d.recepciones },
+        { titulo: 'SKU', valor: (d) => d.skus },
+        { titulo: 'Sistema', valor: (d) => d.esperadas },
+        { titulo: 'Físico', valor: (d) => d.fisicas },
+        { titulo: 'Exactitud %', valor: (d) => d.exactitud },
+      ],
+    };
+  }
+
+  if (vista === 'traza' && skuElegido) {
+    return {
+      titulo: `Trazabilidad · ${skuElegido}`,
+      nombre: `kpi-traza-${skuElegido}`,
+      filas: historialDe(skuElegido, fuente),
+      columnas: [
+        { titulo: 'Recepción', valor: (h) => h.recepcion },
+        { titulo: 'Fecha', valor: (h) => h.fecha },
+        { titulo: 'Sistema', valor: (h) => h.esperado },
+        { titulo: 'Físico', valor: (h) => h.contado },
+        { titulo: 'Diferencia', valor: (h) => h.diferencia },
+        { titulo: 'Estado', valor: (h) => h.estado },
+        { titulo: 'Conteos', valor: (h) => h.conteos },
+        { titulo: 'Operarios', valor: (h) => h.operarios.join(', ') },
+      ],
+    };
+  }
+
+  return {
+    titulo: 'Recepciones del periodo',
+    nombre: 'kpi-recepciones',
+    filas: filasIndicadores,
+    columnas: [
+      { titulo: 'Recepción', valor: (r) => r.codigo },
+      { titulo: 'Fecha', valor: (r) => r.fecha },
+      { titulo: 'Cliente', valor: (r) => r.cliente },
+      { titulo: 'Estado', valor: (r) => r.estado },
+      { titulo: 'SKU', valor: (r) => r.skus },
+      { titulo: 'Unid. sistema', valor: (r) => r.esperadas },
+      { titulo: 'Unid. físicas', valor: (r) => r.fisicas },
+      { titulo: 'Diferencia', valor: (r) => r.diferencia },
+      { titulo: 'Ok', valor: (r) => r.ok },
+      { titulo: 'Faltantes', valor: (r) => r.faltante },
+      { titulo: 'Sobrantes', valor: (r) => r.sobrante },
+      { titulo: 'Adicionales', valor: (r) => r.adicionales },
+      { titulo: 'Con PNC', valor: (r) => r.conPnc },
+      { titulo: 'Exactitud %', valor: (r) => r.exactitud },
+      { titulo: 'Verificado %', valor: (r) => r.avance },
+      { titulo: 'Conteos', valor: (r) => r.conteos },
+      { titulo: 'Unid./hora', valor: (r) => r.unidadesHora },
+    ],
+  };
+}
+
+const periodo = () => {
+  const d = $('fDesde').value, h = $('fHasta').value;
+  return d || h ? `Del ${d || 'inicio'} al ${h || 'hoy'}` : 'Todo el historial';
+};
+
+const contextoFiltros=()=>periodo()+($('fAlcance').value==='total' ? ' · Total del periodo, sin filtros de producto/cliente/estado/código' : ` · Recepción: ${$('fCodigo').value || 'todas'} · Cliente: ${$('fCliente').value || 'todos'} · Estado: ${$('fEstado').value || 'todos'} · Producto: ${$('fProducto').value || 'todos'} · Etiqueta: ${etiquetaActiva || 'todas'}`);
+const resumenDe=fuente=>{const t=consolidar(fuente.map(indicadoresDe));return `${t.recepciones} recepciones · ${t.skus} referencias · ${t.esperadas} declaradas · ${t.fisicas} contadas · Exactitud ${t.exactitud}% · Verificado ${t.avance}%`;};
+
+const sufijo = () => `-${soloDia(new Date())}`;
+
+$('bExcel').addEventListener('click', async () => {
+  limpiarAvisos();
+  const fuente=$('fAlcance').value === 'total' ? detallesTodos : detalles;
+  const v = vistaActual(fuente);
+  if (!v.filas.length) return aviso('No hay nada que exportar en esta vista.', 'warn');
+  try {
+    await aExcel(v.filas, v.columnas, v.titulo, v.nombre + sufijo(), {filtros:contextoFiltros(),resumen:resumenDe(fuente)});
+  } catch (e) { aviso(e.message, 'err', 'No se exportó'); }
+});
+
+$('bPdf').addEventListener('click', async () => {
+  limpiarAvisos();
+  const fuente=$('fAlcance').value === 'total' ? detallesTodos : detalles;
+  const v = vistaActual(fuente);
+  if (!v.filas.length) return aviso('No hay nada que exportar en esta vista.', 'warn');
+  const t = consolidar(indicadores);
+  try {
+    await aPdf(v.filas, v.columnas, {
+      titulo: v.titulo,
+      subtitulo: contextoFiltros(),
+      nombre: v.nombre + sufijo(),
+      resumen: resumenDe(fuente),
+    });
+  } catch (e) { aviso(e.message, 'err', 'No se exportó'); }
+});
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => { try { navigator.serviceWorker.register('./sw.js').catch(() => {}); } catch { /* Vista previa aislada o contexto sin Service Worker. */ } });
+}
+</script>
+</body>
+</html>

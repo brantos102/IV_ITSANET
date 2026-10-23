@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+node_modules
+.local
+.env
+data
+**/__pycache__
+**/*.db
+**/*.db-wal
+**/*.db-shm
+*.xlsx
+*.xls

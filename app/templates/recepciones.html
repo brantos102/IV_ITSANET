@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% set activo = 'recepciones' %}
+{% block titulo %}Recepciones · {{ APP_NAME }}{% endblock %}
+{% block contenido %}
+<h1>Recepciones</h1>
+<div id="avisos"></div>
+
+<div class="panel">
+  <h2 style="margin-top:0">1 · Nueva recepción</h2>
+  <div class="fila">
+    <div class="campo"><label>Código de recepción</label>
+      <input id="codigo" placeholder="VW-2026-06-29" autocapitalize="characters"></div>
+    <div class="campo"><label>Cliente</label><input id="cliente" value="VENTURA"></div>
+    <div class="campo"><label>N° bultos declarados</label>
+      <input id="bultos" type="number" inputmode="numeric" min="0"></div>
+    <div class="campo" style="flex:2"><label>Descripción</label>
+      <input id="descripcion" placeholder="IMPOVENTURA - VW, embarques RB48529 / RB48688"></div>
+    <button onclick="crear()">Crear</button>
+  </div>
+  <div id="paso2" class="oculto" style="margin-top:1rem;border-top:1px solid var(--line);padding-top:1rem">
+    <h2 style="margin-top:0">2 · Subir packing list (.xlsx)</h2>
+    <div class="fila">
+      <div class="campo" style="flex:2"><label>Archivo del packing list</label>
+        <input type="file" id="archivo" accept=".xlsx,.xlsm"></div>
+      <div class="campo"><label>Hoja (opcional)</label><input id="hoja" placeholder="auto"></div>
+      <button onclick="subir()">Subir y validar</button>
+    </div>
+    <p class="mini">Se detectan automáticamente las columnas ITEM, Descripción, Cantidad,
+      Factura, Embarque. Las columnas de resultado del archivo se ignoran: la validación
+      la genera la aplicación.</p>
+  </div>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Maestro de productos (Depot)</h2>
+  <div class="fila">
+    <div class="campo" style="flex:2"><label>Archivo del maestro (.xlsx con hoja MAESTRO)</label>
+      <input type="file" id="archivoMaestro" accept=".xlsx,.xlsm"></div>
+    <button class="sec" onclick="subirMaestro()">Cargar maestro</button>
+  </div>
+  <p class="mini" id="estadoCatalogo">…</p>
+</div>
+
+<h2>Listado</h2>
+<div class="scroll">
+  <table>
+    <thead><tr>
+      <th>Código</th><th>Estado</th><th class="num">SKUs</th>
+      <th class="num">Sistema</th><th class="num">Físico</th>
+      <th style="min-width:120px">Avance</th><th>Creada</th><th></th>
+    </tr></thead>
+    <tbody id="tabla"><tr><td colspan="8" class="mini">Cargando…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const avisos = $('#avisos');
+let recepcionId = null;
+
+async function crear(){
+  limpiarAvisos(avisos);
+  const codigo = $('#codigo').value.trim();
+  if(!codigo){ aviso(avisos,'Indique el código de la recepción','err'); return; }
+  try{
+    const r = await API.post('/api/recepciones',{
+      codigo, cliente:$('#cliente').value.trim()||'VENTURA',
+      descripcion:$('#descripcion').value.trim()||null,
+      bultos_declarados: parseInt($('#bultos').value)||null,
+    });
+    recepcionId = r.id;
+    $('#paso2').classList.remove('oculto');
+    aviso(avisos,`Recepción ${r.codigo} creada. Ahora suba el packing list.`,'ok');
+    cargar();
+  }catch(e){ aviso(avisos, e.message, 'err'); }
+}
+
+async function subir(){
+  limpiarAvisos(avisos);
+  const f = $('#archivo').files[0];
+  if(!f || !recepcionId){ aviso(avisos,'Seleccione el archivo','err'); return; }
+  const fd = new FormData();
+  fd.append('archivo', f);
+  if($('#hoja').value.trim()) fd.append('hoja', $('#hoja').value.trim());
+  try{
+    const r = await fetch(`/api/recepciones/${recepcionId}/packing-list`,
+      {method:'POST', body:fd, credentials:'same-origin'});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || 'Error al subir');
+    aviso(avisos,
+      `${d.lineas} líneas · ${d.skus_unicos} SKUs · ${d.unidades} unidades · `
+      + `embarques: ${d.embarques.join(', ')||'-'}`, 'ok', 'Packing list cargado');
+    (d.advertencias||[]).forEach(a => aviso(avisos, a, 'warn'));
+    setTimeout(()=> location.href = `/recepciones/${recepcionId}`, 1200);
+  }catch(e){ aviso(avisos, e.message, 'err'); }
+}
+
+async function subirMaestro(){
+  limpiarAvisos(avisos);
+  const f = $('#archivoMaestro').files[0];
+  if(!f){ aviso(avisos,'Seleccione el archivo del maestro','err'); return; }
+  const fd = new FormData(); fd.append('archivo', f);
+  aviso(avisos,'Cargando maestro, puede tardar…','info');
+  try{
+    const r = await fetch('/api/catalogo/maestro',{method:'POST',body:fd,credentials:'same-origin'});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail||'Error');
+    limpiarAvisos(avisos);
+    aviso(avisos, `${d.procesados} productos procesados · ${d.total_en_cache} en caché`,'ok');
+    estadoCatalogo();
+  }catch(e){ limpiarAvisos(avisos); aviso(avisos, e.message,'err'); }
+}
+
+async function estadoCatalogo(){
+  try{
+    const e = await API.get('/api/catalogo/estado');
+    $('#estadoCatalogo').textContent =
+      `Modo ${e.modo} · ${e.productos_en_cache.toLocaleString('es')} productos en caché`
+      + (e.api_configurada ? ` · API ${e.base_url}` : ' · API Depot no configurada');
+  }catch{}
+}
+
+async function cargar(){
+  const filas = await API.get('/api/recepciones');
+  $('#tabla').innerHTML = filas.length ? filas.map(r => `
+    <tr>
+      <td><a href="/recepciones/${r.id}"><b>${esc(r.codigo)}</b></a><br>
+          <span class="mini">${esc(r.cliente)}</span></td>
+      <td>${tag(r.estado)}</td>
+      <td class="num">${r.skus}</td>
+      <td class="num">${r.unidades_sistema}</td>
+      <td class="num">${r.unidades_fisicas}</td>
+      <td>${r.avance_pct}%<div class="barra"><i style="width:${Math.min(r.avance_pct,100)}%"></i></div></td>
+      <td class="mini">${new Date(r.creado_en).toLocaleString('es')}</td>
+      <td><a href="/recepciones/${r.id}/escanear">Escanear →</a></td>
+    </tr>`).join('')
+    : '<tr><td colspan="8" class="mini">Sin recepciones todavía.</td></tr>';
+}
+
+cargar(); estadoCatalogo();
+</script>
+{% endblock %}

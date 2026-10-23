@@ -1,0 +1,21 @@
+fastapi==0.143.0
+uvicorn[standard]==0.53.0
+SQLAlchemy==2.1.4
+# Conector de MySQL para el servidor de la empresa. Es Python puro: no hace
+# falta compilar nada ni tener las cabeceras de MySQL instaladas, que es lo que
+# convierte a mysqlclient en un problema en un Windows sin herramientas de
+# compilacion.
+#
+# El [rsa] NO es opcional aunque PyMySQL lo declare como extra: arrastra el
+# paquete `cryptography`, y sin el MySQL 8 rechaza la conexion con
+# «'cryptography' package is required for sha256_password or
+# caching_sha2_password auth methods». MySQL 8 autentica asi por defecto, de
+# modo que sin esto no se conecta ni una vez.
+PyMySQL[rsa]==1.1.1
+pydantic==2.13.5
+Jinja2==3.1.6
+python-multipart==0.0.32
+openpyxl==3.1.5
+Pillow==12.3.0
+httpx==0.28.1
+pytest==8.3.4
