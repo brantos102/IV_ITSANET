@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from sqlalchemy import func, select
 
-from app.models import (AppConfig, AppEvidencia, AppEvento, AppIngreso,
+from app.models import (AppConfig, AppEvidencia, AppEvento, AppIngreso, AppImpresion,
     AppUnidadLogistica, Operador, Rol, utcnow)
 from app.services import app_modelo as m
 from app.services.normalize import normalizar_sku
@@ -110,12 +110,14 @@ def auditoria(db, codigo, usuario, accion, datos):
 
 
 def obtener_ingreso(db, codigo):
-    m.obtener(db, codigo)
+    r = m.obtener(db, codigo)
     f = db.get(AppIngreso, codigo)
     unidades = list(db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion == codigo)
         .order_by(AppUnidadLogistica.tipo, AppUnidadLogistica.numero)))
     evidencias = list(db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion == codigo,
         AppEvidencia.eliminado_en.is_(None))))
+    archivados = [u for u in unidades if (u.datos or {}).get('archivadoPorConsolidacion')]
+    unidades = [u for u in unidades if not (u.datos or {}).get('archivadoPorConsolidacion')]
     d = f.datos if f else {}
     avisos = []
     p = configuracion(db, publica=True)['evidencias']
@@ -132,9 +134,11 @@ def obtener_ingreso(db, codigo):
                 avisos.append(f'Bulto {u.numero}: faltan fotos abierto con packing list')
     elif d.get('protocolo') == 'GENERAL' and fotos('PANORAMICA') < p['panoramicasMin']:
         avisos.append(f"Recomendadas {p['panoramicasMin']} imágenes panorámicas")
-    return {'recepcion': codigo, **d, 'version': d.get('version', 0), 'avisos': avisos, 'recomendaciones': p, 'unidades': [
+    return {'recepcion': codigo, **d, 'totalBultos': r.bultos, 'version': d.get('version', 0), 'avisos': avisos, 'recomendaciones': p, 'unidades': [
         {'id': u.id, 'tipo': u.tipo, 'numero': u.numero, 'codigo': u.codigo,
          'padreId': u.padre_id, **(u.datos or {}), 'version': (u.datos or {}).get('version', 0)} for u in unidades],
+        'bultosArchivados': [{'id': u.id, 'tipo': u.tipo, 'numero': u.numero, 'codigo': u.codigo,
+            'padreId': u.padre_id, **(u.datos or {}), 'version': (u.datos or {}).get('version', 0)} for u in archivados],
         'evidencias': [{'id': e.id, 'archivoId': e.archivo_id, 'unidadId': e.unidad_id,
             'sku': e.sku, 'origen': e.origen, 'categoria': e.categoria, 'tipo': e.tipo,
             'protocolo': e.protocolo, 'creadoEn': m._iso(e.creado_en)} for e in evidencias]}
@@ -188,6 +192,8 @@ def guardar_unidad(db, codigo, datos, usuario):
     u = db.scalar(select(AppUnidadLogistica).where(AppUnidadLogistica.id == ident).with_for_update().execution_options(populate_existing=True)) if ident else None
     if ident and (not u or u.recepcion != codigo or u.tipo != tipo):
         raise HTTPException(404, 'Unidad logística no encontrada')
+    if u and (u.datos or {}).get('archivadoPorConsolidacion'):
+        raise HTTPException(409, 'Este bulto fue retirado del total por consolidación. Actualiza la recepción y selecciona un bulto vigente.')
     anterior = dict(u.datos or {}) if u else {}
     revision = anterior.get('version', 0)
     if u and revision and datos.get('version') != revision:
@@ -196,6 +202,8 @@ def guardar_unidad(db, codigo, datos, usuario):
     padre = db.scalar(select(AppUnidadLogistica).where(AppUnidadLogistica.id == padre_id).with_for_update()) if padre_id else None
     if tipo == 'CAJA_MADRE' and (not padre or padre.recepcion != codigo or padre.tipo != 'BULTO'):
         raise HTTPException(422, 'La caja madre necesita un bulto de esta recepción')
+    if padre and (padre.datos or {}).get('archivadoPorConsolidacion'):
+        raise HTTPException(409, 'El bulto fue retirado del total por consolidación. Selecciona un bulto vigente.')
     if tipo == 'BULTO' and padre_id:
         raise HTTPException(422, 'Un bulto no puede estar dentro de otro bulto')
     if not u:
@@ -250,6 +258,8 @@ def validar_evidencia(db, codigo, datos):
     u = db.scalar(select(AppUnidadLogistica).where(AppUnidadLogistica.id == datos.get('unidadId')).with_for_update().execution_options(populate_existing=True)) if datos.get('unidadId') else None
     if datos.get('unidadId') and (not u or u.recepcion != codigo):
         raise HTTPException(422, 'La unidad no pertenece a esta recepción')
+    if u and (u.datos or {}).get('archivadoPorConsolidacion'):
+        raise HTTPException(409, 'Este bulto fue retirado del total por consolidación. La imagen no se registró; selecciona un bulto vigente.')
     if u and 'unidadVersion' in datos and datos['unidadVersion'] != (u.datos or {}).get('version', 0):
         raise HTTPException(409, 'Otro supervisor cambió este bulto. Revisa su etiqueta antes de adjuntar las fotos.')
     origen = str(datos.get('origen') or '')
@@ -327,22 +337,66 @@ def ajustar_bultos(db, codigo, datos, usuario, confirmar=True):
     if r.estado not in m.ABIERTAS: raise HTTPException(409, 'Recepción cerrada')
     n = datos.get('cantidad')
     if type(n) is not int or not 1 <= n <= 1000: raise HTTPException(422, 'Cantidad de bultos: de 1 a 1000')
-    existentes = list(db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion == codigo,
+    todos = list(db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion == codigo,
         AppUnidadLogistica.tipo == 'BULTO').order_by(AppUnidadLogistica.numero).with_for_update().execution_options(populate_existing=True)))
-    if existentes and n != r.bultos and datos.get('cantidadAnterior') != r.bultos:
+    existentes = [u for u in todos if not (u.datos or {}).get('archivadoPorConsolidacion')]
+    if todos and n != r.bultos and datos.get('cantidadAnterior') != r.bultos:
         raise HTTPException(409, 'El total de bultos cambió. Recarga antes de corregirlo.')
+    consolidar = datos.get('consolidar', False)
+    if type(consolidar) is not bool:
+        raise HTTPException(422, 'Confirma expresamente la consolidación de bultos.')
+    motivo = str(datos.get('motivo') or '').strip()
+    if consolidar and not 3 <= len(motivo) <= 300:
+        raise HTTPException(422, 'Indica el motivo de la corrección del total, de 3 a 300 caracteres.')
+    anterior = r.bultos
+    archivados = [];reactivados = []
     if n < len(existentes):
-        sobrantes = existentes[n:]
+        sobrantes = [u for u in existentes if u.numero > n]
+        ids_sobrantes={u.id for u in sobrantes};numeros_sobrantes={u.numero for u in sobrantes}
+        trabajos=db.scalars(select(AppImpresion).where(AppImpresion.recepcion==codigo,
+            AppImpresion.datos['tipo'].as_string()=='BULTOS',
+            AppImpresion.estado.in_(['PENDIENTE','RESERVADA','ENVIANDO','IMPRIMIENDO']))
+            .with_for_update().execution_options(populate_existing=True))
+        for trabajo in trabajos:
+            etiquetas=(trabajo.datos or {}).get('etiquetas')
+            incluye_sobrantes=not isinstance(etiquetas,list) or not etiquetas or any(
+                isinstance(e,dict) and (e.get('unidadId') in ids_sobrantes or e.get('numero') in numeros_sobrantes) for e in etiquetas)
+            if incluye_sobrantes:
+                lote=(trabajo.datos or {}).get('lote',trabajo.id[:8])
+                raise HTTPException(409, f'El lote de etiquetas {lote} está {trabajo.estado} e incluye bultos fuera del nuevo total. Espera la confirmación de impresión o resuelve su revisión en la cola antes de consolidar. No se cambió el total ni la impresión.')
         for u in sobrantes:
-            if u.codigo or any((u.datos or {}).get(k) for k in ('observacion','pallet','concluido','origenes','etiquetaEmitida')) or db.scalar(
+            if u.codigo or any((u.datos or {}).get(k) for k in ('observacion','pallet','concluido','origenes','lecturaOriginal')) or db.scalar(
                 select(AppEvidencia.id).where(AppEvidencia.unidad_id == u.id).limit(1)) or db.scalar(
                 select(AppUnidadLogistica.id).where(AppUnidadLogistica.padre_id == u.id).limit(1)):
-                raise HTTPException(409, 'Solo se pueden quitar bultos finales vacíos, sin etiquetas, fotos ni registros.')
-        for u in sobrantes: db.delete(u)
-    for numero in range(len(existentes)+1, n+1):
-        db.add(AppUnidadLogistica(id=uuid4().hex, recepcion=codigo, tipo='BULTO', numero=numero, codigo='', datos={}))
+                raise HTTPException(409, f'No se puede reducir el total: el bulto {u.numero} tiene código, fotografías, cajas o registros. Conserva su trazabilidad y revisa la distribución física antes de corregir.')
+            if (u.datos or {}).get('etiquetaEmitida') and not consolidar:
+                raise HTTPException(409, 'Hay etiquetas emitidas para bultos fuera del nuevo total. Usa Corregir total y confirma la consolidación con su motivo; se conservará su historial.')
+        for u in sobrantes:
+            if consolidar:
+                previo = dict(u.datos or {})
+                u.datos = {**previo, 'archivadoPorConsolidacion': True, 'motivoConsolidacion': motivo,
+                    'actualizadoPor': usuario, 'actualizadoEn': m._iso(utcnow()), 'version': previo.get('version', 0) + 1}
+                archivados.append(u.id)
+            else:db.delete(u)
+    por_numero = {u.numero:u for u in todos}
+    for numero in range(1, n+1):
+        u = por_numero.get(numero)
+        if u and (u.datos or {}).get('archivadoPorConsolidacion'):
+            previo = dict(u.datos or {})
+            u.datos = {**previo, 'archivadoPorConsolidacion': False, 'reactivadoPor': usuario,
+                'reactivadoEn': m._iso(utcnow()), 'version': previo.get('version', 0) + 1}
+            reactivados.append(u.id)
+        elif not u:db.add(AppUnidadLogistica(id=uuid4().hex, recepcion=codigo, tipo='BULTO', numero=numero, codigo='', datos={}))
     r.bultos = n
-    auditoria(db, codigo, usuario, 'BULTOS_RECIBIDOS', {'cantidad': n})
+    if consolidar and anterior != n:
+        f = db.get(AppIngreso, codigo) or AppIngreso(recepcion=codigo, datos={})
+        d = dict(f.datos or {})
+        if anterior is not None:d.setdefault('bultosDeclaradosIniciales', anterior)
+        d['ultimaCorreccionBultos'] = {'anterior': anterior, 'cantidad': n, 'motivo': motivo,
+            'usuario': usuario, 'fecha': m._iso(utcnow())}
+        f.datos = d;db.add(f)
+    auditoria(db, codigo, usuario, 'BULTOS_RECIBIDOS', {'cantidad': n, 'cantidadAnterior': anterior,
+        'consolidacion': consolidar, 'motivoCorreccion': motivo, 'archivados': archivados, 'reactivados': reactivados})
     db.flush()
     if confirmar: db.commit()
     return obtener_ingreso(db, codigo)

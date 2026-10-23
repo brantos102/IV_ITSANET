@@ -76,8 +76,11 @@ def cargar_maestro_desde(db: Session, ruta, hoja: str | None = None, lote: int =
     ahora = utcnow().replace(tzinfo=None)
     n = 0
     buffer = []
+    por_cliente = {}
     for reg in leer_maestro(ruta, hoja):
         reg.update(existe_depot=True, origen="MAESTRO", actualizado_en=ahora)
+        nombre=str(reg.get('cliente') or '').strip().upper()
+        if nombre:por_cliente[nombre]=por_cliente.get(nombre,0)+1
         buffer.append(reg)
         if len(buffer) >= lote:
             _upsert(db, buffer)
@@ -86,6 +89,8 @@ def cargar_maestro_desde(db: Session, ruta, hoja: str | None = None, lote: int =
     if buffer:
         _upsert(db, buffer)
         n += len(buffer)
+    from app.services.avisos_operativos import registrar_catalogo
+    registrar_catalogo(db,por_cliente,'MAESTRO',por_cliente,ahora)
     db.commit()
     return n
 

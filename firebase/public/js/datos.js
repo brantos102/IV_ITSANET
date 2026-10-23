@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261022-64';
-import { db } from './auth.js?v=20261022-64';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261022-64';
-import * as local from './local.js?v=20261022-64';
+} from '../vendor/firebase-sdk.js?v=20261023-65';
+import { db } from './auth.js?v=20261023-65';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261023-65';
+import * as local from './local.js?v=20261023-65';
 
 /**
  * Dónde se guardan los datos.
@@ -270,7 +270,7 @@ export function leerPackingList(arrayBuffer, opciones = {}) {
   if (typeof XLSX === 'undefined') {
     throw new Error('No se cargó la librería de Excel. Revisa la conexión y recarga.');
   }
-  const libro = XLSX.read(arrayBuffer, { type: 'array' });
+  const libro = XLSX.read(arrayBuffer, { type: 'array', cellNF: true });
   if(opciones.encabezado && (!Number.isInteger(opciones.encabezado)||opciones.encabezado<1||opciones.encabezado>1000))throw new Error('Fila de encabezado: de 1 a 1000.');
   if(opciones.columnas){const campos=Object.values(opciones.columnas);
     if(!campos.includes('sku')||!campos.includes('cantidad')||Object.keys(opciones.columnas).some(k=>!/^\d+$/.test(k)||Number(k)>1000))throw new Error('Selecciona columnas distintas para SKU y cantidad.');}
@@ -359,6 +359,16 @@ export function leerPackingList(arrayBuffer, opciones = {}) {
           formulas: Object.fromEntries([...Array(anchoReal)].flatMap((_,k)=>{
             const f=hoja[XLSX.utils.encode_cell({r:j,c:k})]?.f;
             return f ? [[k,f]] : [];
+          })),
+          // Tipos y formatos de origen, separados de cruda (que sigue siendo texto
+          // para compatibilidad). Permiten restaurar fechas/números al exportar.
+          tiposCelda:Object.fromEntries([...Array(anchoReal)].flatMap((_,k)=>{
+            const c=hoja[XLSX.utils.encode_cell({r:j,c:k})];
+            return c&&['n','b'].includes(c.t)?[[k,c.t]]:[];
+          })),
+          formatosCelda:Object.fromEntries([...Array(anchoReal)].flatMap((_,k)=>{
+            const c=hoja[XLSX.utils.encode_cell({r:j,c:k})];
+            return c?.z&&c.z!=='General'?[[k,c.z]]:[];
           })),
           filaOriginal:j+1,
           descripcion: limpiar(d.descripcion).slice(0, 300),

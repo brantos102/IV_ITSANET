@@ -2,15 +2,15 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261022-64"></script>
+<script src="./js/arranque.js?v=20261023-65"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Indicadores de recepción — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261022-64">
-<script src="./vendor/xlsx.full.min.js?v=20261022-64" defer></script>
-<script src="./vendor/jspdf.umd.min.js?v=20261022-64" defer></script>
-<script src="./vendor/jspdf.plugin.autotable.min.js?v=20261022-64" defer></script>
+<link rel="stylesheet" href="./css/marca.css?v=20261023-65">
+<script src="./vendor/xlsx.full.min.js?v=20261023-65" defer></script>
+<script src="./vendor/jspdf.umd.min.js?v=20261023-65" defer></script>
+<script src="./vendor/jspdf.plugin.autotable.min.js?v=20261023-65" defer></script>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
@@ -126,14 +126,15 @@
 </div>
 
 <script type="module">
-import { mostrarAviso } from './js/notificaciones.js?v=20261022-64';
-import { observarSesion, traducirError } from './js/auth.js?v=20261022-64';
-import { conectarGlosario } from './js/glosario.js?v=20261022-64';
-import { parecidos, avisoDeParecidos } from './js/sugerir.js?v=20261022-64';
+import { mostrarAviso } from './js/notificaciones.js?v=20261023-65';
+import { observarSesion, traducirError, modoLocal } from './js/auth.js?v=20261023-65';
+import { conectarGlosario } from './js/glosario.js?v=20261023-65';
+import {escucharCambiosRecepcion} from './js/cambios-recepcion.js?v=20261023-65';
+import { parecidos, avisoDeParecidos } from './js/sugerir.js?v=20261023-65';
 import {
   recepcionesDesde, detalleDe, indicadoresDe, consolidar, porOperario,
   skusProblematicos, porDia, historialDe, aFecha, soloDia, aExcel, aPdf, filtrarDetalles, referenciasDe,
-} from './js/kpi.js?v=20261022-64';
+} from './js/kpi.js?v=20261023-65';
 
 const $ = (id) => document.getElementById(id);
 let perfil = null, usuario = null;
@@ -143,6 +144,8 @@ let indicadores = [];   // una fila por recepción, del conjunto filtrado
 let vista = 'recepciones';
 let skuElegido = null;
 let etiquetaActiva='';
+let cargandoPeriodo=false,actualizandoPeriodo=false,revisarPeriodoCompleto=false,periodoActivo=null,esperaActualizacion=null;
+const recepcionesPendientes=new Set();
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g,
@@ -179,16 +182,18 @@ observarSesion(async (e) => {
   $('fHasta').value = soloDia(hoy);
   $('fDesde').value = soloDia(hace);
   cargar();
+  if(modoLocal())escucharCambiosRecepcion('',e=>{if(e.secciones.includes('operacion'))solicitarActualizacion(e);});
 });
 
 // --- Carga ---------------------------------------------------------------- //
 async function cargar() {
+  if(cargandoPeriodo)return;cargandoPeriodo=true;periodoActivo={desde:$('fDesde').value,hasta:$('fHasta').value};
   limpiarAvisos();
   $('cuerpo').innerHTML = '<p class="mini">Cargando…</p>';
   $('bAplicar').disabled = true;$('bExcel').disabled=true;$('bPdf').disabled=true;
 
   try {
-    const recepciones = await recepcionesDesde($('fDesde').value, $('fHasta').value);
+    const recepciones = await recepcionesDesde(periodoActivo.desde, periodoActivo.hasta);
     const estado = $('fEstado').value;
     const cliente = $('fCliente').value;
 
@@ -214,8 +219,27 @@ async function cargar() {
     $('cuerpo').innerHTML = '';
     aviso(traducirError(e), 'err', 'No se pudieron leer los datos');
   } finally {
-    $('bAplicar').disabled = false;
+    $('bAplicar').disabled = false;cargandoPeriodo=false;
+    if(revisarPeriodoCompleto||recepcionesPendientes.size)esperaActualizacion=setTimeout(actualizarPeriodoEnVivo,200);
   }
+}
+
+function solicitarActualizacion(e){
+ if(!usuario||document.hidden)return;
+ if(e.recepciones?.length)e.recepciones.forEach(c=>recepcionesPendientes.add(c));else revisarPeriodoCompleto=true;
+ clearTimeout(esperaActualizacion);esperaActualizacion=setTimeout(actualizarPeriodoEnVivo,200);
+}
+async function actualizarPeriodoEnVivo(){
+ if(cargandoPeriodo||actualizandoPeriodo||!periodoActivo||document.hidden)return;
+ actualizandoPeriodo=true;const periodo=periodoActivo,pendientes=new Set(recepcionesPendientes),completo=revisarPeriodoCompleto;recepcionesPendientes.clear();revisarPeriodoCompleto=false;
+ try{
+  const recepciones=await recepcionesDesde(periodo.desde,periodo.hasta),cache=new Map(detallesTodos.map(d=>[d.recepcion.id,d]));
+  const leer=recepciones.filter(r=>completo||pendientes.has(r.id)||!cache.has(r.id));
+  for(let i=0;i<leer.length;i+=6){await Promise.all(leer.slice(i,i+6).map(async r=>cache.set(r.id,{recepcion:r,...await detalleDe(r.id)})));}
+  if(periodo!==periodoActivo)return;
+  detallesTodos=recepciones.map(r=>({...cache.get(r.id),recepcion:r}));llenarClientes(recepciones);filtrarPorCodigo();
+ }catch{aviso('No se pudo actualizar el último cambio. Conservamos la vista; pulsa Aplicar para consultar de nuevo.','warn','Actualización pendiente');}
+ finally{actualizandoPeriodo=false;if(revisarPeriodoCompleto||recepcionesPendientes.size)esperaActualizacion=setTimeout(actualizarPeriodoEnVivo,200);}
 }
 
 /**

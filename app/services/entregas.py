@@ -218,6 +218,13 @@ def preparar(db, codigo, datos, usuario):
             raise HTTPException(409,'Falta un documento archivado. Genera el informe actualizado antes de cerrar.')
     else:
         informes = [archivos.guardar(db, r.codigo, 'informe', l, usuario, confirmar=False).id for l in libros]
+    nombres_adjuntos={}
+    if lote_correos:
+        informes=list(dict.fromkeys(ident for item in lote_correos for ident in item['informes']))
+        nombres_adjuntos={ident:nombre for item in lote_correos for ident,nombre in item.get('nombresAdjuntos',{}).items()}
+    elif correo_final:
+        if 'adjuntosSeleccionados' in correo_final:informes=[a['id'] for a in correo_final['adjuntosSeleccionados']]
+        nombres_adjuntos=correo_final.get('nombresAdjuntos',{})
     skus = m.leer_coleccion(db, r.codigo, 'skus', actual=True)
     if not skus or any(not s.get('verificado') for s in skus):
         raise HTTPException(409, 'Verifica todas las referencias antes de finalizar')
@@ -237,7 +244,7 @@ def preparar(db, codigo, datos, usuario):
         clave=hashlib.sha256(f'{r.codigo}|{r.cerrada_en}'.encode()).hexdigest(),
         estado='CANCELADA' if manual else 'PENDIENTE', datos={
             'solicitudCierre':firma_solicitud,
-            'destinatarios': destinatarios, 'informes': informes, 'fotos': fotos,
+            'destinatarios': destinatarios, 'informes': informes, 'nombresAdjuntos':nombres_adjuntos,'fotos': fotos,
             **({'correosPorOrigen':lote_correos,'asignacionesAdicionales':asignaciones_cierre,'planCorreos':plan_envio} if lote_correos else {}),
             **({'correoFinal':correo_final} if correo_final else {}),
             'remitente': remitente, 'modoRemitente': modo_remitente,

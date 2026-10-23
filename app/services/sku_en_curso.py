@@ -33,8 +33,8 @@ def actualizar(db,codigo,op,sesion,datos):
     propia=db.get(AppConfig,clave)
     if sku:
         propia=propia or AppConfig(clave=clave)
-        propia.usuario=op.usuario;propia.datos={'recepcion':r.codigo,'operadorId':op.id,'sku':sku,'actividad':actividad,'vence':ahora+VIGENCIA}
+        propia.usuario=op.usuario;propia.datos={'dispositivo':dispositivo,'recepcion':r.codigo,'operadorId':op.id,'sku':sku,'actividad':actividad,'vence':ahora+VIGENCIA}
         db.add(propia)
     elif propia:db.delete(propia)
     db.commit()
-    return {'sku':sku,'otros':otros,'vigenciaSegundos':VIGENCIA,'compartido':bool(otros)}
+    return {'sku':sku,'otros':otros,'vigenciaSegundos':VIGENCIA,'compartido':bool(otros),'operadorId':op.id}

@@ -12,11 +12,12 @@
  * Firebase la sirve en la raíz. No hace falta configurar nada ni acordarse de
  * cambiar un interruptor al desplegar; la dirección ya lo dice.
  *
- * Lo que NO está aquí y no puede estar: el tiempo real entre operarios. En
- * Firestore `onSnapshot` lo daba la base; sobre HTTP hay que preguntar. Se
- * pregunta cada pocos segundos, se avisa solo cuando algo cambió de verdad, y
- * la pantalla no nota la diferencia salvo en el retardo.
+ * El canal autenticado avisa de cambios confirmados y se comparte entre las
+ * vistas. Si un proxy bloquea SSE, se consulta una firma de respaldo; los
+ * borradores y las cantidades pendientes nunca se sustituyen desde el canal.
  */
+
+import {escucharCambiosRecepcion,avisarCambioLocal} from './cambios-recepcion.js?v=20261023-65';
 
 /** Dónde vive la API. Mismo origen que la página: no hay CORS que configurar. */
 export const BASE = '/api/app';
@@ -122,6 +123,10 @@ export async function pedir(ruta, opciones = {}) {
       validacion || (typeof d === 'string' ? d : `El servidor respondió ${r.status}.`),
       'ERROR', r.status,
     );
+  }
+  if(opciones.metodo && opciones.metodo!=='GET' || opciones.cuerpo){
+    const codigo=String(ruta).match(/^\/recepciones\/([^/?]+)/)?.[1];
+    if(codigo&&!/\/(?:presencia|sku-en-curso)(?:\?|$)/.test(ruta))avisarCambioLocal(decodeURIComponent(codigo),['conteos','recepcion','imagenes']);
   }
   return cuerpo;
 }
@@ -248,44 +253,48 @@ export const buscarEnCatalogo = async (codigo) => {
  *
  * Devuelve la función de cancelar, igual que `onSnapshot`.
  */
-function observarConsulta(consulta, alCambiar, alFallar, cada = 4000) {
+function observarConsulta(consulta, alCambiar, alFallar, cada = 4000, suscribir = null) {
   let vivo = true;
   let anterior = '';
   let reloj = null;
-  let consultando = false;
+  let consultando = false, pendiente=false, falloAnterior=false;
 
   const mirar = async () => {
-    if (!vivo || consultando) return;
+    if (!vivo) return;
+    if(consultando){pendiente=true;return;}
     if (document.visibilityState === 'hidden') return;
     consultando = true;
     try {
       const skus = await consulta();
       if (!vivo) return;
       const firma = JSON.stringify(skus);
-      if (firma !== anterior) {
-        anterior = firma;
+      if (firma !== anterior || falloAnterior) {
+        anterior = firma;falloAnterior=false;
         alCambiar(skus);
       }
     } catch (e) {
-      if (vivo && alFallar) alFallar(e);
+      falloAnterior=true;if (vivo && alFallar) alFallar(e);
     } finally {
       consultando = false;
+      if(pendiente&&vivo){pendiente=false;Promise.resolve().then(mirar);}
     }
   };
 
+  const cancelarCambios=suscribir?.(mirar,e=>{falloAnterior=true;alFallar?.(e);});
   mirar();
   reloj = setInterval(mirar, cada);
   document.addEventListener('visibilitychange', mirar);
 
   return () => {
     vivo = false;
-    clearInterval(reloj);
+    clearInterval(reloj);cancelarCambios?.();
     document.removeEventListener('visibilitychange', mirar);
   };
 }
 
-export const escucharSkus = (recepcionId, alCambiar, alFallar, cada = 4000) =>
-  observarConsulta(() => leerColeccion(recepcionId, 'skus'), alCambiar, alFallar, cada);
+export const escucharSkus = (recepcionId, alCambiar, alFallar, cada = 15000) =>
+  observarConsulta(() => leerColeccion(recepcionId, 'skus'), alCambiar, alFallar, cada,
+    (mirar,fallar)=>escucharCambiosRecepcion(recepcionId,e=>{if(e.secciones.some(s=>['conteos','recepcion'].includes(s)))mirar();},fallar));
 
 export const listarUsuarios = () => pedir('/operadores', { base: BASE_SESION });
 export const escucharUsuarios = (alCambiar, alFallar) =>

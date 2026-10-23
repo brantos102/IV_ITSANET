@@ -1,12 +1,34 @@
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261022-64';
-import {verImagen} from './visor-imagen.js?v=20261022-64';
-import {pedir} from './local.js?v=20261022-64';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261022-64';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261022-64';
-import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261022-64';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261022-64';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261022-64';
-import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261022-64';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-65';
+import {verImagen} from './visor-imagen.js?v=20261023-65';
+import {pedir} from './local.js?v=20261023-65';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261023-65';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261023-65';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261023-65';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261023-65';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261023-65';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261023-65';
+
+/** Mantiene el formulario y el motivo abiertos si el servidor rechaza la corrección. */
+export function corregirTotalBultos({codigo,cantidad,guardar}){
+  const d=document.createElement('dialog');d.className='modal-operativa';
+  d.innerHTML=`<h3>Total físico de bultos</h3><p class="mini">${esc(codigo)} · Total actual: ${esc(cantidad)}. Corregir este total no modifica las cantidades de los SKU.</p><label class="campo"><span>Bultos recibidos / consolidados</span><input data-cantidad type="number" inputmode="numeric" min="1" max="1000" step="1" value="${esc(cantidad)}" required></label><div data-reduccion hidden><label class="campo"><span>Motivo de la consolidación</span><input data-motivo minlength="3" maxlength="300" placeholder="Ej.: consolidación física de 70 a 50 bultos"></label><label><input data-confirmar type="checkbox"> Confirmo el total físico y retiraré las etiquetas sobrantes. Solo se archivarán bultos finales sin registros ni evidencias.</label><p class="mini">El historial y los rótulos impresos se conservan. Si un bulto sobrante ya tiene datos o fotografías, la corrección se detendrá para protegerlos.</p></div><p data-error role="alert" style="color:#b91c1c;overflow-wrap:anywhere"></p><div class="acciones"><button type="button" class="b-sec" data-cancelar>Cancelar</button><button type="button" class="b-primario" data-guardar>Guardar total</button></div>`;
+  document.body.append(d);d.showModal();const $=s=>d.querySelector(s);let ocupado=false,resultado=null;
+  const cambiar=()=>{const reducir=Number($('[data-cantidad]').value)<cantidad;$('[data-reduccion]').hidden=!reducir;$('[data-motivo]').required=reducir;$('[data-confirmar]').required=reducir;};
+  $('[data-cantidad]').addEventListener('input',cambiar);cambiar();
+  $('[data-cancelar]').onclick=()=>{if(!ocupado)d.close();};
+  $('[data-guardar]').onclick=async()=>{
+    if(ocupado)return;const n=Number($('[data-cantidad]').value),reducir=n<cantidad;
+    if(!Number.isInteger(n)||n<1||n>1000){$('[data-error]').textContent='Indica un total entero de 1 a 1000 bultos.';$('[data-cantidad]').focus();return;}
+    if(reducir&&($('[data-motivo]').value.trim().length<3||!$('[data-confirmar]').checked)){$('[data-error]').textContent='Indica el motivo y confirma el total físico antes de consolidar.';return;}
+    ocupado=true;$('[data-error]').textContent='Guardando y comprobando los bultos…';d.querySelectorAll('button,input').forEach(e=>e.disabled=true);
+    try{const ingreso=await guardar({cantidad:n,cantidadAnterior:cantidad,...(reducir?{consolidar:true,motivo:$('[data-motivo]').value.trim()}:{})});resultado={ingreso,cantidad:n};d.close();}
+    catch(e){$('[data-error]').textContent=e.message||'No se pudo guardar. Revisa el total y vuelve a intentarlo.';}
+    finally{ocupado=false;d.querySelectorAll('button,input').forEach(e=>e.disabled=false);}
+  };
+  tecladoDialogo(d,{accion:'[data-guardar]'});d.addEventListener('cancel',e=>{if(ocupado)e.preventDefault();});
+  $('[data-cantidad]').focus();$('[data-cantidad]').select();
+  return new Promise(resolve=>d.addEventListener('close',()=>{d.remove();resolve(resultado);},{once:true}));
+}
 
 /** Un bulto por pantalla. Fotos anexadas, cambios de unidad con versión. */
 export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
@@ -80,8 +102,8 @@ export async function abrirIngreso(codigo,{continuar=()=>{}}={}) {
     $('[data-empezar]').onclick=seguro(async()=>{if($('[data-protocolo]').value==='SIN_FOTOS'){await continuarPacking();return;}await guardarInicio();await sugerirEtiquetas();indice=Math.max(0,bultos().findIndex(b=>!b.concluido));await mostrarBulto();});
     $('[data-panoramicas]').onclick=seguro(async()=>{await guardarInicio({crearBultos:false});const modal=await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'PANORAMICA',supervisor:true});if(modal.open)await new Promise(ok=>modal.addEventListener('close',ok,{once:true}));await refrescar();inicio();});
     $('[data-temporales]').onclick=seguro(()=>abrirFotosPendientes(codigo,{alGuardar:refrescar}));
-    $('[data-total]').onclick=seguro(async()=>{const v=await pedirCampos({titulo:'Total de bultos',campos:[{clave:'cantidad',etiqueta:'Bultos recibidos',tipo:'number',valor:recepcion.bultos || bs.length || 1,obligatorio:true}]});if(!v)return;
-      ingreso=await operacion(ruta+'/bultos',{cuerpo:{cantidad:Number(v.cantidad),cantidadAnterior:recepcion.bultos}});await refrescar();inicio();});
+    $('[data-total]').onclick=seguro(async()=>{const resultado=await corregirTotalBultos({codigo,cantidad:recepcion.bultos || bs.length || 1,guardar:cuerpo=>operacion(ruta+'/bultos',{cuerpo})});if(!resultado)return;
+      ingreso=resultado.ingreso;await refrescar();inicio();estado('Total físico guardado: '+resultado.cantidad+' bultos. Se conserva el historial de las etiquetas y de los registros.');$('[data-estado]').scrollIntoView({block:'nearest'});});
     $('[data-prerecepcion]').onclick=seguro(async()=>{const modal=await abrirEvidencias({recepcion:codigo,categoria:'RECEPCION',tipo:'PRERECEPCION'});if(modal.open)await new Promise(ok=>modal.addEventListener('close',ok,{once:true}));await refrescar();inicio();});
     $('[data-packing]').onclick=seguro(continuarPacking);
     $('[data-cuerpo]').querySelectorAll('[data-ir]').forEach(b=>b.onclick=seguro(async()=>{await guardarInicio();indice=Number(b.dataset.ir);await mostrarBulto();}));

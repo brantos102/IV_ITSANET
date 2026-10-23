@@ -1,4 +1,4 @@
-import {pedir} from './local.js?v=20261022-64';
+import {pedir} from './local.js?v=20261023-65';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function editarContenedores(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo)+'/contenedores';

@@ -10,15 +10,16 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261022-64';
-import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261022-64';
-import { db } from './auth.js?v=20261022-64';
-import * as local from './local.js?v=20261022-64';
-import {eventosActivos} from './conteo.js?v=20261022-64';
-import {fechaDe} from './fechas.js?v=20261022-64';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261022-64';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261022-64';
-import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261022-64';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261023-65';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261023-65';
+import { db } from './auth.js?v=20261023-65';
+import * as local from './local.js?v=20261023-65';
+import {eventosActivos} from './conteo.js?v=20261023-65';
+import {fechaDe} from './fechas.js?v=20261023-65';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261023-65';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261023-65';
+import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261023-65';
+import {tiparHojaOriginal,formatoNumericoCalculado,validarLibroExcel} from './excel-formato.js?v=20261023-65';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 
@@ -380,6 +381,7 @@ function hojaOriginal(filas, formato, ampliado=false, validacionDepot=null) {
   }
 
   const hoja = XLSX.utils.aoa_to_sheet(matriz);
+  tiparHojaOriginal(hoja,filas,enc,col,prefijo.length+1);
   filas.forEach((l,i)=>{const r=i+1+prefijo.length,j=col.evidencia,url=String(l.evidencia||'').split(' | ')[0];if(Number.isInteger(j)&&/^https:\/\/drive\.google\.com\//.test(url)){const cell=hoja[XLSX.utils.encode_cell({r,c:j})];if(cell)cell.l={Target:url,Tooltip:'Carpeta del SKU '+l.sku};}
     for(const [c,formula] of Object.entries(l.formulas||{}))if(!Object.entries(col).some(([rol,j])=>salida.has(rol)&&j===Number(c))&&!/[!\[\]]/.test(formula)){
       const celda=hoja[XLSX.utils.encode_cell({r,c:Number(c)})];
@@ -397,7 +399,20 @@ function hojaOriginal(filas, formato, ampliado=false, validacionDepot=null) {
 
 /** Excel limita el nombre de hoja a 31 caracteres y prohíbe : \ / ? * [ ] */
 export function nombreDeHoja(origen) {
-  return String(origen || 'LISTA').replace(/[:\\/?*[\]]/g, '-').slice(0, 31);
+  // SheetJS 0.18 serializa mal el autofiltro con apóstrofos ASCII en el nombre.
+  // El apóstrofo tipográfico mantiene un título legible sin una referencia rota.
+  return String(origen || 'LISTA').replace(/'/g,'’').replace(/[:\\/?*[\]]/g, '-').slice(0, 31);
+}
+
+function hojaUnica(libro,nombre){
+ const base=nombreDeHoja(nombre),ocupados=new Set(libro.SheetNames.map(n=>n.toUpperCase()));let titulo=base,numero=1;
+ while(ocupados.has(titulo.toUpperCase())){const sufijo=' '+(++numero);titulo=base.slice(0,31-sufijo.length)+sufijo;}return titulo;
+}
+
+function escribirLibro(libro){
+ for(const hoja of Object.values(libro.Sheets))formatoNumericoCalculado(hoja);
+ validarLibroExcel(libro);
+ return XLSX.write(libro,{bookType:'xlsx',type:'base64',compression:true});
 }
 
 /**
@@ -471,7 +486,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     : [{ origen: 'VALIDADA', detalle, formato: null }];
 
   for (const lista of listas) {
-    const base = soloEnvio&&lista.formato?.hoja?nombreDeHoja(lista.formato.hoja):listas.length === 1 ? 'VALIDADA' : nombreDeHoja(recepcion.nombresListas?.[lista.origen]||lista.origen);
+    const base = hojaUnica(libro,soloEnvio&&lista.formato?.hoja?lista.formato.hoja:listas.length === 1 ? 'VALIDADA' : recepcion.nombresListas?.[lista.origen]||lista.origen);
 
     // Primero el archivo tal como llegó, con sus columnas rellenas. Si no se
     // guardó el formato original —recepciones anteriores a esto— se cae a las
@@ -499,14 +514,14 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
     // Y aparte, lo que la validación añade.
     if (!soloEnvio && lista.formato?.encabezados?.length) {
       XLSX.utils.book_append_sheet(
-        libro, hojaValidada(lista.detalle), nombreDeHoja(base + ' DET'));
+        libro, hojaValidada(lista.detalle), hojaUnica(libro,base + ' DET'));
     }
   }
 
   if(ubicaciones.length){
    const hoja=XLSX.utils.json_to_sheet(ubicaciones),cabecera=Object.keys(ubicaciones[0]);hoja['!cols']=cabecera.map(k=>({wch:/OBSERVACION|ASIGNACION|EVIDENCIAS/.test(k)?55:/DESCRIPCION|POSICION|ID CONTEO/.test(k)?34:22}));hoja['!autofilter']={ref:hoja['!ref']};
    ubicaciones.forEach((p,i)=>{const fila=hoja[XLSX.utils.encode_cell({r:i+1,c:cabecera.indexOf('FILA DEL INFORME')})];if(fila)fila.l={Target:"#'"+p.HOJA.replace(/'/g,"''")+"'!A"+p['FILA DEL INFORME'],Tooltip:'Ir a la fila del packing list validado'};const url=String(p.EVIDENCIAS||'').split(' | ')[0],celda=hoja[XLSX.utils.encode_cell({r:i+1,c:cabecera.indexOf('EVIDENCIAS')})];if(celda&&/^https:\/\/drive\.google\.com\//.test(url))celda.l={Target:url,Tooltip:'Evidencias confirmadas del SKU '+p.ITEM};});
-   let nombre='UBICACIONES';while(libro.SheetNames.includes(nombre))nombre+=' 2';XLSX.utils.book_append_sheet(libro,hoja,nombre);
+   XLSX.utils.book_append_sheet(libro,hoja,hojaUnica(libro,'UBICACIONES'));
    libro.Props.Comments=(libro.Props.Comments||'')+' UBICACIONES muestra unidades por conteo y condición. La asignación a filas repetidas es secuencial dentro de su packing list; no acredita una factura física que no se registró.';
   }
 
@@ -530,17 +545,17 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   h2['!autofilter']={ref:h2['!ref']};
   const cabExtras=XLSX.utils.sheet_to_json(h2,{header:1})[0]||[],colLink=cabExtras.indexOf('EVIDENCIAS');
   extras.forEach((a,i)=>{const url=String(a.evidencia||'').split(' | ')[0],cell=h2[XLSX.utils.encode_cell({r:i+1,c:colLink})];if(cell&&/^https:\/\/drive\.google\.com\//.test(url))cell.l={Target:url,Tooltip:'Evidencias de '+a.sku};});
-  let nombreAdicionales='ADICIONALES';while(libro.SheetNames.includes(nombreAdicionales))nombreAdicionales+=' 2';
+  const nombreAdicionales=hojaUnica(libro,'ADICIONALES');
   XLSX.utils.book_append_sheet(libro, h2, nombreAdicionales);
 
   }
 
   const embarquesDocumento=new Set(detalle.map(l=>l.embarque).filter(Boolean));
   const distribucion=contenedores.filter(c=>opciones.embarque?c.embarques.includes(opciones.embarque):c.embarques.some(b=>embarquesDocumento.has(b))||!embarquesDocumento.size&&!c.embarques.length);
-  if(distribucion.length){const hoja=XLSX.utils.json_to_sheet(distribucion.map(c=>({'IDENTIFICADOR':c.id,'CONTENEDOR':c.numero,'EMBARQUES':c.embarques.join(', '),'DESDE EL BULTO':c.desde,'HASTA EL BULTO':c.hasta,'TOTAL BULTOS':c.total??'','POSICION FINAL':c.posicion})));hoja['!cols']=[15,22,30,20,20,18,40].map(wch=>({wch}));let nombre='CONTENEDORES';while(libro.SheetNames.includes(nombre))nombre+=' 2';XLSX.utils.book_append_sheet(libro,hoja,nombre);}
+  if(distribucion.length){const hoja=XLSX.utils.json_to_sheet(distribucion.map(c=>({'IDENTIFICADOR':c.id,'CONTENEDOR':c.numero,'EMBARQUES':c.embarques.join(', '),'DESDE EL BULTO':c.desde,'HASTA EL BULTO':c.hasta,'TOTAL BULTOS':c.total??'','POSICION FINAL':c.posicion})));hoja['!cols']=[15,22,30,20,20,18,40].map(wch=>({wch}));XLSX.utils.book_append_sheet(libro,hoja,hojaUnica(libro,'CONTENEDORES'));}
   if (soloEnvio) {
     return {
-      base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64', compression:true }),
+      base64: escribirLibro(libro),
       nombre: nombreArchivo(recepcion, 'validacion'),
       filas: detalle.length,
       version: 'envio',
@@ -548,7 +563,7 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   }
 
   const resumenListas=listas.map(l=>({'PACKING LIST':recepcion.nombresListas?.[l.origen]||l.origen,'EMBARQUES':[...new Set(l.detalle.map(f=>f.embarque).filter(Boolean))].join(', '),'REFERENCIAS / FILAS':l.detalle.length,'DECLARADO':l.detalle.reduce((n,f)=>n+Number(f.cantidad||0),0),'CONTADO':l.detalle.reduce((n,f)=>n+Number(f.fisica||0),0),'VALIDACION':l.detalle.some(f=>Number(f.diferencia||0)!==0)?'Con diferencias':'Sin diferencias'}));
-  const resumen=XLSX.utils.json_to_sheet(resumenListas);resumen['!cols']=[35,35,22,18,18,24].map(wch=>({wch}));let tituloResumen='RESUMEN';while(libro.SheetNames.includes(tituloResumen))tituloResumen+=' 2';XLSX.utils.book_append_sheet(libro,resumen,tituloResumen);
+  const resumen=XLSX.utils.json_to_sheet(resumenListas);resumen['!cols']=[35,35,22,18,18,24].map(wch=>({wch}));XLSX.utils.book_append_sheet(libro,resumen,hojaUnica(libro,'RESUMEN'));
 
   // --- Hoja 3: la bitácora, el respaldo de cada unidad contada --- //
   const h3 = XLSX.utils.json_to_sheet(eventos.map((e) => ({
@@ -568,10 +583,10 @@ export function construirLibro({ recepcion, detalle, porOrigen, adicionales,
   h3['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 12 },
     { wch: 16 }, { wch: 14 }, { wch: 9 }, { wch: 11 }, { wch: 28 }, { wch: 34 },
     { wch: 40 }];
-  XLSX.utils.book_append_sheet(libro, h3, 'BITACORA');
+  XLSX.utils.book_append_sheet(libro, h3, hojaUnica(libro,'BITACORA'));
 
   return {
-    base64: XLSX.write(libro, { bookType: 'xlsx', type: 'base64', compression:true }),
+    base64: escribirLibro(libro),
     nombre: nombreArchivo(recepcion, 'auditable'),
     filas: detalle.length,
     version: 'auditable',

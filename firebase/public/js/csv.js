@@ -1,4 +1,5 @@
-import {partesPosicion} from './posiciones.js?v=20261022-64';
+import {partesPosicion} from './posiciones.js?v=20261023-65';
+import {numeroParaExcel,formatoDeNumero,validarLibroExcel} from './excel-formato.js?v=20261023-65';
 /**
  * CSV para la carga masiva hacia Depot.
  *
@@ -19,10 +20,10 @@ import {partesPosicion} from './posiciones.js?v=20261022-64';
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261022-64';
-import { db } from './auth.js?v=20261022-64';
-import * as local from './local.js?v=20261022-64';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261022-64';
+} from '../vendor/firebase-sdk.js?v=20261023-65';
+import { db } from './auth.js?v=20261023-65';
+import * as local from './local.js?v=20261023-65';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261023-65';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {
@@ -271,12 +272,22 @@ function fechaValida(valor) {
 /** Una unica hoja de carga; las definiciones nunca se mezclan con los datos. */
 export function libroModelo(resultado) {
   const libro=XLSX.utils.book_new(),hoja=XLSX.utils.aoa_to_sheet(resultado.tabla);
+  // El CSV de carga conserva su contrato. Solo su revisión en XLSX recibe tipos
+  // numéricos según la definición del modelo; códigos y fechas ddmmaaaa siguen texto.
+  resultado.formato?.columnas?.forEach((col,j)=>{
+    const identificador=['sku','codigoBarras','unidad','pallet','lote','loteProveedor','nave','calle','columna','nivel','profundidad','serie','partida','contenedora'].includes(col.campo);
+    for(let i=1;i<resultado.tabla.length;i++){
+      const celda=hoja[XLSX.utils.encode_cell({r:i,c:j})];if(!celda||celda.v==='')continue;
+      if(!identificador&&/^(num|float)/i.test(col.tipo||'')&&Number.isFinite(Number(celda.v))){const n=numeroParaExcel(celda.v,{originalNumerico:true});if(Number.isFinite(n)){celda.t='n';celda.v=n;celda.z=formatoDeNumero(n);delete celda.w;}}
+      else if(identificador||!/^(num|float)/i.test(col.tipo||'')){celda.t='s';celda.v=String(celda.v);celda.z='@';delete celda.w;}
+    }
+  });
   for(const i of resultado.incidencias || []) {
     const celda=hoja[XLSX.utils.encode_cell({r:i.fila-1,c:i.columna-1})] || {t:'s',v:''};
     celda.c=[{a:'ITSANET',t:i.encabezado+': '+i.problema}];
     hoja[XLSX.utils.encode_cell({r:i.fila-1,c:i.columna-1})]=celda;
   }
-  XLSX.utils.book_append_sheet(libro,hoja,'Modelo a Utilizar');return libro;
+  XLSX.utils.book_append_sheet(libro,hoja,'Modelo a Utilizar');return validarLibroExcel(libro);
 }
 export function descargarModelo(resultado) {
   XLSX.writeFile(libroModelo(resultado),resultado.nombre.replace(/\.csv$/i,'.xlsx'));

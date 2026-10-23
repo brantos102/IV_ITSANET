@@ -71,7 +71,7 @@ def huella_contenido(db,r):
     eventos=list(db.scalars(select(AppEvento.id).where(AppEvento.recepcion==r.codigo,
         AppEvento.tipo.not_in(['CIERRE','EXPORT','AUDITORIA'])).order_by(AppEvento.id)))
     posiciones=[list(f) for f in db.execute(select(AppEvento.id,AppEvento.posicion).where(AppEvento.recepcion==r.codigo,AppEvento.tipo=='CONTEO').order_by(AppEvento.id))]
-    d={'revisionFormato':64,'posiciones':posiciones,'eventos':eventos,'cliente':r.cliente,'descripcion':r.descripcion,'formatos':r.formatos,'metadatos':metadatos(db,r.codigo)}
+    d={'revisionFormato':65,'posiciones':posiciones,'eventos':eventos,'cliente':r.cliente,'descripcion':r.descripcion,'formatos':r.formatos,'metadatos':metadatos(db,r.codigo)}
     return hashlib.sha256(json.dumps(d,sort_keys=True,default=str,separators=(',',':')).encode()).hexdigest()
 
 

@@ -143,11 +143,14 @@ def congelar(db,r,datos,usuario,informe,entrega_id=''):
         if d.get('correoVersion')!=v['version'] or entregas.validar_destinatarios(d.get('destinatarios'))!=v['campos']['destinatarios']:
             raise HTTPException(409,'Cambió el correo de '+origen+'. Revisa nuevamente todos los correos antes de finalizar.')
         if not v['campos']['destinatarios']:raise HTTPException(422,'Completa los destinatarios de '+origen)
-        docs=[a['id'] for a in informe.datos.get('archivos',[]) if a.get('grupo',a.get('origen'))==origen]
-        if len(docs)!=(len(grupo['packingLists']) if config.get('modo')=='EMBARQUE' else 1):raise HTTPException(409,'Faltan documentos finales independientes de '+grupo['nombre'])
+        docs=anteriores[origen]['informes'] if entrega_id and origen in anteriores else [a['id'] for a in informe.datos.get('archivos',[]) if a.get('grupo',a.get('origen'))==origen]
+        if v.get('adjuntosPersonalizados') and not entrega_id:
+            from app.services.adjuntos_correo import validar
+            docs=[a['id'] for a in validar(db,r.codigo,origen,[{'id':a['id'],'nombre':a['nombre']} for a in v['archivos']])]
+        elif not entrega_id and len(docs)!=(len(grupo['packingLists']) if config.get('modo')=='EMBARQUE' else 1):raise HTTPException(409,'Faltan documentos finales independientes de '+grupo['nombre'])
         if len(v['html'])>500000:raise HTTPException(422,'El correo de '+origen+' supera el tamaño permitido.')
         final={k:v[k] for k in ('asunto','html','texto','remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail')}
-        salida.append({'origen':origen,'nombre':grupo['nombre'],'destinatarios':v['campos']['destinatarios'],'correoFinal':final,'informes':docs,
+        salida.append({'origen':origen,'nombre':grupo['nombre'],'destinatarios':v['campos']['destinatarios'],'correoFinal':final,'informes':docs,'nombresAdjuntos':{a['id']:a['nombre'] for a in v['archivos'] if a['id'] in docs},
             'fotos':[f['id'] for f in v['fotos']],'estado':'PENDIENTE'})
     return salida
 

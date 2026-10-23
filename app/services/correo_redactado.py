@@ -71,9 +71,10 @@ def _fuente(db, codigo, entrega_id='',origen=''):
     eventos = [ev for ev in eventos if ev.get('tipo') not in ('EXPORT', 'CIERRE', 'AUDITORIA')]
     archivos = [db.get(AppArchivo, ident) for ident in ids]
     archivos = [a for a in archivos if a and a.recepcion == codigo]
-    if e and d.get('nombresAdjuntos'):
+    nombres_archivados=(hijo or {}).get('nombresAdjuntos',d.get('nombresAdjuntos',{})) if e else {}
+    if e and nombres_archivados:
         from app.services.adjuntos_correo import objetos
-        archivos=objetos(db,codigo,[{'id':a.id,'nombre':d['nombresAdjuntos'].get(a.id,a.nombre)} for a in archivos])
+        archivos=objetos(db,codigo,[{'id':a.id,'nombre':nombres_archivados.get(a.id,a.nombre)} for a in archivos])
     seleccion=None
     if not e:
         f=db.get(AppConfig,clave_config(codigo,origen=origen))
@@ -371,6 +372,7 @@ def vista(db, codigo, usuario, entrega_id='',origen='',*,actual=False):
             'soloLectura': bool(e and e.estado in ('ENTREGADA', 'PROCESANDO') or declarado or hijo and hijo.get('estado')=='ENTREGADA'),
             'archivos': [{'id': a.id, 'nombre': a.nombre, 'url': '/api/app/archivos/' + a.id} for a in archivos],
             'adjuntosPersonalizados':'adjuntos' in guardado,
+            'nombresDocumentos':{**{a['id']:a['nombre'] for a in guardado.get('adjuntos',[])},**guardado.get('nombresDocumentos',{})},
             'documentosDisponibles':disponibles(db,codigo,origen) if not e else [],
             'limiteFotos':MAX_FOTOS, 'permiteFotoNueva':r.estado!='CERRADA',
             'fotos': [{'id': f['archivoId'], 'nombre': f.get('nombre', ''), 'sku':f.get('sku') or '',
@@ -391,7 +393,7 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
     if solo_redaccion:
         if anterior['estadoRecepcion']=='CERRADA' or entrega_id:raise HTTPException(409,'La recepción o entrega está cerrada; el supervisor conserva su revisión final.')
         if 'gmailMensajeId' in datos:raise HTTPException(403,'La selección del hilo Gmail corresponde al supervisor.')
-        if 'adjuntos' in datos:raise HTTPException(403,'El supervisor selecciona los documentos finales del envío.')
+        if 'adjuntos' in datos or 'nombresDocumentos' in datos:raise HTTPException(403,'El supervisor selecciona los documentos finales y sus nombres de salida.')
         if not isinstance(datos.get('campos'),dict) or any(datos['campos'].get(k)!=anterior['campos'][k] for k in ('asunto','destinatarios')):
             raise HTTPException(403,'El supervisor revisa el asunto y los destinatarios; puedes editar la redacción y fotografías.')
     if anterior['soloLectura']:
@@ -421,7 +423,11 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
     adjuntos=None
     if 'adjuntos' in datos:
         from app.services.adjuntos_correo import validar
-        adjuntos=validar(db,codigo,origen,datos['adjuntos'])
+        adjuntos=validar(db,codigo,origen,datos['adjuntos'],permitir_vacio=True)
+    nombres_nuevos={}
+    if 'nombresDocumentos' in datos:
+        from app.services.adjuntos_correo import validar_nombres
+        nombres_nuevos=validar_nombres(db,codigo,origen,datos['nombresDocumentos'])
     if 'cuerpoHtml' in campos:
         from app.services.correo_cuerpo import limpiar
         # La base no toma el HTML previo: todos los bloques vienen de SQL y de fotos seleccionadas.
@@ -442,7 +448,13 @@ def guardar(db, codigo, datos, usuario, *, respuesta_gmail=None, solo_redaccion=
         if len(campos['asunto'])>250:raise HTTPException(422,'El asunto original de Gmail supera 250 caracteres; usa el envío manual.')
     f = db.get(AppConfig, clave_config(codigo,origen=origen)) or AppConfig(clave=clave_config(codigo,origen=origen))
     adjuntos=adjuntos if adjuntos is not None else (f.datos or {}).get('adjuntos')
-    f.datos = {'campos': campos, 'presentacion':presentacion, 'respuestaGmail':respuesta,'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat(),**({'adjuntos':adjuntos} if adjuntos is not None else {})}
+    nombres_documentos={**{a['id']:a['nombre'] for a in (f.datos or {}).get('adjuntos',[])},**(f.datos or {}).get('nombresDocumentos',{}),**nombres_nuevos}
+    if adjuntos is not None:
+        adjuntos=[{**a,'nombre':nombres_nuevos.get(a['id'],a['nombre'])} for a in adjuntos]
+        nombres_documentos.update({a['id']:a['nombre'] for a in adjuntos})
+        if len({a['nombre'].casefold() for a in adjuntos})!=len(adjuntos):raise HTTPException(422,'Usa nombres diferentes para los documentos seleccionados.')
+    f.datos = {'campos': campos, 'presentacion':presentacion, 'respuestaGmail':respuesta,'revision': anterior['revision'] + 1, 'usuario': usuario, 'fecha': utcnow().isoformat(),
+        **({'adjuntos':adjuntos} if adjuntos is not None else {}),'nombresDocumentos':nombres_documentos}
     f.usuario = usuario; db.add(f)
     ajustes.auditar(db, usuario, 'CORREO_BORRADOR_GUARDADO', codigo, {'revision': f.datos['revision']})
     db.commit()
@@ -466,7 +478,12 @@ def congelar(db, codigo, datos, usuario, entrega_id=''):
             raise HTTPException(409,'Confirma las fotos en Drive antes del correo automático o elige envío manual. No se cerró ni se envió la recepción.')
     if len(v['html'])>500000:
         raise HTTPException(422,'El correo supera el tamaño permitido. Reduce los textos o envía las novedades extensas en los documentos finales.')
-    return {k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail') if k in v}
+    final={k: v[k] for k in ('asunto', 'html', 'texto', 'remitente','campos','imagenesDrive','presentacion','fotosSeleccionadas','validacionDepot','respuestaGmail') if k in v}
+    if v.get('adjuntosPersonalizados') and not entrega_id:
+        from app.services.adjuntos_correo import validar
+        final['adjuntosSeleccionados']=validar(db,codigo,'',[{'id':a['id'],'nombre':a['nombre']} for a in v['archivos']])
+    final['nombresAdjuntos']={a['id']:a['nombre'] for a in v['archivos']}
+    return final
 
 
 def manual(db,codigo,datos,usuario):

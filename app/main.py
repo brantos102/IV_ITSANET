@@ -103,6 +103,10 @@ app.include_router(reportes.router)
 app.include_router(operacion.router)
 app.include_router(impresion.router)
 app.include_router(gestion.router)
+from app.routers import cambios_recepcion
+app.include_router(cambios_recepcion.router)
+from app.routers import notificaciones
+app.include_router(notificaciones.router)
 
 
 @app.exception_handler(ErrorValidacion)

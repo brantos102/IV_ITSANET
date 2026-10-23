@@ -23,7 +23,7 @@ def enviar(db,codigo,datos,usuario):
         validar(db,r.codigo,origen,[{'id':a['id'],'nombre':a['nombre']} for a in v['archivos']])
         opciones={a['id']:a for a in disponibles(db,r.codigo,origen)}
         f=db.get(AppInforme,opciones[v['archivos'][0]['id']]['informeId'])
-    if not f or f.recepcion!=r.codigo or f.datos.get('formato') not in ('envio','envio-ampliado') or not f.datos.get('archivos'):raise HTTPException(409,'Prepara los documentos finales dentro de este correo antes de enviarlo.')
+    if not f or f.recepcion!=r.codigo or f.datos.get('formato') not in (('envio','envio-ampliado','auditable') if v.get('adjuntosPersonalizados') else ('envio','envio-ampliado')) or not f.datos.get('archivos'):raise HTTPException(409,'Prepara los documentos finales dentro de este correo antes de enviarlo.')
     if f.datos.get('huellaContenido')!=informes.huella_contenido(db,r):raise HTTPException(409,'Los conteos, posiciones o evidencias cambiaron. Prepara los documentos actualizados antes de enviar.')
     docs=[a['id'] for a in v['archivos']] if v.get('adjuntosPersonalizados') else [a['id'] for a in f.datos['archivos'] if not origen or a.get('grupo',a.get('origen'))==origen]
     if not docs or set(docs)!={a['id'] for a in v['archivos']}:raise HTTPException(409,'Los documentos no corresponden al grupo y revisión mostrados. Actualiza el correo.')

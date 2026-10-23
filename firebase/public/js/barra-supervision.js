@@ -1,8 +1,9 @@
-import {iniciarAyudas} from './ayudas-operativas.js?v=20261022-64';
-import {pedir} from './local.js?v=20261022-64';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261022-64';
-import {mostrarAviso} from './notificaciones.js?v=20261022-64';
-import {abrirEtiqueta} from './etiquetas.js?v=20261022-64';
+import {iniciarAyudas} from './ayudas-operativas.js?v=20261023-65';
+import {pedir} from './local.js?v=20261023-65';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261023-65';
+import {mostrarAviso} from './notificaciones.js?v=20261023-65';
+import {abrirEtiqueta} from './etiquetas.js?v=20261023-65';
+import {iniciarAvisosOperativos} from './avisos-operativos.js?v=20261023-65';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let avanceActual=null, liberarBarra=()=>{};
 export function publicarAvance(datos){
@@ -19,8 +20,9 @@ export function iniciarBarra({usuario,perfil}){
  const enlaces=[['./','Inicio'],...(supervisor?[['./recepciones.html','Recepciones']]:[]),[codigo?'./validar.html?r='+encodeURIComponent(codigo):'./validar.html','Validar recepción'],...(supervisor?[['./kpis.html','Indicadores'],['./usuarios.html','Equipo']]:[]),['./cuenta.html','Mi cuenta y correo'],['./manuales/'+(supervisor?'supervisor':'operario')+'.html','Ayuda · manual interactivo'],...(perfil.rol==='ADMIN'?[['./admin.html','Administración']]:[])];
  nav.innerHTML=`<div class="barra-fila"><details class="nav-menu"><summary>☰ Menú</summary><div class="nav-opciones">${enlaces.map(([href,t])=>`<a href="${esc(href)}"${new URL(href,location.href).pathname===aqui.pathname?' aria-current="page"':''}>${t}</a>`).join('')}</div></details><div class="barra-contexto"><strong>${codigo?'Recepción actual':'Operación ITSANET'}</strong><span>${esc(perfil.rol==='ADMIN'?'Administración':supervisor?'Supervisión':'Operario')}</span></div><details class="barra-utilidades nav-menu"><summary>Herramientas</summary><div class="barra-herramientas nav-opciones"><button class="b-sec" data-etiqueta>▥ Etiqueta por código</button>${codigo&&supervisor?'<button class="b-sec" data-contenedores title="Registrar los contenedores recibidos, rangos de bultos y posición final">Contenedores y bultos</button><button class="b-sec" data-revisar-packing title="Comparar los embarques guardados con las filas originales sin duplicar la recepción">Revisar embarques del Excel</button>':''}${supervisor?'<button class="b-sec" data-catalogo title="Consultar Depot y actualizar el catálogo de productos">↻ Catálogo</button><button class="b-sec" data-pendientes title="Recepciones cerradas con correo pendiente">▣ Entregas <span data-cantidad-pendientes></span></button>':''}</div></details><div class="barra-reloj"><a class="perfil-acceso" href="./cuenta.html" data-avatar title="Mi foto y mi cuenta"></a><time data-reloj title="Hora de Ecuador · reloj del equipo"></time><button class="b-sec" data-tema></button></div></div><div class="avance-encabezado" data-avance hidden><div><strong data-avance-codigo></strong><span data-avance-cifras></span></div><span class="avance-pastel" role="img" aria-label="Avance de referencias verificadas"><b data-avance-porcentaje></b></span></div>`;
  cabecera.after(nav);
- nav.querySelector('[data-revisar-packing]')?.addEventListener('click',async()=>{try{const {revisarPackingGuardado}=await import('./revision-packing.js?v=20261022-64');await revisarPackingGuardado(codigo);}catch(e){aviso(e.message,'err');}});
- nav.querySelector('[data-contenedores]')?.addEventListener('click',async()=>{try{const {editarContenedores}=await import('./contenedores.js?v=20261022-64');await editarContenedores(codigo);}catch(e){aviso(e.message,'err');}});
+ const detenerAvisos=iniciarAvisosOperativos({usuario,perfil,nav,abrirCatalogo});
+ nav.querySelector('[data-revisar-packing]')?.addEventListener('click',async()=>{try{const {revisarPackingGuardado}=await import('./revision-packing.js?v=20261023-65');await revisarPackingGuardado(codigo);}catch(e){aviso(e.message,'err');}});
+ nav.querySelector('[data-contenedores]')?.addEventListener('click',async()=>{try{const {editarContenedores}=await import('./contenedores.js?v=20261023-65');await editarContenedores(codigo);}catch(e){aviso(e.message,'err');}});
  nav.querySelector('[data-catalogo]')?.addEventListener('click',()=>abrirCatalogo());
  nav.querySelector('[data-etiqueta]')?.addEventListener('click',()=>etiquetaCatalogo());
  const aviso=(t,tipo,titulo)=>mostrarAviso(document.querySelector('#avisos,#avisos-sesion')||nav,t,tipo,titulo);
@@ -40,14 +42,14 @@ export function iniciarBarra({usuario,perfil}){
  const cerrarMenu=ev=>{for(const menu of nav.querySelectorAll('details'))if(!menu.contains(ev.target))menu.open=false;};document.addEventListener('click',cerrarMenu);
  nav.addEventListener('keydown',ev=>{if(ev.key==='Escape')nav.querySelectorAll('details').forEach(m=>m.open=false);});
  const medir=()=>document.documentElement.style.setProperty('--alto-barra',nav.offsetHeight+'px');const observador=new ResizeObserver(medir);observador.observe(nav);medir();
- liberarBarra=()=>{clearInterval(temporizador);clearInterval(timerPendientes);document.removeEventListener('itsanet:entregas',alCambiar);document.removeEventListener('itsanet:perfil-foto',fotoNueva);observador.disconnect();document.removeEventListener('itsanet:avance',avance);document.removeEventListener('click',cerrarMenu);document.documentElement.style.removeProperty('--alto-barra');};
+ liberarBarra=()=>{detenerAvisos();clearInterval(temporizador);clearInterval(timerPendientes);document.removeEventListener('itsanet:entregas',alCambiar);document.removeEventListener('itsanet:perfil-foto',fotoNueva);observador.disconnect();document.removeEventListener('itsanet:avance',avance);document.removeEventListener('click',cerrarMenu);document.documentElement.style.removeProperty('--alto-barra');};
 }
 function dialogo(titulo){const d=document.createElement('dialog');d.className='modal-operativa';d.innerHTML=`<header class="acciones"><h2>${titulo}</h2><button class="b-sec" data-cerrar>Cerrar</button></header><div data-cuerpo></div><p role="status" data-estado></p>`;document.body.append(d);d.showModal();d.querySelector('[data-cerrar]').onclick=()=>d.close();d.addEventListener('close',()=>d.remove());return d;}
 async function abrirCatalogo(){
  const d=dialogo('Catálogo de Depot'),c=d.querySelector('[data-cuerpo]'),estado=d.querySelector('[data-estado]');
  c.innerHTML='<p>El catálogo es compartido por todos los supervisores. Una actualización reciente se reutiliza y otra en curso no se repite. La programación automática es opcional en Administración.</p><p>Actualiza los productos desde las conexiones Depot guardadas por ADMIN. Puedes continuar contando con el catálogo actual mientras se consulta.</p><button class="b-primario" data-actualizar>Actualizar catálogo ahora</button>';
  try{const r=await pedir('/estado',{base:'/api/catalogo'});estado.textContent=`${r.productos_en_cache??r.productos??0} productos · última actualización: ${r.actualizado_en?new Date(r.actualizado_en).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'sin confirmar'}`;}catch(e){estado.textContent=e.message;}
- c.querySelector('button').onclick=async ev=>{const b=ev.currentTarget;b.disabled=true;d.querySelector('[data-cerrar]').disabled=true;estado.textContent='Consultando Depot y actualizando productos…';try{const r=await pedir('/depot/sincronizar',{base:'/api/catalogo',cuerpo:{}});estado.textContent=`${r.reutilizado?'Se reutilizó el catálogo reciente':'Catálogo actualizado'}: ${r.productos} productos.${r.errores?.length?' Conexiones pendientes: '+r.errores.join(', '):''}`;}catch(e){estado.textContent=e.message;}finally{b.disabled=false;d.querySelector('[data-cerrar]').disabled=false;}};
+ c.querySelector('button').onclick=async ev=>{const b=ev.currentTarget;b.disabled=true;d.querySelector('[data-cerrar]').disabled=true;estado.textContent='Consultando Depot y actualizando productos…';try{const r=await pedir('/depot/sincronizar',{base:'/api/catalogo',cuerpo:{}});estado.textContent=`${r.reutilizado?'Se reutilizó el catálogo reciente':'Catálogo actualizado'}: ${r.productos} productos.${r.errores?.length?' Conexiones pendientes: '+r.errores.join(', '):''}`;document.dispatchEvent(new CustomEvent('itsanet:catalogo-actualizado'));}catch(e){estado.textContent=e.message;}finally{b.disabled=false;d.querySelector('[data-cerrar]').disabled=false;}};
 }
 let recursos=null;
 function cargarRecursosEtiqueta(){

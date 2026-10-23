@@ -1,5 +1,5 @@
 /** Ampliación dentro de la sesión; Drive privado no depende de una URL pública. */
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261022-64';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-65';
 export function verImagen({url,nombre='',driveUrl=''}){
  if(!/^\/api\/app\/archivos\/[A-Za-z0-9_-]+$/.test(url||''))return;
  const d=document.createElement('dialog');d.className='modal-operativa visor-imagen';

@@ -427,6 +427,8 @@ def sincronizar_maestro(db: Session, api: DepotAPI | None = None,
 
     for i in range(0, len(registros), 2000):
         _upsert(db, registros[i:i + 2000])
+    from app.services.avisos_operativos import registrar_catalogo
+    registrar_catalogo(db,por_cliente,'API',por_cliente,ahora)
     db.commit()
 
     return {
