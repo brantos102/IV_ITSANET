@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261023-65';
-import {pedirDatos} from './modal.js?v=20261023-65';
+import {pedir} from './local.js?v=20261023-66';
+import {pedirDatos} from './modal.js?v=20261023-66';
 
 export async function contextoFotos(recepcion,datos={}){
  const q=new URLSearchParams({sku:datos.sku||'',origen:datos.origen||'',unidadId:datos.unidadId||''});

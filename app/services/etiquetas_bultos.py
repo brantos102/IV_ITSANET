@@ -44,12 +44,11 @@ def zpl(etiquetas, formato, recepcion, cliente, marca):
         modulo = min(8, 704 // modulos)
         izquierda = (800 - modulos * modulo) // 2
         partes += ['^XA','^CI28','^PW800',f'^LL{alto}','^LH0,0']
-        if grande:
-            partes += [texto(30,38,cliente,2),texto(106,26,marca or 'RECEPCION'),texto(150,25,recepcion,2)]
-        partes += [texto(260 if grande else 28,250 if grande else 145,e['rotulo']),
-            f"^FO{izquierda},{600 if grande else 210}^BY{modulo},2,{350 if grande else 140}^BCN,{350 if grande else 140},N,N,N,N^FD{e['rotulo']}^FS",'^PQ1','^XZ']
-        if grande:
-            partes[-2:-2] = [texto(1020,55,f"BULTO {e['numero']} DE {e['total']}"),texto(1110,23,e.get('codigoMadre') or 'Conservar etiqueta madre del proveedor',2)]
+        # La instantánea conserva los datos logísticos; la etiqueta solo imprime
+        # cliente, rótulo físico y sus barras, en los dos tamaños disponibles.
+        partes += [texto(70 if grande else 24,44 if grande else 25,cliente or 'ITSANET'),
+            texto(285 if grande else 76,294 if grande else 119,e['rotulo']),
+            f"^FO{izquierda},{715 if grande else 220}^BY{modulo},2,{400 if grande else 136}^BCN,{400 if grande else 136},N,N,N,N^FD{e['rotulo']}^FS",'^PQ1','^XZ']
     return '\n'.join(partes)
 
 

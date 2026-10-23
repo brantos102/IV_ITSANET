@@ -45,13 +45,18 @@ def test_seleccion_invalida_no_genera_lote(cliente,db):
     db.rollback();assert not db.scalar(select(AppImpresion.id))
 
 
-def test_grande_aprovecha_datos_y_compacta_mantiene_codigo_solo(cliente):
+def test_ambos_tamanos_imprimen_tres_campos_sin_cambiar_identidad(cliente):
     ruta=crear(cliente,cantidad=5)
-    grande=cliente.post(ruta,json=solicitud(cliente,ruta,numeros=[3],formato='100x150')).json()['zpl']
-    assert '^LL1200' in grande and '^FO24,1020' in grande and '^FO24,30' in grande
-    assert '^FDP03^FS' in grande and grande.count('^XA')==1
-    compacto=cliente.post(ruta,json=solicitud(cliente,ruta,numeros=[3],formato='100x50')).json()['zpl']
-    assert '^LL400' in compacto and '^FO24,1020' not in compacto and '^FDP03^FS' in compacto
+    for formato,alto in [('100x150',1200),('100x50',400)]:
+        r=cliente.post(ruta,json=solicitud(cliente,ruta,numeros=[3],formato=formato))
+        assert r.status_code==201,r.text
+        lote=r.json();zpl=lote['zpl']
+        assert f'^LL{alto}' in zpl and '^FDP03^FS' in zpl and zpl.count('^FD')==3
+        nombre=''.join('\\'+format(b,'02X') for b in b'VENTURA/VW')
+        assert '^FD'+nombre+'^FS' in zpl
+        assert lote['recepcion']=='BULTOS' and lote['cliente']=='VENTURA/VW'
+        assert lote['etiquetas'][0]['numero']==3 and lote['etiquetas'][0]['total']==5
+        assert lote['etiquetas'][0]['rotulo']=='P03'
 
 
 def test_consolidar_excluye_etiquetas_archivadas_y_reintento_no_reimprime_total_antiguo(cliente,db):
