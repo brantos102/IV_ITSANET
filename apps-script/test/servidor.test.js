@@ -8,7 +8,7 @@ const secreto = 'secreto-prueba-'.repeat(4);
 function entorno() {
   let correos = 0, creados = 0, falloCorreo = false, sheets = 0,cuenta='supervisor@gmail.com';
   const archivos = new Map(), blobs = new Map(), propiedades=new Map(), registros=[];
-  const carpeta = { getFiles(){const lista=[...archivos.values()];return {hasNext:()=>!!lista.length,next:()=>lista.shift()};},getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
+  const carpeta = {getFoldersByName(){return {hasNext:()=>false};}, getFiles(){const lista=[...archivos.values()];return {hasNext:()=>!!lista.length,next:()=>lista.shift()};},getName:()=> 'Evidencias',getFilesByName(nombre) { const lista = archivos.has(nombre) ? [archivos.get(nombre)] : []; return { hasNext: () => !!lista.length, next: () => lista.shift() }; },
     createFile(blob) { creados++;let nombreActual=blob.nombre,descripcion=''; const f = { getId: () => 'archivo-'+creados, getUrl: () => 'https://drive.google.com/file', setDescription(d){descripcion=d;},getDescription:()=>descripcion,setName(n){archivos.delete(nombreActual);nombreActual=n;archivos.set(n,f);},
       getBlob: () => ({ getDataAsString: () => String(blobs.get(f)), getBytes: () => Buffer.from(String(blobs.get(f))) }),
       setContent: (s) => blobs.set(f, s) };
@@ -53,17 +53,17 @@ test('exportar texto no ejecuta formulas de hoja',()=>{const e=entorno();ok(e.g.
 test('Sheets solo se crea si se pide una exportacion expresa',()=>{const e=entorno(); const r=e.g.entregaServidor_(e.peticion('finalizar',id,{codigo:'PRUEBA',archivos:[],exportarSheet:true,skus:[{sku:'SKU1',contado:3}]}));ok(r.exito);ok(e.sheets()===1);ok(r.sheet.includes('nuevo'));ok(e.correos()===0);});
 test('cuenta distinta del supervisor no escribe ni envia',()=>{const e=entorno();e.cambiarCuenta('otra@gmail.com');let fallo=false;try{e.g.entregaServidor_(e.peticion('finalizar',id,{destinatarios:'ejecutivo@example.test',archivos:[]}));}catch{fallo=true;}ok(fallo);ok(e.creados()===0);ok(e.correos()===0);});
 test('probar puente verifica remitente y Drive sin crear ni enviar',()=>{const e=entorno();const r=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(r.remitente==='supervisor@gmail.com');ok(e.creados()===0);ok(e.correos()===0);});
-test('crear carpeta es una operación firmada independiente del correo',()=>{
+test('comprobar carpeta es una operación firmada que no inventa enlace',()=>{
   const e=entorno(),p=e.peticion('prepararCarpeta',id,{cliente:'VENTURA',marca:'VW',carpetaRecepcion:'PRUEBA'});
-  const r=e.g.entregaServidor_(p);ok(r.exito && r.carpeta.includes('drive.google.com'));ok(r.remitente==='supervisor@gmail.com');
+  const r=e.g.entregaServidor_(p);ok(r.exito && r.carpeta==='' && r.sinCarpeta);ok(r.remitente==='supervisor@gmail.com');
   ok(e.g.entregaServidor_(p).carpeta===r.carpeta);ok(e.correos()===0);
   const estado=e.g.entregaServidor_(e.peticion('estado',id,{}));ok(estado.capacidades.includes('prepararCarpeta'));
 });
-test('preparar recepción crea solo cliente, marca y recepción, sin categorías vacías',()=>{
+test('comprobar recepción no crea cliente, marca, recepción ni categorías vacías',()=>{
  const e=entorno(),nombres=[];const anterior=e.g.carpetaDe_;
  e.g.carpetaDe_=(padre,n)=>{nombres.push(n);return anterior(padre,n);};
  const r=e.g.entregaServidor_(e.peticion('prepararCarpeta',id,{cliente:'VENTURA',marca:'VW',carpetaRecepcion:'REC'}));
- ok(r.exito);ok(JSON.stringify(nombres)===JSON.stringify(['VENTURA','VW','REC']));ok(e.correos()===0);
+ ok(r.exito && r.sinCarpeta);ok(nombres.length===0);ok(e.correos()===0);
 });
 test('miniaturas priorizan panorámicas y estado final y acotan el peso',()=>{
   const e=entorno();e.g.DriveApp.getFileById=()=>({getThumbnail:()=>({getBytes:()=>Buffer.alloc(1024),getContentType:()=> 'image/jpeg'})});

@@ -233,7 +233,7 @@ def operarios_de(db: Session, codigo: str) -> list[str]:
 
 
 def listar_recepciones(db: Session, max_filas: int = 50,
-                       usuario: str | None = None) -> list[dict]:
+                       usuario: str | None = None, *, codigos: list[str] | None = None) -> list[dict]:
     q = select(AppRecepcion).order_by(AppRecepcion.creado_en.desc()).limit(max_filas)
     if usuario:
         # Las suyas: aquellas donde registró algo. Es la pregunta que hace el
@@ -243,6 +243,9 @@ def listar_recepciones(db: Session, max_filas: int = 50,
         q = (select(AppRecepcion).where(AppRecepcion.codigo.in_(suyas))
              .order_by(AppRecepcion.creado_en.desc()).limit(max_filas))
     from app.services.seguimiento import resumenes
+    if codigos is not None:
+        # Los candidatos del listado ya se ordenaron con columnas pequeñas.
+        q=q.where(AppRecepcion.codigo.in_(codigos)).order_by(None)
     filas = list(db.execute(q).scalars().all())
     metricas = resumenes(db, [r.codigo for r in filas])
     nombres=nombres_listas(db,[r.codigo for r in filas]);marcas=marcas_recepciones(db,[r.codigo for r in filas])

@@ -88,7 +88,7 @@ def carpeta(cuenta,padre,n):
     return ident
 
 
-def recepcion(cuenta,p):
+def recepcion(cuenta,p,crear=True):
     n=nombre(p.get('carpetaRecepcion') or p.get('recepcion') or p.get('codigo'))
     if p.get('carpetaRecepcionId'):
         f=ficha(cuenta,p['carpetaRecepcionId'])
@@ -96,7 +96,9 @@ def recepcion(cuenta,p):
         return f['id']
     raiz=validar_id(p.get('carpetaRaiz'))
     for x in (p.get('cliente'),p.get('marca'),n):
-        if x:raiz=carpeta(cuenta,raiz,x)
+        if x:
+            raiz=carpeta(cuenta,raiz,x) if crear else buscar_carpeta(cuenta,raiz,x)
+            if not raiz:return None
     return raiz
 
 
@@ -110,11 +112,9 @@ def ruta(cuenta,raiz,partes,crear=True):
 
 
 def preparar(cuenta,p):
-    r=recepcion(cuenta,p)
-    for embarque in p.get('embarques',[]):
-        e=carpeta(cuenta,r,embarque)
-        for c in ('SOBRANTES','FALTANTES','PNC','BULTOS','PRE-INGRESO','FOTOS-FINALES','PANORAMICAS','PRODUCTOS'):carpeta(cuenta,e,c)
-    return {'exito':True,'carpeta':url(r)}
+    # Solo consultar: cada subida materializa únicamente la ruta de su archivo.
+    r=recepcion(cuenta,p,crear=False)
+    return {'exito':True,'carpeta':url(r) if r else '', 'sinCarpeta':not bool(r)}
 
 
 def atajo(cuenta,padre,archivo,n,clave):

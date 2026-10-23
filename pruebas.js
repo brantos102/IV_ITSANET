@@ -27,6 +27,7 @@ const SUITES = [
   ['Excel — tipos numéricos y estructura válida', 'firebase/test/excel-exportacion65.test.mjs'],
   ['Correo — nombres y selección independientes', 'firebase/test/adjuntos.test.mjs'],
   ['Etiquetas — selección parcial y tamaños', 'firebase/test/etiquetas65.test.mjs'],
+  ['Recepciones — fecha de registro y filtros en Ecuador', 'firebase/test/recepciones-lista.test.mjs'],
   ['Operación — canal de actualización entre usuarios', 'firebase/test/actualizacion.test.mjs'],
   ['Ingreso — formatos variables y copias de etiquetas', 'firebase/test/ingreso.test.mjs'],
   ['Navegador — miniaturas privadas y concurrencia acotada', 'firebase/test/miniaturas.test.mjs'],

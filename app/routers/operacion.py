@@ -181,27 +181,34 @@ def preparar_drive(codigo: str, db: Session = Depends(get_db), op: Operador = De
             raise RuntimeError('Google no confirmó la cuenta responsable.')
         if destino['carpetaRaiz'] and estado.get('carpetaId') != destino['carpetaRaiz']:
             raise RuntimeError('Google no confirmó la carpeta raíz configurada.')
-        if 'prepararCarpeta' not in estado.get('capacidades', []):
-            raise RuntimeError('Actualiza Servidor.gs en Apps Script y publica una versión nueva del mismo despliegue /exec para crear y comprobar las carpetas.')
-        if datos.get('carpetaRecepcionId') and 'carpetasRecepcion62' not in estado.get('capacidades',[]):raise RuntimeError('Publica Servidor.gs versión 62 para verificar la carpeta fija de esta recepción.')
-        resultado = entregas.llamar('prepararCarpeta', uuid4().hex, datos)
-        if not str(resultado.get('carpeta') or '').startswith('https://drive.google.com/'):
+        if 'carpetasBajoDemanda67' in estado.get('capacidades', []):
+            resultado = entregas.llamar('prepararCarpeta', uuid4().hex, datos)
+        else:
+            # No invocar un preparador antiguo que cree categorías vacías.
+            from app.services.enlaces_correo import raiz
+            resultado={'carpeta':raiz(db,codigo),'sinCarpeta':True}
+        from app.services.enlaces_correo import carpeta_url
+        carpeta=carpeta_url(resultado.get('carpeta'))
+        if not carpeta and resultado.get('sinCarpeta') is not True:
             raise RuntimeError('Drive no confirmó el enlace de la carpeta de recepción.')
     except Exception as exc:
         mensaje = str(exc) if type(exc) is RuntimeError else 'No se pudo verificar Drive. Revisa el puente del responsable.'
         raise HTTPException(502, mensaje + ' No se envió ningún correo.') from None
     db.rollback()
     m.obtener(db, codigo, bloquear=True)
-    svc.auditoria(db, codigo, op.email or op.usuario, 'CARPETA_DRIVE_VERIFICADA',
-        {'remitente': correo, 'carpeta': resultado['carpeta']})
-    if 'carpetasRecepcion62' in estado.get('capacidades',[]):
-        from app.services.carpetas_recepcion import encolar,clave
-        from app.models import AppConfig
-        encolar(db,codigo);db.flush();tarea=db.get(AppConfig,clave(codigo))
-        tarea.datos={**tarea.datos,'estado':'LISTA','carpeta':resultado['carpeta'],'proximo':0}
+    verificada=bool(carpeta) and 'carpetasBajoDemanda67' in estado.get('capacidades',[])
+    if verificada:
+        svc.auditoria(db, codigo, op.email or op.usuario, 'CARPETA_DRIVE_VERIFICADA',
+            {'remitente': correo, 'carpeta': carpeta})
+    from app.services.carpetas_recepcion import encolar,clave
+    from app.models import AppConfig
+    encolar(db,codigo);db.flush();tarea=db.get(AppConfig,clave(codigo))
+    tarea.datos={**tarea.datos,'estado':'LISTA' if carpeta else 'BAJO_DEMANDA','carpeta':carpeta,'proximo':0}
     reintento = drive.reintentar_pendientes(db, codigo, op.email or op.usuario)
-    return {'carpeta': resultado['carpeta'], 'remitente': correo,
-        'programadas': reintento['programadas'], 'mensaje': 'Carpeta confirmada. Las fotos pendientes se copiarán en segundo plano; este paso no envía correo.'}
+    return {'carpeta': carpeta, 'remitente': correo,'bajoDemanda':True,'verificada':verificada,
+        'programadas': reintento['programadas'], 'mensaje':
+        ('Carpeta confirmada.' if verificada else 'Se conserva la carpeta registrada; actualiza sus enlaces para comprobarla.')+' Las fotos pendientes se copiarán en segundo plano; este paso no envía correo.' if carpeta else
+        'La carpeta se creará al copiar la primera foto o informe. Las categorías sin fotografías no se crean. Los archivos pendientes conservan sus reintentos.'}
 
 
 @router.post('/repositorios/{ident}/probar')

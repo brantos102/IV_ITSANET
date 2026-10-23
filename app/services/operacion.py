@@ -325,6 +325,9 @@ def destino_drive(db, codigo):
     from app.services.carpetas_recepcion import clave as clave_carpetas
     tarea=db.get(AppConfig,clave_carpetas(r.codigo))
     carpeta=(tarea.datos or {}).get('carpeta','') if tarea else ''
+    if not carpeta:
+        from app.services.enlaces_correo import raiz
+        carpeta=raiz(db,r.codigo)
     fija={'carpetaRecepcionId':carpeta.rsplit('/',1)[-1]} if carpeta else {}
     return {**fija,'cliente': r.cliente, 'marca': marca, 'carpetaRecepcion': r.codigo,
         'carpetaRaiz': candidatos[0]['carpetaId'] if candidatos else '',

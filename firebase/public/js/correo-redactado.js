@@ -1,17 +1,17 @@
-import {iniciarEditorCorreo,leerCuerpoCorreo} from './correo-editor.js?v=20261023-66';
-import {prepararCorreoMiniaturas,descargarMiniaturas,zipMiniaturas} from './correo-miniaturas.js?v=20261023-66';
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-66';
-import {editarContenedores} from './contenedores.js?v=20261023-66';
-import {elegirHiloGmail} from './gmail-hilos.js?v=20261023-66';
-import {revisarPlanCorreos,abrirCorreosEmbarque} from './correos-embarques.js?v=20261023-66';
-import {prepararDocumentosPorEmbarque,historialInformes} from './informes-registro.js?v=20261023-66';
-import {configurarMiCorreo} from './mi-correo.js?v=20261023-66';
-import {abrirEvidencias} from './evidencias.js?v=20261023-66';
-import {verImagen} from './visor-imagen.js?v=20261023-66';
-import {pedir} from './local.js?v=20261023-66';
-import {confirmar,pedirDatos,elegir} from './modal.js?v=20261023-66';
-import {declararEnviadoManual} from './gestion-entregas.js?v=20261023-66';
-import {documentosDelCorreo,agregarDocumentos,etiquetaFormato} from './documentos-correo.js?v=20261023-66';
+import {iniciarEditorCorreo,leerCuerpoCorreo} from './correo-editor.js?v=20261023-67';
+import {prepararCorreoMiniaturas,descargarMiniaturas,zipMiniaturas} from './correo-miniaturas.js?v=20261023-67';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-67';
+import {editarContenedores} from './contenedores.js?v=20261023-67';
+import {elegirHiloGmail} from './gmail-hilos.js?v=20261023-67';
+import {revisarPlanCorreos,abrirCorreosEmbarque} from './correos-embarques.js?v=20261023-67';
+import {prepararDocumentosPorEmbarque,historialInformes} from './informes-registro.js?v=20261023-67';
+import {configurarMiCorreo} from './mi-correo.js?v=20261023-67';
+import {abrirEvidencias} from './evidencias.js?v=20261023-67';
+import {verImagen} from './visor-imagen.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-67';
+import {confirmar,pedirDatos,elegir} from './modal.js?v=20261023-67';
+import {declararEnviadoManual} from './gestion-entregas.js?v=20261023-67';
+import {documentosDelCorreo,agregarDocumentos,etiquetaFormato} from './documentos-correo.js?v=20261023-67';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function descargar(blob,nombre){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=nombre;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
@@ -103,7 +103,7 @@ export async function abrirCorreo(recepcion,{entregaId='',confirmarEnvio=false,a
  $('[data-conectar]').onclick=()=>ejecutar(async()=>{const panel=$('[data-config-cuenta]');panel.hidden=!panel.hidden;if(!panel.hidden&&!panel.children.length)await configurarMiCorreo(panel,(t,tipo)=>avisar(t,tipo==='err'));});
  $('[data-verificar-cuenta]').onclick=()=>ejecutar(async()=>{const yo=await pedir('/yo',{base:'/api/auth'}),r=await pedir(base+'/comprobar-envio',{cuerpo:{remitenteConfirmado:yo.email}});avisar('Cuenta de envío confirmada: '+r.remitente+'. '+r.mensaje);},'Comprobando tu cuenta Google. No se envía correo…');
  $('[data-actualizar]').onclick=()=>ejecutar(async()=>{if((sucio||seleccionSucia)&&!await confirmar({titulo:'Actualizar desde el servidor',texto:'Los cambios sin guardar se descartarán. Si necesitas conservarlos, cancela y copia primero tu redacción.',aceptar:'Actualizar datos',cancelar:'Seguir editando'}))return;await actualizar();avisar('Datos y fotografías actualizados.');});
- $('[data-drive]').onclick=()=>ejecutar(async()=>{await guardar();await api(base+'/drive/preparar',{cuerpo:{}});const r=await api(ruta+'/enlaces-drive',{cuerpo:{}});await actualizar();avisar(r.mensaje+' Revisa las fotos pendientes antes de enviar.');},'Comprobando carpetas de esta recepción…');
+ $('[data-drive]').onclick=()=>ejecutar(async()=>{await guardar();const carpeta=await api(base+'/drive/preparar',{cuerpo:{}});const r=carpeta.carpeta?await api(ruta+'/enlaces-drive',{cuerpo:{}}):carpeta;await actualizar();avisar(r.mensaje+(carpeta.programadas?' Revisa las fotos pendientes antes de enviar.':''));},'Comprobando carpetas de esta recepción…');
  async function descargarDocumentos(docs){const archivos=[];for(const a of docs){const r=await fetch(a.url,{credentials:'same-origin'});if(!r.ok)throw Error('No se pudo descargar '+a.nombre+'. Actualiza los documentos.');archivos.push({a,blob:await r.blob()});}if(archivos.length===1)descargar(archivos[0].blob,archivos[0].a.nombre);else if(archivos.length){descargar(zipMiniaturas(await Promise.all(archivos.map(async({a,blob})=>({nombre:a.nombre,bytes:new Uint8Array(await blob.arrayBuffer())})))),'Informes_'+recepcion.replace(/[^A-Za-z0-9_-]/g,'_')+'.zip');}avisar('Descarga iniciada: '+archivos.length+' documento(s). Revisa su contenido antes de enviar.');}
  $('[data-documentos-preparar]').onclick=()=>ejecutar(async()=>{
   await guardar();const anteriores=v.archivos.map(a=>({...a})),alias={...v.nombresDocumentos};const f=await prepararDocumentosPorEmbarque(recepcion);if(!f){avisar('Preparación cancelada; se conserva el correo.');return;}

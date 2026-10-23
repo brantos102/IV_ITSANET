@@ -1,0 +1,1298 @@
+{
+  "versionFrontend": "20261023-67",
+  "fecha": "2026-10-23",
+  "zonaHoraria": "America/Guayaquil",
+  "alcance": "Inventario estático del código candidato v67. No acredita instalación ni configuración productiva.",
+  "tablas": [
+    {
+      "modelo": "Operador",
+      "tabla": "operadores"
+    },
+    {
+      "modelo": "Sesion",
+      "tabla": "sesiones"
+    },
+    {
+      "modelo": "Producto",
+      "tabla": "productos"
+    },
+    {
+      "modelo": "ProductoCodigo",
+      "tabla": "producto_codigos"
+    },
+    {
+      "modelo": "Recepcion",
+      "tabla": "recepciones"
+    },
+    {
+      "modelo": "PackingItem",
+      "tabla": "packing_items"
+    },
+    {
+      "modelo": "Pallet",
+      "tabla": "pallets"
+    },
+    {
+      "modelo": "ScanEvent",
+      "tabla": "scan_events"
+    },
+    {
+      "modelo": "SkuPendiente",
+      "tabla": "skus_pendientes"
+    },
+    {
+      "modelo": "Auditoria",
+      "tabla": "auditoria"
+    },
+    {
+      "modelo": "AppRecepcion",
+      "tabla": "app_recepciones"
+    },
+    {
+      "modelo": "AppLinea",
+      "tabla": "app_lineas"
+    },
+    {
+      "modelo": "AppSku",
+      "tabla": "app_skus"
+    },
+    {
+      "modelo": "AppCalidadSku",
+      "tabla": "app_calidad_skus"
+    },
+    {
+      "modelo": "AppPresencia",
+      "tabla": "app_presencias"
+    },
+    {
+      "modelo": "AppInforme",
+      "tabla": "app_informes"
+    },
+    {
+      "modelo": "AppAuditoriaGeneral",
+      "tabla": "app_auditoria_general"
+    },
+    {
+      "modelo": "AppEvento",
+      "tabla": "app_eventos"
+    },
+    {
+      "modelo": "AppHuella",
+      "tabla": "app_huellas"
+    },
+    {
+      "modelo": "AppArchivo",
+      "tabla": "app_archivos"
+    },
+    {
+      "modelo": "AppArchivoIdentidad",
+      "tabla": "app_archivo_identidades"
+    },
+    {
+      "modelo": "AppArchivoSku",
+      "tabla": "app_archivo_skus"
+    },
+    {
+      "modelo": "AppConfig",
+      "tabla": "app_config"
+    },
+    {
+      "modelo": "AppEntrega",
+      "tabla": "app_entregas"
+    },
+    {
+      "modelo": "AppIngreso",
+      "tabla": "app_ingresos"
+    },
+    {
+      "modelo": "AppUnidadLogistica",
+      "tabla": "app_unidades_logisticas"
+    },
+    {
+      "modelo": "AppEvidencia",
+      "tabla": "app_evidencias"
+    },
+    {
+      "modelo": "AppCopiaDrive",
+      "tabla": "app_copias_drive"
+    },
+    {
+      "modelo": "AppStockDepot",
+      "tabla": "app_stock_depot"
+    },
+    {
+      "modelo": "AppImpresion",
+      "tabla": "app_impresiones"
+    }
+  ],
+  "rutas": [
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/recepciones/{codigo}/eventos/{ident}/posicion",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "asignar_posicion_final"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/estado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "estado_local"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/entregas",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "listar_entregas"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/manual-confirmado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "confirmar_manual"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/historial",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "archivar_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/entregas",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "entregas_recepcion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/destinatarios-recientes",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "destinatarios_recientes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/remitentes",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "remitentes_recepcion"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/comprobar-envio",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "comprobar_envio"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/reintentar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "reintentar_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/entregas/{ident}/recuperar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "vista_recuperar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/recuperar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "recuperar_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/entregas/{ident}/solicitar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "vista_solicitar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/solicitar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "solicitar_envio"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/cancelar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cancelar_entrega"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/entrega",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cerrar_con_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/config/csv",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "leer_csv"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/config/csv",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "guardar_csv"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/archivos/{tipo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "subir_archivo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/imagenes",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "imagenes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/archivos/{archivo_id}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "archivo_local"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones-listado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "buscar_listado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/catalogo-exportacion",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "catalogo_exportacion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/codigos-barras",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "codigos_de_recepcion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones-abiertas/por-codigo/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "buscar_en_recepciones"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "crear"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "una"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/app/recepciones/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "borrar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/{coleccion}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "subcoleccion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/estado-sku/{sku}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "estado_sku"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/packing-list",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cargar_packing_list"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/packing-lists/parecidos",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "parecidos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/conteos",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "contar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/no-encontrado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "no_encontrado"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/conteos/{evento_id}/anular",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "anular"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/auditoria",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "auditar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/skus/{sku}/recalcular",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "recalcular"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/cerrar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cerrar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/reabrir",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "reabrir"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/catalogo/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "catalogo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/catalogo/{codigo}/equivalencia",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "equivalencia"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/catalogo/codigos/importar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "importar_codigos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/login",
+      "fuente": "app/routers/auth.py",
+      "funcion": "login"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/logout",
+      "fuente": "app/routers/auth.py",
+      "funcion": "logout"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/yo",
+      "fuente": "app/routers/auth.py",
+      "funcion": "yo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/entorno",
+      "fuente": "app/routers/auth.py",
+      "funcion": "entorno_publico"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/auth/perfil/foto",
+      "fuente": "app/routers/auth.py",
+      "funcion": "foto_propia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/operadores/{operador_id}/foto",
+      "fuente": "app/routers/auth.py",
+      "funcion": "foto_perfil"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/clave",
+      "fuente": "app/routers/auth.py",
+      "funcion": "cambiar_clave"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/operadores/{operador_id}/restablecer-clave",
+      "fuente": "app/routers/auth.py",
+      "funcion": "restablecer_clave"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/registro",
+      "fuente": "app/routers/auth.py",
+      "funcion": "registro"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/operadores",
+      "fuente": "app/routers/auth.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/operadores",
+      "fuente": "app/routers/auth.py",
+      "funcion": "crear"
+    },
+    {
+      "metodo": "PATCH",
+      "ruta": "/api/auth/operadores/{operador_id}",
+      "fuente": "app/routers/auth.py",
+      "funcion": "actualizar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/cambios/estado",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/cambios/estado",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/cambios",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "escuchar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/cambios",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "escuchar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/estado",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/buscar",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "buscar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/catalogo/maestro",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "cargar_maestro"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/depot/probar",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "probar_depot"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/catalogo/depot/sincronizar",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "sincronizar_depot"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/depot/clientes",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "clientes_depot"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/revisar-packing",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "revisar_packing"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/revisar-packing",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "corregir_lectura_packing"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/contenedores",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "contenedores_vista"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/contenedores",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "contenedores_guardar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_vista"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo/enlaces-drive",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "actualizar_enlaces_correo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/correos-embarques",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "plan_correos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correos-embarques/vista",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "vista_plan_correos"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/correos-embarques",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "guardar_plan_correos"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_guardar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo/enviar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_enviar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo/manual",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_manual"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/almacenamiento",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "almacenamiento"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/almacenamiento/compactar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "compactar_entregas"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/clientes-operacion",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "clientes_operacion"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/clientes-fichas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "editar_cliente_ficha"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/operacion/clientes-fichas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "eliminar_cliente_ficha"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/clientes-operacion/{nombre:path}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "guardar_cliente_operativo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/eventos/{ident}/corregir",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "corregir_conteo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/conteos-repartidos",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "repartir_conteo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/politicas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "politicas"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/politicas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "guardar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/reglas/{cliente:path}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "reglas"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/sku-en-curso",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "sku_en_curso"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/presencia",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "presencia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/equipo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "equipo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/eventos/{ident}/calidad",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "corregir_calidad"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/informe-metadatos",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "metadatos_informe"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/pendientes-cierre",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "pendientes_cierre"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive/reintentar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "reintentar_drive"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/informes",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "historial_informes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/informe-actual",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "informe_actual"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/informes/{ident}/descarga",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "descargar_conjunto"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/informes",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "reservar_informe"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/informes/{ident}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "archivar_informe"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/informes/{ident}/archivos/{archivo_id}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "descargar_informe"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/columnas-informe",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "columnas_informe"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/edicion",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "edicion_recepcion"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/edicion",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "editar_recepcion"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/embarques/{origen}/retirar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "retirar_embarque"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/cierre-externo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "vista_cierre_externo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/cierre-externo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "registrar_cierre_externo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/metodos",
+      "fuente": "app/routers/google_auth.py",
+      "funcion": "metodos"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/iniciar",
+      "fuente": "app/routers/google_auth.py",
+      "funcion": "iniciar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/callback",
+      "fuente": "app/routers/google_auth.py",
+      "funcion": "callback"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/operacion/estado",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/operacion/iniciar",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "iniciar"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/auth/google/operacion/cuenta",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "desconectar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/operacion/config",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "config"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/auth/google/operacion/config",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "guardar_config"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/impresion/recepciones/{codigo}/bultos",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "etiquetas_bultos_estado"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/recepciones/{codigo}/bultos",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "etiquetas_bultos_generar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/estaciones/{ident}/token",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "token_agente"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/trabajos",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "solicitar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/impresion/trabajos/{ident}",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "trabajo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/agente/{ident}/siguiente",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "siguiente"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/agente/{ident}/confirmar",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "confirmar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/depot/{ident}",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/integraciones/depot/{ident}/probar",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "probar"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_google"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/integraciones/google/probar",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "probar_google"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/integraciones/google/correo-prueba",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "correo_prueba"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/oauth-google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_oauth"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/mi-google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "mi_google"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/mi-google/gmail/estado",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "estado_gmail_propio"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/mi-google/gmail",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "buscar_gmail"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/mi-google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_mi_google"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/usuarios/{ident}/google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "google_usuario"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/usuarios/{ident}/google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_google_usuario"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/resumen",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "resumen"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/operadores",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "operadores"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/skus",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "skus"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/serie",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "serie"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/pendientes",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "pendientes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/notificaciones",
+      "fuente": "app/routers/notificaciones.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/notificaciones/leidas",
+      "fuente": "app/routers/notificaciones.py",
+      "funcion": "leidas"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/preferencias",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "preferencias"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/config",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "configuracion"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/config",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "guardar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/supervisores",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "supervisores"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/ingreso",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "ingreso"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/fotos/organizacion",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "plan_fotos"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/fotos/embarques",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "embarques_fotos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/fotos/organizar",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "organizar_fotos"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/ingreso",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "actualizar_ingreso"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/unidades",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "unidad"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/lecturas/resolver",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "resolver"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/bultos",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "bultos"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/operacion/evidencias/{archivo_id}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "eliminar_evidencia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/procesos",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "procesos_operativos"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "estado_drive"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive/preparar",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "preparar_drive"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/repositorios/{ident}/probar",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "probar_repositorio"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/catalogo/ejecuciones",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "ejecuciones"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/evidencias.xlsx",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "exportar_evidencias"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/formatos-packing/{cliente:path}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "formato_packing"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/formatos-packing/{cliente:path}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "guardar_formato_packing"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive/desde-mi-cuenta",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "recuperar_fotos_propias"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/evidencias/{archivo_id}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "editar_evidencia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "crear"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/packing-list",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "cargar_packing_list"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "detalle"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/items",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "items"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/pallets",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "pallets"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/pendientes",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "pendientes"
+    },
+    {
+      "metodo": "PATCH",
+      "ruta": "/api/recepciones/{recepcion_id}/pendientes/{pendiente_id}",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "actualizar_pendiente"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/cerrar",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "cerrar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/reabrir",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "reabrir"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/export",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "exportar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/auditoria",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "auditoria"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/reportes/recepciones",
+      "fuente": "app/routers/reportes.py",
+      "funcion": "recepciones"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/reportes/excel",
+      "fuente": "app/routers/reportes.py",
+      "funcion": "excel"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/lookup",
+      "fuente": "app/routers/scans.py",
+      "funcion": "lookup"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/scans",
+      "fuente": "app/routers/scans.py",
+      "funcion": "crear_scan"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/ajustes",
+      "fuente": "app/routers/scans.py",
+      "funcion": "crear_ajuste"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/scans/{evento_id}/anular",
+      "fuente": "app/routers/scans.py",
+      "funcion": "anular"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/scans",
+      "fuente": "app/routers/scans.py",
+      "funcion": "listar_scans"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/sku/{sku}",
+      "fuente": "app/routers/scans.py",
+      "funcion": "detalle_sku"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/",
+      "fuente": "app/routers/ui.py",
+      "funcion": "entrada_operativa"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/prototipo",
+      "fuente": "app/routers/ui.py",
+      "funcion": "inicio"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/login",
+      "fuente": "app/routers/ui.py",
+      "funcion": "login"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/recepciones/{recepcion_id}",
+      "fuente": "app/routers/ui.py",
+      "funcion": "recepcion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/recepciones/{recepcion_id}/escanear",
+      "fuente": "app/routers/ui.py",
+      "funcion": "escanear"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/kpi",
+      "fuente": "app/routers/ui.py",
+      "funcion": "kpi"
+    }
+  ],
+  "dependenciasPythonDeclaradas": [
+    "fastapi==0.143.0",
+    "uvicorn[standard]==0.53.0",
+    "SQLAlchemy==2.1.4",
+    "PyMySQL[rsa]==1.1.1",
+    "pydantic==2.13.5",
+    "Jinja2==3.1.6",
+    "python-multipart==0.0.32",
+    "openpyxl==3.1.5",
+    "Pillow==12.3.0",
+    "httpx==0.28.1",
+    "pytest==8.3.4"
+  ],
+  "dependenciasJSDeclaradas": {
+    "@zxing/library": "0.21.3",
+    "esbuild": "0.28.2",
+    "firebase": "10.14.1",
+    "jsbarcode": "3.12.1",
+    "jspdf": "3.0.4",
+    "jspdf-autotable": "5.0.2",
+    "xlsx": "^0.18.5"
+  }
+}

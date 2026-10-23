@@ -1,15 +1,15 @@
-import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261023-66';
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-66';
-import {elegirDestinoFoto} from './destino-foto.js?v=20261023-66';
-import {tomarFotoEnPagina} from './captura-foto.js?v=20261023-66';
-import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261023-66';
-import {organizarFotos} from './organizar-fotos.js?v=20261023-66';
-import {verImagen} from './visor-imagen.js?v=20261023-66';
-import {manualFotos} from './manual-fotos.js?v=20261023-66';
-import {pedir} from './local.js?v=20261023-66';
-import {comprimir} from './imagen.js?v=20261023-66';
-import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261023-66';
-import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261023-66';
+import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261023-67';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261023-67';
+import {elegirDestinoFoto} from './destino-foto.js?v=20261023-67';
+import {tomarFotoEnPagina} from './captura-foto.js?v=20261023-67';
+import {elegirEmbarqueFotos,contextoFotos} from './fotos-embarques.js?v=20261023-67';
+import {organizarFotos} from './organizar-fotos.js?v=20261023-67';
+import {verImagen} from './visor-imagen.js?v=20261023-67';
+import {manualFotos} from './manual-fotos.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-67';
+import {comprimir} from './imagen.js?v=20261023-67';
+import {confirmar,pedirDatos,tecladoDialogo} from './modal.js?v=20261023-67';
+import {actorFotos,subirFotoProtegida,abrirFotosPendientes} from './fotos-pendientes.js?v=20261023-67';
 
 export const esc = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const operacion = (ruta, opciones={}) => pedir(ruta,{...opciones,base:'/api/operacion'});
@@ -180,7 +180,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
         (s.requierenAyuda?' Hay incidencias; revisa los archivos pendientes y solicita al supervisor comprobar la conexión de almacenamiento.':'');
         $('[data-reintentar]').hidden=!supervisor||!s.pendientes;
         $('[data-progreso-drive]').max=Math.max(1,s.guardadas);$('[data-progreso-drive]').value=s.copiadas;
-        const aviso=s.pendientes?`${s.pendientes} foto(s) aún no están listas para el correo. ${s.requierenAyuda?'Hay errores: revisa el detalle de cada archivo.':'La copia continúa en segundo plano; puedes seguir registrando.'}`:'Todas las fotos de esta vista están confirmadas y organizadas en Drive.';
+        const aviso=!s.guardadas?'Aún no hay fotografías en esta vista. La carpeta se crea al copiar la primera foto.':s.pendientes?`${s.pendientes} foto(s) aún no están listas para el correo. ${s.requierenAyuda?'Hay errores: revisa el detalle de cada archivo.':'La copia continúa en segundo plano; puedes seguir registrando.'}`:'Todas las fotos de esta vista están confirmadas y organizadas en Drive.';
         if($('[data-alerta-drive]').textContent!==aviso)$('[data-alerta-drive]').textContent=aviso;
         $('[data-progreso-fotos]').classList.toggle('fotos-con-pendientes',!!s.pendientes);
         if(s.requierenAyuda)herramientas.open=true;
@@ -195,7 +195,7 @@ export async function abrirEvidencias({recepcion,sku='',categoria='GENERAL',tipo
         if(!organizada){const fila=document.createElement('p');fila.className='mini';fila.textContent=f.nombre+' · '+texto+(f.error?' · '+f.error:'')+(f.proximoIntento?' · reintento '+new Date(f.proximoIntento).toLocaleTimeString('es-EC',{timeZone:'America/Guayaquil'}):'');$('[data-pendientes-drive]').append(fila);}
       }
       $('[data-reloj-drive]').textContent='Estado actualizado: '+new Date().toLocaleTimeString('es-EC',{timeZone:'America/Guayaquil'})+' · revisión automática cada 3 s';
-      if(!sku&&estado.carpetasRecepcion?.estado==='PENDIENTE')$('[data-estado-drive]').textContent+=' Carpetas de recepción pendientes de preparar; verifica la conexión del responsable.';
+      if(!sku&&!s.guardadas)$('[data-estado-drive]').textContent+=' Las categorías sin fotos no crean carpetas.';
       $('[data-carpetas]').replaceChildren();for(const url of new Set(sku?[]:(estado.carpetas || []))){
         if(!/^https:\/\/drive\.google\.com\//.test(url))continue;
         const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='Abrir carpeta de la recepción';a.className='b-sec';$('[data-carpetas]').append(a);

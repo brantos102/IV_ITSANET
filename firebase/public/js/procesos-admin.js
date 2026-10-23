@@ -1,4 +1,4 @@
-import {pedir} from './local.js?v=20261023-66';
+import {pedir} from './local.js?v=20261023-67';
 export function procesosAdmin(raiz){
  const s=document.createElement('section');s.className='panel';s.dataset.areaAdmin='procesos';
  s.innerHTML='<h2>Monitor de fotos y correos</h2><p>Registro del servidor: guardado, copia, organización, autorización y envío. Se actualiza cada 3 segundos mientras esta sección está visible.</p><div class="rejilla"><label class="campo"><span>Recepción</span><input data-recepcion placeholder="Código completo o vacío: todas"></label><label class="campo"><span>Estado</span><select data-filtro><option value="">Todos</option><option>ERROR</option><option>PROCESANDO</option><option>COPIADA</option><option>ENTREGADA</option></select></label></div><div class="acciones"><button class="b-sec" data-actualizar>Actualizar</button><button class="b-sec" data-descargar>Descargar registro JSON</button></div><p data-resumen role="status"></p><div data-incidencias></div><h3>Registro de actividad</h3><div data-eventos class="procesos-eventos"></div>';

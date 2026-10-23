@@ -125,7 +125,7 @@ def test_drive_crea_carpeta_con_responsable_y_muestra_fotos_locales(admin, clien
     assert f.status_code == 201, f.text
     llamadas=[]
     def puente(accion, clave, datos):
-        llamadas.append(accion); return {**google(accion, clave, datos), 'capacidades':['prepararCarpeta']}
+        llamadas.append(accion); return {**google(accion, clave, datos), 'capacidades':['prepararCarpeta','carpetasBajoDemanda67']}
     monkeypatch.setattr(entregas, 'llamar', puente)
     ruta=f'/api/operacion/recepciones/{codigo}/drive'
     r=admin.get(ruta)

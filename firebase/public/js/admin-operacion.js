@@ -1,9 +1,9 @@
-import {mostrarCuentasSupervision} from './admin-correos.js?v=20261023-66';
-import {pedir} from './local.js?v=20261023-66';
-import {operacion,esc} from './evidencias.js?v=20261023-66';
-import {pedirDatos,confirmar} from './modal.js?v=20261023-66';
-import {googleCentral} from './google-central.js?v=20261023-66';
-import {procesosAdmin} from './procesos-admin.js?v=20261023-66';
+import {mostrarCuentasSupervision} from './admin-correos.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-67';
+import {operacion,esc} from './evidencias.js?v=20261023-67';
+import {pedirDatos,confirmar} from './modal.js?v=20261023-67';
+import {googleCentral} from './google-central.js?v=20261023-67';
+import {procesosAdmin} from './procesos-admin.js?v=20261023-67';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;

@@ -2,17 +2,17 @@
 <html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
-<script src="./js/arranque.js?v=20261023-66"></script>
+<script src="./js/arranque.js?v=20261023-67"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2563eb">
 <title>Recepciones — ITSANET</title>
 <link rel="stylesheet" href="./css/app.css">
-<link rel="stylesheet" href="./css/marca.css?v=20261023-66">
+<link rel="stylesheet" href="./css/marca.css?v=20261023-67">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icono.png">
 <link rel="icon" type="image/png" href="./icono.png">
-<script src="./vendor/xlsx.full.min.js?v=20261023-66"></script>
-<script src="./vendor/JsBarcode.all.min.js?v=20261023-66"></script>
+<script src="./vendor/xlsx.full.min.js?v=20261023-67"></script>
+<script src="./vendor/JsBarcode.all.min.js?v=20261023-67"></script>
 </head>
 <body>
 <div class="envoltorio">
@@ -43,8 +43,8 @@
       los distinga (<code>VW-29-06-2026-B</code>) o cárgalos como dos listas de
       la misma recepción con <b>+ Embarque</b>.<br><br>
       <b>La descripción</b> es texto libre para quien la lea después: los
-      embarques que incluye, o cualquier cosa que convenga recordar. No se usa
-      para buscar.
+      embarques que incluye, o cualquier cosa que convenga recordar. También puedes
+      buscar por esa descripción.
     </div>
   </details>
   <h2>Nueva recepción</h2>
@@ -55,7 +55,7 @@
     <label class="campo"><span>Código de recepción *</span>
       <input id="fCodigo" placeholder="VW-29-06-2026" autocapitalize="characters">
       <span class="mini">Cliente y fecha. Es el nombre con el que la buscarás
-        después, y no se puede repetir ni cambiar.</span>
+      después, y no se puede repetir ni cambiar.</span>
       <span class="mini" id="pistaCodigo" style="color:var(--warning)"></span></label>
     <label class="campo"><span>Cliente</span>
       <select id="fCliente"><option value="">Selecciona el cliente</option></select><button type="button" class="b-sec" id="bClientesOperacion" hidden>Gestionar clientes</button>
@@ -127,55 +127,60 @@
 <!-- Listado -->
 <div class="panel" id="enCurso">
   <h2 id="tituloLista">Recepciones</h2>
-  <div class="acciones" style="margin:0 0 14px">
-    <input id="fBuscar" placeholder="Buscar por código o cliente"
-           autocapitalize="characters" spellcheck="false"
-           style="flex:2;min-width:190px">
-    <select id="fEstadoLista" style="flex:1;min-width:150px">
+  <div class="recepciones-filtros" role="search" aria-label="Filtrar recepciones">
+    <label class="campo"><span>Buscar recepción</span><input id="fBuscar" type="search" placeholder="Código, cliente, descripción o embarque" spellcheck="false"></label>
+    <label class="campo"><span>Estado</span><select id="fEstadoLista">
       <option value="">Todos los estados</option>
       <option value="EN_VALIDACION">En validación</option>
       <option value="ABIERTA">Sin empezar</option>
       <option value="CERRADA">Cerradas</option>
-    </select>
+    </select></label>
+    <label class="campo"><span>Registro desde</span><input id="fDesdeLista" type="date"></label>
+    <label class="campo"><span>Registro hasta</span><input id="fHastaLista" type="date"></label>
+    <label class="campo"><span>Ordenar por</span><select id="fOrdenLista"><option value="RECIENTES">Registro más reciente</option><option value="ANTIGUAS">Registro más antiguo</option><option value="CODIGO">Código de recepción</option></select></label>
+    <button type="button" class="b-sec" id="bLimpiarLista">Limpiar filtros</button>
   </div>
-  <div class="tabla-env">
-    <table>
+  <p class="mini" id="resumenLista" role="status" aria-live="polite">Consultando recepciones…</p>
+  <div class="tabla-env recepciones-tabla">
+    <table aria-label="Recepciones y avance de validación">
       <thead><tr>
-        <th>Código</th><th>Estado</th><th class="num">Referencias</th>
+        <th>Recepción / cliente</th><th>Fecha de registro<br><span class="mini">Hora de Ecuador</span></th><th>Estado</th><th class="num">Referencias</th>
         <th class="num">Declarado</th><th class="num">Contado</th>
-        <th>Avance</th><th></th><th></th><th></th>
+        <th>Avance</th><th>Acciones</th>
       </tr></thead>
       <tbody id="tRecepciones"></tbody>
     </table>
   </div>
+  <div class="acciones" id="paginacionLista" hidden><button type="button" class="b-sec" id="bAnteriorLista">← Anterior</button><span id="paginaLista" class="mini"></span><button type="button" class="b-sec" id="bSiguienteLista">Siguiente →</button></div>
 </div>
 
 </div>
 
 <script type="module">
-import {prepararSeleccionContenedores} from './js/packing-contenedores.js?v=20261023-66';
-import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261023-66';
-import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261023-66';
-import {configurarClientes} from './js/clientes-operacion.js?v=20261023-66';
-import {abrirEntregas} from './js/entregas-supervisor.js?v=20261023-66';
-import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261023-66';
-import { mostrarAviso } from './js/notificaciones.js?v=20261023-66';
-import { observarSesion, modoLocal } from './js/auth.js?v=20261023-66';
+import {prepararSeleccionContenedores} from './js/packing-contenedores.js?v=20261023-67';
+import {cerrarDesdeRecepciones} from './js/cierre-recepciones.js?v=20261023-67';
+import {iniciarAvisosEntregas} from './js/avisos-entregas.js?v=20261023-67';
+import {configurarClientes} from './js/clientes-operacion.js?v=20261023-67';
+import {abrirEntregas} from './js/entregas-supervisor.js?v=20261023-67';
+import {abrirDriveRecepcion} from './js/abrir-drive.js?v=20261023-67';
+import { mostrarAviso } from './js/notificaciones.js?v=20261023-67';
+import { observarSesion, modoLocal } from './js/auth.js?v=20261023-67';
 import {
   crearRecepcion, guardarPackingList, leerPackingList, listarRecepciones,
   listarMisRecepciones, borrarRecepcion, buscarPackingListParecido,
   guardarCatalogo, escucharSkus,
-} from './js/datos.js?v=20261023-66';
-import { Proxy } from './js/proxy.js?v=20261023-66';
-import { resumir } from './js/conteo.js?v=20261023-66';
-import { avisoDeParecidos } from './js/sugerir.js?v=20261023-66';
-import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261023-66';
-import { leerCodigos } from './js/codigos.js?v=20261023-66';
-import { pedir } from './js/local.js?v=20261023-66';
-import {escucharCambiosRecepcion} from './js/cambios-recepcion.js?v=20261023-66';
-import { abrirIngreso } from './js/ingreso.js?v=20261023-66';
-import {editarRecepcion} from './js/editar-recepcion.js?v=20261023-66';
-import { operacion } from './js/evidencias.js?v=20261023-66';
+} from './js/datos.js?v=20261023-67';
+import { Proxy } from './js/proxy.js?v=20261023-67';
+import { resumir } from './js/conteo.js?v=20261023-67';
+import { avisoDeParecidos } from './js/sugerir.js?v=20261023-67';
+import { confirmarEscribiendo, confirmar } from './js/modal.js?v=20261023-67';
+import { leerCodigos } from './js/codigos.js?v=20261023-67';
+import { pedir } from './js/local.js?v=20261023-67';
+import {escucharCambiosRecepcion} from './js/cambios-recepcion.js?v=20261023-67';
+import { abrirIngreso } from './js/ingreso.js?v=20261023-67';
+import {editarRecepcion} from './js/editar-recepcion.js?v=20261023-67';
+import { operacion } from './js/evidencias.js?v=20261023-67';
+import {filtrarRecepciones,registroRecepcion} from './js/recepciones-lista.js?v=20261023-67';
 
 const $ = (id) => document.getElementById(id);
 let usuario = null, perfil = null, resultadoArchivo = null, recepcionActual = null;
@@ -556,8 +561,13 @@ $('tRecepciones').addEventListener('click', async ev=>{
   }});}catch(e){aviso(e.message,'err');}
 });
 
-$('fBuscar').addEventListener('input', pintarListado);
-$('fEstadoLista').addEventListener('change', pintarListado);
+let demoraFiltro;
+const cambiarFiltro=()=>{offsetLista=0;if(modoLocal()){cargaListado++;clearTimeout(demoraFiltro);$('resumenLista').textContent='Aplicando filtros…';demoraFiltro=setTimeout(cargarListado,180);}else pintarListado();};
+$('fBuscar').addEventListener('input',cambiarFiltro);
+for(const id of ['fEstadoLista','fDesdeLista','fHastaLista','fOrdenLista'])$(id).addEventListener('change',cambiarFiltro);
+$('bLimpiarLista').onclick=()=>{for(const id of ['fBuscar','fEstadoLista','fDesdeLista','fHastaLista'])$(id).value='';$('fOrdenLista').value='RECIENTES';cambiarFiltro();};
+$('bAnteriorLista').onclick=()=>{offsetLista=Math.max(0,offsetLista-50);cargarListado();};
+$('bSiguienteLista').onclick=()=>{offsetLista+=50;cargarListado();};
 
 $('bCancelar').addEventListener('click', () => {
   $('panelArchivo').classList.add('oculto');
@@ -629,17 +639,26 @@ $('bCatalogo').addEventListener('click', async () => {
 });
 
 // --- Listado -------------------------------------------------------------- //
-let cargaListado=0;
+let cargaListado=0,offsetLista=0,totalLista=0;
 async function cargarListado() {
   const carga=++cargaListado;
   try {
+    if(modoLocal()){
+      if($('fDesdeLista').value&&$('fHastaLista').value&&$('fDesdeLista').value>$('fHastaLista').value)throw new Error('La fecha Desde debe ser anterior o igual a Hasta.');
+      const q=new URLSearchParams({texto:$('fBuscar').value.trim(),estado:$('fEstadoLista').value,orden:$('fOrdenLista').value,offset:offsetLista,limite:50,mias:soloMias});
+      for(const [clave,id] of [['desde','fDesdeLista'],['hasta','fHastaLista']])if($(id).value)q.set(clave,$(id).value);
+      const pagina=await pedir('/recepciones-listado?'+q);if(carga!==cargaListado)return;
+      todas=pagina.recepciones;totalLista=pagina.total;offsetLista=pagina.offset;pintarListado();return;
+    }
     const resultado = soloMias
       ? await listarMisRecepciones(usuario.uid)
       : await listarRecepciones();
     if(carga!==cargaListado)return;todas=resultado;pintarListado();
   } catch (e) {
+    if(carga!==cargaListado)return;
     $('tRecepciones').innerHTML =
-      `<tr><td colspan="9" class="mini">${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="8" class="mini">${esc(e.message)}</td></tr>`;
+    $('resumenLista').textContent='No se pudo actualizar la lista.';
   }
 }
 
@@ -651,16 +670,16 @@ setInterval(()=>{if(modoLocal()&&usuario&&!document.hidden)cargarListado();},150
 function pintarListado() {
   try {
     observadoresAvance.forEach(f=>f());observadoresAvance=[];
-    const q = $('fBuscar').value.trim().toUpperCase();
-    const estado = $('fEstadoLista').value;
-    const recs = todas.filter((r) =>
-      (!estado || r.estado === estado)
-      && (!q || (r.codigo || '').includes(q) || (r.cliente || '').toUpperCase().includes(q)));
+    const recs=modoLocal()?todas:filtrarRecepciones(todas,{texto:$('fBuscar').value,estado:$('fEstadoLista').value,
+      desde:$('fDesdeLista').value,hasta:$('fHastaLista').value,orden:$('fOrdenLista').value});
+    $('resumenLista').textContent=modoLocal()?`${totalLista} recepciones encontradas · ${recs.length?'Mostrando '+(offsetLista+1)+'–'+(offsetLista+recs.length):'Sin resultados'} · Registro en hora de Ecuador`:`${recs.length} de ${todas.length} recepciones cargadas · Registro en hora de Ecuador`;
+    $('paginacionLista').hidden=!modoLocal()||totalLista<=50;$('bAnteriorLista').disabled=offsetLista===0;$('bSiguienteLista').disabled=offsetLista+recs.length>=totalLista;
+    $('paginaLista').textContent='Página '+(Math.floor(offsetLista/50)+1)+' de '+Math.max(1,Math.ceil(totalLista/50));
 
     if (!recs.length) {
       $('tRecepciones').innerHTML =
-        `<tr><td colspan="9" class="mini">${
-          todas.length ? 'Ninguna coincide con esa búsqueda.'
+        `<tr><td colspan="8" class="mini">${
+          todas.length||['fBuscar','fEstadoLista','fDesdeLista','fHastaLista'].some(id=>$(id).value) ? 'Ninguna coincide con esa búsqueda.'
           : soloMias ? 'Todavía no has registrado conteos en ninguna recepción.'
           : 'Todavía no hay recepciones.'}</td></tr>`;
       return;
@@ -669,6 +688,7 @@ function pintarListado() {
     // Consolidar listas es decidir contra qué se valida: eso es del supervisor.
     // El operario entra a contar, y verlo le ofrecería algo que no puede hacer.
     const puedeConsolidar = ['SUPERVISOR', 'ADMIN'].includes(perfil?.rol);
+    const menusAbiertos=new Set([...$('tRecepciones').querySelectorAll('details[open]')].map(e=>e.dataset.gestion));
 
     $('tRecepciones').innerHTML = recs.map((r) => {
       const t = r.totales || {};
@@ -677,30 +697,29 @@ function pintarListado() {
       // que lleva a una pantalla vacía, se dice lo que falta y se ofrece
       // justo eso: cargar el archivo.
       const vacia = !(t.lineas > 0);
+      const registro=registroRecepcion(r.creadoEn);
+      const principal=vacia?(puedeConsolidar?`<button class="b-primario" data-anadir="${esc(r.id)}">Cargar packing list</button>`:'<span class="mini">Sin packing list</span>'):`<a href="./validar.html?r=${encodeURIComponent(r.id)}"><button class="b-primario">Validar →</button></a>`;
+      const gestionar=puedeConsolidar?`<details class="acciones-recepcion-lista" data-gestion="${esc(r.id)}"${menusAbiertos.has(r.id)?' open':''}><summary>Gestionar</summary>
+        ${!vacia?`<button class="b-sec" data-anadir="${esc(r.id)}">+ Embarque</button>`:''}
+        ${modoLocal()?`${r.estado!=='CERRADA'&&!vacia&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-cerrar-externo="${esc(r.id)}">Cerrar · correos ya enviados</button>`:''}<button class="b-sec" data-ingreso="${esc(r.id)}">Bultos y fotos</button><button class="b-sec" data-editar="${esc(r.id)}">Editar recepción / embarques</button><button class="b-sec" data-drive="${esc(r.id)}" title="Abrir carpeta Drive de la recepción" aria-label="Abrir carpeta Drive">▱ Drive</button>`:''}
+        ${esAdmin?`<button class="b-peligro" data-borrar="${esc(r.id)}" data-lineas="${t.lineas??0}" data-estado="${esc(r.estado)}" title="Borrar la recepción entera">Borrar recepción</button>`:''}</details>`:'';
 
       return `<tr${vacia ? ' style="background:rgba(245,158,11,.06)"' : ''}>
-        <td class="id">${esc(r.codigo)}<br><span class="mini">${
+        <td class="id recepcion-identidad">${esc(r.codigo)}<br><span class="mini">${
           [r.cliente+(r.marca?'–'+r.marca:''), (r.origenes || []).length > 1
             ? `${r.origenes.length} listas: ${r.origenes.map(o=>r.nombresListas?.[o]||o).join(' · ')}`
             : r.nombresListas?.[(r.origenes||[])[0]]||(r.origenes || [])[0]].filter(Boolean).map(esc).join(' — ')}</span></td>
+        <td class="recepcion-registro">${registro.iso?`<time datetime="${esc(registro.iso)}">${esc(registro.fecha)}<span>${esc(registro.hora)}</span></time>`:esc(registro.fecha)}</td>
         <td><span class="pastilla ${vacia ? 'p-warn' : clase}">
-          ${vacia ? 'SIN PACKING LIST' : esc(r.estado)}</span></td>
+          ${vacia ? 'SIN PACKING LIST' : esc({ABIERTA:'Sin empezar',EN_VALIDACION:'En validación',CERRADA:'Cerrada'}[r.estado]||r.estado)}</span></td>
         <td class="num">${t.skus ?? 0}</td>
         <td class="num">${t.unidades ?? 0}</td>
         <td class="num" id="fis_${esc(r.id)}">${r.seguimiento?.contado ?? "—"}</td>
         <td style="min-width:110px"><div class="barra"><i id="bar_${esc(r.id)}" style="width:${Number(r.seguimiento?.avance)||0}%"></i></div><span class="mini" id="av_${esc(r.id)}">${r.seguimiento?.avance ?? 0}% revisado</span>${puedeConsolidar?`<div class="mini">${(r.equipoActivo||[]).map(o=>esc(o.nombre)).join(" · ")}</div>`:""}</td>
-        <td>${puedeConsolidar
-          ? `<button class="${vacia ? 'b-primario' : 'b-sec'}" data-anadir="${esc(r.id)}">
-               ${vacia ? 'Cargar packing list' : '+ Embarque'}</button>${modoLocal() ? `<details class="acciones-recepcion-lista"><summary>Gestionar</summary>${r.estado!=='CERRADA'&&!vacia&&perfil?.permisos?.cerrarRecepciones?`<button class="b-sec" data-cerrar-externo="${esc(r.id)}">Cerrar · correos ya enviados</button>`:''}<button class="b-sec" data-ingreso="${esc(r.id)}">Bultos y fotos</button><button class="b-sec" data-editar="${esc(r.id)}">Editar recepción / embarques</button><button class="b-sec" data-drive="${esc(r.id)}" title="Abrir carpeta Drive de la recepción" aria-label="Abrir carpeta Drive">▱ Drive</button></details>` : ''}`
-          : vacia ? '<span class="mini">sin packing list</span>' : ''}</td>
-        <td>${vacia ? '' : `<a href="./validar.html?r=${encodeURIComponent(r.id)}">
-          <button class="b-primario">Validar →</button></a>`}</td>
-        <td>${esAdmin
-          ? `<button class="b-peligro" data-borrar="${esc(r.id)}"
-                     data-lineas="${t.lineas ?? 0}" data-estado="${esc(r.estado)}"
-                     title="Borrar la recepción entera">Borrar</button>`
-          : ''}</td></tr>`;
+        <td class="recepcion-acciones">${principal}${gestionar}</td></tr>`;
     }).join('');
+    const columnas=['Recepción','Registro','Estado','Referencias','Declarado','Contado','Avance','Acciones'];
+    for(const fila of $('tRecepciones').rows)Array.from(fila.cells).forEach((celda,i)=>celda.dataset.columna=columnas[i]);
 
     // Avance en vivo de las recepciones abiertas.
     recs.filter(r=>!modoLocal()).forEach((r) => {
@@ -715,7 +734,8 @@ function pintarListado() {
     });
   } catch (e) {
     $('tRecepciones').innerHTML =
-      `<tr><td colspan="9" class="mini">${esc(e.message)}</td></tr>`;
+      `<tr><td colspan="8" class="mini">${esc(e.message)}</td></tr>`;
+    $('resumenLista').textContent=e.message;
   }
 }
 </script>

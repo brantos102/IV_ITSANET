@@ -53,8 +53,8 @@ function entregaServidor_(peticion) {
   var remitente = cuentaServidor_(p.datos && p.datos.usuario);
   if (p.operacion === 'estado') {
     var raiz = raizServidor_(p.datos || {});
-    return { exito: true, versionPuente: 2, versionCodigo:'20261021-62', remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
-      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables','carpetasCorreo','carpetasRecepcion62'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
+    return { exito: true, versionPuente: 2, versionCodigo:'20261023-67', remitente: remitente, carpeta: raiz.getUrl(), nombreCarpeta: raiz.getName(),
+      carpetaId: typeof raiz.getId === 'function' ? raiz.getId() : '', capacidades: ['rutasEvidencias','papelera','manifiesto','carpetaSku','pruebaCorreo','prepararCarpeta','vinculosSku','fotosSkuSimples','fotosAuditables','carpetasCorreo','carpetasRecepcion62','carpetasBajoDemanda67'].concat(typeof gmailConsultarServidor_==='function'&&typeof accionEnviarInforme_==='function'&&accionEnviarInforme_.versionServidor>=4?['gmailHilos']:[]).concat(
         typeof accionEnviarInforme_==='function' && accionEnviarInforme_.versionServidor>=2 ? ['correoVerificado'].concat(accionEnviarInforme_.versionServidor>=3?['correoEditable']:[]) : []) };
   }
   if(p.operacion==='carpetasCorreo')return carpetasCorreoServidor_(p.datos||{});
@@ -74,7 +74,7 @@ function entregaServidor_(peticion) {
   try {
     if (p.operacion === 'prepararCarpeta') {
       var recepcion = prepararCarpetasRecepcionServidor_(p.datos);
-      return {exito:true,remitente:remitente,carpeta:recepcion.getUrl()};
+      return {exito:true,remitente:remitente,carpeta:recepcion?recepcion.getUrl():'',sinCarpeta:!recepcion};
     }
     if (p.operacion === 'pruebaCorreo') {
       var destinatario = String(p.datos.destinatario || '').trim();
@@ -107,7 +107,7 @@ function raizServidor_(p) {
   return DriveApp.getFolderById(id);
 }
 
-function carpetaRecepcionServidor_(p) {
+function carpetaRecepcionServidor_(p, crear) {
   if(p.carpetaRecepcionId){
     if(!/^[A-Za-z0-9_-]{5,128}$/.test(p.carpetaRecepcionId))throw new Error('Carpeta de recepción no válida.');
     var fija=DriveApp.getFolderById(p.carpetaRecepcionId);
@@ -115,6 +115,10 @@ function carpetaRecepcionServidor_(p) {
     return fija;
   }
   var raiz = raizServidor_(p);
+  if(crear===false){
+    var partes=p.cliente?[p.cliente,p.marca,p.carpetaRecepcion||p.recepcion||p.codigo]:[p.carpetaMes,p.carpetaRecepcion||p.recepcion||'sin-recepcion'];
+    return buscarCarpetaEvidenciaServidor_(raiz,partes.filter(function(x){return !!x;}).map(limpiarNombre_));
+  }
   if (!p.cliente) return carpetaDeRecepcion_(raiz, p); // Entregas antiguas conservan su destino.
   var cliente = carpetaDe_(raiz, limpiarNombre_(p.cliente));
   var marca = p.marca ? carpetaDe_(cliente, limpiarNombre_(p.marca)) : cliente;
@@ -124,13 +128,10 @@ function carpetaRecepcionServidor_(p) {
 
 function prepararCarpetasRecepcionServidor_(p){
   if(p.embarques&&(!Array.isArray(p.embarques)||p.embarques.length>512))throw new Error('Embarques no válidos.');
-  var recepcion=carpetaRecepcionServidor_(p);
   (p.embarques||[]).forEach(function(e){
     if(typeof e!=='string'||!e.trim()||e.length>110)throw new Error('Embarque no válido.');
-    var embarque=carpetaDe_(recepcion,limpiarNombre_(e));
-    ['SOBRANTES','FALTANTES','PNC','BULTOS','PRE-INGRESO','FOTOS-FINALES','PANORAMICAS','PRODUCTOS'].forEach(function(n){carpetaDe_(embarque,n);});
   });
-  return recepcion;
+  return carpetaRecepcionServidor_(p,false);
 }
 
 function carpetaEvidenciaServidor_(recepcion, p) {

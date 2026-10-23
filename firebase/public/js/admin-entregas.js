@@ -1,8 +1,8 @@
-import {verImagen} from './visor-imagen.js?v=20261023-66';
-import {abrirCorreo} from './correo-redactado.js?v=20261023-66';
-import {pedir} from './local.js?v=20261023-66';
-import {pedirDatos,confirmar} from './modal.js?v=20261023-66';
-import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261023-66';
+import {verImagen} from './visor-imagen.js?v=20261023-67';
+import {abrirCorreo} from './correo-redactado.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-67';
+import {pedirDatos,confirmar} from './modal.js?v=20261023-67';
+import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261023-67';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});
@@ -15,7 +15,7 @@ export async function revisarDrive(codigo, aviso, operativo=false) {
   const d = document.createElement('dialog'); d.className='modal';
   d.innerHTML=`<h3>Fotos y carpetas · ${esc(codigo)}</h3><p class="guia-modal">Puedes consultar las imágenes guardadas antes de cerrar la recepción, aunque su carpeta Drive siga pendiente. Verificar carpetas y copiar fotos no envía el informe por correo.</p><div data-estado role="status">Consultando fotos…</div>
     <details open><summary>Archivos y carpetas en tiempo real</summary><input data-filtro-archivos placeholder="Filtrar por SKU, nombre o carpeta" aria-label="Filtrar archivos"><div data-tabla-archivos class="tabla-env"></div></details><p data-resultado role="status"></p><div class="modal-acciones"><button class="b-sec" data-actualizar>Actualizar</button>
-    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Verificar y crear carpetas'}</button><button class="b-sec" data-mi-cuenta>Copiar pendientes desde mi cuenta</button><a class="b-sec" href="./cuenta.html">Configurar mi conexión Google</a><button class="b-sec" data-cerrar>Cerrar</button></div>`;
+    <button class="b-primario" data-preparar>${operativo?'Reintentar fotos pendientes':'Comprobar Drive y reintentar fotos'}</button><button class="b-sec" data-mi-cuenta>Copiar pendientes desde mi cuenta</button><a class="b-sec" href="./cuenta.html">Configurar mi conexión Google</a><button class="b-sec" data-cerrar>Cerrar</button></div>`;
   document.body.append(d); d.showModal();
   const ruta='/recepciones/'+encodeURIComponent(codigo)+'/drive'; let ocupado=false;
   const actualizar = async () => {
@@ -23,7 +23,7 @@ export async function revisarDrive(codigo, aviso, operativo=false) {
     try {
       const r=await operacion(ruta), s=r.sincronizacion, destino=r.destino || r.destinoOperativo || {};
       d.querySelector('[data-estado]').innerHTML=`<p><b>${s.copiadas} de ${s.guardadas} fotos confirmadas en Drive</b> · ${s.pendientes} pendientes · ${s.procesando} en proceso.</p>
-        ${!r.carpetas?.length?`<p class="msg warn">Todavía no hay una carpeta Drive confirmada para esta recepción. ${s.guardadas?'Usa Vista previa en la tabla para consultar las fotos guardadas. Revisa los avisos de la conexión responsable antes de reintentar.':'Aún no hay fotos guardadas. Puedes cargarlas desde Bultos y fotos o verificar y crear las carpetas.'}</p>`:''}
+        ${!r.carpetas?.length?`<p class="msg warn">Todavía no hay una carpeta Drive confirmada para esta recepción. ${s.guardadas?'Usa Vista previa en la tabla para consultar las fotos guardadas. Revisa los avisos de la conexión responsable antes de reintentar.':'Aún no hay fotos guardadas. Al copiar la primera foto se creará únicamente su carpeta; elige el destino desde Bultos y fotos.'}</p>`:''}
         <p>Cuenta responsable: <b>${esc(destino.supervisor || 'Sin configurar')}</b><br>Ruta: ${esc([destino.cliente,destino.marca,codigo].filter(Boolean).join(' / '))}</p>
         <p>${destino.carpetaRaiz ? enlace('https://drive.google.com/drive/folders/'+destino.carpetaRaiz,'Abrir carpeta raíz configurada') : 'Carpeta raíz: se usa CARPETA_EVIDENCIAS del puente Google.'}</p>
         ${(r.carpetas || []).map(u=>`<p>${enlace(u,'Abrir carpeta de la recepción')}</p>`).join('')}

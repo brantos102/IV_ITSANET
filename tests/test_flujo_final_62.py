@@ -54,26 +54,26 @@ def test_marca_y_avisos_depot_separados_del_correo_externo(cliente,db):
 
 def test_carpetas_se_encolan_al_crear_y_al_cargar_embarques_sin_google(cliente,db):
     c=preparar(cliente,db);f=db.get(AppConfig,carpetas.clave(c))
-    assert f.datos['estado']=='PENDIENTE' and f.datos['embarques']==['RB-A','RB-B']
+    assert f.datos['estado']=='BAJO_DEMANDA' and f.datos['embarques']==['RB-A','RB-B']
     assert db.query(AppArchivo).count()==0 and db.query(AppEntrega).count()==0
 
 
-def test_carpetas_preparadas_confirmadas_una_vez_sin_fotos_ni_correo(cliente,db,monkeypatch):
+def test_preparaciones_antiguas_no_crean_carpetas_sin_fotos_ni_correo(cliente,db,monkeypatch):
     c=preparar(cliente,db);llamadas=[]
-    monkeypatch.setattr(entregas,'configurado',lambda *a:True)
+    f=db.get(AppConfig,carpetas.clave(c));f.datos={**f.datos,'estado':'PENDIENTE'};db.commit()
     def google(op,k,p):
         llamadas.append((op,p));assert p['embarques']==['RB-A','RB-B']
         return {'capacidades':['carpetasRecepcion62']} if op=='estado' else {'carpeta':'https://drive.google.com/drive/folders/recepcion62'}
     monkeypatch.setattr(entregas,'llamar',google)
     assert carpetas.procesar_uno(db);assert not carpetas.procesar_uno(db)
-    assert [op for op,_ in llamadas]==['estado','prepararCarpeta']
-    assert db.get(AppConfig,carpetas.clave(c)).datos['estado']=='LISTA'
+    assert llamadas==[]
+    assert db.get(AppConfig,carpetas.clave(c)).datos['estado']=='BAJO_DEMANDA'
     assert db.query(AppArchivo).count()==0
 
 
 def test_buzon_y_carpeta_fallidos_conservan_tarea_y_registros(cliente,db,monkeypatch):
     c=preparar(cliente,db);monkeypatch.setattr(entregas,'configurado',lambda *a:False)
-    assert carpetas.procesar_uno(db);f=db.get(AppConfig,carpetas.clave(c));assert f.datos['estado']=='PENDIENTE'
+    assert not carpetas.procesar_uno(db);f=db.get(AppConfig,carpetas.clave(c));assert f.datos['estado']=='BAJO_DEMANDA'
     assert m.obtener(db,c).estado=='ABIERTA' and not carpetas.procesar_uno(db)
 
 

@@ -1,9 +1,9 @@
-import {iniciarAyudas} from './ayudas-operativas.js?v=20261023-66';
-import {pedir} from './local.js?v=20261023-66';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261023-66';
-import {mostrarAviso} from './notificaciones.js?v=20261023-66';
-import {abrirEtiqueta} from './etiquetas.js?v=20261023-66';
-import {iniciarAvisosOperativos} from './avisos-operativos.js?v=20261023-66';
+import {iniciarAyudas} from './ayudas-operativas.js?v=20261023-67';
+import {pedir} from './local.js?v=20261023-67';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261023-67';
+import {mostrarAviso} from './notificaciones.js?v=20261023-67';
+import {abrirEtiqueta} from './etiquetas.js?v=20261023-67';
+import {iniciarAvisosOperativos} from './avisos-operativos.js?v=20261023-67';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let avanceActual=null, liberarBarra=()=>{};
 export function publicarAvance(datos){
@@ -21,8 +21,8 @@ export function iniciarBarra({usuario,perfil}){
  nav.innerHTML=`<div class="barra-fila"><details class="nav-menu"><summary>☰ Menú</summary><div class="nav-opciones">${enlaces.map(([href,t])=>`<a href="${esc(href)}"${new URL(href,location.href).pathname===aqui.pathname?' aria-current="page"':''}>${t}</a>`).join('')}</div></details><div class="barra-contexto"><strong>${codigo?'Recepción actual':'Operación ITSANET'}</strong><span>${esc(perfil.rol==='ADMIN'?'Administración':supervisor?'Supervisión':'Operario')}</span></div><details class="barra-utilidades nav-menu"><summary>Herramientas</summary><div class="barra-herramientas nav-opciones"><button class="b-sec" data-etiqueta>▥ Etiqueta por código</button>${codigo&&supervisor?'<button class="b-sec" data-contenedores title="Registrar los contenedores recibidos, rangos de bultos y posición final">Contenedores y bultos</button><button class="b-sec" data-revisar-packing title="Comparar los embarques guardados con las filas originales sin duplicar la recepción">Revisar embarques del Excel</button>':''}${supervisor?'<button class="b-sec" data-catalogo title="Consultar Depot y actualizar el catálogo de productos">↻ Catálogo</button><button class="b-sec" data-pendientes title="Recepciones cerradas con correo pendiente">▣ Entregas <span data-cantidad-pendientes></span></button>':''}</div></details><div class="barra-reloj"><a class="perfil-acceso" href="./cuenta.html" data-avatar title="Mi foto y mi cuenta"></a><time data-reloj title="Hora de Ecuador · reloj del equipo"></time><button class="b-sec" data-tema></button></div></div><div class="avance-encabezado" data-avance hidden><div><strong data-avance-codigo></strong><span data-avance-cifras></span></div><span class="avance-pastel" role="img" aria-label="Avance de referencias verificadas"><b data-avance-porcentaje></b></span></div>`;
  cabecera.after(nav);
  const detenerAvisos=iniciarAvisosOperativos({usuario,perfil,nav,abrirCatalogo});
- nav.querySelector('[data-revisar-packing]')?.addEventListener('click',async()=>{try{const {revisarPackingGuardado}=await import('./revision-packing.js?v=20261023-66');await revisarPackingGuardado(codigo);}catch(e){aviso(e.message,'err');}});
- nav.querySelector('[data-contenedores]')?.addEventListener('click',async()=>{try{const {editarContenedores}=await import('./contenedores.js?v=20261023-66');await editarContenedores(codigo);}catch(e){aviso(e.message,'err');}});
+ nav.querySelector('[data-revisar-packing]')?.addEventListener('click',async()=>{try{const {revisarPackingGuardado}=await import('./revision-packing.js?v=20261023-67');await revisarPackingGuardado(codigo);}catch(e){aviso(e.message,'err');}});
+ nav.querySelector('[data-contenedores]')?.addEventListener('click',async()=>{try{const {editarContenedores}=await import('./contenedores.js?v=20261023-67');await editarContenedores(codigo);}catch(e){aviso(e.message,'err');}});
  nav.querySelector('[data-catalogo]')?.addEventListener('click',()=>abrirCatalogo());
  nav.querySelector('[data-etiqueta]')?.addEventListener('click',()=>etiquetaCatalogo());
  const aviso=(t,tipo,titulo)=>mostrarAviso(document.querySelector('#avisos,#avisos-sesion')||nav,t,tipo,titulo);

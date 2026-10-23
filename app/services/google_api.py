@@ -2,7 +2,7 @@
 import base64
 from app.services import google_cuentas as g, google_drive_api as drive, google_gmail_api as gmail
 
-CAPACIDADES=['correoEditable','correoVerificado','gmailHilos','fotosSkuSimples','fotosAuditables','carpetasRecepcion62','prepararCarpeta']
+CAPACIDADES=['correoEditable','correoVerificado','gmailHilos','fotosSkuSimples','fotosAuditables','carpetasRecepcion62','carpetasBajoDemanda67','prepararCarpeta']
 
 
 def llamar(operacion,clave,p,destino):

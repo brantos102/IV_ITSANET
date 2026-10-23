@@ -14,6 +14,7 @@ Las dos conviven mientras dure la transición: `/api/recepciones` sigue sirviend
 al prototipo y a sus KPIs.
 """
 from __future__ import annotations
+from datetime import date
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, RedirectResponse, Response
@@ -473,6 +474,15 @@ def _traducir(exc: m.ErrorApp) -> HTTPException:
 def listar(max: int = Query(50, ge=1, le=500), mias: bool = False,
            db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
     return m.listar_recepciones(db, max, usuario=_quien(op) if mias else None)
+
+
+@router.get('/recepciones-listado')
+def buscar_listado(texto:str=Query('',max_length=200),estado:str='',desde:date|None=None,hasta:date|None=None,
+                   orden:str='RECIENTES',offset:int=Query(0,ge=0),limite:int=Query(50,ge=1,le=100),mias:bool=False,
+                   db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.recepciones_listado import buscar
+    return buscar(db,usuario=_quien(op) if mias else None,texto=texto,estado=estado,desde=desde,hasta=hasta,
+        orden=orden,offset=offset,limite=limite)
 
 
 @router.get('/recepciones/{codigo}/catalogo-exportacion')

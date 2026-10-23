@@ -1,5 +1,18 @@
 # ITSANET IMS
 
+**Entrega vigente v67 para TI y Reingeniería:** [informe técnico y manuales HTML](docs/entrega-v67/index.html) · [cambios de carpetas y Recepciones](docs/CARPETAS_Y_ENTREGA_TI_67.md).
+
+La operación corporativa usa `/app/`, FastAPI y MySQL; Google central conecta
+Drive y el correo propio de cada supervisor. Apps Script y Firebase permanecen
+como vías de compatibilidad o alternativas. Los apartados históricos de este
+README describen también el prototipo SQLite y no deben utilizarse como inventario
+de producción ni como procedimiento de reinstalación del servidor existente.
+
+En v67 las carpetas se crean al copiar archivos, sin precrear categorías vacías.
+Recepciones muestra fecha/hora original de registro en Ecuador y busca todo el
+histórico con filtros y paginación. El paquete técnico distingue código verificado,
+infraestructura histórica reportada y evidencia productiva pendiente de aceptación.
+
 [Versión 61: correo editable en contexto, prerecepción ordenada y bitácora actualizada con búsqueda](docs/CORREO_EDITABLE_Y_BITACORA_61.md).
 
 [Versión 60: posición final, pallet de novedades, prerecepción y correo con miniaturas](docs/UBICACION_NOVEDADES_Y_PRERECEPCION_60.md) · [Presentación para jefaturas (ZIP)](docs/descargas/ITSANET-presentacion-jefaturas-v60.zip).

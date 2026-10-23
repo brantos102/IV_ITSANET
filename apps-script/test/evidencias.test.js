@@ -59,10 +59,9 @@ test('índice de correo resuelve padres y categorías existentes sin crear ni mo
  assert.equal(r.carpetas.length,3);assert.equal(r.carpetas[1].url,padre.padre.padre.getUrl());assert.equal(r.carpetas[2].url,padre.padre.getUrl());assert.equal(f.padre,padre);assert.equal(e.archivos.size,n);assert.equal(padre.padre.padre.hijos.length,1);assert.equal(padre.padre.padre.padre.hijos.length,1);
  assert.throws(()=>e.g.carpetasCorreoServidor_({carpetaRecepcionId:foto.carpetaRecepcionUrl.split('/').pop(),rutas:[['PNC','SKU1']]}),/inválida/);
 });
-test('v62 crea embarques directos y todas sus carpetas sin duplicar en un reintento',()=>{
+test('v67 verificar no crea recepción, embarques ni categorías vacías',()=>{
  const e=entorno(),p={...e.datos,embarques:['RB63196','RB56223']};const a=e.g.prepararCarpetasRecepcionServidor_(p),b=e.g.prepararCarpetasRecepcionServidor_(p);
- assert.equal(a,b);assert.deepEqual(a.hijos.map(c=>c.nombre),['RB63196','RB56223']);
- for(const emb of a.hijos)assert.deepEqual(emb.hijos.map(c=>c.nombre),['SOBRANTES','FALTANTES','PNC','BULTOS','PRE-INGRESO','FOTOS-FINALES','PANORAMICAS','PRODUCTOS']);
+ assert.equal(a,null);assert.equal(b,null);assert.deepEqual(e.raiz.hijos,[]);
  assert.equal(e.archivos.size,0);
 });
 test('v62 confirma carpetas del embarque directo y conserva accesos anteriores al reubicar',()=>{
@@ -74,9 +73,9 @@ test('v62 confirma carpetas del embarque directo y conserva accesos anteriores a
  const r=e.g.carpetasCorreoServidor_({carpetaRecepcionId:a.carpetaRecepcionUrl.split('/').pop(),rutas:[[],['RB63196'],['RB63196','PNC']]});assert.equal(r.carpetas.length,3);
 });
 test('la carpeta madre de v62 conserva su ID al cambiar marca y rechaza otro código',()=>{
- const e=entorno(),rec=e.g.prepararCarpetasRecepcionServidor_({...e.datos,embarques:['RB1']});
+ const e=entorno();e.g.archivoServidor_(clave,{...e.datos,ruta:['RB1','PNC','SKU1']});const rec=e.g.prepararCarpetasRecepcionServidor_({...e.datos,embarques:['RB1']});
  const misma=e.g.prepararCarpetasRecepcionServidor_({...e.datos,marca:'VW',carpetaRecepcionId:rec.getId(),embarques:['RB1','RB2']});
- assert.equal(misma,rec);assert.deepEqual(rec.hijos.map(c=>c.nombre),['RB1','RB2']);
+ assert.equal(misma,rec);assert.deepEqual(rec.hijos.map(c=>c.nombre),['RB1']);
  assert.throws(()=>e.g.carpetaRecepcionServidor_({...e.datos,carpetaRecepcion:'OTRA',carpetaRecepcionId:rec.getId()}),/no corresponde/);
 });
 console.log(`${pasadas} pasadas, ${falladas} falladas`);process.exitCode=falladas?1:0;
