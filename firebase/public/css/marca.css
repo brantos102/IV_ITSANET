@@ -1,4 +1,7 @@
 .marca { display:flex; align-items:center; gap:8px; }
+/* Conservar validación y teclado decimal, sin controles de incremento. */
+input[type="number"]{appearance:textfield;-moz-appearance:textfield}
+input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .notificacion-flotante{position:fixed;inset:auto 12px auto auto;margin:0!important;width:min(430px,calc(100vw - 24px));max-width:calc(100vw - 24px);box-sizing:border-box;z-index:2147483647;display:flex;gap:12px;align-items:flex-start;overflow:auto;background:var(--surface,#fff);color:var(--primary,#10243a);box-shadow:0 8px 32px #10243a30;border-radius:14px;padding:16px;overflow-wrap:anywhere}
 .notificacion-flotante>div{flex:1;min-width:0}.notificacion-flotante>button{flex:none;border:0;border-radius:8px;background:transparent;color:inherit;min-width:44px;min-height:44px;cursor:pointer;font-size:18px}
 .cierre-ayuda{width:min(720px,96vw)}.cierre-fotos{max-height:35dvh;overflow:auto;overscroll-behavior:contain}.cierre-fotos article{padding:12px;margin:8px 0;border:1px solid var(--border);border-radius:12px;overflow-wrap:anywhere}.cierre-fotos p{margin:6px 0}.cierre-ayuda>.acciones{flex-wrap:wrap;gap:8px}.cierre-ayuda button{min-height:44px}

@@ -19,7 +19,7 @@ def corregir(db, codigo, ident, datos, usuario):
             raise HTTPException(409, 'El identificador corresponde a otra operación.')
         return {'duplicado': True, 'eventoId': nuevo_id, 'anulado': ident}
     e = db.scalar(select(AppEvento).where(AppEvento.id == ident).with_for_update())
-    if not e or e.recepcion != r.codigo or e.tipo not in ('CONTEO', 'NO_ENCONTRADO'):
+    if not e or e.recepcion != r.codigo or e.tipo not in ('CONTEO', 'CERO', 'NO_ENCONTRADO'):
         raise HTTPException(422, 'Selecciona un conteo físico de esta recepción.')
     s = db.scalar(select(AppSku).where(AppSku.recepcion == r.codigo, AppSku.sku == e.sku).with_for_update().execution_options(populate_existing=True))
     if datos.get('contadoEsperado') != s.contado:

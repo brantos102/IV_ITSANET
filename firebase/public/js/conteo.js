@@ -30,13 +30,13 @@
 import {
   doc, collection, runTransaction, increment, serverTimestamp, setDoc,
   query, orderBy, limit, getDocs, arrayUnion,
-} from '../vendor/firebase-sdk.js?v=20261023-68';
-import { db } from './auth.js?v=20261023-68';
-import * as local from './local.js?v=20261023-68';
+} from '../vendor/firebase-sdk.js?v=20261024-69';
+import { db } from './auth.js?v=20261024-69';
+import * as local from './local.js?v=20261024-69';
 import {
   normalizarCodigo, normalizarPallet, normalizarPosicion, palletValido,
   limpiar, aNumero, clavePallet, claveMapa, decodificarPallets, estadoDe,
-} from './datos.js?v=20261023-68';
+} from './datos.js?v=20261024-69';
 
 export class ErrorConteo extends Error {
   constructor(mensaje, codigo = 'ERROR') {
@@ -396,7 +396,7 @@ export async function leerBitacora(recepcionId, max = 60) {
  */
 export function registrosDe(eventos, sku) {
   return eventosActivos(eventos)
-    .filter((e) => e.sku === sku && (!e.tipo || ['CONTEO','NO_ENCONTRADO'].includes(e.tipo)))
+    .filter((e) => e.sku === sku && (!e.tipo || ['CONTEO','CERO','NO_ENCONTRADO'].includes(e.tipo)))
     .map((e) => ({
       id: e.id,
       cantidad: aNumero(e.cantidad, 0),

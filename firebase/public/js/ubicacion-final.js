@@ -1,6 +1,6 @@
-import {pedir} from './local.js?v=20261023-68';
-import {pedirDatos,elegir} from './modal.js?v=20261023-68';
-import {eventosActivos} from './conteo.js?v=20261023-68';
+import {pedir} from './local.js?v=20261024-69';
+import {pedirDatos,elegir} from './modal.js?v=20261024-69';
+import {eventosActivos} from './conteo.js?v=20261024-69';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function asignarUbicacionFinal({recepcion,sku,eventoId,alGuardar}){
  const ruta='/recepciones/'+encodeURIComponent(recepcion),eventos=await pedir(ruta+'/eventos');

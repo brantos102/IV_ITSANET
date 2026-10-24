@@ -1,10 +1,10 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261023-68';
-import {pedirDatos,elegir,confirmar} from './modal.js?v=20261023-68';
-import {eventosActivos} from './conteo.js?v=20261023-68';
+import {pedir,nuevoIdentificador} from './local.js?v=20261024-69';
+import {pedirDatos,elegir,confirmar} from './modal.js?v=20261024-69';
+import {eventosActivos} from './conteo.js?v=20261024-69';
 
 export async function abrirCorreccion({recepcion,sku,contado,origenes=[],incidencias=[],alGuardar,eventoId,posiciones=[]}) {
   const eventos=await pedir(`/recepciones/${encodeURIComponent(recepcion)}/eventos`);
-  const activos=eventosActivos(eventos).filter(e=>e.sku===sku&&['CONTEO','NO_ENCONTRADO'].includes(e.tipo));
+  const activos=eventosActivos(eventos).filter(e=>e.sku===sku&&['CONTEO','CERO','NO_ENCONTRADO'].includes(e.tipo));
   if(!activos.length)throw Error('Este SKU no tiene conteos activos para corregir.');
   const id=eventoId||(activos.length===1?activos[0].id:await elegir({titulo:'¿Qué registro corregir?',opciones:activos.map(e=>({valor:e.id,titulo:`${e.cantidad} u. · ${e.pallet||'Sin pallet'} · ${e.origen||'Sin lista'}`,detalle:`${e.operadorEmail||''} · ${new Date(e.creadoEn).toLocaleString('es-EC',{timeZone:'America/Guayaquil'})}`}))}));
   if(!id)return;const e=activos.find(e=>e.id===id);if(!e)throw Error('El registro cambió; actualiza la pantalla.');

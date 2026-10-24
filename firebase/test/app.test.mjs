@@ -1382,4 +1382,21 @@ await test('502 JSON conserva el diagnóstico específico del puente Google', as
   try{let error;try{await local.pedir('/integraciones/google/probar',{cuerpo:{}});}catch(e){error=e;}eq(error.message,mensaje);eq(error.estado,502);}
   finally{globalThis.fetch=anterior;}
 });
+await test('69: cero declarado usa el libro mayor sin restar unidades previas',async()=>{
+  globalThis.__documentos={
+    'recepciones/C69':{estado:'EN_VALIDACION'},
+    'recepciones/C69/skus/S69':{sku:'S69',esperado:10,contado:6,enPackingList:true,verificado:true},
+  };
+  const r=await conteo.declararNoEncontrado('C69',{uid:'u69',email:'op69@example.test'},
+    {sku:'S69',origen:'PL-A',observacion:'Se revisó la descarga.',idempotencyKey:'cero-prueba-69'});
+  eq(r.cantidadRegistrada,0);eq(r.contado,6);
+  const evento=escrituraDe('eventos/cero-prueba-69'),agregado=escrituraDe('skus/S69');
+  eq(evento.datos.tipo,'CERO');eq(evento.datos.cantidad,0);eq(evento.datos.origen,'PL-A');
+  eq(agregado.datos.contado.__inc,0);eq(agregado.datos.verificado,true);
+});
+await test('69: historial incluye cero con observación y excluye su anulación',()=>{
+  const es=[{id:'cero69',sku:'S69',tipo:'CERO',cantidad:0,observacion:'Se verificó la descarga.'}];
+  eq(conteo.registrosDe(es,'S69').map(e=>[e.id,e.cantidad,e.observacion]),[['cero69',0,'Se verificó la descarga.']]);
+  eq(conteo.registrosDe([...es,{id:'anula69',tipo:'ANULACION',anulaA:'cero69'}],'S69'),[]);
+});
 resumen();

@@ -763,6 +763,17 @@ def anular_conteo(db: Session, codigo: str, usuario: str | None,
         }, usuario)
         calidad.actualizar(db, s)
 
+        if original.tipo == 'CERO':
+            # Retirar la única declaración de cero devuelve el SKU a pendiente;
+            # otros ceros/conteos vigentes conservan su validación y cantidades.
+            movimientos = list(db.scalars(select(AppEvento).where(
+                AppEvento.recepcion == codigo, AppEvento.sku == original.sku
+            ).with_for_update().execution_options(populate_existing=True)))
+            retirados = {e.anula_a for e in movimientos if e.anula_a}
+            s.verificado = any(e.id not in retirados and e.tipo in ('CONTEO', 'CERO', 'NO_ENCONTRADO')
+                and (a_numero(e.cantidad, 0) > 0 or e.tipo in ('CERO', 'NO_ENCONTRADO')) for e in movimientos)
+            s.estado = estado_de(a_numero(s.esperado, 0), a_numero(s.contado, 0), s.verificado)
+
     db.commit() if confirmar else db.flush()
     return {
         "eventoId": compensacion.id, "anulado": original.id, "sku": original.sku,

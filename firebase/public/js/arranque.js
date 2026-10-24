@@ -1,4 +1,12 @@
 /* Aviso independiente de los modulos: un import fallido no deja la pagina vacia. */
+// La cantidad se escribe: rueda y flechas nunca deben añadir/quitar unidades.
+// Delegado para incluir también los campos de los modales creados después.
+document.addEventListener('wheel',e=>{
+  if(e.target?.matches?.('input[type="number"]')&&document.activeElement===e.target)e.preventDefault();
+},{capture:true,passive:false});
+document.addEventListener('keydown',e=>{
+  if(e.target?.matches?.('input[type="number"]')&&['ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();
+},true);
 (() => {
   try {const tema=localStorage.getItem('itsanet.tema');if(['light','dark'].includes(tema))document.documentElement.dataset.theme=tema;} catch {}
   let terminado=false, fallo=false, temporizador;

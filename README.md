@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+**Actualización v69:** [registrar cero desde Guardar conteo y proteger cantidades frente al scroll](docs/CONTEO_CERO_Y_CANTIDADES_69.md).
+
 **Actualización v68:** [informe del ejecutivo con PALLET y posición sin cantidades, y detalle PNC al final](docs/INFORME_EJECUTIVO_PALLET_PNC_68.md).
 
 **Entrega vigente v67 para TI y Reingeniería:** [informe técnico y manuales HTML](docs/entrega-v67/index.html) · [cambios de carpetas y Recepciones](docs/CARPETAS_Y_ENTREGA_TI_67.md).

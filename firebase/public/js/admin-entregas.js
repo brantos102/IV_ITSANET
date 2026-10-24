@@ -1,8 +1,8 @@
-import {verImagen} from './visor-imagen.js?v=20261023-68';
-import {abrirCorreo} from './correo-redactado.js?v=20261023-68';
-import {pedir} from './local.js?v=20261023-68';
-import {pedirDatos,confirmar} from './modal.js?v=20261023-68';
-import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261023-68';
+import {verImagen} from './visor-imagen.js?v=20261024-69';
+import {abrirCorreo} from './correo-redactado.js?v=20261024-69';
+import {pedir} from './local.js?v=20261024-69';
+import {pedirDatos,confirmar} from './modal.js?v=20261024-69';
+import {declararEnviadoManual,cambiarArchivoHistorial} from './gestion-entregas.js?v=20261024-69';
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fecha = e => new Date(e.creadoEn).toLocaleString('es-EC', {timeZone:'America/Guayaquil'});

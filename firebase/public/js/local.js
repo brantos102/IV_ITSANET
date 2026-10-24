@@ -17,7 +17,7 @@
  * borradores y las cantidades pendientes nunca se sustituyen desde el canal.
  */
 
-import {escucharCambiosRecepcion,avisarCambioLocal} from './cambios-recepcion.js?v=20261023-68';
+import {escucharCambiosRecepcion,avisarCambioLocal} from './cambios-recepcion.js?v=20261024-69';
 
 /** Dónde vive la API. Mismo origen que la página: no hay CORS que configurar. */
 export const BASE = '/api/app';
