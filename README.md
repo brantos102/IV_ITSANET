@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Presentación técnica y documento de apoyo para TI / Reingeniería · 27/10/2026](docs/entrega-tecnica-20261027/index.html).
+
 **Actualización v69:** [registrar cero desde Guardar conteo y proteger cantidades frente al scroll](docs/CONTEO_CERO_Y_CANTIDADES_69.md).
 
 **Actualización v68:** [informe del ejecutivo con PALLET y posición sin cantidades, y detalle PNC al final](docs/INFORME_EJECUTIVO_PALLET_PNC_68.md).
