@@ -1,5 +1,7 @@
 # ITSANET IMS
 
+[Expediente formal de entrega a TI: informe, mantenimiento, acta y proyección V2](docs/entrega-final-ti-20261027/index.html).
+
 [Presentación técnica y documento de apoyo para TI / Reingeniería · 27/10/2026](docs/entrega-tecnica-20261027/index.html).
 
 **Actualización v69:** [registrar cero desde Guardar conteo y proteger cantidades frente al scroll](docs/CONTEO_CERO_Y_CANTIDADES_69.md).
