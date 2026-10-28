@@ -9,9 +9,16 @@
   "slideOverflow": [],
   "printOverflow": [],
   "errors": [],
+  "nombreAplicativo": "IV ITSANET (Ingreso & Validación Itsanet)",
+  "revisionDocumental": "1.1",
   "pdfManualPaginas": 38,
   "pdfPresentacionPaginas": 12,
+  "paginasDrawio": 5,
+  "aristasDrawio": 60,
+  "referenciasDrawioValidas": true,
+  "pruebaPercentilesConDatosSinteticos": true,
+  "pruebaComparacionDeTiempos": true,
+  "medicionesProductivasIncluidas": false,
   "tablasPresentesPDF": 30,
-  "camposPresentesPDF": 266,
-  "erroresEditorialesDetectados": false
+  "camposPresentesPDF": 266
 }

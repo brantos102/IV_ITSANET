@@ -1,0 +1,460 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" type="device" version="24.7.17">
+  <diagram name="01 Arquitectura" id="p0">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2200" pageHeight="2200">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="IV ITSANET · Ingreso &amp; Validación Itsanet&#10;Arquitectura lógica de referencia · código v69 · infraestructura recibida el 27/10/2026" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fillColor=#102b46;fontColor=#ffffff;fontSize=20;">
+          <mxGeometry x="30" y="20" width="1800" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="web" value="PC / handheld&#10;HTML · CSS · JavaScript&#10;/app/" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="40" y="180" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="apache" value="Apache2&#10;HTTPS 8443&#10;Virtual host itsanet-app-8443.conf" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="370" y="180" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="Uvicorn :3002&#10;FastAPI / Python&#10;Servicio iv-itsanet" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="700" y="180" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="db" value="SQLAlchemy + PyMySQL&#10;MySQL local 8.0.46&#10;127.0.0.1:3306" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1050" y="180" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="files" value="VAL_DATA_DIR&#10;Originales / miniaturas&#10;Clave externa protegida" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="700" y="420" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="google" value="Google OAuth central&#10;PKCE / tokens cifrados&#10;Autorización de cuenta" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1050" y="420" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="drive" value="Google Drive API&#10;Evidencias / informes&#10;Enlaces confirmados" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1400" y="330" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="gmail" value="Gmail API&#10;Cuenta remitente autorizada&#10;Resultado de envío" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1400" y="530" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="depot" value="Depot HTTPS (si habilitado)&#10;Consulta catálogo / stock&#10;Maestro y caché local" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="370" y="420" width="260" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" value="HTTPS" edge="1" parent="1" source="web" target="apache" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" value="Publicación / API" edge="1" parent="1" source="apache" target="api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" value="Transacciones" edge="1" parent="1" source="api" target="db" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="Archivo operativo" edge="1" parent="1" source="api" target="files" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="OAuth" edge="1" parent="1" source="api" target="google" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="HTTPS" edge="1" parent="1" source="google" target="drive" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" value="HTTPS" edge="1" parent="1" source="google" target="gmail" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" value="Consulta" edge="1" parent="1" source="api" target="depot" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="02 Flujo operativo" id="p1">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2200" pageHeight="2200">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Flujo de trabajo implementado&#10;Ramas de validación y pendientes · diagrama funcional, no transacción única" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fillColor=#102b46;fontColor=#ffffff;fontSize=20;">
+          <mxGeometry x="30" y="20" width="1800" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="inicio" value="Acceso / roles&#10;operadores + sesiones" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="100" y="130" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="rec" value="Recepción / embarques / bultos&#10;app_recepciones + unidades" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="100" y="310" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="packing" value="Cargar packing y conservar líneas&#10;app_lineas / app_huellas" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="100" y="490" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="sku" value="Escanear SKU / revisar presencia&#10;app_skus / app_presencias" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="100" y="670" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="val" value="Validar cantidad / versión / origen&#10;Cero con observación; PNC con cantidad" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;shape=rhombus;">
+          <mxGeometry x="100" y="850" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="count" value="Persistir evento idempotente&#10;app_eventos → proyección app_skus" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="100" y="1030" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="photo" value="Guardar evidencia&#10;archivos.py / app_evidencias" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="100" y="1210" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="queue" value="Cola de copia&#10;app_copias_drive / drive.py" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="750" y="130" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="confirm" value="¿Drive confirmó contenido y destino?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;shape=rhombus;">
+          <mxGeometry x="750" y="310" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="report" value="Preparar / revisar informes&#10;app_informes · versión y huella" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="750" y="490" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="send" value="Seleccionar nombres y adjuntos&#10;gestion.py → entregas.py" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="750" y="670" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="sent" value="¿Gmail confirmó la entrega?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;shape=rhombus;">
+          <mxGeometry x="750" y="850" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="fin" value="Resultado / auditoría / actualización&#10;app_entregas · app_auditoria_general" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="750" y="1030" width="430" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="" edge="1" parent="1" source="inicio" target="rec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="" edge="1" parent="1" source="rec" target="packing" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" value="" edge="1" parent="1" source="packing" target="sku" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" value="" edge="1" parent="1" source="sku" target="val" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" value="Sí / continuar" edge="1" parent="1" source="val" target="count" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" value="" edge="1" parent="1" source="count" target="photo" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" value="" edge="1" parent="1" source="photo" target="queue" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" value="" edge="1" parent="1" source="queue" target="confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" value="Sí / continuar" edge="1" parent="1" source="confirm" target="report" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e25" value="" edge="1" parent="1" source="report" target="send" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e26" value="" edge="1" parent="1" source="send" target="sent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e27" value="Sí / continuar" edge="1" parent="1" source="sent" target="fin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="retry" value="Pendiente / revisión&#10;Conservar identidad, revisar error&#10;Reintento controlado" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1370" y="350" width="350" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="e29" value="No" edge="1" parent="1" source="confirm" target="retry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e30" value="Tras resolver" edge="1" parent="1" source="retry" target="queue" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="mailretry" value="Sin confirmación&#10;Revisar entrega y Enviados&#10;Evitar duplicación" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1370" y="820" width="350" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="e32" value="No" edge="1" parent="1" source="sent" target="mailretry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conflict" value="Error / conflicto&#10;Revisar versión y corregir datos&#10;No aceptar una escritura obsoleta" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="750" y="1500" width="430" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="e34" value="No" edge="1" parent="1" source="val" target="conflict" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e35" value="Revisar" edge="1" parent="1" source="conflict" target="sku" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="03 Modelo relacional" id="p2">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2200" pageHeight="2200">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="30 tablas declaradas&#10;Claves externas extraídas de app/models.py · no es inspección del esquema productivo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fillColor=#102b46;fontColor=#ffffff;fontSize=20;">
+          <mxGeometry x="30" y="20" width="1800" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="operadores" value="operadores&#10;PK: id&#10;Identidad, hash de credencial, rol, habilitación y firma de registros.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="30" y="130" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="sesiones" value="sesiones&#10;PK: token&#10;Sesiones locales y vencimiento; referencia al operador.&#10;operador_id → operadores.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="430" y="130" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="productos" value="productos&#10;PK: sku&#10;Maestro de productos y estado de verificación del catálogo.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="830" y="130" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="producto_codigos" value="producto_codigos&#10;PK: codigo&#10;Códigos alternativos asociados al SKU del maestro.&#10;sku → productos.sku" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="1230" y="130" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="recepciones" value="recepciones&#10;PK: id&#10;Cabecera del modelo inicial de recepción; compatibilidad.&#10;creado_por_id → operadores.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="1630" y="130" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="packing_items" value="packing_items&#10;PK: id&#10;Líneas del packing del modelo inicial; compatibilidad.&#10;recepcion_id → recepciones.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="30" y="460" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="pallets" value="pallets&#10;PK: id&#10;Pallets del modelo inicial; compatibilidad.&#10;recepcion_id → recepciones.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="430" y="460" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="scan_events" value="scan_events&#10;PK: id&#10;Eventos del modelo inicial; compatibilidad.&#10;recepcion_id → recepciones.id&#10;operador_id → operadores.id&#10;evento_ref_id → scan_events.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="830" y="460" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="skus_pendientes" value="skus_pendientes&#10;PK: id&#10;Productos por resolver del modelo inicial; compatibilidad.&#10;recepcion_id → recepciones.id&#10;detectado_por_id → operadores.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="1230" y="460" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="auditoria" value="auditoria&#10;PK: id&#10;Auditoría del modelo inicial; compatibilidad.&#10;recepcion_id → recepciones.id&#10;operador_id → operadores.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#fff4dc;">
+          <mxGeometry x="1630" y="460" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_recepciones" value="app_recepciones&#10;PK: codigo&#10;Cabecera operativa, cliente, bultos, estado, fechas, orígenes y embarques.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="30" y="790" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_lineas" value="app_lineas&#10;PK: id&#10;Líneas originales del packing, orden, SKU, cantidad y columnas adicionales.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="430" y="790" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_skus" value="app_skus&#10;PK: id&#10;Proyección de esperado/contado y distribución por pallet y origen.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="830" y="790" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_calidad_skus" value="app_calidad_skus&#10;PK: sku_id&#10;Clasificación y datos de calidad relacionados con el SKU operativo.&#10;sku_id → app_skus.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1230" y="790" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_presencias" value="app_presencias&#10;PK: recepcion, dispositivo&#10;Operador/dispositivo activo y última actividad dentro de una recepción.&#10;recepcion → app_recepciones.codigo&#10;operador_id → operadores.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1630" y="790" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_informes" value="app_informes&#10;PK: id&#10;Versiones de informe, tipo, huella de datos, estado y autoría.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="30" y="1120" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_auditoria_general" value="app_auditoria_general&#10;PK: id&#10;Acciones generales, referencias y datos de auditoría del aplicativo.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="430" y="1120" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_eventos" value="app_eventos&#10;PK: id&#10;Libro de eventos operativos: conteos, cero, anulaciones y motivos.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="830" y="1120" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_huellas" value="app_huellas&#10;PK: id&#10;Huellas del packing para reconocer contenido previamente cargado.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1230" y="1120" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_archivos" value="app_archivos&#10;PK: id&#10;Metadatos de archivos, SHA-256, tamaño y referencias confirmadas de Drive.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1630" y="1120" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_archivo_identidades" value="app_archivo_identidades&#10;PK: archivo_id&#10;Secuencia y procedencia de fotografías, independientes del ID remoto.&#10;archivo_id → app_archivos.id&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="30" y="1450" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_archivo_skus" value="app_archivo_skus&#10;PK: archivo_id, sku&#10;Relación entre un archivo y uno o varios SKU sin duplicar su contenido.&#10;archivo_id → app_archivos.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="430" y="1450" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_config" value="app_config&#10;PK: clave&#10;Configuraciones, reservas de identidad y credenciales de integración cifradas.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="830" y="1450" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_entregas" value="app_entregas&#10;PK: id&#10;Cola durable de entregas, instantánea de datos, intentos y resultado.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1230" y="1450" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_ingresos" value="app_ingresos&#10;PK: recepcion&#10;Datos complementarios del ingreso asociados a la recepción.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1630" y="1450" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_unidades_logisticas" value="app_unidades_logisticas&#10;PK: id&#10;Bultos/cajas y relación jerárquica padre-hijo.&#10;recepcion → app_recepciones.codigo&#10;padre_id → app_unidades_logisticas.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="30" y="1780" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_evidencias" value="app_evidencias&#10;PK: id&#10;Vínculo archivo-recepción-SKU-unidad-categoría y eliminación lógica.&#10;archivo_id → app_archivos.id&#10;recepcion → app_recepciones.codigo&#10;unidad_id → app_unidades_logisticas.id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="430" y="1780" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_copias_drive" value="app_copias_drive&#10;PK: archivo_id&#10;Cola y estado de copia a Drive, intentos, próximo intento y error.&#10;archivo_id → app_archivos.id&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="830" y="1780" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_stock_depot" value="app_stock_depot&#10;PK: sku, cliente&#10;Caché de posiciones de stock por SKU y cliente.&#10;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1230" y="1780" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="app_impresiones" value="app_impresiones&#10;PK: id&#10;Trabajos de impresión, estación, reserva y seguimiento de estado.&#10;recepcion → app_recepciones.codigo" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fontSize=12;align=left;fillColor=#f0faf4;">
+          <mxGeometry x="1630" y="1780" width="360" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="e33" value="operador_id" edge="1" parent="1" source="sesiones" target="operadores" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e34" value="sku" edge="1" parent="1" source="producto_codigos" target="productos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e35" value="creado_por_id" edge="1" parent="1" source="recepciones" target="operadores" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e36" value="recepcion_id" edge="1" parent="1" source="packing_items" target="recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e37" value="recepcion_id" edge="1" parent="1" source="pallets" target="recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e38" value="recepcion_id" edge="1" parent="1" source="scan_events" target="recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e39" value="operador_id" edge="1" parent="1" source="scan_events" target="operadores" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e40" value="evento_ref_id" edge="1" parent="1" source="scan_events" target="scan_events" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e41" value="recepcion_id" edge="1" parent="1" source="skus_pendientes" target="recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e42" value="detectado_por_id" edge="1" parent="1" source="skus_pendientes" target="operadores" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e43" value="recepcion_id" edge="1" parent="1" source="auditoria" target="recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e44" value="operador_id" edge="1" parent="1" source="auditoria" target="operadores" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e45" value="recepcion" edge="1" parent="1" source="app_lineas" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e46" value="recepcion" edge="1" parent="1" source="app_skus" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e47" value="sku_id" edge="1" parent="1" source="app_calidad_skus" target="app_skus" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e48" value="recepcion" edge="1" parent="1" source="app_presencias" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e49" value="operador_id" edge="1" parent="1" source="app_presencias" target="operadores" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e50" value="recepcion" edge="1" parent="1" source="app_informes" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e51" value="recepcion" edge="1" parent="1" source="app_eventos" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e52" value="recepcion" edge="1" parent="1" source="app_archivos" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e53" value="archivo_id" edge="1" parent="1" source="app_archivo_identidades" target="app_archivos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e54" value="recepcion" edge="1" parent="1" source="app_archivo_identidades" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e55" value="archivo_id" edge="1" parent="1" source="app_archivo_skus" target="app_archivos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e56" value="recepcion" edge="1" parent="1" source="app_entregas" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e57" value="recepcion" edge="1" parent="1" source="app_ingresos" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e58" value="recepcion" edge="1" parent="1" source="app_unidades_logisticas" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e59" value="padre_id" edge="1" parent="1" source="app_unidades_logisticas" target="app_unidades_logisticas" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e60" value="archivo_id" edge="1" parent="1" source="app_evidencias" target="app_archivos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e61" value="recepcion" edge="1" parent="1" source="app_evidencias" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e62" value="unidad_id" edge="1" parent="1" source="app_evidencias" target="app_unidades_logisticas" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e63" value="archivo_id" edge="1" parent="1" source="app_copias_drive" target="app_archivos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e64" value="recepcion" edge="1" parent="1" source="app_copias_drive" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e65" value="recepcion" edge="1" parent="1" source="app_impresiones" target="app_recepciones" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="04 Estructura del código" id="p3">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2200" pageHeight="2200">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Código y responsabilidades&#10;Estructura principal del repositorio · rutas verificadas en código" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fillColor=#102b46;fontColor=#ffffff;fontSize=20;">
+          <mxGeometry x="30" y="20" width="1800" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="src00" value="app/main.py&#10;Arranque FastAPI y /app/" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="60" y="150" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src01" value="app/config.py + db.py&#10;Configuración / motor / sesiones" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="580" y="150" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src02" value="app/models.py&#10;Modelo relacional de 30 tablas" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1100" y="150" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src10" value="app/routers/&#10;API, autenticación y autorización" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="60" y="350" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src11" value="app/services/app_modelo.py&#10;Proyección de operación" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="580" y="350" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src12" value="app/services/calidad.py&#10;Clasificación PNC" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1100" y="350" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src20" value="app/services/archivos.py&#10;Bytes, metadatos y miniaturas" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="60" y="550" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src21" value="app/services/drive.py&#10;Cola durable y recuperación" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="580" y="550" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src22" value="google_drive_api.py&#10;Identidad remota y checksum" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1100" y="550" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src30" value="google_cuentas.py&#10;OAuth / tokens" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="60" y="750" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src31" value="google_gmail_api.py&#10;Consulta / envío autorizado" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="580" y="750" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src32" value="app/services/entregas.py&#10;Instantánea y cola de entrega" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1100" y="750" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src40" value="firebase/public/&#10;HTML / CSS / JS / service worker" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="60" y="950" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src41" value="scripts/&#10;Actualizador / respaldo / diagnóstico" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="580" y="950" width="440" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="src42" value="tests/&#10;Verificación en entorno aislado" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="1100" y="950" width="440" height="130" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="05 Evidencias y carpetas" id="p4">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="2200" pageHeight="2200">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Evidencias: servidor y Drive&#10;Segmentos opcionales y rutas materializadas al subir · conservar referencias históricas" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fillColor=#102b46;fontColor=#ffffff;fontSize=20;">
+          <mxGeometry x="30" y="20" width="1800" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="local" value="VAL_DATA_DIR&#10;app_archivos/ID&#10;app_miniaturas/ID&#10;secretos/integraciones.key" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="40" y="140" width="350" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="metadata" value="MySQL&#10;app_archivos / app_evidencias&#10;app_archivo_skus / identidades&#10;app_copias_drive" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;">
+          <mxGeometry x="470" y="140" width="400" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="Identidad y estado" edge="1" parent="1" source="local" target="metadata" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tree" value="CARPETA_RAIZ / CLIENTE / MARCA / RECEPCION&#10;&#10;INFORMES&#10;EMBARQUE (si aplica)&#10;  PRE-INGRESO&#10;  PANORAMICAS&#10;  FOTOS-FINALES&#10;  BULTOS / Bulto… / Caja…&#10;  PRODUCTOS / SKU&#10;  PNC / SKU&#10;  SOBRANTES / SKU&#10;  FALTANTES / SKU&#10;&#10;COMPARTIDAS / POR-ASIGNAR según asignación&#10;OTRAS-EVIDENCIAS como categoría alternativa" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;align=left;">
+          <mxGeometry x="1000" y="140" width="700" height="600" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="OAuth → copiar → confirmar" edge="1" parent="1" source="metadata" target="tree" style="edgeStyle=orthogonalEdgeStyle;rounded=0;endArrow=block;html=0;strokeColor=#6b8199;fontSize=11;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rules" value="La preparación consulta; la subida crea la ruta utilizada.&#10;Una carga fallida puede dejar una ruta vacía.&#10;Multi-SKU / multi-destino: accesos directos al archivo.&#10;El nombre de la carpeta no sustituye cantidad/PNC/pallet.&#10;Respaldo local no sustituye retención de Drive." vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#eef4ff;strokeColor=#225de2;fontColor=#172b45;fontSize=14;spacing=12;fillColor=#fff4dc;">
+          <mxGeometry x="40" y="430" width="800" height="230" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
