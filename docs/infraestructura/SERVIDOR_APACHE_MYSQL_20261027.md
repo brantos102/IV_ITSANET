@@ -52,10 +52,11 @@ Apache es distinto de intentar que un segundo servidor escuche ese mismo puerto.
 8080 en el contenedor activo; el detenido `jovial_heyrovsky` tiene PortBindings
 vacío y red bridge. Esto no reserva 3003 ni descarta configuraciones ajenas a Docker.
 
-`pm2-root.service` está habilitado y no figuró en el listado previo de servicios
-en ejecución: revisar estado y aplicaciones/configuración persistidas antes de
-asignar el puerto. Evitar ejecutar comandos PM2 que puedan iniciar su daemon como
-parte de una auditoría de solo lectura.
+`pm2-root.service` está habilitado. La consulta posterior compartida de
+`systemctl show` confirmó `ActiveState=inactive`, `SubState=dead` y el archivo
+`/etc/systemd/system/pm2-root.service`. No está ejecutando aplicaciones en esa
+captura; revisar configuraciones persistidas antes de asignar definitivamente
+el puerto. Evitar comandos PM2 que puedan iniciar su daemon durante la auditoría.
 
 ## Criterio para el nuevo sistema
 
@@ -70,5 +71,5 @@ UFW está inactivo, pero existen reglas nftables gestionadas por Docker. No vaci
 esas reglas ni inferir acceso externo a partir de un listener. Revisar conectividad
 real desde la red usuaria y políticas de red antes de publicar el nuevo sistema.
 
-Pendientes: sistema a migrar, tecnología/requisitos, estado/configuración de PM2,
+Pendientes: sistema a migrar, tecnología/requisitos, configuración persistida de PM2,
 reserva definitiva de puerto, publicación y capacidad bajo carga representativa.
