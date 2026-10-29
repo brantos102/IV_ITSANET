@@ -1,0 +1,4403 @@
+{
+  "versionFrontend": "20261024-69",
+  "fecha": "2026-10-29",
+  "zonaHoraria": "America/Guayaquil",
+  "alcance": "Inventario estático del código de referencia v69. No es una consulta al servidor productivo.",
+  "tablas": [
+    {
+      "modelo": "Operador",
+      "tabla": "operadores"
+    },
+    {
+      "modelo": "Sesion",
+      "tabla": "sesiones"
+    },
+    {
+      "modelo": "Producto",
+      "tabla": "productos"
+    },
+    {
+      "modelo": "ProductoCodigo",
+      "tabla": "producto_codigos"
+    },
+    {
+      "modelo": "Recepcion",
+      "tabla": "recepciones"
+    },
+    {
+      "modelo": "PackingItem",
+      "tabla": "packing_items"
+    },
+    {
+      "modelo": "Pallet",
+      "tabla": "pallets"
+    },
+    {
+      "modelo": "ScanEvent",
+      "tabla": "scan_events"
+    },
+    {
+      "modelo": "SkuPendiente",
+      "tabla": "skus_pendientes"
+    },
+    {
+      "modelo": "Auditoria",
+      "tabla": "auditoria"
+    },
+    {
+      "modelo": "AppRecepcion",
+      "tabla": "app_recepciones"
+    },
+    {
+      "modelo": "AppLinea",
+      "tabla": "app_lineas"
+    },
+    {
+      "modelo": "AppSku",
+      "tabla": "app_skus"
+    },
+    {
+      "modelo": "AppCalidadSku",
+      "tabla": "app_calidad_skus"
+    },
+    {
+      "modelo": "AppPresencia",
+      "tabla": "app_presencias"
+    },
+    {
+      "modelo": "AppInforme",
+      "tabla": "app_informes"
+    },
+    {
+      "modelo": "AppAuditoriaGeneral",
+      "tabla": "app_auditoria_general"
+    },
+    {
+      "modelo": "AppEvento",
+      "tabla": "app_eventos"
+    },
+    {
+      "modelo": "AppHuella",
+      "tabla": "app_huellas"
+    },
+    {
+      "modelo": "AppArchivo",
+      "tabla": "app_archivos"
+    },
+    {
+      "modelo": "AppArchivoIdentidad",
+      "tabla": "app_archivo_identidades"
+    },
+    {
+      "modelo": "AppArchivoSku",
+      "tabla": "app_archivo_skus"
+    },
+    {
+      "modelo": "AppConfig",
+      "tabla": "app_config"
+    },
+    {
+      "modelo": "AppEntrega",
+      "tabla": "app_entregas"
+    },
+    {
+      "modelo": "AppIngreso",
+      "tabla": "app_ingresos"
+    },
+    {
+      "modelo": "AppUnidadLogistica",
+      "tabla": "app_unidades_logisticas"
+    },
+    {
+      "modelo": "AppEvidencia",
+      "tabla": "app_evidencias"
+    },
+    {
+      "modelo": "AppCopiaDrive",
+      "tabla": "app_copias_drive"
+    },
+    {
+      "modelo": "AppStockDepot",
+      "tabla": "app_stock_depot"
+    },
+    {
+      "modelo": "AppImpresion",
+      "tabla": "app_impresiones"
+    }
+  ],
+  "rutas": [
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/recepciones/{codigo}/eventos/{ident}/posicion",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "asignar_posicion_final"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/estado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "estado_local"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/entregas",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "listar_entregas"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/manual-confirmado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "confirmar_manual"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/historial",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "archivar_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/entregas",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "entregas_recepcion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/destinatarios-recientes",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "destinatarios_recientes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/remitentes",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "remitentes_recepcion"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/comprobar-envio",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "comprobar_envio"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/reintentar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "reintentar_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/entregas/{ident}/recuperar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "vista_recuperar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/recuperar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "recuperar_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/entregas/{ident}/solicitar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "vista_solicitar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/solicitar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "solicitar_envio"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/entregas/{ident}/cancelar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cancelar_entrega"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/entrega",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cerrar_con_entrega"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/config/csv",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "leer_csv"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/config/csv",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "guardar_csv"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/archivos/{tipo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "subir_archivo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/imagenes",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "imagenes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/archivos/{archivo_id}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "archivo_local"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones-listado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "buscar_listado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/catalogo-exportacion",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "catalogo_exportacion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/codigos-barras",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "codigos_de_recepcion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones-abiertas/por-codigo/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "buscar_en_recepciones"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "crear"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "una"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/app/recepciones/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "borrar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/{coleccion}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "subcoleccion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/estado-sku/{sku}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "estado_sku"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/packing-list",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cargar_packing_list"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/packing-lists/parecidos",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "parecidos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/conteos",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "contar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/no-encontrado",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "no_encontrado"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/conteos/{evento_id}/anular",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "anular"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/auditoria",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "auditar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/recepciones/{codigo}/skus/{sku}/recalcular",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "recalcular"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/cerrar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "cerrar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/recepciones/{codigo}/reabrir",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "reabrir"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/catalogo/{codigo}",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "catalogo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/catalogo/{codigo}/equivalencia",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "equivalencia"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/catalogo/codigos/importar",
+      "fuente": "app/routers/app_api.py",
+      "funcion": "importar_codigos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/login",
+      "fuente": "app/routers/auth.py",
+      "funcion": "login"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/logout",
+      "fuente": "app/routers/auth.py",
+      "funcion": "logout"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/yo",
+      "fuente": "app/routers/auth.py",
+      "funcion": "yo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/entorno",
+      "fuente": "app/routers/auth.py",
+      "funcion": "entorno_publico"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/auth/perfil/foto",
+      "fuente": "app/routers/auth.py",
+      "funcion": "foto_propia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/operadores/{operador_id}/foto",
+      "fuente": "app/routers/auth.py",
+      "funcion": "foto_perfil"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/clave",
+      "fuente": "app/routers/auth.py",
+      "funcion": "cambiar_clave"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/operadores/{operador_id}/restablecer-clave",
+      "fuente": "app/routers/auth.py",
+      "funcion": "restablecer_clave"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/registro",
+      "fuente": "app/routers/auth.py",
+      "funcion": "registro"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/operadores",
+      "fuente": "app/routers/auth.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/auth/operadores",
+      "fuente": "app/routers/auth.py",
+      "funcion": "crear"
+    },
+    {
+      "metodo": "PATCH",
+      "ruta": "/api/auth/operadores/{operador_id}",
+      "fuente": "app/routers/auth.py",
+      "funcion": "actualizar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/cambios/estado",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/cambios/estado",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/cambios",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "escuchar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/cambios",
+      "fuente": "app/routers/cambios_recepcion.py",
+      "funcion": "escuchar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/estado",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/buscar",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "buscar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/catalogo/maestro",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "cargar_maestro"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/depot/probar",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "probar_depot"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/catalogo/depot/sincronizar",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "sincronizar_depot"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/catalogo/depot/clientes",
+      "fuente": "app/routers/catalogo.py",
+      "funcion": "clientes_depot"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/revisar-packing",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "revisar_packing"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/revisar-packing",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "corregir_lectura_packing"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/contenedores",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "contenedores_vista"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/contenedores",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "contenedores_guardar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_vista"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo/enlaces-drive",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "actualizar_enlaces_correo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/correos-embarques",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "plan_correos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correos-embarques/vista",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "vista_plan_correos"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/correos-embarques",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "guardar_plan_correos"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_guardar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo/enviar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_enviar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/correo/manual",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "correo_manual"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/almacenamiento",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "almacenamiento"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/almacenamiento/compactar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "compactar_entregas"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/clientes-operacion",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "clientes_operacion"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/clientes-fichas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "editar_cliente_ficha"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/operacion/clientes-fichas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "eliminar_cliente_ficha"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/clientes-operacion/{nombre:path}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "guardar_cliente_operativo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/eventos/{ident}/corregir",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "corregir_conteo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/conteos-repartidos",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "repartir_conteo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/politicas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "politicas"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/politicas",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "guardar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/reglas/{cliente:path}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "reglas"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/sku-en-curso",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "sku_en_curso"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/presencia",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "presencia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/equipo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "equipo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/eventos/{ident}/calidad",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "corregir_calidad"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/informe-metadatos",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "metadatos_informe"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/pendientes-cierre",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "pendientes_cierre"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive/reintentar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "reintentar_drive"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/informes",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "historial_informes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/informe-actual",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "informe_actual"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/informes/{ident}/descarga",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "descargar_conjunto"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/informes",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "reservar_informe"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/informes/{ident}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "archivar_informe"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/informes/{ident}/archivos/{archivo_id}",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "descargar_informe"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/columnas-informe",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "columnas_informe"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/edicion",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "edicion_recepcion"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/edicion",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "editar_recepcion"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/embarques/{origen}/retirar",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "retirar_embarque"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/cierre-externo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "vista_cierre_externo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/cierre-externo",
+      "fuente": "app/routers/gestion.py",
+      "funcion": "registrar_cierre_externo"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/metodos",
+      "fuente": "app/routers/google_auth.py",
+      "funcion": "metodos"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/iniciar",
+      "fuente": "app/routers/google_auth.py",
+      "funcion": "iniciar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/callback",
+      "fuente": "app/routers/google_auth.py",
+      "funcion": "callback"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/operacion/estado",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/operacion/iniciar",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "iniciar"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/auth/google/operacion/cuenta",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "desconectar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/google/operacion/config",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "config"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/auth/google/operacion/config",
+      "fuente": "app/routers/google_operacion.py",
+      "funcion": "guardar_config"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/impresion/recepciones/{codigo}/bultos",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "etiquetas_bultos_estado"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/recepciones/{codigo}/bultos",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "etiquetas_bultos_generar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/estaciones/{ident}/token",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "token_agente"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/trabajos",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "solicitar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/impresion/trabajos/{ident}",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "trabajo"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/agente/{ident}/siguiente",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "siguiente"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/impresion/agente/{ident}/confirmar",
+      "fuente": "app/routers/impresion.py",
+      "funcion": "confirmar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "estado"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/depot/{ident}",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/integraciones/depot/{ident}/probar",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "probar"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_google"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/integraciones/google/probar",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "probar_google"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/integraciones/google/correo-prueba",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "correo_prueba"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/oauth-google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_oauth"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/mi-google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "mi_google"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/mi-google/gmail/estado",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "estado_gmail_propio"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/mi-google/gmail",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "buscar_gmail"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/mi-google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_mi_google"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/integraciones/usuarios/{ident}/google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "google_usuario"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/app/integraciones/usuarios/{ident}/google",
+      "fuente": "app/routers/integraciones.py",
+      "funcion": "guardar_google_usuario"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/resumen",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "resumen"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/operadores",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "operadores"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/skus",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "skus"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/serie",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "serie"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/kpi/pendientes",
+      "fuente": "app/routers/kpi.py",
+      "funcion": "pendientes"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/notificaciones",
+      "fuente": "app/routers/notificaciones.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/notificaciones/leidas",
+      "fuente": "app/routers/notificaciones.py",
+      "funcion": "leidas"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/preferencias",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "preferencias"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/config",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "configuracion"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/config",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "guardar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/supervisores",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "supervisores"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/ingreso",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "ingreso"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/fotos/organizacion",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "plan_fotos"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/fotos/embarques",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "embarques_fotos"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/fotos/organizar",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "organizar_fotos"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/recepciones/{codigo}/ingreso",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "actualizar_ingreso"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/unidades",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "unidad"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/lecturas/resolver",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "resolver"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/bultos",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "bultos"
+    },
+    {
+      "metodo": "DELETE",
+      "ruta": "/api/operacion/evidencias/{archivo_id}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "eliminar_evidencia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/procesos",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "procesos_operativos"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "estado_drive"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive/preparar",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "preparar_drive"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/repositorios/{ident}/probar",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "probar_repositorio"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/catalogo/ejecuciones",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "ejecuciones"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/recepciones/{codigo}/evidencias.xlsx",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "exportar_evidencias"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/operacion/formatos-packing/{cliente:path}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "formato_packing"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/formatos-packing/{cliente:path}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "guardar_formato_packing"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/operacion/recepciones/{codigo}/drive/desde-mi-cuenta",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "recuperar_fotos_propias"
+    },
+    {
+      "metodo": "PUT",
+      "ruta": "/api/operacion/evidencias/{archivo_id}",
+      "fuente": "app/routers/operacion.py",
+      "funcion": "editar_evidencia"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "listar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "crear"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/packing-list",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "cargar_packing_list"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "detalle"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/items",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "items"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/pallets",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "pallets"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/pendientes",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "pendientes"
+    },
+    {
+      "metodo": "PATCH",
+      "ruta": "/api/recepciones/{recepcion_id}/pendientes/{pendiente_id}",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "actualizar_pendiente"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/cerrar",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "cerrar"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/reabrir",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "reabrir"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/export",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "exportar"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/auditoria",
+      "fuente": "app/routers/recepciones.py",
+      "funcion": "auditoria"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/app/reportes/recepciones",
+      "fuente": "app/routers/reportes.py",
+      "funcion": "recepciones"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/app/reportes/excel",
+      "fuente": "app/routers/reportes.py",
+      "funcion": "excel"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/lookup",
+      "fuente": "app/routers/scans.py",
+      "funcion": "lookup"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/scans",
+      "fuente": "app/routers/scans.py",
+      "funcion": "crear_scan"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/ajustes",
+      "fuente": "app/routers/scans.py",
+      "funcion": "crear_ajuste"
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/recepciones/{recepcion_id}/scans/{evento_id}/anular",
+      "fuente": "app/routers/scans.py",
+      "funcion": "anular"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/scans",
+      "fuente": "app/routers/scans.py",
+      "funcion": "listar_scans"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/recepciones/{recepcion_id}/sku/{sku}",
+      "fuente": "app/routers/scans.py",
+      "funcion": "detalle_sku"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/",
+      "fuente": "app/routers/ui.py",
+      "funcion": "entrada_operativa"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/prototipo",
+      "fuente": "app/routers/ui.py",
+      "funcion": "inicio"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/login",
+      "fuente": "app/routers/ui.py",
+      "funcion": "login"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/recepciones/{recepcion_id}",
+      "fuente": "app/routers/ui.py",
+      "funcion": "recepcion"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/recepciones/{recepcion_id}/escanear",
+      "fuente": "app/routers/ui.py",
+      "funcion": "escanear"
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/kpi",
+      "fuente": "app/routers/ui.py",
+      "funcion": "kpi"
+    }
+  ],
+  "dependenciasPythonDeclaradas": [
+    "fastapi==0.143.0",
+    "uvicorn[standard]==0.53.0",
+    "SQLAlchemy==2.1.4",
+    "PyMySQL[rsa]==1.1.1",
+    "pydantic==2.13.5",
+    "Jinja2==3.1.6",
+    "python-multipart==0.0.32",
+    "openpyxl==3.1.5",
+    "Pillow==12.3.0",
+    "httpx==0.28.1",
+    "pytest==8.3.4"
+  ],
+  "dependenciasJSDeclaradas": {
+    "@zxing/library": "0.21.3",
+    "esbuild": "0.28.2",
+    "firebase": "10.14.1",
+    "jsbarcode": "3.12.1",
+    "jspdf": "3.0.4",
+    "jspdf-autotable": "5.0.2",
+    "xlsx": "^0.18.5"
+  },
+  "revisionCodigo": "cda9187ea125aa710fdd29c093ddf2c16f2bc5fa",
+  "tablasDetalle": [
+    {
+      "tabla": "operadores",
+      "clase": "Operador",
+      "uso": "Identidad, hash de credencial, rol, habilitación y firma de registros.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(50)",
+          "opciones": {
+            "unique": "True",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(50)"
+        },
+        {
+          "nombre": "nombre",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "email",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(160)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(160)"
+        },
+        {
+          "nombre": "pin_hash",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(200)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(200)"
+        },
+        {
+          "nombre": "rol",
+          "anotacion": "Mapped[Rol]",
+          "tipoSQL": "Enum(Rol)",
+          "opciones": {
+            "default": "Rol.OPERADOR"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Enum(Rol)"
+        },
+        {
+          "nombre": "activo",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "sesiones",
+      "clase": "Sesion",
+      "uso": "Sesiones locales y vencimiento; referencia al operador.",
+      "campos": [
+        {
+          "nombre": "token",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(64)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "operador_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "operadores.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "creada_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "expira_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "productos",
+      "clase": "Producto",
+      "uso": "Maestro de productos y estado de verificación del catálogo.",
+      "campos": [
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "cliente",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "default": "'VENTURA'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "ean",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "unidad",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(20)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "familia",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "codigo_alternativo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "inactivo",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "False"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "existe_depot",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'MAESTRO'"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "actualizado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "producto_codigos",
+      "clase": "ProductoCodigo",
+      "uso": "Códigos alternativos asociados al SKU del maestro.",
+      "campos": [
+        {
+          "nombre": "codigo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "valor",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "productos.sku"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "registrado_por",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(160)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(160)"
+        },
+        {
+          "nombre": "exportar",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "recepciones",
+      "clase": "Recepcion",
+      "uso": "Cabecera del modelo inicial de recepción; compatibilidad.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "codigo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "unique": "True",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "cliente",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "default": "'VENTURA'"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[EstadoRecepcion]",
+          "tipoSQL": "Enum(EstadoRecepcion)",
+          "opciones": {
+            "default": "EstadoRecepcion.ABIERTA",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Enum(EstadoRecepcion)"
+        },
+        {
+          "nombre": "archivo_origen",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "hash_archivo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(64)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "bultos_declarados",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "creado_por_id",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {},
+          "referencias": [
+            "operadores.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "cerrado_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "entregado_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "packing_items",
+      "clase": "PackingItem",
+      "uso": "Líneas del packing del modelo inicial; compatibilidad.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "recepciones.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "linea",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "default": "'PRINCIPAL'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "referencia_pedido",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "factura",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "cantidad",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "precio_unit",
+          "anotacion": "Mapped[float | None]",
+          "tipoSQL": "PRECIO",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "PRECIO"
+        },
+        {
+          "nombre": "precio_total",
+          "anotacion": "Mapped[float | None]",
+          "tipoSQL": "PRECIO",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "PRECIO"
+        },
+        {
+          "nombre": "num_pieza_reemplazo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "embarque",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "extra",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Text",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Text"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion_id', 'origen', 'linea', name='uq_item_linea'), Index('ix_item_rec_sku', 'recepcion_id', 'sku'))"
+      ]
+    },
+    {
+      "tabla": "pallets",
+      "clase": "Pallet",
+      "uso": "Pallets del modelo inicial; compatibilidad.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "recepciones.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "codigo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "padre",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(40)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "es_subpallet",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "False"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion_id', 'codigo', name='uq_pallet_codigo'),)"
+      ]
+    },
+    {
+      "tabla": "scan_events",
+      "clase": "ScanEvent",
+      "uso": "Eventos del modelo inicial; compatibilidad.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "recepciones.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "ean",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "pallet",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "posicion_real",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "cantidad",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "estado_fisico",
+          "anotacion": "Mapped[EstadoFisico]",
+          "tipoSQL": "Enum(EstadoFisico)",
+          "opciones": {
+            "default": "EstadoFisico.BUENO"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Enum(EstadoFisico)"
+        },
+        {
+          "nombre": "tipo",
+          "anotacion": "Mapped[TipoEvento]",
+          "tipoSQL": "Enum(TipoEvento)",
+          "opciones": {
+            "default": "TipoEvento.CONTEO"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Enum(TipoEvento)"
+        },
+        {
+          "nombre": "observacion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "foto",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "fotos",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Text",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Text"
+        },
+        {
+          "nombre": "operador_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "operadores.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "evento_ref_id",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {},
+          "referencias": [
+            "scan_events.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "idempotency_key",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "dispositivo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('idempotency_key', name='uq_scan_idem'), Index('ix_scan_rec_sku', 'recepcion_id', 'sku'), Index('ix_scan_rec_fecha', 'recepcion_id', 'creado_en'))"
+      ]
+    },
+    {
+      "tabla": "skus_pendientes",
+      "clase": "SkuPendiente",
+      "uso": "Productos por resolver del modelo inicial; compatibilidad.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "recepciones.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "ean",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "estado_depot",
+          "anotacion": "Mapped[EstadoDepot]",
+          "tipoSQL": "Enum(EstadoDepot)",
+          "opciones": {
+            "default": "EstadoDepot.NO_EXISTE"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Enum(EstadoDepot)"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[EstadoCreacion]",
+          "tipoSQL": "Enum(EstadoCreacion)",
+          "opciones": {
+            "default": "EstadoCreacion.PENDIENTE"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Enum(EstadoCreacion)"
+        },
+        {
+          "nombre": "candidatos",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Text",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Text"
+        },
+        {
+          "nombre": "notas",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "detectado_por_id",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {},
+          "referencias": [
+            "operadores.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "resuelto_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion_id', 'sku', name='uq_pend_rec_sku'),)"
+      ]
+    },
+    {
+      "tabla": "auditoria",
+      "clase": "Auditoria",
+      "uso": "Auditoría del modelo inicial; compatibilidad.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion_id",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "recepciones.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "operador_id",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {},
+          "referencias": [
+            "operadores.id"
+          ],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "accion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "detalle",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Text",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Text"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_recepciones",
+      "clase": "AppRecepcion",
+      "uso": "Cabecera operativa, cliente, bultos, estado, fechas, orígenes y embarques.",
+      "campos": [
+        {
+          "nombre": "codigo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "cliente",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "default": "'VENTURA'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "bultos",
+          "anotacion": "Mapped[int | None]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'ABIERTA'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "hoja",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "creado_por",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "packing_list_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "cerrada_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "cerrada_por",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "totales",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "origenes",
+          "anotacion": "Mapped[list | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "lineas_por_origen",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "formatos",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "embarques",
+          "anotacion": "Mapped[list | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_lineas",
+      "clase": "AppLinea",
+      "uso": "Líneas originales del packing, orden, SKU, cantidad y columnas adicionales.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "default": "'PRINCIPAL'"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "linea",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "orden",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "cantidad",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "extra",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion', 'origen', 'linea', name='uq_app_linea'), Index('ix_app_lineas_rec_orden', 'recepcion', 'orden'))"
+      ]
+    },
+    {
+      "tabla": "app_skus",
+      "clase": "AppSku",
+      "uso": "Proyección de esperado/contado y distribución por pallet y origen.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "descripcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "esperado",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "contado",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "verificado",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "False"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'PENDIENTE'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "en_packing_list",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "tiene_pnc",
+          "anotacion": "Mapped[bool]",
+          "tipoSQL": "Boolean",
+          "opciones": {
+            "default": "False"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Boolean"
+        },
+        {
+          "nombre": "motivo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "detectado_por",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "ultimo_operador",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "pallets",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "por_origen",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "origenes",
+          "anotacion": "Mapped[list | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "esperado_por_origen",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "actualizado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion', 'sku', name='uq_app_sku'),)"
+      ]
+    },
+    {
+      "tabla": "app_calidad_skus",
+      "clase": "AppCalidadSku",
+      "uso": "Clasificación y datos de calidad relacionados con el SKU operativo.",
+      "campos": [
+        {
+          "nombre": "sku_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [
+            "app_skus.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "dict"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_presencias",
+      "clase": "AppPresencia",
+      "uso": "Operador/dispositivo activo y última actividad dentro de una recepción.",
+      "campos": [
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "dispositivo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(64)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "operador_id",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "operadores.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "sesion_hash",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(64)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "actividad",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(30)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(30)"
+        },
+        {
+          "nombre": "visto_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_informes",
+      "clase": "AppInforme",
+      "uso": "Versiones de informe, tipo, huella de datos, estado y autoría.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "clave",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "unique": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "numero",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "tipo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'RESERVADO'"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(160)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(160)"
+        },
+        {
+          "nombre": "huella",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(64)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "dict"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion', 'numero', name='uq_app_informe_numero'),)"
+      ]
+    },
+    {
+      "tabla": "app_auditoria_general",
+      "clase": "AppAuditoriaGeneral",
+      "uso": "Acciones generales, referencias y datos de auditoría del aplicativo.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(160)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(160)"
+        },
+        {
+          "nombre": "accion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "referencia",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "dict"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_eventos",
+      "clase": "AppEvento",
+      "uso": "Libro de eventos operativos: conteos, cero, anulaciones y motivos.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "tipo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(30)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(30)"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "cantidad",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "pallet",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "posicion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(40)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "anula_a",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "motivo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(Index('ix_app_eventos_rec_fecha', 'recepcion', 'creado_en'),)"
+      ]
+    },
+    {
+      "tabla": "app_huellas",
+      "clase": "AppHuella",
+      "uso": "Huellas del packing para reconocer contenido previamente cargado.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(160)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(160)"
+        },
+        {
+          "nombre": "huella",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "codigo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(60)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(40)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "archivo",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "lineas",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "skus",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "unidades",
+          "anotacion": "Mapped[float]",
+          "tipoSQL": "CANTIDAD",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "CANTIDAD"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_archivos",
+      "clase": "AppArchivo",
+      "uso": "Metadatos de archivos, SHA-256, tamaño y referencias confirmadas de Drive.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "tipo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "nombre",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(200)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(200)"
+        },
+        {
+          "nombre": "mime",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "drive_id",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(128)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(128)"
+        },
+        {
+          "nombre": "drive_url",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "sha256",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(64)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "bytes",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion', 'tipo', 'sha256', name='uq_app_archivo_contenido'),)"
+      ]
+    },
+    {
+      "tabla": "app_archivo_identidades",
+      "clase": "AppArchivoIdentidad",
+      "uso": "Secuencia y procedencia de fotografías, independientes del ID remoto.",
+      "campos": [
+        {
+          "nombre": "archivo_id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [
+            "app_archivos.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "secuencia",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "nombre_original",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(200)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(200)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "dict"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion', 'secuencia', name='uq_app_foto_secuencia'),)"
+      ]
+    },
+    {
+      "tabla": "app_archivo_skus",
+      "clase": "AppArchivoSku",
+      "uso": "Relación entre un archivo y uno o varios SKU sin duplicar su contenido.",
+      "campos": [
+        {
+          "nombre": "archivo_id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [
+            "app_archivos.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "primary_key": "True",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_config",
+      "clase": "AppConfig",
+      "uso": "Configuraciones, reservas de identidad y credenciales de integración cifradas.",
+      "campos": [
+        {
+          "nombre": "clave",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "modificado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_entregas",
+      "clase": "AppEntrega",
+      "uso": "Cola durable de entregas, instantánea de datos, intentos y resultado.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "clave",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(64)",
+          "opciones": {
+            "unique": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'PENDIENTE'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "resultado",
+          "anotacion": "Mapped[dict | None]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "intentos",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "error",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(300)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(300)"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "proximo_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_ingresos",
+      "clase": "AppIngreso",
+      "uso": "Datos complementarios del ingreso asociados a la recepción.",
+      "campos": [
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "dict"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "actualizado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_unidades_logisticas",
+      "clase": "AppUnidadLogistica",
+      "uso": "Bultos/cajas y relación jerárquica padre-hijo.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "tipo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "numero",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "codigo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "default": "''"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "padre_id",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_unidades_logisticas.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "dict"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        }
+      ],
+      "restricciones": [
+        "(UniqueConstraint('recepcion', 'tipo', 'numero', name='uq_app_unidad_fisica'),)"
+      ]
+    },
+    {
+      "tabla": "app_evidencias",
+      "clase": "AppEvidencia",
+      "uso": "Vínculo archivo-recepción-SKU-unidad-categoría y eliminación lógica.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "archivo_id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_archivos.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "unidad_id",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_unidades_logisticas.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "origen",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(40)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "categoria",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "tipo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "protocolo",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "eliminado_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_copias_drive",
+      "clase": "AppCopiaDrive",
+      "uso": "Cola y estado de copia a Drive, intentos, próximo intento y error.",
+      "campos": [
+        {
+          "nombre": "archivo_id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [
+            "app_archivos.id"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'PENDIENTE'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "intentos",
+          "anotacion": "Mapped[int]",
+          "tipoSQL": "Integer",
+          "opciones": {
+            "default": "0"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "Integer"
+        },
+        {
+          "nombre": "proximo_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "error",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(160)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(160)"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_stock_depot",
+      "clase": "AppStockDepot",
+      "uso": "Caché de posiciones de stock por SKU y cliente.",
+      "campos": [
+        {
+          "nombre": "sku",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "cliente",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(60)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "posiciones",
+          "anotacion": "Mapped[list]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {
+            "default": "list"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "actualizado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    },
+    {
+      "tabla": "app_impresiones",
+      "clase": "AppImpresion",
+      "uso": "Trabajos de impresión, estación, reserva y seguimiento de estado.",
+      "campos": [
+        {
+          "nombre": "id",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(32)",
+          "opciones": {
+            "primary_key": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(32)"
+        },
+        {
+          "nombre": "clave",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(80)",
+          "opciones": {
+            "unique": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(80)"
+        },
+        {
+          "nombre": "estacion",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(40)",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(40)"
+        },
+        {
+          "nombre": "recepcion",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "Inferido de anotación / clave externa",
+          "opciones": {
+            "index": "True"
+          },
+          "referencias": [
+            "app_recepciones.codigo"
+          ],
+          "ondelete": [
+            "CASCADE"
+          ],
+          "tipoSQLResuelto": "String(60)"
+        },
+        {
+          "nombre": "usuario",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(120)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(120)"
+        },
+        {
+          "nombre": "estado",
+          "anotacion": "Mapped[str]",
+          "tipoSQL": "String(20)",
+          "opciones": {
+            "default": "'PENDIENTE'",
+            "index": "True"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(20)"
+        },
+        {
+          "nombre": "datos",
+          "anotacion": "Mapped[dict]",
+          "tipoSQL": "JSON_MAPA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "JSON_MAPA"
+        },
+        {
+          "nombre": "reserva",
+          "anotacion": "Mapped[str | None]",
+          "tipoSQL": "String(64)",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "String(64)"
+        },
+        {
+          "nombre": "reservado_en",
+          "anotacion": "Mapped[datetime | None]",
+          "tipoSQL": "FECHA",
+          "opciones": {},
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "creado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        },
+        {
+          "nombre": "actualizado_en",
+          "anotacion": "Mapped[datetime]",
+          "tipoSQL": "FECHA",
+          "opciones": {
+            "default": "utcnow"
+          },
+          "referencias": [],
+          "ondelete": [],
+          "tipoSQLResuelto": "FECHA"
+        }
+      ],
+      "restricciones": []
+    }
+  ]
+}

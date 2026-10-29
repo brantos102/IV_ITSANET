@@ -1,0 +1,9 @@
+cd ~/bryan/IV_ITSANET
+sudo systemd-run --quiet --wait --pipe --collect \
+  --unit="iv-itsanet-medicion-$(date +%s)" --uid="$(id -un)" \
+  --property="WorkingDirectory=$PWD" \
+  --property=EnvironmentFile=/etc/iv-itsanet.env \
+  "$PWD/.venv/bin/python" \
+  "$HOME/bryan/medicion-IV-ITSANET/exportar_mediciones_presentacion.py" \
+  --desde "2026-10-28T08:00" --hasta "2026-10-28T18:00" \
+  --salida "$HOME/bryan/medicion-IV-ITSANET/mediciones-20261028.json"

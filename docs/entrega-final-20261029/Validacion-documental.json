@@ -1,0 +1,36 @@
+{
+  "Manual-tecnico-IV-ITSANET-20261029": {
+    "sections": 15
+  },
+  "Guia-demostracion-y-mediciones-IV-ITSANET": {
+    "sections": 5
+  },
+  "Proteccion-datos-Ecuador-IV-ITSANET": {
+    "sections": 5
+  },
+  "printOverflow": [],
+  "mobileOverflow": [],
+  "errors": [],
+  "externalRequests": [],
+  "syntheticMetricTest": true,
+  "syntheticCSVTest": true,
+  "localImageTest": true,
+  "cleanDownloadTest": true,
+  "offline": true,
+  "medicionesProductivas": false,
+  "pdfPaginas": {
+    "manual": 38,
+    "guia": 7,
+    "privacidad": 6,
+    "slides": 16
+  },
+  "drawioPaginas": 7,
+  "drawioRoles": [
+    "Operario",
+    "Supervisor"
+  ],
+  "exportadorTransaccionReadOnlyVerificadaConDoble": true,
+  "exportadorSinDatosIdentidad": true,
+  "revisionDocumental": "1.2",
+  "normativaComplementariaActualNoVerificada": true
+}

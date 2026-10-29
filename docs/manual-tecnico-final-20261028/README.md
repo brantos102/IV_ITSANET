@@ -3,6 +3,10 @@
 Fecha: 28/10/2026 · America/Guayaquil.
 Revisión documental: 1.1.
 
+Versión documental posterior: [entrega final del 29/10/2026](../entrega-final-20261029/README.md),
+con guía de mediciones, capturas de pruebas, demostración móvil, protección de
+datos de Ecuador y flujos separados de operario/supervisor.
+
 ## Descargas
 
 - [Descargar paquete completo ZIP](https://github.com/brantos102/IV_ITSANET/raw/refs/heads/desarrollo-local/docs/manual-tecnico-final-20261028/ITSANET-Documentacion-tecnica-final-20261028.zip)
