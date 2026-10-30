@@ -1,0 +1,322 @@
+[
+  {
+    "paso": 1,
+    "rol": "Todos",
+    "titulo": "Preparar el equipo y abrir el aplicativo",
+    "capturaSolicitada": "Navegador con la URL corporativa visible",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 2,
+    "rol": "Todos",
+    "titulo": "Entrar con la cuenta propia",
+    "capturaSolicitada": "Acceso: Usuario o correo, Contraseña y Entrar",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 3,
+    "rol": "Todos",
+    "titulo": "Reconocer el inicio y elegir la tarea",
+    "capturaSolicitada": "Sesión iniciada: Recepciones, Validar y Mi cuenta y correo",
+    "incluida": true,
+    "archivo": "catalogo-confirmado.png"
+  },
+  {
+    "paso": 4,
+    "rol": "Operario",
+    "titulo": "Buscar la recepción que vas a validar",
+    "capturaSolicitada": "Recepciones: filtros y acción Validar",
+    "incluida": true,
+    "archivo": "recepciones-fecha-filtros.png"
+  },
+  {
+    "paso": 5,
+    "rol": "Operario",
+    "titulo": "Consultar un producto con el lector físico",
+    "capturaSolicitada": "Campo Escanear y ficha del producto",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 6,
+    "rol": "Operario",
+    "titulo": "Consultar un producto con la cámara",
+    "capturaSolicitada": "Lector de cámara: Leer ahora y Apagar cámara",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 7,
+    "rol": "Operario",
+    "titulo": "Revisar SKU, cantidades y packing de origen",
+    "capturaSolicitada": "Ficha: SKU, Declarado, Contado, Falta y origen",
+    "incluida": true,
+    "archivo": "Cantidad-movil-sin-flechas.png"
+  },
+  {
+    "paso": 8,
+    "rol": "Operario",
+    "titulo": "Escribir cantidad, pallet y posición reales",
+    "capturaSolicitada": "Cantidad a registrar, Pallet / subpallet y Posición real asignada",
+    "incluida": true,
+    "archivo": "Cantidad-movil-sin-flechas.png"
+  },
+  {
+    "paso": 9,
+    "rol": "Operario",
+    "titulo": "Registrar una incidencia o producto no conforme",
+    "capturaSolicitada": "Estado físico: Registrar incidencia / PNC y unidades afectadas",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 10,
+    "rol": "Operario",
+    "titulo": "Tomar una fotografía para justificar la novedad",
+    "capturaSolicitada": "Fotos para este conteo → Tomar foto o Elegir de la galería",
+    "incluida": true,
+    "archivo": "camara-390x844.png"
+  },
+  {
+    "paso": 11,
+    "rol": "Operario",
+    "titulo": "Guardar únicamente fotografías, sin añadir unidades",
+    "capturaSolicitada": "Guardar solo fotos · sin unidades",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 12,
+    "rol": "Operario",
+    "titulo": "Guardar el conteo y comprobar la confirmación",
+    "capturaSolicitada": "Guardar conteo y resultado del registro",
+    "incluida": true,
+    "archivo": "Cantidad-movil-sin-flechas.png"
+  },
+  {
+    "paso": 13,
+    "rol": "Operario",
+    "titulo": "Declarar cero cuando no se encontraron unidades",
+    "capturaSolicitada": "Cantidad 0, Observación y confirmación",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 14,
+    "rol": "Operario",
+    "titulo": "Resolver un código que no se encuentra",
+    "capturaSolicitada": "Código no encontrado y búsqueda en packing list",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 15,
+    "rol": "Operario",
+    "titulo": "Consultar el avance y las novedades de la recepción",
+    "capturaSolicitada": "Recepción actual, filtros e indicadores",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 16,
+    "rol": "Operario",
+    "titulo": "Revisar bitácora, registros y fotos guardadas",
+    "capturaSolicitada": "Bitácora, Historial y Ver fotos guardadas",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 17,
+    "rol": "Operario",
+    "titulo": "Coordinar un SKU que otra persona está validando",
+    "capturaSolicitada": "Aviso de presencia en el SKU y revisión de datos",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 18,
+    "rol": "Operario",
+    "titulo": "Terminar el turno y cerrar la sesión",
+    "capturaSolicitada": "Pendientes del registro y Cerrar sesión",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 19,
+    "rol": "Supervisor",
+    "titulo": "Revisar avisos y actualizar el catálogo",
+    "capturaSolicitada": "Avisos y Catálogo de Depot → Descargar catálogo",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 20,
+    "rol": "Supervisor",
+    "titulo": "Crear una recepción",
+    "capturaSolicitada": "Nueva recepción y Crear recepción",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 21,
+    "rol": "Supervisor",
+    "titulo": "Seleccionar el archivo de packing list",
+    "capturaSolicitada": "Packing list: Archivo .xlsx y Embarque / nombre de la lista",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 22,
+    "rol": "Supervisor",
+    "titulo": "Revisar hoja, encabezado y columnas del archivo",
+    "capturaSolicitada": "Revisar qué columnas se leerán",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 23,
+    "rol": "Supervisor",
+    "titulo": "Guardar el packing y habilitar la validación",
+    "capturaSolicitada": "Guardar packing list y resumen de recepción",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 24,
+    "rol": "Supervisor",
+    "titulo": "Agregar embarques y revisar datos de recepción",
+    "capturaSolicitada": "+ Embarque y Gestionar → Editar recepción / embarques",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 25,
+    "rol": "Supervisor",
+    "titulo": "Revisar bultos y corregir su total físico",
+    "capturaSolicitada": "Gestionar → Bultos y fotos; Total de bultos",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 26,
+    "rol": "Supervisor",
+    "titulo": "Imprimir etiquetas completas o una selección",
+    "capturaSolicitada": "Etiquetas de bultos: formato, selección y vista previa",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 27,
+    "rol": "Supervisor",
+    "titulo": "Monitorear avance y operarios trabajando",
+    "capturaSolicitada": "Recepciones: Avance; ficha del SKU y presencia",
+    "incluida": true,
+    "archivo": "recepciones-fecha-filtros.png"
+  },
+  {
+    "paso": 28,
+    "rol": "Supervisor",
+    "titulo": "Revisar faltantes, sobrantes y PNC",
+    "capturaSolicitada": "Avisos / Novedades y detalle del SKU",
+    "incluida": true,
+    "archivo": "avisos-supervisor-movil.png"
+  },
+  {
+    "paso": 29,
+    "rol": "Supervisor",
+    "titulo": "Corregir un registro de conteo autorizado",
+    "capturaSolicitada": "Corregir conteo → ¿Qué registro corregir? → Guardar corrección",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 30,
+    "rol": "Supervisor",
+    "titulo": "Clasificar imágenes de recepción y novedades",
+    "capturaSolicitada": "Fotos: recepción, embarque, tipo y SKU/bulto",
+    "incluida": true,
+    "archivo": "foto-destino-movil.png"
+  },
+  {
+    "paso": 31,
+    "rol": "Supervisor",
+    "titulo": "Comprobar carpeta, fotos finales y enlaces Drive",
+    "capturaSolicitada": "Comprobar carpetas e imágenes / Ver fotos guardadas / Drive",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 32,
+    "rol": "Supervisor",
+    "titulo": "Conectar la cuenta que enviará el correo",
+    "capturaSolicitada": "Mi cuenta y correo → Conectar con Google",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 33,
+    "rol": "Supervisor",
+    "titulo": "Elegir cómo separar los correos",
+    "capturaSolicitada": "Organizar correos: packing list, embarque o recepción",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 34,
+    "rol": "Supervisor",
+    "titulo": "Preparar y descargar los informes para revisión",
+    "capturaSolicitada": "Documentos finales y envío → Preparar y descargar documentos",
+    "incluida": true,
+    "archivo": "adjuntos-nombres-conservados.png"
+  },
+  {
+    "paso": 35,
+    "rol": "Supervisor",
+    "titulo": "Seleccionar adjuntos y editar su nombre final",
+    "capturaSolicitada": "Adjuntar informe y Nombre para descargar y enviar",
+    "incluida": true,
+    "archivo": "adjuntos-nombres-conservados.png"
+  },
+  {
+    "paso": 36,
+    "rol": "Supervisor",
+    "titulo": "Revisar destinatarios, novedades y cuerpo del correo",
+    "capturaSolicitada": "Editor del correo: destinatarios, asunto y contenido",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 37,
+    "rol": "Supervisor",
+    "titulo": "Enviar, verificar la entrega y cerrar correctamente",
+    "capturaSolicitada": "Enviar correo / Finalizar / Entregas",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 38,
+    "rol": "Ayuda",
+    "titulo": "Resolver falta de conexión o una vista desactualizada",
+    "capturaSolicitada": "Mensaje de conexión, sesión y recepción actual",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 39,
+    "rol": "Ayuda",
+    "titulo": "Resolver problemas de cámara o botones en handheld",
+    "capturaSolicitada": "Permisos de cámara y Comprobar cámara y versión en este dispositivo",
+    "incluida": false,
+    "archivo": ""
+  },
+  {
+    "paso": 40,
+    "rol": "Ayuda",
+    "titulo": "Resolver fotografías o correos pendientes",
+    "capturaSolicitada": "Entregas e imágenes pendientes / Revisar fotos pendientes",
+    "incluida": false,
+    "archivo": ""
+  }
+]

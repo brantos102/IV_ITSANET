@@ -1,0 +1,15 @@
+{
+  "pasos": 40,
+  "figuras": 40,
+  "capturas": 11,
+  "espacios": 29,
+  "busqueda": 5,
+  "desbordeMovil": false,
+  "offline": true,
+  "errors": [],
+  "externalRequests": [],
+  "paginasPDF": 42,
+  "pasoPorPagina": true,
+  "editorDeCapturasProbado": true,
+  "capturasIntegradasEnHTMLDescargado": true
+}

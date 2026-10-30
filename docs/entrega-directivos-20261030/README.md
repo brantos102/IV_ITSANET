@@ -2,6 +2,8 @@
 
 Ingreso & Validación Itsanet · Revisión documental 1.3 · Código de referencia v69.
 
+Guía operativa ampliada: [manual de usuario completo, 40 pasos con captura o espacio por paso](../manual-usuario-completo-20261030/README.md).
+
 ## Descargas
 
 - [Paquete completo ZIP](https://github.com/brantos102/IV_ITSANET/raw/refs/heads/desarrollo-local/docs/entrega-directivos-20261030/IV-ITSANET-Entrega-documental-20261030.zip)

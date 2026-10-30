@@ -1,0 +1,30 @@
+﻿Paso,Rol,Tema,Pantalla a capturar
+1,Todos,Preparar el equipo y abrir el aplicativo,Navegador con la URL corporativa visible
+2,Todos,Entrar con la cuenta propia,"Acceso: Usuario o correo, Contraseña y Entrar"
+5,Operario,Consultar un producto con el lector físico,Campo Escanear y ficha del producto
+6,Operario,Consultar un producto con la cámara,Lector de cámara: Leer ahora y Apagar cámara
+9,Operario,Registrar una incidencia o producto no conforme,Estado físico: Registrar incidencia / PNC y unidades afectadas
+11,Operario,"Guardar únicamente fotografías, sin añadir unidades",Guardar solo fotos · sin unidades
+13,Operario,Declarar cero cuando no se encontraron unidades,"Cantidad 0, Observación y confirmación"
+14,Operario,Resolver un código que no se encuentra,Código no encontrado y búsqueda en packing list
+15,Operario,Consultar el avance y las novedades de la recepción,"Recepción actual, filtros e indicadores"
+16,Operario,"Revisar bitácora, registros y fotos guardadas","Bitácora, Historial y Ver fotos guardadas"
+17,Operario,Coordinar un SKU que otra persona está validando,Aviso de presencia en el SKU y revisión de datos
+18,Operario,Terminar el turno y cerrar la sesión,Pendientes del registro y Cerrar sesión
+19,Supervisor,Revisar avisos y actualizar el catálogo,Avisos y Catálogo de Depot → Descargar catálogo
+20,Supervisor,Crear una recepción,Nueva recepción y Crear recepción
+21,Supervisor,Seleccionar el archivo de packing list,Packing list: Archivo .xlsx y Embarque / nombre de la lista
+22,Supervisor,"Revisar hoja, encabezado y columnas del archivo",Revisar qué columnas se leerán
+23,Supervisor,Guardar el packing y habilitar la validación,Guardar packing list y resumen de recepción
+24,Supervisor,Agregar embarques y revisar datos de recepción,+ Embarque y Gestionar → Editar recepción / embarques
+25,Supervisor,Revisar bultos y corregir su total físico,Gestionar → Bultos y fotos; Total de bultos
+26,Supervisor,Imprimir etiquetas completas o una selección,"Etiquetas de bultos: formato, selección y vista previa"
+29,Supervisor,Corregir un registro de conteo autorizado,Corregir conteo → ¿Qué registro corregir? → Guardar corrección
+31,Supervisor,"Comprobar carpeta, fotos finales y enlaces Drive",Comprobar carpetas e imágenes / Ver fotos guardadas / Drive
+32,Supervisor,Conectar la cuenta que enviará el correo,Mi cuenta y correo → Conectar con Google
+33,Supervisor,Elegir cómo separar los correos,"Organizar correos: packing list, embarque o recepción"
+36,Supervisor,"Revisar destinatarios, novedades y cuerpo del correo","Editor del correo: destinatarios, asunto y contenido"
+37,Supervisor,"Enviar, verificar la entrega y cerrar correctamente",Enviar correo / Finalizar / Entregas
+38,Ayuda,Resolver falta de conexión o una vista desactualizada,"Mensaje de conexión, sesión y recepción actual"
+39,Ayuda,Resolver problemas de cámara o botones en handheld,Permisos de cámara y Comprobar cámara y versión en este dispositivo
+40,Ayuda,Resolver fotografías o correos pendientes,Entregas e imágenes pendientes / Revisar fotos pendientes
