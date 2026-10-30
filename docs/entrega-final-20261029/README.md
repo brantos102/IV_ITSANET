@@ -2,6 +2,8 @@
 
 Entrega documental del 29/10/2026 · revisión 1.2 · código funcional v69.
 
+Entrega posterior: [informe final, manuales ilustrados y correo del 30/10](../entrega-directivos-20261030/README.md).
+
 ## Descargas
 
 - [Paquete completo ZIP](https://github.com/brantos102/IV_ITSANET/raw/refs/heads/desarrollo-local/docs/entrega-final-20261029/IV-ITSANET-Entrega-final-20261029.zip)

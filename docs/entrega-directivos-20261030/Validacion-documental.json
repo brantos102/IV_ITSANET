@@ -1,0 +1,27 @@
+{
+  "Informe-final-IV-ITSANET": {
+    "secciones": 4,
+    "imagenes": 6,
+    "sinImagenesRotas": true,
+    "desbordeMovil": false,
+    "paginasPDF": 4
+  },
+  "Manual-usuarios-IV-ITSANET": {
+    "secciones": 4,
+    "imagenes": 5,
+    "sinImagenesRotas": true,
+    "desbordeMovil": false,
+    "paginasPDF": 5
+  },
+  "Manual-tecnico-IV-ITSANET": {
+    "secciones": 15,
+    "imagenes": 4,
+    "sinImagenesRotas": true,
+    "desbordeMovil": false,
+    "paginasPDF": 42
+  },
+  "errors": [],
+  "revisionDocumental": "1.3",
+  "actualizacionProductivaRealizada": false,
+  "medicionesProductivasIncluidas": false
+}

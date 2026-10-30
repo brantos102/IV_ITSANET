@@ -1,0 +1,18 @@
+Asunto: Entrega de IV ITSANET | Manuales e informe final
+
+Estimados,
+
+Comparto la documentación final de IV ITSANET (Ingreso & Validación Itsanet), aplicativo en operación para la recepción y validación física de mercadería desde computador y handheld.
+
+La solución integra el registro de recepciones, carga del packing list, conteo por SKU y ubicación, seguimiento del avance por operario y registro de novedades con evidencia. El supervisor puede revisar cantidades, carpetas y fotografías finales, preparar los informes y gestionar su envío al ejecutivo de cuenta. La administración mantiene usuarios, permisos, catálogo e integraciones, con seguimiento de procesos y pendientes.
+
+Adjunto el informe final y los manuales técnico y de usuarios, con capturas y responsabilidades por rol. Se documentan la arquitectura Apache, FastAPI/Uvicorn y MySQL, las evidencias en Drive, la gestión del disco, la actualización de vistas y el mantenimiento. La presentación interactiva complementa el recorrido de uso.
+
+Agradezco al equipo de Ingresos, Inventarios y Slotting por su apoyo en las pruebas y en la definición del flujo de trabajo. Su participación ha sido clave para ajustar la herramienta a la operación diaria.
+
+Quedo atento a las observaciones de cierre y a la coordinación de la continuidad y mantenimiento del aplicativo.
+
+Documentación y presentación: https://github.com/brantos102/IV_ITSANET/tree/desarrollo-local/docs/entrega-directivos-20261030
+
+Saludos cordiales,
+[Nombre y cargo]
