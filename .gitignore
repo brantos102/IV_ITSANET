@@ -12,3 +12,6 @@ data/
 
 # Dependencias de desarrollo (solo xlsx, para las pruebas de formato)
 node_modules/
+
+# Manuales publicados con capturas operativas y documentos técnicos privados.
+documentacion/manuales/

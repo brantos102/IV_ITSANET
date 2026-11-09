@@ -26,6 +26,8 @@ def respaldo(monkeypatch, tmp_path):
 
 
 def test_respaldo_contiene_base_archivos_clave_y_sumarios_sin_password(respaldo, monkeypatch, tmp_path):
+    manuales=tmp_path/'documentacion/manuales/tecnico'
+    manuales.mkdir(parents=True);(manuales/'manual.pdf').write_bytes(b'manual-tecnico-local')
     ejecutable = tmp_path / 'mysqldump'
     ejecutable.write_text('#!/usr/bin/env python3\nprint("-- MySQL dump de prueba\\n" + "CREATE TABLE ejemplo (id INT);\\n" * 10)\n')
     ejecutable.chmod(0o700)
@@ -36,6 +38,7 @@ def test_respaldo_contiene_base_archivos_clave_y_sumarios_sin_password(respaldo,
     with tarfile.open(salida / 'archivos.tar.gz') as t:
         assert t.extractfile('datos/foto.jpg').read() == b'evidencia-preservada'
         assert t.extractfile('datos/secretos/integraciones.key').read() == b'clave-de-prueba'
+        assert t.extractfile('documentacion/manuales/tecnico/manual.pdf').read()==b'manual-tecnico-local'
     d = json.loads((salida / 'respaldo.json').read_text())
     assert d['revisionAnterior'] == 'a' * 40 and len(d['sha256']) == 2
     assert 'claveprivada' not in (salida / 'respaldo.json').read_text()

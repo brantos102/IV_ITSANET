@@ -67,6 +67,8 @@ def respaldar(repo, salida, revision):
     if contenido < 100: raise RuntimeError('El respaldo MySQL está vacío o incompleto')
     with tarfile.open(salida / 'archivos.tar.gz', 'w:gz') as t:
         t.add(datos, arcname='datos', recursive=True)
+        manuales = repo / 'documentacion' / 'manuales'
+        if manuales.is_dir():t.add(manuales,arcname='documentacion/manuales',recursive=True)
     with tarfile.open(salida / 'archivos.tar.gz', 'r:gz') as t:
         for miembro in t:
             if miembro.isfile():

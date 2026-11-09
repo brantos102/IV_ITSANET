@@ -260,8 +260,8 @@
     "rol": "Supervisor",
     "titulo": "Elegir cómo separar los correos",
     "capturaSolicitada": "Organizar correos: packing list, embarque o recepción",
-    "incluida": false,
-    "archivo": ""
+    "incluida": true,
+    "archivo": "33-Agrupacion-correos-referencia.png"
   },
   {
     "paso": 34,
@@ -300,22 +300,6 @@
     "rol": "Ayuda",
     "titulo": "Resolver falta de conexión o una vista desactualizada",
     "capturaSolicitada": "Mensaje de conexión, sesión y recepción actual",
-    "incluida": false,
-    "archivo": ""
-  },
-  {
-    "paso": 39,
-    "rol": "Ayuda",
-    "titulo": "Resolver problemas de cámara o botones en handheld",
-    "capturaSolicitada": "Permisos de cámara y Comprobar cámara y versión en este dispositivo",
-    "incluida": false,
-    "archivo": ""
-  },
-  {
-    "paso": 40,
-    "rol": "Ayuda",
-    "titulo": "Resolver fotografías o correos pendientes",
-    "capturaSolicitada": "Entregas e imágenes pendientes / Revisar fotos pendientes",
     "incluida": false,
     "archivo": ""
   }

@@ -1,6 +1,6 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261109-71';
-import {esc} from './evidencias.js?v=20261109-71';
-import {tecladoDialogo} from './modal.js?v=20261109-71';
+import {pedir,nuevoIdentificador} from './local.js?v=20261109-72';
+import {esc} from './evidencias.js?v=20261109-72';
+import {tecladoDialogo} from './modal.js?v=20261109-72';
 
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/impresion'});
 /** Rangos de números físicos: seleccionar una parte nunca renumera los bultos. */

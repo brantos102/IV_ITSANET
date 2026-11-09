@@ -8,6 +8,7 @@ from html import escape as E
 
 ROOT=Path(__file__).resolve().parents[1]
 IMAGENES={
+ 'correos':('manuales-v70/33-Agrupacion-correos-referencia.png','Selector de agrupación de correos · referencia de pruebas v70'),
  'inicio':('v65/catalogo-confirmado.png','Inicio de supervisor · pruebas v65'),
  'recepciones':('v67/recepciones-fecha-filtros.png','Listado y filtros · pruebas v67'),
  'ficha':('v69/Cantidad-movil-sin-flechas.png','Ficha de validación móvil · pruebas v69'),
@@ -50,7 +51,7 @@ def pasos():
       'En el panel de lectura, pulsa Cámara y permite el uso de la cámara cuando lo solicite el navegador.',
       'Encuadra el código con buena luz y sin reflejos. Usa Leer ahora si está disponible; espera que aparezca la ficha del producto.',
       'Comprueba el SKU antes de continuar y utiliza Apagar cámara cuando termines de leer.'],
-      'Se reconoce el código y se consulta el producto.','La cámara para leer códigos y la fotografía de evidencia son acciones distintas. Si falla, revisa el paso 39.',None),
+      'Se reconoce el código y se consulta el producto.','La cámara para leer códigos y la fotografía de evidencia son acciones distintas. Si falla, revisa el permiso de cámara y utiliza el diagnóstico del dispositivo.',None),
     ('Operario','Revisar SKU, cantidades y packing de origen','Ficha: SKU, Declarado, Contado, Falta y origen',[
       'Compara SKU y descripción con la pieza. Lee Declarado, Contado y Falta antes de añadir un nuevo registro.',
       'Si aparece ¿De qué packing list es esta cantidad?, selecciona la lista a la que pertenecen las unidades que estás contando.',
@@ -78,9 +79,9 @@ def pasos():
       'Se registran fotos sin incrementar la cantidad contada.','No vuelvas a introducir la cantidad del registro original para añadir una imagen: duplicaría unidades si se acepta un nuevo conteo.',None),
     ('Operario','Guardar el conteo y comprobar la confirmación','Guardar conteo y resultado del registro',[
       'Revisa una última vez SKU, lista, cantidad, pallet, posición, condición y fotografías.',
-      'Pulsa Guardar conteo una sola vez y espera la respuesta. Comprueba el mensaje y el valor Contado actualizado.',
-      'Si la respuesta se interrumpe, revisa la bitácora antes de repetir. Si el aplicativo ofrece reintentar el mismo registro, conserva esa identidad.'],
-      'El registro aparece en el acumulado y en la bitácora con su autoría.','Una foto puede seguir pendiente de Drive después del guardado del conteo. No dupliques el registro para intentar resolver la foto.','ficha'),
+      'Pulsa Guardar conteo una sola vez. Conteo pendiente de sincronizar confirma el respaldo en el dispositivo; puedes seguir con el siguiente registro.',
+      'Comprueba Pendiente sincronizado para confirmar el servidor. Si la respuesta se interrumpe, revisa los pendientes del dispositivo y conserva el mismo identificador. No vuelvas a contar las mismas unidades.'],
+      'El registro confirmado aparece en el acumulado y en la bitácora con su autoría.','Si falla el almacenamiento local, conserva la ficha abierta. Una foto puede seguir pendiente de Drive después del guardado del conteo.','ficha'),
     ('Operario','Declarar cero cuando no se encontraron unidades','Cantidad 0, Observación y confirmación',[
       'Busca físicamente la mercadería y consulta con el responsable antes de declarar ausencia.',
       'En la ficha del SKU escribe 0 y añade una observación que explique la revisión. Pulsa Guardar conteo y confirma la declaración cuando se solicite.',
@@ -185,7 +186,7 @@ def pasos():
       'En el flujo de informes/cierre, revisa cómo se agruparán los correos: uno por packing list, por embarque o uno consolidado.',
       'Comprueba que las filas y los adicionales pertenecen al grupo correcto. Resuelve asignaciones sin embarque antes de continuar.',
       'Abre cada borrador para revisar destinatarios, novedades y documentos de su propio grupo.'],
-      'Cada informe y correo contienen solo el alcance seleccionado.','Un packing list puede contener varios embarques. No confundir el archivo original con el criterio de agrupación del correo.',None),
+      'Cada informe y correo contienen solo el alcance seleccionado.','Un packing list puede contener varios embarques. No confundir el archivo original con el criterio de agrupación del correo.','correos'),
     ('Supervisor','Preparar y descargar los informes para revisión','Documentos finales y envío → Preparar y descargar documentos',[
       'Abre Correo final editable desde Informes o el borrador del grupo que vas a preparar.',
       'Pulsa Preparar y descargar documentos o la opción de preparación que muestre la revisión. Espera el resultado y abre el archivo descargado.',
@@ -204,23 +205,13 @@ def pasos():
     ('Supervisor','Enviar, verificar la entrega y cerrar correctamente','Enviar correo / Finalizar / Entregas',[
       'Desde el flujo autorizado pulsa Enviar correo o continúa con Finalizar cuando hayas completado la revisión que solicita la pantalla.',
       'Si quedan referencias sin revisar, regístralas incluyendo cero con observación cuando corresponda. Revisa las confirmaciones antes de aceptar el cierre/envío.',
-      'Comprueba el resultado en Entregas. Si queda pendiente, aplica el paso 40. Para correos ya enviados fuera del aplicativo, usa Cerrar · correos ya enviados solo con evidencia y confirmación real de todos los grupos.'],
+      'Comprueba el resultado en Entregas. Si queda pendiente, revisa su seguimiento en Entregas antes de reintentar. Para correos ya enviados fuera del aplicativo, usa Cerrar · correos ya enviados solo con evidencia y confirmación real de todos los grupos.'],
       'La entrega confirmada y el estado de recepción son coherentes con lo realizado.','Cerrar · correos ya enviados registra un cierre externo y detiene automatismos pendientes; no envía otro correo. No lo uses como sustituto de una entrega fallida.',None),
     ('Ayuda','Resolver falta de conexión o una vista desactualizada','Mensaje de conexión, sesión y recepción actual',[
       'Comprueba la red autorizada y si otros equipos pueden abrir la URL. Si la sesión venció, vuelve a ingresar.',
       'Conserva borradores y fotos pendientes. Revisa si el último registro ya aparece antes de repetir una acción de guardado.',
       'Actualiza la vista cuando sea seguro hacerlo y comunica al supervisor hora, recepción/SKU y mensaje observado. No reinicies servicios ni cambies la configuración del equipo por tu cuenta.'],
       'Se identifica el alcance del problema y se conserva el trabajo pendiente.','Una pantalla de acceso visible puede provenir de caché; no demuestra por sí sola que el servidor esté respondiendo.',None),
-    ('Ayuda','Resolver problemas de cámara o botones en handheld','Permisos de cámara y Comprobar cámara y versión en este dispositivo',[
-      'Comprueba el certificado HTTPS, el permiso de cámara del navegador y que otra aplicación no esté utilizando la cámara.',
-      'Desde Información del escáner, abre Comprobar cámara y versión en este dispositivo si está disponible. Revisa el resultado y comunícalo al supervisor.',
-      'Si no puedes leer, usa el lector físico o la entrada manual autorizada. Si el problema es de captura, conserva el conteo y sigue el procedimiento para añadir fotos después.'],
-      'El problema queda identificado sin perder los registros ya guardados.','No instales aplicaciones ni habilites depuración del equipo sin autorización. Guardar solo fotos sirve para completar evidencia sin repetir unidades.',None),
-    ('Ayuda','Resolver fotografías o correos pendientes','Entregas e imágenes pendientes / Revisar fotos pendientes',[
-      'Abre el seguimiento de pendientes y distingue foto guardada localmente, copia en proceso, revisión y copia confirmada.',
-      'Conserva la imagen original y revisa cuenta, destino y mensaje. Usa el reintento del mismo elemento cuando esté habilitado; si requiere configuración, escala a ADMIN.',
-      'Para correo pendiente, revisa la entrega y Enviados de la cuenta antes de repetir. Conserva la referencia, hora y mensaje para seguimiento.'],
-      'El pendiente se recupera o queda escalado con información suficiente.','No vuelvas a contar unidades ni envíes el correo como uno nuevo para ocultar un pendiente. Una miniatura no confirma Drive.',None)
     ]
 
 
@@ -249,18 +240,19 @@ def main():
         target=a.salida/'capturas'/Path(path).name
         if not target.exists():
             original=src/Path(path).name
+            if not original.exists():original=ROOT/'docs/muestras'/path
             if not original.exists():original=Path('/workspace/revisiones')/path
             target.write_bytes(original.read_bytes())
         img[key]=('data:image/png;base64,'+base64.b64encode(target.read_bytes()).decode(),caption)
-    datos=pasos();assert len(datos)==40
+    datos=pasos();total=len(datos)
     indice=''.join('<a href="#paso-'+str(i)+'">'+str(i).zfill(2)+' · '+E(x[1])+'</a>' for i,x in enumerate(datos,1))
     cuerpo='';inventario=[]
     for i,(rol,titulo,pantalla,acciones,resultado,atencion,key) in enumerate(datos,1):
         ident='paso-'+str(i);has=key is not None
         image,caption=img[key] if has else ('','Captura pendiente de incorporar para este paso.')
         inventario.append({'paso':i,'rol':rol,'titulo':titulo,'capturaSolicitada':pantalla,'incluida':has,'archivo':Path(IMAGENES[key][0]).name if has else ''})
-        cuerpo+='<section class="step" id="'+ident+'" data-paso="'+str(i)+'"><div class="tag">Paso '+str(i).zfill(2)+' de 40 · '+E(rol)+'</div><h2>'+E(titulo)+'</h2><p class="screen"><b>Dónde:</b> '+E(pantalla)+'</p><ol>'+''.join('<li>'+E(t)+'</li>' for t in acciones)+'</ol><div class="result"><b>Comprueba:</b> '+E(resultado)+'</div><figure class="visual"><img '+('src="'+image+'"' if has else 'hidden')+' alt="'+E(pantalla)+'"><div class="placeholder" '+('hidden' if has else '')+'><span>IV ITSANET · GUÍA VISUAL</span><strong>Espacio para captura · paso '+str(i).zfill(2)+'</strong><p>'+E(pantalla)+'</p><small>Mostrar los controles utilizados y su resultado. Evitar datos personales, contraseñas y contenido de otros clientes.</small></div><figcaption>'+E(caption)+'</figcaption></figure><div class="attention"><b>Ten en cuenta:</b> '+E(atencion)+'</div><div class="edit"><label>Agregar o reemplazar captura <input data-captura type="file" accept="image/png,image/jpeg,image/webp"></label></div><div class="links"><a href="#'+('paso-'+str(i-1) if i>1 else 'indice')+'">← Anterior</a><a href="#indice">Índice</a><a href="#'+('paso-'+str(i+1) if i<40 else 'indice')+'">Siguiente →</a></div></section>'
-    portada='''<section class="cover"><div class="tag">Guía operativa · 30/10/2026 · edición 2.0</div><h1>IV ITSANET</h1><h2>Ingreso &amp; Validación Itsanet</h2><h3>Manual de usuario paso a paso</h3><p>Guía para operarios y supervisores: desde el acceso y el conteo hasta la revisión de evidencias y la entrega del informe.</p><ul class="checklist"><li><b>Todos:</b> pasos 01–03, acceso y orientación.</li><li><b>Operario:</b> pasos 04–18, consulta, conteo, novedad y evidencia.</li><li><b>Supervisor:</b> pasos 19–37, recepción, packing, revisión e informes.</li><li><b>Ayuda:</b> pasos 38–40, conexión, cámara y pendientes.</li></ul><p><b>Una guía visual por paso.</b> Se incluyen capturas de pruebas cuando están disponibles. Los espacios restantes indican exactamente qué pantalla incorporar; no representan una pantalla inexistente del aplicativo.</p><p>En el HTML puedes agregar una captura en cada paso y descargar la versión completada. Después usa Imprimir / PDF. Los archivos se procesan en tu equipo y no se suben al servidor.</p><p class="small">Referencia funcional: v69 · recursos 20261024-69. Los nombres y opciones corresponden al código revisado; su disponibilidad depende del rol y permisos. Las capturas existentes son de pruebas con datos sintéticos y señalan su versión. No es un manual de administración del servidor.</p><p><b>Acceso:</b> https://apps.flexnetuio.com:8443/app/</p></section>'''
+        cuerpo+='<section class="step" id="'+ident+'" data-paso="'+str(i)+'"><div class="tag">Paso '+str(i).zfill(2)+' de '+str(total)+' · '+E(rol)+'</div><h2>'+E(titulo)+'</h2><p class="screen"><b>Dónde:</b> '+E(pantalla)+'</p><ol>'+''.join('<li>'+E(t)+'</li>' for t in acciones)+'</ol><div class="result"><b>Comprueba:</b> '+E(resultado)+'</div><figure class="visual"><img '+('src="'+image+'"' if has else 'hidden')+' alt="'+E(pantalla)+'"><div class="placeholder" '+('hidden' if has else '')+'><span>IV ITSANET · GUÍA VISUAL</span><strong>Espacio para captura · paso '+str(i).zfill(2)+'</strong><p>'+E(pantalla)+'</p><small>Mostrar los controles utilizados y su resultado. Evitar datos personales, contraseñas y contenido de otros clientes.</small></div><figcaption>'+E(caption)+'</figcaption></figure><div class="attention"><b>Ten en cuenta:</b> '+E(atencion)+'</div><div class="edit"><label>Agregar o reemplazar captura <input data-captura type="file" accept="image/png,image/jpeg,image/webp"></label></div><div class="links"><a href="#'+('paso-'+str(i-1) if i>1 else 'indice')+'">← Anterior</a><a href="#indice">Índice</a><a href="#'+('paso-'+str(i+1) if i<total else 'indice')+'">Siguiente →</a></div></section>'
+    portada='''<section class="cover"><div class="tag">Guía operativa · 09/11/2026 · edición de 38 pasos</div><h1>IV ITSANET</h1><h2>Ingreso &amp; Validación Itsanet</h2><h3>Manual de usuario paso a paso</h3><p>Guía para operarios y supervisores: desde el acceso y el conteo hasta la revisión de evidencias y la entrega del informe.</p><ul class="checklist"><li><b>Todos:</b> pasos 01–03, acceso y orientación.</li><li><b>Operario:</b> pasos 04–18, consulta, conteo, novedad y evidencia.</li><li><b>Supervisor:</b> pasos 19–37, recepción, packing, revisión e informes.</li><li><b>Ayuda:</b> paso 38, conexión y recuperación del trabajo.</li></ul><p><b>Una guía visual por paso.</b> Se incluyen capturas de pruebas cuando están disponibles. Los espacios restantes indican exactamente qué pantalla incorporar; no representan una pantalla inexistente del aplicativo.</p><p>En el HTML puedes agregar una captura en cada paso y descargar la versión completada. Después usa Imprimir / PDF. Los archivos se procesan en tu equipo y no se suben al servidor.</p><p class="small">Referencia funcional: v72 · recursos 20261109-72. Los nombres y opciones corresponden al código revisado; su disponibilidad depende del rol y permisos. Las capturas existentes son de pruebas con datos sintéticos y señalan su versión. No es un manual de administración del servidor.</p><p><b>Acceso:</b> https://apps.flexnetuio.com:8443/app/</p></section>'''
     h='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IV ITSANET · Manual de usuario completo</title><style>'+CSS+'</style></head><body><header><b>IV ITSANET · Manual de usuario completo</b><p>Guía visual para operarios y supervisores</p><div class="toolbar"><button id="imprimir">Imprimir / PDF</button><button id="descargar">Descargar HTML con mis capturas</button></div><p class="small" id="estado" style="color:#d3e3f4">Revisa las capturas antes de distribuir: no incluir contraseñas, tokens ni datos ajenos al procedimiento.</p></header><main class="layout"><nav><b>Buscar en la guía</b><input id="buscar" type="search" aria-label="Buscar pasos" placeholder="Ej.: cero, PNC, correo"><button id="ver-todo">Ver todos los pasos</button><a href="#portada">Inicio</a>'+indice+'</nav><div class="content"><div id="portada">'+portada+'</div><section class="indice" id="indice"><h2>Índice de pasos</h2><div class="columns">'+indice+'</div></section>'+cuerpo+'</div></main><footer>IV ITSANET · Guía operativa · 30 de octubre de 2026</footer><script>'+JS+'</script></body></html>'
     (a.salida/'Manual-usuario-completo-IV-ITSANET.html').write_text(h)
     (a.salida/'Inventario-de-capturas.json').write_text(json.dumps(inventario,ensure_ascii=False,indent=2))

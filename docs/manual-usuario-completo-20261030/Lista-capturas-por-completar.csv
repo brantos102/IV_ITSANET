@@ -22,9 +22,6 @@
 29,Supervisor,Corregir un registro de conteo autorizado,Corregir conteo → ¿Qué registro corregir? → Guardar corrección
 31,Supervisor,"Comprobar carpeta, fotos finales y enlaces Drive",Comprobar carpetas e imágenes / Ver fotos guardadas / Drive
 32,Supervisor,Conectar la cuenta que enviará el correo,Mi cuenta y correo → Conectar con Google
-33,Supervisor,Elegir cómo separar los correos,"Organizar correos: packing list, embarque o recepción"
 36,Supervisor,"Revisar destinatarios, novedades y cuerpo del correo","Editor del correo: destinatarios, asunto y contenido"
 37,Supervisor,"Enviar, verificar la entrega y cerrar correctamente",Enviar correo / Finalizar / Entregas
 38,Ayuda,Resolver falta de conexión o una vista desactualizada,"Mensaje de conexión, sesión y recepción actual"
-39,Ayuda,Resolver problemas de cámara o botones en handheld,Permisos de cámara y Comprobar cámara y versión en este dispositivo
-40,Ayuda,Resolver fotografías o correos pendientes,Entregas e imágenes pendientes / Revisar fotos pendientes

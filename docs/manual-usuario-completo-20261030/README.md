@@ -1,7 +1,7 @@
 # IV ITSANET · Manual de usuario completo
 
-Guía operativa para **operarios y supervisores** · 30/10/2026.
-Edición documental 2.0; no implica un cambio de versión del aplicativo.
+Guía operativa para **operarios y supervisores** · 09/11/2026.
+Edición documental de 38 pasos; no implica un cambio de versión del aplicativo.
 
 ## Descargas
 
@@ -10,11 +10,11 @@ Edición documental 2.0; no implica un cambio de versión del aplicativo.
 - [Manual HTML para completar las capturas](Manual-usuario-completo-IV-ITSANET.html)
 - [Lista de capturas pendientes CSV](Lista-capturas-por-completar.csv)
 
-El manual tiene 40 pasos: acceso común (01–03), operario (04–18), supervisor
-(19–37) y solución de incidencias (38–40). Cada paso muestra dónde trabajar,
+El manual tiene 38 pasos: acceso común (01–03), operario (04–18), supervisor
+(19–37) y solución de incidencias (38). Cada paso muestra dónde trabajar,
 qué hacer, qué comprobar, una captura o espacio visual y una precaución concreta.
 
-Se incorporaron capturas de pruebas en 11 pasos. Los otros 29 tienen un espacio
+Se incorporaron capturas de pruebas en 12 pasos. Los otros 26 tienen un espacio
 identificado con la pantalla exacta a capturar. No se inventan pantallas ni se
 presentan las capturas antiguas como imágenes de producción del 30/10.
 
@@ -42,7 +42,9 @@ Incluye escaneo físico/cámara, cantidad y ubicación, PNC, fotos sin añadir
 unidades, declaración de cero, bitácora, presencia simultánea, packing list,
 bultos/etiquetas, revisión de imágenes/Drive, informes, adjuntos, correo y cierre.
 El uso depende del rol y permisos vigentes. No es un manual de administración
-del servidor. Referencia funcional: v69 / recursos 20261024-69.
+del servidor. Referencia funcional: v72 / recursos 20261109-72.
 
 Generador: `scripts/generar_manual_usuario_completo.py`.
 Esta entrega no cambia ni reinicia la aplicación y no envía correos.
+
+Esta carpeta contiene la plantilla pública con capturas de pruebas. Para generar la versión con el Word y capturas operativas, usa [las instrucciones actuales](../entrega-v72/README.md); esa versión se publica dentro del servidor con sesión.

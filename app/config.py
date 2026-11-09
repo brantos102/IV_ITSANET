@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+MANUALES_DIR = BASE_DIR / 'documentacion' / 'manuales'
 DATA_DIR = Path(os.getenv("VAL_DATA_DIR", BASE_DIR / "data"))
 UPLOAD_DIR = DATA_DIR / "uploads"
 EXPORT_DIR = DATA_DIR / "exports"

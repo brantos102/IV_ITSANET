@@ -21,7 +21,7 @@ from app.models import Operador, Rol
 from app.routers import app_api, auth, catalogo, google_auth, integraciones, kpi, recepciones, reportes, scans, ui
 from app.security import hash_pin
 from app.services.validation import ErrorValidacion
-from app.routers import operacion, impresion, gestion
+from app.routers import operacion, impresion, gestion, manuales
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("iv_itsanet")
@@ -103,6 +103,7 @@ app.include_router(reportes.router)
 app.include_router(operacion.router)
 app.include_router(impresion.router)
 app.include_router(gestion.router)
+app.include_router(manuales.router)
 from app.routers import cambios_recepcion
 app.include_router(cambios_recepcion.router)
 from app.routers import notificaciones

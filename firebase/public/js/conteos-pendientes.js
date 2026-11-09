@@ -1,5 +1,5 @@
 /** Cola durable del dispositivo. Un pendiente nunca se presenta como un conteo del servidor. */
-import {nuevoIdentificador} from './local.js?v=20261109-71';
+import {nuevoIdentificador} from './local.js?v=20261109-72';
 
 export function crearAlmacenPendientes(nombre='itsanet-conteos-pendientes') {
  let conexion;
