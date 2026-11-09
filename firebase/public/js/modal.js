@@ -1,4 +1,4 @@
-import {agregarDesglosePosicion} from './posiciones.js?v=20261024-69';
+import {agregarDesglosePosicion} from './posiciones.js?v=20261109-70';
 /**
  * Diálogos propios, en lugar de confirm() y prompt() del navegador.
  *

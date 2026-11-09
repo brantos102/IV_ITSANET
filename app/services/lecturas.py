@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 from fastapi import HTTPException
 from sqlalchemy import or_, select
 
-from app.models import AppSku, Producto
+from app.models import AppSku, Producto, AppRecepcion
 from app.services.codigos import buscar
 from app.services.normalize import normalizar_sku
 
@@ -110,8 +110,10 @@ def _similares(db, piezas, recepcion):
         return set()
     def condicion(col):
         return or_(col.in_(sorted(exactos)), *(col.like(p) for p in sorted(patrones)))
-    candidatos = set(db.scalars(select(Producto.sku).where(condicion(Producto.sku))
-        .order_by(Producto.sku).limit(9)))
+    q=select(Producto.sku).where(condicion(Producto.sku))
+    r=db.get(AppRecepcion,recepcion) if recepcion else None
+    if r:q=q.where(Producto.cliente==r.cliente)
+    candidatos = set(db.scalars(q.order_by(Producto.sku).limit(9)))
     if recepcion:
         # La lista de esta recepción tiene prioridad. Incluye dos movimientos
         # de dígitos, sin descargar el catálogo completo ni aceptar el cambio.
@@ -131,17 +133,20 @@ def _detalles(db, candidatos, recepcion):
 
 
 def resolver(db, raw, recepcion=None):
+    contexto = db.get(AppRecepcion, recepcion) if recepcion else None
+    cliente = contexto.cliente if contexto else None
     piezas, compuesta = _extraer(raw)
     encontrados = {}
     for p in piezas:
-        producto = buscar(db, p)
+        producto = buscar(db, p, cliente)
         sku = producto.sku if producto else p
         en_lista = db.scalar(select(AppSku.sku).where(AppSku.recepcion == recepcion, AppSku.sku == sku)) if recepcion else None
         if producto or en_lista:
             encontrados[sku] = p
     if len(encontrados) == 1:
         sku = next(iter(encontrados))
-        return {'sku': sku, 'resuelto': True, 'confirmar': False, 'candidatos': [],
+        from app.services.relacion_codigos import detalle
+        return {**detalle(db,encontrados[sku],cliente),'sku': sku, 'resuelto': True, 'confirmar': False, 'candidatos': [],
             'transformado': str(raw).strip().upper() != sku,
             'motivo': ('SKU confirmado en packing list o catálogo. Se separaron los campos adicionales de la etiqueta y se normalizaron los separadores.'
                        if compuesta else 'Número de pieza confirmado; separadores normalizados o equivalencia registrada.')}
@@ -161,7 +166,7 @@ def resolver(db, raw, recepcion=None):
         variantes.update(p[:i] for i in range(5, len(p)-4) if p[i:].isdigit())
         for v in variantes:
             if not v: continue
-            prod = buscar(db, v)
+            prod = buscar(db, v, cliente)
             if prod: candidatos.add(prod.sku)
             if recepcion and db.scalar(select(AppSku.id).where(AppSku.recepcion == recepcion, AppSku.sku == v)):
                 candidatos.add(v)

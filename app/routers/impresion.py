@@ -40,6 +40,17 @@ def etiquetas_bultos_generar(codigo: str, datos: dict = Body(...), db: Session =
     except m.ErrorApp as exc: raise HTTPException(404, str(exc)) from None
 
 
+@router.post('/recepciones/{codigo}/subbultos',status_code=201)
+def etiquetas_subbultos(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(requiere_supervisor)):
+    from app.services.etiquetas_bultos import generar_subbultos
+    ident=None
+    if datos.get('destino')=='ESTACION':
+        p=estacion(db,datos.get('estacion'))
+        if not p.get('activo',True) or not p.get('tokenHash'):raise HTTPException(409,'Estación no habilitada')
+        ident=p['id']
+    return generar_subbultos(db,codigo,datos,op.email or op.usuario,ident)
+
+
 def estacion(db, ident):
     c = db.get(AppConfig, 'operacion')
     p = next((p for p in (c.datos.get('impresoras', []) if c else []) if p['id'] == ident), None)

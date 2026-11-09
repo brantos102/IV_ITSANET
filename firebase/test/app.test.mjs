@@ -106,7 +106,7 @@ await test('estadoDe cubre los cinco casos', () => {
 // primera es trabajo pendiente, la segunda un faltante que ya se reclama.
 await test('un cero declarado no es lo mismo que un SKU sin tocar', () => {
   eq(datos.estadoDe(10, 0, false), 'PENDIENTE');
-  eq(datos.estadoDe(10, 0, true), 'NO_ENCONTRADO');
+  eq(datos.estadoDe(10, 0, true), 'FALTANTE');
   eq(datos.estadoDe(0, 0, true), 'OK', 'declarada en 0 y confirmada en 0 cuadra');
 });
 

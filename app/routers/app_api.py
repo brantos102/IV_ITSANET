@@ -513,14 +513,17 @@ def codigos_de_recepcion(codigo: str, db: Session = Depends(get_db), _: Operador
 
 @router.get('/recepciones-abiertas/por-codigo/{codigo}')
 def buscar_en_recepciones(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
-    from app.services.codigos import buscar
+    from app.services.relacion_codigos import candidatos
     normal = m.normalizar_codigo(codigo)
-    producto = buscar(db, codigo)
-    sku = producto.sku if producto else normal
-    filas = db.scalars(select(AppRecepcion).join(AppSku, AppSku.recepcion == AppRecepcion.codigo)
-        .where(AppRecepcion.estado.in_(m.ABIERTAS), AppSku.sku == sku, AppSku.en_packing_list.is_(True))
-        .order_by(AppRecepcion.creado_en.desc())).all()
-    return {'sku': sku, 'recepciones': [m.doc_recepcion(r) for r in filas]}
+    opciones = candidatos(db, codigo)
+    from sqlalchemy import and_, or_
+    condiciones=[and_(AppRecepcion.cliente==p.cliente,AppSku.sku==p.sku) for p in opciones]
+    condiciones.append(AppSku.sku==normal)
+    filas = db.scalars(select(AppRecepcion).join(AppSku, AppSku.recepcion==AppRecepcion.codigo)
+        .where(AppRecepcion.estado.in_(m.ABIERTAS),AppSku.en_packing_list.is_(True),or_(*condiciones))
+        .distinct().order_by(AppRecepcion.creado_en.desc())).all()
+    return {'sku':opciones[0].sku if len(opciones)==1 else normal,'recepciones':[m.doc_recepcion(r) for r in filas]}
+
 
 
 @router.post("/recepciones", status_code=201)
@@ -696,10 +699,17 @@ def reabrir(codigo: str, cuerpo: dict = Body(default={}), db: Session = Depends(
 def catalogo(codigo: str, cliente: str | None = None, db: Session = Depends(get_db),
              _: Operador = Depends(usuario_actual)):
     """Lo que la pantalla necesita saber de un código escaneado."""
-    r = depot_svc.resolver_codigo(db, codigo, usar_api=False)
+    r = depot_svc.resolver_codigo(db, codigo, usar_api=False, cliente=cliente)
     from app.services.catalogo_programado import posiciones_de
     from app.services.codigos import buscar
-    producto=buscar(db,r.sku)
+    producto=buscar(db,r.sku,cliente)
+    if cliente and not r.existe:
+        # Conservar el aviso histórico para un SKU literal de otro cliente;
+        # nunca resolver un EAN ajeno como si perteneciera al cliente elegido.
+        literal=db.get(Producto,m.normalizar_codigo(codigo))
+        if literal:
+            producto=literal
+            r=depot_svc.resolver_codigo(db,codigo,usar_api=False,cliente=literal.cliente)
     propietarios={producto.cliente} if producto else set()
     from app.models import AppStockDepot
     propietarios.update(db.scalars(select(AppStockDepot.cliente).where(AppStockDepot.sku==r.sku)))
@@ -748,3 +758,16 @@ def importar_codigos(datos: dict = Body(...), db: Session = Depends(get_db), op:
         db.rollback()
         raise
     return {'procesadas': len(filas), 'mensaje': 'Códigos asociados a productos existentes. No se crearon productos ni conteos.'}
+
+
+@router.post('/catalogo/relaciones/importar')
+def importar_relaciones(datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(requiere_supervisor)):
+    from app.services.relacion_codigos import importar
+    try:
+        r=importar(db,datos.get('filas'),_quien(op))
+        from app.services.ajustes import auditar
+        auditar(db,_quien(op),'RELACIONES_CODIGOS_IMPORTADAS','CATALOGO',
+            {k:r[k] for k in ('recibidas','procesadas','nuevas','existentes','clientes','sinFactor','equivalentes')})
+        db.commit();return r
+    except Exception:
+        db.rollback();raise

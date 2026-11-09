@@ -39,7 +39,7 @@ def listar(cuenta,q):
 
 def ficha(cuenta,ident):
     return g.peticion(cuenta,'drive','GET','files/'+validar_id(ident),params={
-        'fields':'id,name,mimeType,parents,trashed,appProperties,md5Checksum','supportsAllDrives':'true'}).json()
+        'fields':'id,name,mimeType,parents,trashed,appProperties,md5Checksum,shortcutDetails','supportsAllDrives':'true'}).json()
 
 
 def escapar(texto):return texto.replace('\\','\\\\').replace("'","\\'")
@@ -118,10 +118,23 @@ def preparar(cuenta,p):
 
 
 def atajo(cuenta,padre,archivo,n,clave):
-    existentes=listar(cuenta,"'"+padre+"' in parents and mimeType = '"+ATAJO+"'")
-    if any(x.get('shortcutDetails',{}).get('targetId')==archivo for x in existentes):return
-    g.peticion(cuenta,'drive','POST','files',params={'supportsAllDrives':'true'},json={
-        'name':nombre(n),'mimeType':ATAJO,'parents':[padre],'shortcutDetails':{'targetId':archivo},'appProperties':{'itsanetClave':clave}})
+    def elegir():
+        existentes=listar(cuenta,"'"+padre+"' in parents and mimeType = '"+ATAJO+"'")
+        mismos=[x for x in existentes if x.get('shortcutDetails',{}).get('targetId')==archivo]
+        return sorted(x['id'] for x in mismos)[0] if mismos else generar(cuenta)
+    ident=reservado(cuenta,'atajo:'+padre+'/'+archivo,elegir)
+    def comprobar(f):
+        if f.get('trashed') or f.get('mimeType')!=ATAJO or f.get('shortcutDetails',{}).get('targetId')!=archivo or padre not in f.get('parents',[]):
+            raise RuntimeError('DRIVE_ATAJO: El vínculo reservado cambió. Revisa su destino sin duplicar la imagen.')
+    try:comprobar(ficha(cuenta,ident));return
+    except RuntimeError as exc:
+        if not str(exc).startswith('GOOGLE_NO_ENCONTRADO:'):raise
+    try:
+        g.peticion(cuenta,'drive','POST','files',params={'supportsAllDrives':'true'},json={
+            'id':ident,'name':nombre(n),'mimeType':ATAJO,'parents':[padre],
+            'shortcutDetails':{'targetId':archivo},'appProperties':{'itsanetClave':clave}})
+    except RuntimeError:
+        comprobar(ficha(cuenta,ident))
 
 
 def subir(cuenta,clave,p):

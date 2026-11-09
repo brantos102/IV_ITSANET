@@ -16,6 +16,7 @@ FECHA = '28 de octubre de 2026'
 REF = B.REVISION
 
 USOS = {
+'producto_relaciones':'Relaciones SKU/código por cliente y unidades por empaque; no cambia conteos ni maestro global.',
 'operadores':'Identidad, hash de credencial, rol, habilitación y firma de registros.',
 'sesiones':'Sesiones locales y vencimiento; referencia al operador.',
 'productos':'Maestro de productos y estado de verificación del catálogo.',

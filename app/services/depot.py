@@ -475,7 +475,7 @@ def _candidatos_locales(db: Session, sku: str, limite: int = 6) -> list[dict]:
     return [{"sku": s, "descripcion": d} for s, d in filas if s != sku]
 
 
-def resolver_codigo(db: Session, codigo: str, usar_api: bool = True) -> ResultadoDepot:
+def resolver_codigo(db: Session, codigo: str, usar_api: bool = True, cliente: str | None = None) -> ResultadoDepot:
     """Resuelve un codigo escaneado (SKU o EAN) contra Depot.
 
     Nunca lanza excepcion por fallo de red: devuelve `degradado=True`.
@@ -489,10 +489,10 @@ def resolver_codigo(db: Session, codigo: str, usar_api: bool = True) -> Resultad
 
     # 1. Cache local por SKU
     from app.services.codigos import buscar
-    prod = buscar(db, codigo)
+    prod = buscar(db, codigo, cliente)
 
     # 2. Cache local por EAN o codigo alternativo
-    if prod is None:
+    if prod is None and not cliente:
         ean = normalizar_ean(codigo)
         if ean:
             prod = db.execute(

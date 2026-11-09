@@ -30,16 +30,22 @@ def estado(db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)
 
 
 @router.get("/buscar")
-def buscar(q: str, limite: int = Query(20, ge=1, le=100), db: Session = Depends(get_db),
+def buscar(q: str, limite: int = Query(20, ge=1, le=100), cliente: str | None = None, db: Session = Depends(get_db),
            _: Operador = Depends(usuario_actual)):
     termino = normalizar_sku(q)
     if len(termino) < 3:
         raise HTTPException(400, "Ingrese al menos 3 caracteres")
+    consulta = select(Producto)
+    if cliente:consulta=consulta.where(Producto.cliente==cliente.strip().upper())
     filas = db.execute(
-        select(Producto)
+        consulta
         .where(or_(Producto.sku.like(f"{termino}%"), Producto.ean == termino))
         .limit(limite)
     ).scalars().all()
+    from app.services.relacion_codigos import candidatos
+    encontrados={(p.cliente,p.sku):p for p in candidatos(db,q,cliente)}
+    encontrados.update({(p.cliente,p.sku):p for p in filas})
+    filas=list(encontrados.values())[:limite]
     return [
         {"sku": p.sku, "descripcion": p.descripcion, "ean": p.ean, "cliente":p.cliente,
          "unidad": p.unidad, "inactivo": p.inactivo, "existeDepot":p.existe_depot,

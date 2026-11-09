@@ -7,15 +7,11 @@ from app.models import Producto, ProductoCodigo
 from app.services.normalize import limpiar, normalizar_sku
 
 
-def buscar(db, codigo):
-    normal = normalizar_sku(codigo)
-    alias = db.get(ProductoCodigo, normal)
-    productos = list(db.scalars(select(Producto).where(or_(
-        Producto.sku == normal, Producto.ean.in_([normal, limpiar(codigo)]),
-        Producto.codigo_alternativo == normal,
-        Producto.sku == (alias.sku if alias else normal)))))
+def buscar(db, codigo, cliente=None):
+    from app.services.relacion_codigos import candidatos
+    productos = candidatos(db, codigo, cliente)
     if len(productos) > 1:
-        raise HTTPException(409, 'El código corresponde a varios productos. Solicita revisión al supervisor.')
+        raise HTTPException(409, 'El código corresponde a varios productos o clientes. Selecciona la recepción/cliente y solicita revisión si persiste.')
     return productos[0] if productos else None
 
 

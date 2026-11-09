@@ -1,12 +1,12 @@
-import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261024-69';
-import {verImagen} from './visor-imagen.js?v=20261024-69';
-import {pedir} from './local.js?v=20261024-69';
-import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261024-69';
-import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261024-69';
-import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261024-69';
-import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261024-69';
-import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261024-69';
-import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261024-69';
+import {cargarMiniatura,limpiarMiniaturas} from './miniaturas.js?v=20261109-70';
+import {verImagen} from './visor-imagen.js?v=20261109-70';
+import {pedir} from './local.js?v=20261109-70';
+import {operacion,esc,cargarEvidencias,TIPOS_EVIDENCIA,abrirEvidencias} from './evidencias.js?v=20261109-70';
+import {abrirEtiquetasBultos} from './etiquetas-bultos.js?v=20261109-70';
+import {pedirDatos as pedirCampos,confirmar,tecladoDialogo} from './modal.js?v=20261109-70';
+import {abrirCamara,errorDeCamara,camaraDisponible} from './camara.js?v=20261109-70';
+import {interpretarEtiquetaMadre,interpretarEtiquetaDeBulto,fotografiarVideo} from './bultos.js?v=20261109-70';
+import {abrirFotosPendientes} from './fotos-pendientes.js?v=20261109-70';
 
 /** Mantiene el formulario y el motivo abiertos si el servidor rechaza la corrección. */
 export function corregirTotalBultos({codigo,cantidad,guardar}){

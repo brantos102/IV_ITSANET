@@ -158,6 +158,19 @@ class Producto(Base):
 
 # --------------------------------------------------------------------------- #
 # Recepcion / Packing list
+class ProductoRelacion(Base):
+    """Relación externa por cliente; no modifica el maestro ni cantidades físicas."""
+    __tablename__ = 'producto_relaciones'
+    cliente: Mapped[str] = mapped_column(String(60), primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(80), primary_key=True)
+    sku: Mapped[str] = mapped_column(String(80), index=True)
+    valor: Mapped[str] = mapped_column(String(80))
+    tipo: Mapped[str] = mapped_column(String(30))
+    cantidad_referencia: Mapped[float | None] = mapped_column(CANTIDAD)
+    usuario: Mapped[str] = mapped_column(String(160))
+    actualizado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+
+
 class ProductoCodigo(Base):
     """Etiquetas adicionales del mismo SKU; no reemplaza el EAN del maestro."""
     __tablename__ = 'producto_codigos'

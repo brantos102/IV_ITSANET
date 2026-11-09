@@ -51,7 +51,8 @@ def test_importacion_atomica_con_fila_invalida_y_repeticion_segura(cliente,db,re
     filas[1]['codigoBarras']='000456'
     for _ in range(2):
         assert cliente.post(ruta,json={'filas':filas}).status_code==200
-    db.expire_all(); assert db.query(ProductoCodigo).count()==2
+    # La API escribe en otra conexión: abrir snapshot nuevo en MySQL REPEATABLE READ.
+    db.rollback(); db.expire_all(); assert db.query(ProductoCodigo).count()==2
     op=TestClient(app);op.post('/api/auth/login',json={'usuario':'op1','pin':'2222'})
     assert op.post(ruta,json={'filas':filas}).status_code==403
     assert op.get(f'/api/app/recepciones/{recepcion}/codigos-barras').status_code==403
@@ -76,7 +77,7 @@ def test_no_admite_negativos_aunque_el_total_siga_positivo(cliente,db,recepcion,
     db.expire_all(); assert db.query(AppEvento).count()==1
     assert db.scalar(select(AppSku).where(AppSku.recepcion==recepcion)).contado==4
     assert cliente.post(ruta+'/positivo/anular',json={'motivo':'Cantidad corregida'}).status_code==200
-    db.expire_all(); assert db.scalar(select(AppSku).where(AppSku.recepcion==recepcion)).contado==0
+    db.rollback(); db.expire_all(); assert db.scalar(select(AppSku).where(AppSku.recepcion==recepcion)).contado==0
 
 
 def test_importacion_packing_negativo_no_altera_recepcion(cliente, db):

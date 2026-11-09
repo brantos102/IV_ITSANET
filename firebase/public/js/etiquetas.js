@@ -1,4 +1,4 @@
-import {tecladoDialogo} from './modal.js?v=20261024-69';
+import {tecladoDialogo} from './modal.js?v=20261109-70';
 /** Zebra ZD421, 203 dpi. Formato de impresión 10 × 5. */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function validarEtiqueta(d) {
@@ -21,42 +21,44 @@ export function filasDeStock(libro) {
 const hex = valor => [...new TextEncoder().encode(String(valor ?? ''))].map(b => '\\' + b.toString(16).padStart(2,'0').toUpperCase()).join('');
 export function generarZpl(datos) {
   const d = validarEtiqueta(datos);
+  if((Math.ceil(/^\d+$/.test(d.sku)?d.sku.length/2:d.sku.length)*11+35)*2>736)throw new Error('Código demasiado largo para barras legibles de 100 × 50 mm. Requiere un formato mayor; no se reduce ni recorta el código.');
   const copias=Number(datos.copias ?? 1);
   if(!Number.isInteger(copias) || copias<1 || copias>5000)throw new Error('Copias: de 1 a 5000.');
   const texto = (x,y,h,w,valor,ancho,lineas=1) => `^FO${x},${y}^A0N,${h},${w}^FB${ancho},${lineas},2,L,0^FH\\^FD${hex(valor)}^FS`;
   return ['^XA','^CI28','^PW800','^LL400','^LH0,0',
-    texto(22,22,28,24,d.cliente.toUpperCase(),485),texto(22,68,19,17,'CODIGO:',480),
-    `^FO36,101^BY${d.sku.length > 20 ? 1 : 2},2,70^BCN,70,N,N,N,A^FH\\^FD${hex(d.sku)}^FS`,
-    texto(70,180,24,20,d.sku,440),texto(22,216,18,16,'DESCRIPCION:',480),
+    texto(22,22,28,24,d.cliente.toUpperCase(),485),texto(22,54,17,15,'CODIGO:',736),
+    `^FO32,76^BY2,2,90^BCN,90,N,N,N,A^FH\\^FD${hex(d.sku)}^FS`,
+    texto(32,174,27,Math.min(23,Math.floor(736/d.sku.length)),d.sku,736),texto(22,217,18,16,'DESCRIPCION:',480),
     texto(22,241,20,17,String(d.descripcion || '').slice(0,100),480,2),
     texto(22,300,19,17,'SERIE:',480),
     ...(d.serie ? [`^FO36,326^BY${String(d.serie).length > 20 ? 1 : 2},2,32^BCN,32,N,N,N,A^FH\\^FD${hex(d.serie)}^FS`,texto(22,367,18,15,d.serie,480)] : []),
     texto(534,27,24,20,String(d.categoria).slice(0,18),245),
-    texto(534,62,17,14,String(d.despacho || '').slice(0,28),245),
-    texto(532,139,23,21,'QTY',112),texto(662,139,23,19,'ESTADO',120),
-    texto(538,185,30,24,d.cantidad,108),texto(605,226,17,13,String(d.unidad).slice(0,5),40),
-    texto(667,194,25,20,d.estado,110),texto(533,280,19,16,'RESPONSABLE',245),
-    texto(534,318,20,15,String(d.responsable || '').slice(0,48),245,2),'^PQ'+copias,'^XZ'].join('\n');
+    texto(534,49,14,12,String(d.despacho || '').slice(0,28),245),
+    texto(532,217,21,18,'QTY',112),texto(662,217,21,18,'ESTADO',120),
+    texto(538,249,30,Math.min(24,Math.floor(108/String(d.cantidad).length)),d.cantidad,108),texto(605,260,17,13,String(d.unidad).slice(0,5),40),
+    texto(667,249,25,20,d.estado,110),texto(533,310,19,16,'RESPONSABLE',245),
+    texto(534,344,20,15,String(d.responsable || '').slice(0,48),245,2),'^PQ'+copias,'^XZ'].join('\n');
 }
 export const ESTILO_ETIQUETA = `
 @page{size:100mm 50mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000;font-family:Arial,sans-serif}
-.etiqueta{width:100mm;height:50mm;padding:2mm;display:grid;grid-template-columns:64% 36%;font:7.5pt Arial,sans-serif;background:#fff;color:#000;break-after:page;break-inside:avoid;overflow:hidden;gap:1mm}
-.izq{display:grid;grid-template-rows:5mm 3mm 9mm 4mm 9mm 1fr;min-width:0;min-height:0}.empresa{font-size:12pt;line-height:5mm;font-weight:800;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.codigo-titulo{font-size:7pt;font-weight:bold}.barras{height:9mm;width:100%;display:block}.codigo{font-size:8pt;font-weight:bold;text-align:center;overflow-wrap:anywhere}
-.descripcion{font-size:7pt;line-height:1.1;max-height:9mm;overflow:hidden;padding-top:.5mm}.serie{font-size:7pt;min-height:8mm;overflow:hidden}.serie b{display:block}.serie .barras{height:4mm}.numero-serie{font-size:6.5pt;text-align:center;overflow-wrap:anywhere}
-.der{display:grid;grid-template-rows:10mm 17mm 1fr;min-width:0;padding-left:1mm}.disponible{font-weight:bold;font-size:9pt;text-align:center;overflow-wrap:anywhere;padding-top:1mm;max-height:10mm;overflow:hidden}.qty-estado{display:grid;grid-template-columns:1fr 1fr;text-align:center;align-items:center;min-width:0}.qty-estado b{display:block;font-size:7.5pt}.qty-estado strong{display:block;font-size:12pt;margin-top:1mm;overflow-wrap:anywhere}.qty-estado small{font-size:7pt}.valor-unidad{display:flex;justify-content:center;align-items:baseline;gap:.5mm;flex-wrap:wrap}.responsable{padding-top:2mm;font-size:7pt;overflow-wrap:anywhere;overflow:hidden}.responsable b{display:block;font-size:7.5pt;margin-bottom:1mm}
+.etiqueta{width:100mm;height:50mm;padding:2mm;display:grid;grid-template-rows:5mm 2.5mm 14mm 4.5mm 1fr;background:#fff;color:#000;break-after:page;break-inside:avoid;overflow:hidden}
+.cabecera{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:2mm;align-items:start}.empresa{font-size:11pt;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.disponible{text-align:right;font-size:7pt;font-weight:bold;line-height:1.05;overflow:hidden;max-height:5mm}
+.codigo-titulo{font-size:7pt;font-weight:bold}.barras{height:14mm;width:100%;display:block}.codigo{font-size:11pt;line-height:4.5mm;font-weight:bold;text-align:center;white-space:nowrap;overflow:hidden}
+.datos{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:2mm;min-height:0}.izq{display:grid;grid-template-rows:7mm 1fr;min-width:0;min-height:0}.descripcion{font-size:6.7pt;line-height:1.05;max-height:7mm;overflow:hidden}.serie{font-size:6.5pt;overflow:hidden}.serie b{display:inline}.serie .barras{height:3.5mm}.numero-serie{font-size:6pt;text-align:center;white-space:nowrap}
+.der{min-width:0}.qty-estado{display:grid;grid-template-columns:1fr 1fr;gap:1mm;text-align:center;font-size:7pt}.qty-estado b{display:block;font-size:6.8pt}.qty-estado strong{font-size:11pt}.valor-unidad{display:flex;justify-content:center;align-items:baseline;gap:.5mm}.valor-unidad small{font-size:6pt}.responsable{font-size:6pt;line-height:1.1;margin-top:1mm;overflow:hidden;max-height:6mm}.responsable b{display:block}
 @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 `;
-
 export function htmlEtiqueta(datos, barras, barrasSerie='') {
-  const d = validarEtiqueta(datos);
-  return `<div class="etiqueta"><div class="izq"><div class="empresa">${esc(d.cliente)}</div><div class="codigo-titulo">CODIGO:</div>${barras}<div class="codigo">${esc(d.sku)}</div><div class="descripcion"><b>DESCRIPCION:</b><br>${esc(d.descripcion)}</div><div class="serie"><b>SERIE:</b>${barrasSerie}<div class="numero-serie">${esc(d.serie)}</div></div></div><div class="der"><div class="disponible">${esc(d.categoria)}${d.despacho ? `<small style="display:block;font-size:8pt">${esc(d.despacho)}</small>` : ''}</div><div class="qty-estado"><div><b>QTY</b><div class="valor-unidad"><strong>${d.cantidad}</strong><small>${esc(d.unidad)}</small></div></div><div><b>ESTADO</b><strong>${esc(d.estado)}</strong></div></div><div class="responsable"><b>RESPONSABLE</b>${esc(d.responsable)}</div></div></div>`;
+ const d=validarEtiqueta(datos);
+ return `<div class="etiqueta"><div class="cabecera"><div class="empresa">${esc(d.cliente)}</div><div class="disponible">${esc(d.categoria)}${d.despacho?`<br>${esc(d.despacho)}`:''}</div></div><div class="codigo-titulo">CÓDIGO:</div>${barras}<div class="codigo">${esc(d.sku)}</div><div class="datos"><div class="izq"><div class="descripcion"><b>DESCRIPCION:</b><br>${esc(d.descripcion)}</div><div class="serie"><b>SERIE:</b>${barrasSerie}<div class="numero-serie">${esc(d.serie)}</div></div></div><div class="der"><div class="qty-estado"><div><b>QTY</b><div class="valor-unidad"><strong>${d.cantidad}</strong><small>${esc(d.unidad)}</small></div></div><div><b>ESTADO</b><strong>${esc(d.estado)}</strong></div></div><div class="responsable"><b>RESPONSABLE</b>${esc(d.responsable)}</div></div></div></div>`;
 }
+
 function barrasDe(sku) {
   if (!globalThis.JsBarcode) throw new Error('No se cargó el generador de código de barras. Recarga la página.');
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  JsBarcode(svg, sku, {format:'CODE128',displayValue:false,height:65,width:2,margin:8});
+  JsBarcode(svg, sku, {format:'CODE128',displayValue:false,height:90,width:2,margin:20});
   svg.setAttribute('viewBox', `0 0 ${parseFloat(svg.getAttribute('width'))} ${parseFloat(svg.getAttribute('height'))}`);
-  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.setAttribute('preserveAspectRatio', 'none');
   svg.classList.add('barras'); return svg.outerHTML;
 }
 export function abrirEtiqueta(datos) {
@@ -85,6 +87,7 @@ export function abrirEtiqueta(datos) {
     try { actual = validarEtiqueta({...base,...Object.fromEntries(new FormData(dialogo.querySelector('form')))});
       actual.copias=Number(dialogo.querySelector('[name=copias]').value);
       if(!Number.isInteger(actual.copias)||actual.copias<1||actual.copias>5000)throw new Error('Número de copias inválido.');
+      generarZpl(actual);
       dibujo = barrasDe(actual.sku);dibujoSerie=actual.serie ? barrasDe(actual.serie) : '';
       const contenedor=dialogo.querySelector('#etiquetaVista');const raiz=contenedor.shadowRoot||contenedor.attachShadow({mode:'open'});
       raiz.innerHTML=`<style>${ESTILO_ETIQUETA}</style>${htmlEtiqueta(actual,dibujo,dibujoSerie)}`;
@@ -121,7 +124,7 @@ export function abrirEtiqueta(datos) {
   tecladoDialogo(dialogo,{accion:'[data-imprimir]',campos:'[name]'});
   dialogo.showModal(); actualizar();
   let pedirPuente=null,claveTrabajo=null,firmaTrabajo=null;
-  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261024-69').then(async({pedir})=>{
+  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261109-70').then(async({pedir})=>{
     pedirPuente=pedir;
     const p=await pedir('/preferencias',{base:'/api/operacion'});
     const lista=dialogo.querySelector('[data-estacion]');lista.replaceChildren();

@@ -1,5 +1,5 @@
-import {operacion,esc} from './evidencias.js?v=20261024-69';
-import {pedirDatos,elegir,confirmar} from './modal.js?v=20261024-69';
+import {operacion,esc} from './evidencias.js?v=20261109-70';
+import {pedirDatos,elegir,confirmar} from './modal.js?v=20261109-70';
 export async function editarRecepcion(codigo){
  const ruta='/recepciones/'+encodeURIComponent(codigo),r=await operacion(ruta+'/edicion');
  const accion=await elegir({titulo:codigo,texto:'Edita los datos de recepción o retira un embarque añadido por error. Se conserva la auditoría.',opciones:[
@@ -12,7 +12,9 @@ export async function editarRecepcion(codigo){
    {clave:'embarques',etiqueta:'Embarques (separados por coma)',valor:r.embarques.join(', ')},
    {clave:'bultos',etiqueta:'Total de bultos',valor:r.bultos||0,obligatorio:true}]});
   if(!d)return false;
-  await operacion(ruta+'/edicion',{metodo:'PUT',cuerpo:{...d,bultos:Number(d.bultos),embarques:d.embarques.split(',').map(s=>s.trim()).filter(Boolean),version:r.versionEdicion}});return true;
+  let consolidacion={};
+  if(Number(d.bultos)<Number(r.bultos)){const c=await pedirDatos({titulo:'Confirmar consolidación de bultos',texto:'Se conservará el historial de las etiquetas. Solo se retiran bultos finales sin fotos, cajas ni registros. No se fuerza el cambio si existen vínculos.',campos:[{clave:'motivo',etiqueta:'Motivo de consolidación',obligatorio:true}],aceptar:'Confirmar corrección del total'});if(!c)return false;consolidacion={consolidar:true,motivoConsolidacion:c.motivo};}
+  await operacion(ruta+'/edicion',{metodo:'PUT',cuerpo:{...d,...consolidacion,bultos:Number(d.bultos),embarques:d.embarques.split(',').map(s=>s.trim()).filter(Boolean),version:r.versionEdicion}});return true;
  }
  const d=await pedirDatos({titulo:'Retirar embarque',campos:[{clave:'origen',etiqueta:'Embarque / packing list',tipo:'lista',valor:r.origenes[0],opciones:r.origenes.map(o=>({valor:o,titulo:o}))},
  {clave:'motivo',etiqueta:'Motivo',obligatorio:true}]});if(!d)return false;

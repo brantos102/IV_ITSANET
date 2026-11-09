@@ -1,4 +1,4 @@
-import {seleccionarContenedoresPacking} from './datos.js?v=20261024-69';
+import {seleccionarContenedoresPacking} from './datos.js?v=20261109-70';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function prepararSeleccionContenedores(resultado,panel,alCambiar){
  const opciones=[...new Set(resultado.lineas.map(l=>l.contenedor||''))];if(!opciones.some(Boolean))return;

@@ -143,7 +143,7 @@ def lookup(db: Session, recepcion: Recepcion, codigo: str) -> ResultadoLookup:
     if not sku:
         raise ErrorValidacion("Codigo vacio o invalido.", "CODIGO_INVALIDO")
 
-    res_depot = depot_svc.resolver_codigo(db, codigo)
+    res_depot = depot_svc.resolver_codigo(db, codigo, cliente=recepcion.cliente)
     # Si el codigo era un EAN, Depot devuelve el SKU real.
     if res_depot.existe and res_depot.sku:
         sku = res_depot.sku
@@ -309,7 +309,7 @@ def registrar_scan(
             "CONFIRMAR_SOBRANTE",
         )
 
-    res_depot = depot_svc.resolver_codigo(db, sku)
+    res_depot = depot_svc.resolver_codigo(db, sku, cliente=recepcion.cliente)
     if not res_depot.existe:
         _registrar_pendiente(db, recepcion.id, sku, res_depot, ean, operador)
 

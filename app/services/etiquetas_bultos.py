@@ -19,7 +19,13 @@ def estado(db, codigo):
         .order_by(AppImpresion.datos['lote'].as_integer().desc()).limit(10)))
     unidades = [u for u in db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion == r.codigo,
         AppUnidadLogistica.tipo == 'BULTO').order_by(AppUnidadLogistica.numero)) if not (u.datos or {}).get('archivadoPorConsolidacion')]
-    return {'recepcion': r.codigo, 'cliente': r.cliente, 'marca': (f.datos or {}).get('marca','') if f else '', 'total': r.bultos,
+    padres={u.id:u for u in unidades}
+    subbultos=[{'id':u.id,'numero':u.numero,'rotulo':(u.datos or {}).get('rotulo') or
+        str((padres[u.padre_id].datos or {})['rotulo'])+'.'+str(u.numero)}
+        for u in db.scalars(select(AppUnidadLogistica).where(AppUnidadLogistica.recepcion==r.codigo,
+            AppUnidadLogistica.padre_id.in_(list(padres))).order_by(AppUnidadLogistica.numero))
+        if (padres[u.padre_id].datos or {}).get('rotulo') and not (u.datos or {}).get('archivadoPorConsolidacion')]
+    return {'recepcion': r.codigo, 'cliente': r.cliente, 'marca': (f.datos or {}).get('marca','') if f else '', 'total': r.bultos,'subbultos':subbultos,
         'version': (f.datos or {}).get('version', 0) if f else 0,
         'literal': (f.datos or {}).get('etiquetasBultos', {}).get('literal', 'B') if f else 'B',
         'formato': (f.datos or {}).get('etiquetasBultos', {}).get('formato', '100x150') if f else '100x150',
@@ -127,3 +133,44 @@ def documento(j):
         'copias':j.datos['copias'],'totalBultos':j.datos.get('totalBultos',j.datos['copias']),
         'numeros':j.datos.get('numeros',[e['numero'] for e in j.datos['etiquetas']]),
         **{k: j.datos[k] for k in ('lote','literal','formato','cliente','recepcion','marca','etiquetas','zpl')}}
+
+
+def generar_subbultos(db,codigo,datos,usuario,estacion=None):
+    r=m.obtener(db,codigo,bloquear=True)
+    if r.estado not in m.ABIERTAS:raise HTTPException(409,'Recepción cerrada.')
+    clave=str(datos.get('clave') or '')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{12,80}',clave):raise HTTPException(422,'Falta identificador de solicitud.')
+    ids=datos.get('unidadIds')
+    if not isinstance(ids,list) or not 1<=len(ids)<=1000 or any(not isinstance(i,str) for i in ids):
+        raise HTTPException(422,'Selecciona de 1 a 1000 subbultos registrados.')
+    ids=list(dict.fromkeys(ids));formato=datos.get('formato');destino=datos.get('destino')
+    if len(ids)>operacion.configuracion(db)['maxCopias']:
+        raise HTTPException(422,'La selección supera el máximo de etiquetas por solicitud configurado por ADMIN.')
+    if formato not in ('100x50','100x150') or destino not in ('NAVEGADOR','ZPL','ESTACION'):
+        raise HTTPException(422,'Formato o destino inválido.')
+    if destino=='ESTACION' and not estacion:raise HTTPException(422,'Selecciona una estación habilitada.')
+    h=hashlib.sha256(json.dumps({'ids':ids,'formato':formato,'destino':destino,'estacion':estacion},sort_keys=True).encode()).hexdigest()
+    previo=db.scalar(select(AppImpresion).where(AppImpresion.clave==clave))
+    if previo:
+        if previo.recepcion!=codigo or previo.usuario!=usuario or previo.datos.get('huellaBultos')!=h:
+            raise HTTPException(409,'Identificador de otra solicitud.')
+        return documento(previo)
+    ing=db.get(AppIngreso,codigo)
+    if datos.get('version')!=((ing.datos or {}).get('version',0) if ing else 0) or datos.get('cantidadAnterior')!=r.bultos:
+        raise HTTPException(409,'La recepción cambió. Actualiza antes de imprimir.')
+    disponibles={u['id']:u for u in estado(db,codigo)['subbultos']}
+    if any(i not in disponibles for i in ids):raise HTTPException(409,'Subbulto no disponible. Primero emite el rótulo del bulto padre.')
+    etiquetas=[]
+    for ident in ids:
+        u=db.get(AppUnidadLogistica,ident);rotulo=disponibles[ident]['rotulo']
+        u.datos={**(u.datos or {}),'rotulo':rotulo,'etiquetaEmitida':True}
+        etiquetas.append({'unidadId':ident,'numero':u.numero,'total':r.bultos,'rotulo':rotulo,'serie':rotulo,'codigoMadre':u.codigo or ''})
+    lote=1+db.scalar(select(func.count()).select_from(AppImpresion).where(AppImpresion.recepcion==codigo))
+    snapshot={'tipo':'SUBBULTOS','sku':'SUBBULTOS','copias':len(etiquetas),'cantidadPorEtiqueta':1,'totalBultos':r.bultos,
+        'numeros':[u['numero'] for u in etiquetas],'lote':lote,'huellaBultos':h,'literal':'','formato':formato,
+        'destino':destino,'cliente':r.cliente,'recepcion':codigo,'marca':(ing.datos or {}).get('marca','') if ing else '',
+        'etiquetas':etiquetas,'zpl':zpl(etiquetas,formato,codigo,r.cliente,'')}
+    j=AppImpresion(id=uuid4().hex,clave=clave,estacion=estacion or 'NAVEGADOR',recepcion=codigo,usuario=usuario,
+        estado='PENDIENTE' if destino=='ESTACION' else 'GENERADA',datos=snapshot)
+    db.add(j);operacion.auditoria(db,codigo,usuario,'ETIQUETAS_SUBBULTOS_GENERADAS',{'trabajoId':j.id,'unidades':ids})
+    db.commit();db.refresh(j);return documento(j)

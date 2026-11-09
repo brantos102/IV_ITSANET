@@ -8,10 +8,10 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, onSnapshot,
-} from '../vendor/firebase-sdk.js?v=20261024-69';
-import { db } from './auth.js?v=20261024-69';
-import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261024-69';
-import * as local from './local.js?v=20261024-69';
+} from '../vendor/firebase-sdk.js?v=20261109-70';
+import { db } from './auth.js?v=20261109-70';
+import { resumenDe, comparar, nombreLimpio } from './huella.js?v=20261109-70';
+import * as local from './local.js?v=20261109-70';
 
 /**
  * Dónde se guardan los datos.
@@ -122,7 +122,7 @@ export function decodificarPallets(mapa) {
 }
 
 /**
- * Estado de un SKU. Cinco, no cuatro, y la diferencia importa.
+ * Estado visible de un SKU; el cero confirmado es FALTANTE.
  *
  * «Nadie lo ha buscado todavía» y «se buscó y no apareció» son cosas
  * distintas: la primera es trabajo pendiente, la segunda es un faltante
@@ -135,7 +135,7 @@ export function decodificarPallets(mapa) {
 export function estadoDe(esperado, contado, verificado = contado !== 0) {
   if (!verificado) return esperado > 0 ? 'PENDIENTE' : 'OK';
   if (contado === esperado) return 'OK';
-  if (contado === 0) return esperado > 0 ? 'NO_ENCONTRADO' : 'OK';
+  if (contado === 0) return esperado > 0 ? 'FALTANTE' : 'OK';
   return contado < esperado ? 'FALTANTE' : 'SOBRANTE';
 }
 
@@ -143,7 +143,7 @@ export function estadoDe(esperado, contado, verificado = contado !== 0) {
 export const ETIQUETA_ESTADO = {
   OK: 'Completo',
   FALTANTE: 'Faltan unidades',
-  NO_ENCONTRADO: 'No apareció',
+  NO_ENCONTRADO: 'Faltan unidades',
   SOBRANTE: 'Sobran unidades',
   PENDIENTE: 'Sin buscar',
 };

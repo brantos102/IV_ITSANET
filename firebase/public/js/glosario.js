@@ -92,10 +92,10 @@ export const TERMINOS = {
            'faltante: no se puede cerrar la recepción dejando ninguna así.',
   },
   noAparecio: {
-    titulo: 'No apareció',
-    corto: 'No apareció',
-    ayuda: 'Se buscó y no estaba, y alguien lo declaró con su nota. Eso sí es un ' +
-           'faltante confirmado, y se puede reclamar.',
+    titulo: 'Cero confirmado',
+    corto: 'Cero confirmado',
+    ayuda: 'Se registró 0 con una observación después de la revisión física. Se presenta ' +
+           'como faltante; no es un estado adicional ni borra cantidades previas.',
   },
   sobrante: {
     titulo: 'Sobran unidades',
