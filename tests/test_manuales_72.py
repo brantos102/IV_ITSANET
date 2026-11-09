@@ -85,3 +85,14 @@ def test_regeneracion_archiva_pdf_antiguo_y_no_lo_mezcla_con_html_38(tmp_path):
         assert 'Manual-usuario-final-IV-ITSANET.pdf' not in z.namelist()
         html=z.read('Manual-usuario-final-IV-ITSANET.html').decode()
         assert 'id="paso-38"' in html and 'id="paso-39"' not in html and 'de 40 ·' not in html
+
+def test_captura_nueva_del_selector_en_word_no_se_reemplaza_por_referencia(tmp_path):
+    word=tmp_path/'manual-actualizado.docx';salida=tmp_path/'salida'
+    imagen=(ROOT/'docs/muestras/manuales-v70/33-Agrupacion-correos-referencia.png').read_bytes()
+    with zipfile.ZipFile(word,'w') as z:
+        z.writestr('word/_rels/document.xml.rels','<Relationships><Relationship Id="foto" Target="media/image57.png"/></Relationships>')
+        z.writestr('word/document.xml','<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:t>PASO 33 DE 38</w:t></w:r><a:blip r:embed="foto"/></w:p></w:body></w:document>')
+        z.writestr('word/media/image57.png',imagen)
+    subprocess.run([sys.executable,str(ROOT/'scripts/preparar_manuales_desde_word.py'),'--word',str(word),'--salida',str(salida),'--revision','prueba'],check=True,capture_output=True)
+    r=json.loads((salida/'Revision-del-Word-V2.json').read_text());s=next(x for x in r['pasos'] if x['paso']==33)
+    assert s['origen']=='WORD' and s['imagenes']==1 and r['pasosFinales']==38

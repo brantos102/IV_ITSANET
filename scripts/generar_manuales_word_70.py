@@ -12,6 +12,8 @@ def modulo(nombre,archivo):
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 U=modulo('guia_usuario','generar_manual_usuario_completo.py')
 M=modulo('manual_tecnico','generar_manual_tecnico_final.py')
+MARCOS_VACIOS={24:'b0e1298f8ec911587d4a54aaceb05cc21a42eb9d514c09e3233cf01466135143',
+               33:'807cdc1f5f29d4dc36cf8d6498da377a9ad153f0dd86c7135508d3c8cc50025b'}
 
 
 def leer_word(archivo,salida):
@@ -98,8 +100,9 @@ def main():
         acciones=[re.sub(r'(?i)el paso 39', 'el diagnóstico de cámara del dispositivo', re.sub(r'(?i)el paso 40', 'el seguimiento de fotos y correos en Entregas',t)) for t in acciones]
         atencion=re.sub(r'(?i)el paso 39','el diagnóstico de cámara del dispositivo',re.sub(r'(?i)el paso 40','el seguimiento de fotos y correos en Entregas',atencion))
         if a.version>=71 and i==12:comprobar='Primero aparece Conteo pendiente de sincronizar y la cola del dispositivo aumenta. Solo Pendiente sincronizado confirma el registro en el servidor. Si falla el respaldo local, la ficha permanece abierta.'
-        # En el Word suministrado estos dos archivos son los marcos vacíos comprobados.
-        if i in referencias:
+        # Sustituir solo marcos vacíos conocidos; conservar capturas nuevas de un Word actualizado.
+        if i in MARCOS_VACIOS:imgs=[im for im in imgs if im.get('sha256')!=MARCOS_VACIOS[i]]
+        if i in referencias and not imgs:
             imgs=[];src=a.referencias/referencias[i]
             dest=a.salida/'capturas'/src.name;dest.write_bytes(src.read_bytes());imgs=[{'archivo':dest.name,'origen':'PRUEBAS','original':''}]
         if i==33 and a.captura_correos:

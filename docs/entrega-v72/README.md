@@ -19,14 +19,14 @@ Las referencias de pruebas están identificadas; no se presentan como capturas p
 
 ## 2. Obtener el código de esta entrega sin cambiar el servicio
 
-En VS Code conectado por SSH al servidor, abre una terminal remota:
+En VS Code conectado por SSH al servidor, abre la carpeta `/home/enicolalde/bryan` para ver también la carpeta de preparación de documentos. Después abre una terminal remota:
 
 ```bash
 (
   set -euo pipefail
   cd "$HOME/bryan/IV_ITSANET"
-  git fetch origin desarrollo-local tag iv-itsanet-20261109-72
-  iv_revision=$(git rev-parse 'iv-itsanet-20261109-72^{commit}')
+  git fetch origin desarrollo-local tag iv-itsanet-20261109-72.1
+  iv_revision=$(git rev-parse 'iv-itsanet-20261109-72.1^{commit}')
   iv_fuente=$(mktemp -d "$HOME/bryan/iv-manuales-fuente-72.XXXXXX")
   git archive "$iv_revision" | tar -x -C "$iv_fuente"
   printf '%s\n' "$iv_fuente" > "$HOME/bryan/.iv-manuales-fuente-72"
@@ -52,7 +52,7 @@ iv_fuente=$(cat "$HOME/bryan/.iv-manuales-fuente-72")
 python3 "$iv_fuente/scripts/preparar_manuales_desde_word.py" \
   --word "$HOME/bryan/Manual-usuario-completo-IV-ITSANET V2.docx" \
   --salida "$HOME/bryan/manuales-IV-ITSANET-38" \
-  --revision "$(git -C "$HOME/bryan/IV_ITSANET" rev-parse 'iv-itsanet-20261109-72^{commit}')" \
+  --revision "$(git -C "$HOME/bryan/IV_ITSANET" rev-parse 'iv-itsanet-20261109-72.1^{commit}')" \
   --captura-correos "$HOME/bryan/selector-correos.png"
 ```
 
@@ -81,7 +81,7 @@ python3 "$iv_fuente/scripts/publicar_manuales.py" \
   --tecnico-html "$HOME/bryan/manuales-IV-ITSANET-38/Manual-tecnico-final-IV-ITSANET.html" \
   --tecnico-pdf "$HOME/bryan/manuales-IV-ITSANET-38/Manual-tecnico-final-IV-ITSANET.pdf" \
   --destino "$HOME/bryan/IV_ITSANET/documentacion/manuales" \
-  --revision "$(git -C "$HOME/bryan/IV_ITSANET" rev-parse 'iv-itsanet-20261109-72^{commit}')"
+  --revision "$(git -C "$HOME/bryan/IV_ITSANET" rev-parse 'iv-itsanet-20261109-72.1^{commit}')"
 ```
 
 El publicador valida los 38 pasos, conserva las versiones anteriores y activa el par completo. El HTML enlaza al PDF de su misma versión. Si editas sus capturas después, retira el enlace al PDF anterior en esa copia local para que no se confundan versiones.
@@ -106,8 +106,8 @@ Después de comunicar la pausa a los operarios:
 (
   set -euo pipefail
   cd "$HOME/bryan/IV_ITSANET"
-  git fetch origin desarrollo-local tag iv-itsanet-20261109-72
-  iv_revision=$(git rev-parse 'iv-itsanet-20261109-72^{commit}')
+  git fetch origin desarrollo-local tag iv-itsanet-20261109-72.1
+  iv_revision=$(git rev-parse 'iv-itsanet-20261109-72.1^{commit}')
   iv_pase=$(mktemp /tmp/iv-itsanet-pase-72.XXXXXX)
   git show "$iv_revision:scripts/actualizar_produccion.sh" > "$iv_pase"
   bash "$iv_pase" "$PWD" "$iv_revision"
