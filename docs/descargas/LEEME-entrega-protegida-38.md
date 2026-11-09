@@ -12,8 +12,8 @@ Se preparó esta vía para evitar el visor de artefactos de la conversación. Lo
 
 El paquete PDF permite descargar además un borrador `.eml` con los dos PDF adjuntos. Completa destinatarios y firma antes de enviar. Para Gmail web, copia el texto mostrado y adjunta los dos PDF descargados.
 
-El manual de usuario contiene **38 pasos**. Los puntos 39 y 40 están eliminados. Las referencias visuales se identifican en el documento; pueden reemplazarse desde el HTML. Las nuevas capturas requieren generar de nuevo el PDF del mismo HTML.
+El manual de usuario contiene **38 pasos**. El manual técnico describe Apache, FastAPI/Uvicorn, MySQL, las integraciones de Google, el mantenimiento y el diccionario de 31 tablas, 274 campos y 33 claves externas. Distingue las relaciones físicas de los vínculos resueltos por la aplicación. Las imágenes de referencia se identifican en el manual de usuario.
 
 Todo el desbloqueo y la descarga se ejecutan localmente en el navegador. La clave no se envía por red. Los archivos descargados verifican su SHA-256. Se utiliza AES-256-GCM y PBKDF2-SHA256 con sal y nonce independientes por paquete.
 
-No se ha enviado ningún correo ni se ha realizado una actualización del servidor corporativo con esta entrega descargable. La publicación del manual en el servidor y el pase del aplicativo siguen el [procedimiento documentado](../entrega-v72/README.md).
+El correo es un borrador con destinatarios y firma por completar. La documentación se basa en el código y la evidencia técnica fechada del servidor. La verificación funcional se ejecuta en un entorno aislado; las mediciones de carga se presentan por separado. La publicación en el servidor sigue el [procedimiento documentado](../entrega-v72/README.md).
