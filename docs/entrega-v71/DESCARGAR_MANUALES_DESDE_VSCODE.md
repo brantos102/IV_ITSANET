@@ -12,7 +12,7 @@ Este procedimiento genera los documentos en una carpeta privada del servidor y p
   umask 077
   cd "$HOME/bryan/IV_ITSANET"
   git fetch origin desarrollo-local
-  iv_revision=ddd0b1b12c89432e228c5dddcb71e7501adb24b3
+  iv_revision=35b0b139d0d70fa583530d0cbebeb59a54a98b9a
   iv_fuente=$(mktemp -d "$HOME/bryan/iv-manuales-fuente-71.XXXXXX")
   git archive "$iv_revision" | tar -x -C "$iv_fuente"
   python3 "$iv_fuente/scripts/preparar_manuales_desde_word.py" \
@@ -39,7 +39,7 @@ La generación documental anterior no instala v71. Para instalar el candidato pr
   set -euo pipefail
   cd "$HOME/bryan/IV_ITSANET"
   git fetch origin desarrollo-local
-  iv_revision=ddd0b1b12c89432e228c5dddcb71e7501adb24b3
+  iv_revision=35b0b139d0d70fa583530d0cbebeb59a54a98b9a
   iv_pase=$(mktemp /tmp/iv-itsanet-pase-71.XXXXXX)
   git show "$iv_revision:scripts/actualizar_produccion.sh" > "$iv_pase"
   bash "$iv_pase" "$PWD" "$iv_revision"
