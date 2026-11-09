@@ -7,7 +7,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import AppPresencia, AppEvento, AppSku, utcnow
-from app.security import usuario_actual, COOKIE
+from app.security import usuario_actual, COOKIE, comprobar_operador_pendiente
 from app.routers.integraciones import admin
 from app.services import ajustes, calidad, app_modelo as m
 
@@ -172,6 +172,7 @@ def corregir_conteo(codigo:str,ident:str,datos:dict=Body(...),db:Session=Depends
 
 @router.post('/recepciones/{codigo}/conteos-repartidos')
 def repartir_conteo(codigo:str,datos:dict=Body(...),db:Session=Depends(get_db),op=Depends(usuario_actual)):
+    comprobar_operador_pendiente(datos, op)
     from app.services.correcciones import repartir
     return repartir(db,codigo,datos,op.email or op.usuario)
 

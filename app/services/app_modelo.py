@@ -588,7 +588,7 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, 
     #    operario está repitiendo. No se cuenta dos veces.
     anterior = db.scalar(select(AppEvento).where(AppEvento.id == idem).with_for_update())
     if anterior is not None:
-        if anterior.recepcion != codigo or anterior.sku != sku:
+        if anterior.recepcion != codigo or anterior.sku != sku or anterior.usuario != usuario:
             raise ErrorApp('El identificador ya corresponde a otro movimiento. Inicia un nuevo registro.', 'CLAVE_EN_CONFLICTO')
         s = db.execute(select(AppSku).with_for_update().execution_options(populate_existing=True).where(
             AppSku.recepcion == codigo, AppSku.sku == sku)).scalar_one_or_none()
@@ -598,7 +598,8 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, 
         esperado = a_numero(s.esperado, 0) if s else 0
         contado = a_numero(s.contado, 0) if s else 0
         return {
-            "duplicado": True, "sku": sku, "esperado": esperado, "contado": contado,
+            "duplicado": True, "eventoId": idem, "sku": sku, "esperado": esperado, "contado": contado,
+            'cantidadRegistrada': a_numero(anterior.cantidad,0), 'pallet': anterior.pallet,
             "pendiente": max(esperado - contado, 0),
             "estado": (s.estado if s else estado_de(esperado, contado)),
             'pallets': s.pallets if s else {},
@@ -667,6 +668,10 @@ def registrar_conteo(db: Session, codigo: str, usuario: str | None, p: dict, *, 
         "fotos": fotos,
         "operadorNombre": limpiar(p.get("operadorNombre")) or None,
         "interpretacionLectura": limpiar(p.get("interpretacionLectura"))[:500] or None,
+        # Fecha informativa del dispositivo; creado_en sigue siendo el reloj del servidor.
+        **({'capturadoEnDispositivo': limpiar(p.get('capturadoEnDispositivo'))[:48],
+            'dispositivoOrigen': limpiar(p.get('dispositivoOrigen'))[:80], 'envioDiferido': True}
+           if p.get('envioDiferido') else {}),
     }
     db.add(AppEvento(
         id=idem, recepcion=codigo, tipo=limpiar(p.get("tipo")) or "CONTEO", sku=sku,

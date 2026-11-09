@@ -53,7 +53,7 @@ def repartir(db,codigo,datos,usuario):
     if not 8<=len(ident)<=80:raise HTTPException(422,'Falta el identificador del reparto.')
     previo=db.get(AppEvento,ident)
     if previo:
-        if previo.recepcion!=r.codigo or previo.tipo!='REPARTO' or previo.sku!=datos.get('sku'):
+        if previo.recepcion!=r.codigo or previo.tipo!='REPARTO' or previo.sku!=datos.get('sku') or previo.usuario!=usuario:
             raise HTTPException(409,'El identificador corresponde a otra operación.')
         return {**previo.datos['resultado'],'duplicado':True}
     partes=datos.get('reparto')

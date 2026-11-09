@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import AppArchivo, AppArchivoSku, AppConfig, AppEntrega, AppRecepcion, AppEvento, AppSku, Operador, Producto, ProductoCodigo, Rol, utcnow
-from app.security import requiere_supervisor, usuario_actual
+from app.security import requiere_supervisor, usuario_actual, comprobar_operador_pendiente
 from app.services import app_modelo as m
 from app.services import depot as depot_svc
 from app.services import entregas
@@ -557,6 +557,15 @@ def borrar(codigo: str, db: Session = Depends(get_db),
         raise _traducir(exc) from exc
 
 
+@router.get('/recepciones/{codigo}/lecturas-locales')
+def lecturas_locales(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services.lecturas import manifiesto
+    try:
+        return manifiesto(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+
+
 @router.get("/recepciones/{codigo}/{coleccion}")
 def subcoleccion(codigo: str, coleccion: str, max: int = Query(0, ge=0, le=5000),
                  db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
@@ -628,6 +637,7 @@ def parecidos(cuerpo: dict = Body(...), db: Session = Depends(get_db),
 @router.post("/recepciones/{codigo}/conteos")
 def contar(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
            op: Operador = Depends(usuario_actual)):
+    comprobar_operador_pendiente(cuerpo, op)
     try:
         return m.registrar_conteo(db, codigo, _quien(op), cuerpo)
     except m.ErrorApp as exc:
@@ -637,6 +647,7 @@ def contar(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
 @router.post("/recepciones/{codigo}/no-encontrado")
 def no_encontrado(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
                   op: Operador = Depends(usuario_actual)):
+    comprobar_operador_pendiente(cuerpo, op)
     try:
         return m.declarar_no_encontrado(db, codigo, _quien(op), cuerpo)
     except m.ErrorApp as exc:

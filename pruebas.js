@@ -30,6 +30,7 @@ const SUITES = [
   ['Etiquetas — selección parcial y tamaños', 'firebase/test/etiquetas65.test.mjs'],
   ['Recepciones — fecha de registro y filtros en Ecuador', 'firebase/test/recepciones-lista.test.mjs'],
   ['Operación — canal de actualización entre usuarios', 'firebase/test/actualizacion.test.mjs'],
+  ['Operación — pendientes sin conexión y recuperación', 'firebase/test/conteos-pendientes.test.mjs'],
   ['Ingreso — formatos variables y copias de etiquetas', 'firebase/test/ingreso.test.mjs'],
   ['Navegador — miniaturas privadas y concurrencia acotada', 'firebase/test/miniaturas.test.mjs'],
   ['Navegador — páginas: sintaxis, imports y referencias', 'firebase/test/paginas.test.mjs'],

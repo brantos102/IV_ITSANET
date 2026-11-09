@@ -181,3 +181,29 @@ def resolver(db, raw, recepcion=None):
         'detallesCandidatos': _detalles(db, candidatos, recepcion),
         'motivo': 'Posible prefijo, ceros de relleno o diferencia de caracteres. Requiere confirmación.'
                   if candidatos else 'No se identificó un SKU existente. Escanea solo el número de pieza o escríbelo sin lote, cantidad ni relleno; vuelve a buscar antes de crear un adicional.'}
+def manifiesto(db, codigo):
+    """Solo etiquetas de los SKU de esta recepción y su cliente, para continuidad local."""
+    from app.models import AppSku, Producto, ProductoCodigo, ProductoRelacion, utcnow
+    from app.services import app_modelo as m
+    from app.services.relacion_codigos import variantes
+    r = m.obtener(db, codigo)
+    skus = set(db.scalars(select(AppSku.sku).where(AppSku.recepcion == r.codigo)))
+    filas = {}
+    def agregar(valor, sku, factor=None, tipo='SKU'):
+        if not valor:return
+        for v in variantes(valor):
+            k=(v,sku)
+            previo=filas.get(k)
+            if previo and not factor:continue
+            filas[k]={'codigo':v,'sku':sku,'codigoEtiqueta':str(valor),'tipoCodigo':tipo,
+                'unidadesPorCodigo':factor if factor and factor>0 else None}
+    for s in skus:agregar(s,s)
+    propios={p.sku:p for p in db.scalars(select(Producto).where(Producto.sku.in_(skus),Producto.cliente==r.cliente))}
+    for p in propios.values():
+        for v in (p.ean,p.codigo_alternativo):agregar(v,p.sku,tipo='MAESTRO')
+    for p in db.scalars(select(ProductoCodigo).where(ProductoCodigo.sku.in_(list(propios)))):
+        agregar(p.codigo,p.sku,tipo='ALIAS')
+    for p in db.scalars(select(ProductoRelacion).where(ProductoRelacion.cliente==r.cliente,ProductoRelacion.sku.in_(skus))):
+        agregar(p.valor,p.sku,p.cantidad_referencia,p.tipo)
+    return {'recepcion':r.codigo,'cliente':r.cliente,'generadoEn':utcnow().isoformat(),
+        'lecturas':list(filas.values())}

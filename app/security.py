@@ -84,3 +84,11 @@ def requiere_supervisor(op: Operador = Depends(usuario_actual)) -> Operador:
     if op.rol not in (Rol.SUPERVISOR, Rol.ADMIN):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Requiere rol SUPERVISOR o ADMIN")
     return op
+
+
+def comprobar_operador_pendiente(datos, operador):
+    """Un pendiente del dispositivo nunca se firma con la siguiente cuenta."""
+    origen = datos.get('operadorPendiente')
+    if origen is not None and str(origen) != operador.usuario:
+        raise HTTPException(409, {'codigo': 'CUENTA_CAMBIADA',
+            'mensaje': 'Este pendiente pertenece a otra cuenta. Entra con el operario que lo capturó.'})
