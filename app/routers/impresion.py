@@ -74,15 +74,15 @@ def zpl(datos, copias):
     cantidad=datos.get('cantidad',1)
     if type(cantidad) not in (int,float) or not math.isfinite(cantidad) or not 0<cantidad<=1000000:
         raise HTTPException(422,'Unidades por etiqueta: cantidad mayor que cero y máximo 1000000.')
-    def texto(x, y, h, ancho, valor, lineas=1):
+    def texto(x, y, h, ancho, valor, lineas=1, ancho_letra=None):
         codificado = ''.join('\\' + format(b, '02X') for b in str(valor).encode())
-        return f'^FO{x},{y}^A0N,{h},{max(12,h-3)}^FB{ancho},{lineas},2,L,0^FH\\^FD{codificado}^FS'
+        return f'^FO{x},{y}^A0N,{h},{ancho_letra if ancho_letra is not None else max(12,h-3)}^FB{ancho},{lineas},2,L,0^FH\\^FD{codificado}^FS'
     codigo = ''.join('\\' + format(b, '02X') for b in sku.encode())
     return '\n'.join(['^XA', '^CI28', '^PW800', '^LL400', '^LH0,0',
         texto(22,22,28,480,str(datos.get('cliente') or 'ITSANET').upper()[:40]),
         texto(22,68,19,480,'CODIGO:'),
-        f'^FO36,101^BY{1 if len(sku)>20 else 2},2,70^BCN,70,N,N,N,A^FH\\^FD{codigo}^FS',
-        texto(70,180,24,440,sku), texto(22,216,18,480,'DESCRIPCION:'),
+        f'^FO36,101^BY{1 if len(sku)>20 else 2},2,78^BCN,78,N,N,N,A^FH\\^FD{codigo}^FS',
+        texto(70,180,30,440,sku,ancho_letra=min(27,440//len(sku))), texto(22,216,18,480,'DESCRIPCION:'),
         texto(22,241,20,480,str(datos.get('descripcion') or '')[:100],2),
         texto(22,300,19,480,'SERIE:'),
         *([f'^FO36,326^BY{1 if len(str(datos["serie"])) > 20 else 2},2,32^BCN,32,N,N,N,A^FH\\^FD' + ''.join('\\' + format(b, '02X') for b in str(datos['serie'])[:42].encode()) + '^FS',

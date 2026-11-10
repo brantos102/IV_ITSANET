@@ -85,6 +85,8 @@ def test_regeneracion_archiva_pdf_antiguo_y_no_lo_mezcla_con_html_38(tmp_path):
         assert 'Manual-usuario-final-IV-ITSANET.pdf' not in z.namelist()
         html=z.read('Manual-usuario-final-IV-ITSANET.html').decode()
         assert 'id="paso-38"' in html and 'id="paso-39"' not in html and 'de 40 ·' not in html
+        assert 'type="file"' not in html
+        assert 'Reemplazar capturas del paso' not in html and 'Añadir capturas adicionales' not in html
         tecnico=z.read('Manual-tecnico-final-IV-ITSANET.html').decode()
         for documento in (html,tecnico):
             assert not __import__('re').search(r'(?i)(?:versi[oó]n\s*|\bv)(?:69|70|71|72)\b|cambios preparados|candidato v',documento)

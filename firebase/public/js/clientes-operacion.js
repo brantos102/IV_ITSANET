@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261109-72';
-import {pedirDatos,confirmar} from './modal.js?v=20261109-72';
+import {pedir} from './local.js?v=20261110-73';
+import {pedirDatos,confirmar} from './modal.js?v=20261110-73';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/operacion'});
 export async function configurarClientes(select,boton,puedeEditar,alError=console.error) {
   async function cargar(elegido=select.value){

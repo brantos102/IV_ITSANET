@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261109-72';
-import {abrirEntregas} from './entregas-supervisor.js?v=20261109-72';
+import {pedir} from './local.js?v=20261110-73';
+import {abrirEntregas} from './entregas-supervisor.js?v=20261110-73';
 export async function configurarMiCorreo(panel,aviso,{usuarioId=null}={}){
  const ruta=usuarioId?`/integraciones/usuarios/${usuarioId}/google`:'/integraciones/mi-google';
  const datos=await pedir(ruta);

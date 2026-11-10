@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261109-72';
-import {configurarMiCorreo} from './mi-correo.js?v=20261109-72';
+import {pedir} from './local.js?v=20261110-73';
+import {configurarMiCorreo} from './mi-correo.js?v=20261110-73';
 export async function mostrarCuentasSupervision(panel){
  panel.replaceChildren();const estado=document.createElement('p');estado.setAttribute('role','status');estado.textContent='Consultando fichas y conexiones guardadas…';panel.append(estado);
  const fichas=(await pedir('/operadores',{base:'/api/auth'})).filter(o=>o.activo&&['ADMIN','SUPERVISOR'].includes(o.rol));
