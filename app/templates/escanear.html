@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% set activo = 'recepciones' %}
+{% block titulo %}Escanear · {{ rec.codigo }}{% endblock %}
+{% block contenido %}
+<h1>Escaneo · {{ rec.codigo }}
+  <a href="/recepciones/{{ rec.id }}" class="mini" style="font-weight:400">ver resumen →</a></h1>
+
+<div class="panel">
+  <div class="campo">
+    <label for="codigo">Escanee o escriba el código (SKU o EAN)</label>
+    <input id="codigo" class="escaneo" autocomplete="off" autocapitalize="characters"
+           spellcheck="false" autofocus placeholder="▌">
+  </div>
+  <div id="avisos"></div>
+</div>
+
+<div class="panel oculto" id="ficha">
+  <div class="fila" style="align-items:flex-start">
+    <div style="flex:2;min-width:220px">
+      <div style="font-size:1.25rem;font-weight:700" id="fSku"></div>
+      <div class="mini" id="fDesc"></div>
+    </div>
+    <div class="kpis" style="flex:3">
+      <div class="kpi"><div class="v" id="fEsp">0</div><div class="e">Sistema</div></div>
+      <div class="kpi info"><div class="v" id="fCont">0</div><div class="e">Contado</div></div>
+      <div class="kpi warn"><div class="v" id="fPend">0</div><div class="e">Pendiente</div></div>
+    </div>
+  </div>
+
+  <div id="ubicaciones" class="oculto" style="margin-top:.8rem">
+    <label>Ya guardado en</label>
+    <div class="sugerencia" id="chips"></div>
+  </div>
+
+  <div class="fila" style="margin-top:1rem">
+    <div class="campo"><label for="cantidad">Cantidad física</label>
+      <input id="cantidad" class="cant" type="number" inputmode="decimal" step="any" value="1"></div>
+    <div class="campo"><label for="pallet">Pallet / subpallet</label>
+      <input id="pallet" placeholder="B04 o B04.1" autocapitalize="characters"></div>
+    <div class="campo"><label for="estado">Estado físico</label>
+      <select id="estado"><option value="BUENO">Buen estado</option>
+        <option value="MALO">Mal estado</option></select></div>
+    <div class="campo"><label for="ean">Código EAN (opcional)</label>
+      <input id="ean" placeholder="para subir al sistema"></div>
+  </div>
+  <div class="fila">
+    <div class="campo" style="flex:3"><label for="obs">Observación</label>
+      <input id="obs" placeholder="Ej: P.N.C. PRODUCTO DOBLADO"></div>
+    <button id="btnGuardar" onclick="guardar(false)">Registrar conteo</button>
+    <button class="sec" onclick="reiniciar()">Cancelar</button>
+  </div>
+</div>
+
+<h2>Últimos conteos</h2>
+<div class="scroll" style="max-height:40vh">
+  <table><thead><tr>
+    <th>Hora</th><th>SKU</th><th class="num">Cant</th><th>Pallet</th>
+    <th>Estado</th><th>Operador</th><th></th></tr></thead>
+    <tbody id="historial"></tbody></table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const REC = {{ rec.id }};
+const avisos = $('#avisos'), ficha = $('#ficha');
+let actual = null;          // resultado del lookup
+let claveEnvio = null;      // idempotencia por intento
+
+const inCodigo = $('#codigo'), inCant = $('#cantidad'), inPallet = $('#pallet');
+
+/* --- Paso 1: lookup contra Depot + packing list ------------------------ */
+async function buscar(codigo){
+  limpiarAvisos(avisos);
+  try{
+    actual = await API.post(`/api/recepciones/${REC}/lookup`, {codigo});
+  }catch(e){ bipError(); aviso(avisos, e.message,'err'); return; }
+
+  claveEnvio = claveIdem();
+  ficha.classList.remove('oculto');
+  $('#fSku').textContent = actual.sku;
+  $('#fDesc').textContent = actual.descripcion || '(sin descripción en el packing list)';
+  $('#fEsp').textContent = actual.esperado;
+  $('#fCont').textContent = actual.contado;
+  $('#fPend').textContent = actual.pendiente;
+
+  // Sugerencia de pallet: donde ya se guardó este SKU.
+  const chips = $('#chips');
+  if(actual.ubicaciones.length){
+    $('#ubicaciones').classList.remove('oculto');
+    chips.innerHTML = actual.ubicaciones.map(u =>
+      `<button type="button" onclick="usarPallet('${esc(u.pallet)}')">📦 ${esc(u.pallet)} · ${u.cantidad} u.</button>`
+    ).join('');
+    inPallet.value = actual.pallet_sugerido || inPallet.value;
+  } else {
+    $('#ubicaciones').classList.add('oculto');
+    chips.innerHTML = '';
+  }
+
+  // Avisos: existencia en Depot, sobrante, pallets previos.
+  const d = actual.depot;
+  if(!d.existe){
+    bipError();
+    aviso(avisos, d.mensaje, d.accion === 'VALIDAR_PROFUNDIDAD' ? 'warn' : 'err',
+      d.accion === 'VALIDAR_PROFUNDIDAD'
+        ? 'SKU NO ENCONTRADO — VALIDAR A PROFUNDIDAD'
+        : 'SKU NO EXISTE EN DEPOT — SOLICITAR CREACIÓN');
+    if(d.candidatos && d.candidatos.length){
+      aviso(avisos, d.candidatos.map(c => `${c.sku} — ${c.descripcion||''}`).join(' · '),
+        'info', 'Códigos similares en el maestro');
+    }
+    $('#ean').focus();
+  } else { bipOk(); }
+
+  actual.avisos.filter(a => a !== d.mensaje).forEach(a => {
+    aviso(avisos, a, a.startsWith('SKU NO está') ? 'warn' : 'info');
+  });
+
+  if(actual.pendiente > 0) inCant.value = actual.pendiente;
+  (d.existe ? inCant : $('#ean')).focus();
+  if(d.existe) inCant.select();
+}
+
+function usarPallet(p){ inPallet.value = p; inCant.focus(); inCant.select(); }
+
+/* --- Paso 2: registrar la cantidad física ------------------------------ */
+async function guardar(confirmarSobrante){
+  if(!actual) return;
+  limpiarAvisos(avisos);
+  $('#btnGuardar').disabled = true;
+  try{
+    const r = await API.post(`/api/recepciones/${REC}/scans`, {
+      codigo: actual.sku,
+      cantidad: parseFloat(inCant.value),
+      pallet: inPallet.value.trim(),
+      estado_fisico: $('#estado').value,
+      ean: $('#ean').value.trim() || null,
+      observacion: $('#obs').value.trim() || null,
+      confirmar_sobrante: !!confirmarSobrante,
+      idempotency_key: claveEnvio,
+      dispositivo: nombreDispositivo(),
+    });
+    bipOk();
+    aviso(avisos,
+      `${r.sku} · ${r.cantidad_registrada} u. en ${r.pallet} — contado ${r.contado}/${r.esperado}`,
+      'ok', r.duplicado ? 'Ya estaba registrado (no se duplicó)' : 'Conteo registrado');
+    reiniciar();
+    historial();
+  }catch(e){
+    bipError();
+    if(e.codigo === 'CONFIRMAR_SOBRANTE'){
+      const div = aviso(avisos, e.message, 'warn', 'Confirmar sobrante');
+      const b = document.createElement('button');
+      b.textContent = 'Sí, registrar como sobrante';
+      b.style.marginTop = '.5rem';
+      b.onclick = () => guardar(true);
+      div.appendChild(document.createElement('br'));
+      div.appendChild(b);
+    } else {
+      aviso(avisos, e.message, 'err');
+    }
+  }finally{ $('#btnGuardar').disabled = false; }
+}
+
+function reiniciar(){
+  actual = null; claveEnvio = null;
+  ficha.classList.add('oculto');
+  inCodigo.value = ''; inCant.value = '1';
+  $('#ean').value=''; $('#obs').value=''; $('#estado').value='BUENO';
+  inCodigo.focus();
+}
+
+async function historial(){
+  const filas = await API.get(`/api/recepciones/${REC}/scans?limite=40`);
+  $('#historial').innerHTML = filas.map(e => `
+    <tr${e.anulado ? ' style="opacity:.45;text-decoration:line-through"' : ''}>
+      <td class="mini">${new Date(e.hora).toLocaleTimeString('es')}</td>
+      <td><b>${esc(e.sku)}</b>${e.observacion?`<br><span class="mini">${esc(e.observacion)}</span>`:''}</td>
+      <td class="num">${e.cantidad}</td>
+      <td>${esc(e.pallet)}</td>
+      <td>${e.estado_fisico==='MALO'?'<span class="tags t-FALTANTE">MAL ESTADO</span>':'ok'}</td>
+      <td class="mini">${esc(e.operador||'')}</td>
+      <td>${e.anulado||e.tipo==='ANULACION'?'':`<button class="sec" onclick="anular(${e.id})">Anular</button>`}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="mini">Sin conteos aún.</td></tr>';
+}
+
+async function anular(id){
+  const motivo = prompt('Motivo de la anulación:');
+  if(!motivo) return;
+  try{
+    await API.post(`/api/recepciones/${REC}/scans/${id}/anular`, {motivo});
+    aviso(avisos,'Conteo anulado (queda registrado en la bitácora).','ok');
+    historial();
+  }catch(e){ aviso(avisos, e.message,'err'); }
+}
+
+/* El lector de códigos emite los caracteres y luego Enter. */
+inCodigo.addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); const v = inCodigo.value.trim(); if(v) buscar(v); }
+});
+inCant.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); inPallet.focus(); }});
+inPallet.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); guardar(false); }});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') reiniciar(); });
+
+historial();
+setInterval(historial, 15000);   // otros operadores también están contando
+</script>
+{% endblock %}

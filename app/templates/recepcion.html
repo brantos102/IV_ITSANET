@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% set activo = 'recepciones' %}
+{% block titulo %}{{ rec.codigo }} · {{ APP_NAME }}{% endblock %}
+{% block contenido %}
+<h1>{{ rec.codigo }} <span id="estadoTag"></span></h1>
+<div id="avisos"></div>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="fila" style="margin:1rem 0">
+  <a href="/recepciones/{{ rec.id }}/escanear"><button>📷 Escanear</button></a>
+  <button class="sec" onclick="location.href='/api/recepciones/{{ rec.id }}/export'">
+    ⬇ Packing list final (.xlsx)</button>
+  {% if operador.rol.value in ('SUPERVISOR','ADMIN') %}
+  <button class="ok" onclick="cerrar()">Cerrar validación</button>
+  <button class="sec" onclick="reabrir()">Reabrir</button>
+  {% endif %}
+  <button class="sec" onclick="cargar()">↻ Actualizar</button>
+</div>
+
+<h2>SKU por crear o validar en Depot <span id="nPend" class="mini"></span></h2>
+<div class="panel" id="panelPend"><p class="mini">Sin pendientes.</p></div>
+
+<h2>Detalle por SKU</h2>
+<div class="fila" style="margin-bottom:.6rem">
+  <div class="campo"><label>Filtrar</label>
+    <select id="filtro" onchange="pintarDetalle()">
+      <option value="">Todos</option><option value="FALTANTE">Faltantes</option>
+      <option value="SOBRANTE">Sobrantes</option><option value="PENDIENTE">Sin contar</option>
+      <option value="OK">Ok</option></select></div>
+  <div class="campo" style="flex:2"><label>Buscar SKU</label>
+    <input id="busca" oninput="pintarDetalle()" placeholder="código o descripción"></div>
+</div>
+<div class="scroll">
+  <table><thead><tr>
+    <th>SKU</th><th>Descripción</th><th class="num">Sistema</th><th class="num">Físico</th>
+    <th class="num">Dif.</th><th>Estado</th><th>Pallets</th></tr></thead>
+    <tbody id="detalle"></tbody></table>
+</div>
+
+<h2>Pallets</h2>
+<div class="panel"><ul class="lista" id="pallets"></ul></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const REC = {{ rec.id }};
+const avisos = $('#avisos');
+let datos = null;
+
+async function cargar(){
+  datos = await API.get(`/api/recepciones/${REC}`);
+  const t = datos.totales;
+  $('#estadoTag').innerHTML = tag(datos.recepcion.estado);
+  $('#kpis').innerHTML = `
+    <div class="kpi"><div class="v">${t.skus_packing_list}</div><div class="e">SKU en lista</div></div>
+    <div class="kpi"><div class="v">${t.unidades_sistema}</div><div class="e">Unid. sistema</div></div>
+    <div class="kpi info"><div class="v">${t.unidades_fisicas}</div><div class="e">Unid. físicas</div></div>
+    <div class="kpi ${t.diferencia==0?'ok':'err'}"><div class="v">${t.diferencia>0?'+':''}${t.diferencia}</div><div class="e">Diferencia</div></div>
+    <div class="kpi ok"><div class="v">${datos.por_estado.OK}</div><div class="e">Ok</div></div>
+    <div class="kpi err"><div class="v">${datos.por_estado.FALTANTE}</div><div class="e">Faltante</div></div>
+    <div class="kpi info"><div class="v">${datos.por_estado.SOBRANTE}</div><div class="e">Sobrante</div></div>
+    <div class="kpi warn"><div class="v">${datos.por_estado.PENDIENTE}</div><div class="e">Sin contar</div></div>
+    <div class="kpi"><div class="v">${t.avance_pct}%</div><div class="e">Avance</div></div>
+    <div class="kpi"><div class="v">${t.operadores}</div><div class="e">Operadores</div></div>`;
+  pintarDetalle();
+  pendientes();
+  pallets();
+}
+
+function pintarDetalle(){
+  const f = $('#filtro').value, q = $('#busca').value.trim().toUpperCase();
+  const filas = datos.detalle.filter(d =>
+    (!f || d.estado === f) &&
+    (!q || d.sku.includes(q) || (d.descripcion||'').toUpperCase().includes(q)));
+  $('#detalle').innerHTML = filas.map(d => `
+    <tr>
+      <td><b>${esc(d.sku)}</b>${d.en_packing_list?'':'<br><span class="mini">fuera del packing list</span>'}</td>
+      <td class="mini">${esc(d.descripcion||'')}</td>
+      <td class="num">${d.esperado}</td><td class="num">${d.contado}</td>
+      <td class="num">${d.diferencia>0?'+':''}${d.diferencia}</td>
+      <td>${tag(d.estado)}</td>
+      <td class="mini">${d.ubicaciones.map(u=>`${esc(u.pallet)}(${u.cantidad})`).join(' · ')}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="mini">Sin resultados.</td></tr>';
+}
+
+async function pendientes(){
+  const p = await API.get(`/api/recepciones/${REC}/pendientes`);
+  $('#nPend').textContent = p.length ? `(${p.length})` : '';
+  $('#panelPend').innerHTML = p.length ? `<ul class="lista">${p.map(x=>`
+    <li><span><b>${esc(x.sku)}</b> ${esc(x.descripcion||'')}
+      ${x.ean?`<span class="mini">EAN ${esc(x.ean)}</span>`:''}
+      ${x.candidatos.length?`<br><span class="mini">similares: ${x.candidatos.map(c=>esc(c.sku)).join(', ')}</span>`:''}</span>
+      <span>${tag(x.estado)}
+      {% if operador.rol.value in ('SUPERVISOR','ADMIN') %}
+      <button class="sec" onclick="resolver(${x.id},'CREADO')">Marcar creado</button>
+      {% endif %}</span></li>`).join('')}</ul>`
+    : '<p class="mini">Sin pendientes.</p>';
+}
+
+async function resolver(id, estado){
+  const ean = prompt('Código EAN registrado (opcional):') || null;
+  try{
+    await API.patch(`/api/recepciones/${REC}/pendientes/${id}`, {estado, ean});
+    aviso(avisos,'Pendiente actualizado.','ok'); pendientes();
+  }catch(e){ aviso(avisos, e.message,'err'); }
+}
+
+async function pallets(){
+  const p = await API.get(`/api/recepciones/${REC}/pallets`);
+  $('#pallets').innerHTML = p.map(x=>`
+    <li><span>📦 <b>${esc(x.codigo)}</b>${x.es_subpallet?` <span class="mini">sub de ${esc(x.padre)}</span>`:''}</span>
+    <span>${x.unidades} u.</span></li>`).join('') || '<li class="mini">Sin pallets aún.</li>';
+}
+
+async function cerrar(){
+  if(!confirm('Cerrar la validación? No se podrán registrar más conteos.')) return;
+  try{ await API.post(`/api/recepciones/${REC}/cerrar`,{});
+    aviso(avisos,'Validación cerrada. Ya puede descargar el packing list final.','ok'); cargar();
+  }catch(e){ aviso(avisos, e.message,'err'); }
+}
+async function reabrir(){
+  const motivo = prompt('Motivo de la reapertura:'); if(!motivo) return;
+  try{ await API.post(`/api/recepciones/${REC}/reabrir`,{motivo});
+    aviso(avisos,'Recepción reabierta.','ok'); cargar();
+  }catch(e){ aviso(avisos, e.message,'err'); }
+}
+
+cargar();
+setInterval(cargar, 20000);
+</script>
+{% endblock %}

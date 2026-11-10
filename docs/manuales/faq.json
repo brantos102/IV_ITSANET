@@ -1,0 +1,775 @@
+[
+  {
+    "id": "entorno",
+    "categoria": "Acceso",
+    "pregunta": "¿Cómo sé si estoy en producción o en pruebas?",
+    "respuesta": "<p>Comprueba el enlace y la marca <b>PRUEBAS</b> antes de registrar. Producción empresarial usa <code>https://apps.flexnetuio.com:8443/app/</code> con acceso a su red. El piloto usa la URL HTTPS temporal entregada por el responsable y cuentas propias. La ausencia de PRUEBAS en un enlace inesperado exige detener el registro y consultar.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "cuenta-piloto",
+    "categoria": "Acceso",
+    "pregunta": "¿Mi cuenta de producción sirve para el enlace de pruebas?",
+    "respuesta": "<p>El piloto tiene usuarios y base independientes. Solicita una cuenta individual de prueba; no te registres de nuevo a ciegas ni uses contraseñas productivas. El responsable dispone de accesos iniciales privados y ADMIN puede habilitar otras cuentas. El enlace público no elimina el inicio de sesión.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "aprobacion",
+    "categoria": "Acceso",
+    "pregunta": "Me registré pero todavía no puedo entrar. ¿Qué hago?",
+    "respuesta": "<p>Una solicitud de registro puede quedar pendiente de aprobación. ADMIN debe revisar identidad, rol y estado en el entorno correcto. No crees varias cuentas para resolver la espera.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "clave",
+    "categoria": "Acceso",
+    "pregunta": "¿Puede el administrador ver mi contraseña actual?",
+    "respuesta": "<p>No se recupera la contraseña original: la app guarda un hash. Si la olvidaste, solicita un restablecimiento autorizado. En <b>Mi cuenta</b> puedes cambiarla conociendo la actual. Nunca escribas tu contraseña de Gmail en la app ni en estas guías.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "perfil",
+    "categoria": "Acceso",
+    "pregunta": "¿Dónde cambio mi foto o contraseña?",
+    "respuesta": "<p>Abre <b>Mi cuenta</b>. Desde allí puedes cargar tu foto de perfil y cambiar tu contraseña local. Una cuenta que ingresa con Google administra su contraseña en Google. Cambiar la contraseña local cierra otras sesiones; la sesión actual continúa.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "equipo-compartido",
+    "categoria": "Acceso",
+    "pregunta": "¿Puedo compartir una cuenta o dejarla abierta en la bodega?",
+    "respuesta": "<p>Cada persona debe usar su propia cuenta para que los movimientos tengan autor. Cierra sesión al entregar un dispositivo y verifica quién aparece en el encabezado antes de trabajar.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "camara-https",
+    "categoria": "Cámara",
+    "pregunta": "La cámara dice que requiere HTTPS. ¿Cuál es la solución?",
+    "respuesta": "<p>Abre la dirección empresarial completa <code>https://apps.flexnetuio.com:8443/app/</code>. El usuario ya confirmó cámara y fotos por ese acceso. La IP por HTTP en el puerto 3002 no habilita la cámara. El dispositivo debe llegar a la red y confiar en el certificado; TI debe resolver cualquier aviso de certificado.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "camara-permiso",
+    "categoria": "Cámara",
+    "pregunta": "Tengo HTTPS pero no se abre la cámara.",
+    "respuesta": "<p>En los permisos del sitio permite Cámara; comprueba también el permiso del navegador en Android o iOS. Cierra otra app que la use y vuelve a abrir el visor. Si hay una advertencia de certificado o no carga la app, comunica el problema a TI. Adjuntar una foto existente puede servir mientras resuelven el acceso, si el protocolo lo admite.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "camara-lenta",
+    "categoria": "Cámara",
+    "pregunta": "¿Cómo consigo que escanee más rápido?",
+    "respuesta": "<p>Limpia la lente, usa luz uniforme y evita reflejos. Enfoca una sola etiqueta dentro del marco y espera a que las barras se vean nítidas; cambia ligeramente la distancia. Revisa siempre el producto identificado. La velocidad depende del equipo y la impresión; consultar un código no registra unidades.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "movil",
+    "categoria": "Cámara",
+    "pregunta": "¿Un móvil puede entrar desde casa?",
+    "respuesta": "<p>Producción necesita acceso a la red empresarial o VPN autorizada y un certificado confiable en ese móvil. Para probar desde casa sin VPN, utiliza el enlace HTTPS del piloto mientras su PC anfitriona esté encendida. Tener acceso desde Windows no demuestra conectividad ni confianza del certificado en el teléfono.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "codigo-sucio",
+    "categoria": "Conteo",
+    "pregunta": "El escáner añade guiones, comillas, espacios o ceros. ¿Cómo lo reviso?",
+    "respuesta": "<p>La app normaliza lecturas y contrasta sus candidatos con el catálogo. Revisa las sugerencias carácter por carácter y confirma la referencia correcta. Los ceros pueden pertenecer al SKU: no los borres indiscriminadamente ni aceptes una coincidencia solo por parecido. Si no coincide, busca parte del código o descripción antes de registrar un adicional.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "sin-codigo",
+    "categoria": "Conteo",
+    "pregunta": "¿Qué hago si un código no se encuentra?",
+    "respuesta": "<p>Revisa la etiqueta física, busca en el packing list y en el catálogo. Si la etiqueta corresponde a un producto existente, usa el código confirmado. Solo registra como adicional cuando comprobaste que realmente no está declarado y tu permiso/procedimiento lo permite.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "consulta",
+    "categoria": "Conteo",
+    "pregunta": "¿Escanear o pulsar Buscar ya suma unidades?",
+    "respuesta": "<p>No. Primero identifica el producto; después revisa cantidad, pallet y estado y guarda el conteo. Comprueba el total resultante para evitar repetir una operación ya confirmada.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "pallet",
+    "categoria": "Conteo",
+    "pregunta": "¿Qué caracteres admite el pallet?",
+    "respuesta": "<p>Usa letras y números; puntos para subpallets y guiones medios para separar pallets: <code>B01</code>, <code>B01.1</code> o <code>B01-B02</code>. No uses comillas, barras ni signos como <code>PO&quot;</code>. Revisa el dato antes de guardar y exportar a Depot.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "pnc",
+    "categoria": "Conteo",
+    "pregunta": "Si conté 356 y una unidad tiene PNC, ¿debo contar 355?",
+    "respuesta": "<p>El conteo físico incluye las unidades presentes: 356 contadas, 1 PNC y 355 conformes. Registra el estado y la cantidad de incidencia según la ficha; no restes automáticamente la unidad dañada del total físico. Revisa el informe final.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "edicion",
+    "categoria": "Conteo",
+    "pregunta": "Encontré un faltante: ¿edito el registro o vuelvo a sumar?",
+    "respuesta": "<p>Consulta el total y el historial. Si corriges un registro anterior, usa la edición autorizada; si recibiste unidades nuevas, registra el movimiento que corresponda. No sumes otra vez toda la cantidad para corregir un dato. La modificación debe mantener autor y trazabilidad.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "simultaneo",
+    "categoria": "Conteo",
+    "pregunta": "Otra persona está contando la misma recepción. ¿Se mezclan las fotos?",
+    "respuesta": "<p>La app vincula archivos, movimientos y solicitudes al usuario y a la recepción y controla operaciones concurrentes. Cada persona debe verificar su ficha y evitar confirmar dos veces. Si cambió el estado o aparece un conflicto, recarga y revisa el registro antes de reintentar. No cambies de cuenta con un envío de fotos en curso.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "enter",
+    "categoria": "Conteo",
+    "pregunta": "¿Para qué sirve Enter en la búsqueda y los modales?",
+    "respuesta": "<p>Enter confirma el formulario activo cuando corresponde; revisa el texto del botón principal antes de usarlo. No debes cerrar una evidencia ni enviar un informe sin comprobarlo. Si una pantalla no responde, utiliza su botón e informa la pantalla y el dispositivo para revisión.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "ruta-inicial",
+    "categoria": "Fotografías",
+    "pregunta": "Antes del primer bulto, ¿qué opción elijo?",
+    "respuesta": "<p>Puedes tomar <b>fotos panorámicas</b>, ir a <b>fotos de bultos</b> o <b>cargar el packing list</b>. La panorámica queda en RECEPCION / PANORAMICA. Saltar ese paso no convierte la recepción en SIN_FOTOS ni elimina las exigencias del protocolo.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "foto-guardada",
+    "categoria": "Fotografías",
+    "pregunta": "¿Seleccionar una imagen significa que ya está guardada?",
+    "respuesta": "<p>No. Revisa sus miniaturas, pulsa Guardar y espera la confirmación de fotos guardadas. La copia a Drive tiene otra confirmación. Conserva los originales hasta verificar ambos estados según tu proceso.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "nombre",
+    "categoria": "Fotografías",
+    "pregunta": "¿Qué significa el nombre nuevo de una fotografía?",
+    "respuesta": "<p>Combina recepción, embarque o embarques, fecha de registro y secuencial: <code>RECEPCION_EMBARQUE_20261018_00001.jpg</code>. La fecha corresponde al registro en el servidor en horario de Ecuador, no necesariamente a la toma original. El secuencial identifica la imagen dentro de la recepción; el nombre original queda como metadato cuando está disponible.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "sin-embarque",
+    "categoria": "Fotografías",
+    "pregunta": "¿Qué pasa si fotografío antes de cargar el packing list?",
+    "respuesta": "<p>Puede aparecer <code>SIN-EMBARQUE</code>. Después de incorporar los embarques se actualiza el nombre auditable conservando la identidad y secuencia de la imagen. No la subas otra vez para cambiar el nombre.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "bulto-carpeta",
+    "categoria": "Fotografías",
+    "pregunta": "¿Dónde quedan las imágenes de cada bulto?",
+    "respuesta": "<p>En <code>BULTOS/Bulto01_RECEPCION_EMBARQUES/</code> dentro de su recepción; las cajas identificadas pueden tener una subcarpeta <code>Caja01_CODIGO-CAJA</code>. Las panorámicas y evidencias de SKU usan sus propias rutas. Consulta la tabla de archivos y los filtros de la galería.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "historia-faltante",
+    "categoria": "Fotografías",
+    "pregunta": "Encontré lo que faltaba y ahora hay PNC. ¿Se mueve la foto anterior?",
+    "respuesta": "<p>La foto anterior conserva su clasificación histórica <b>FALTANTE</b>. Solo la imagen nueva que documenta el daño se registra en <b>PNC</b>. Editar la cantidad no vuelve a subir ni reclasifica automáticamente todas las fotos anteriores. Si una foto fue clasificada por error, un supervisor puede usar <b>Corregir vínculo</b>.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "foto-duplicada",
+    "categoria": "Fotografías",
+    "pregunta": "Veo la misma foto en dos lugares. ¿Es una copia duplicada?",
+    "respuesta": "<p>Una evidencia vinculada intencionalmente a varios destinos puede tener un solo archivo y accesos directos <code>ACCESO__…</code>. Comprueba identidad, secuencia y vínculo antes de quitar algo. Una corrección de conteo no debe resubir la foto histórica. Comunica el caso al supervisor en lugar de borrar archivos desde Drive.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "pendiente",
+    "categoria": "Fotografías",
+    "pregunta": "Dice guardada pero pendiente de Drive. ¿Debo tomarla otra vez?",
+    "respuesta": "<p>No. La imagen puede estar segura en el servidor y esperar la copia a Google. El supervisor revisa la tabla de archivos, la conexión del remitente y el estado de entrega. Reintenta mediante la app cuando se haya resuelto el motivo; no adjuntes de nuevo para forzar la copia.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "recuperar",
+    "categoria": "Fotografías",
+    "pregunta": "Se cortó Internet al guardar. ¿Cómo recupero las fotos?",
+    "respuesta": "<p>Abre <b>Recuperar fotos pendientes de este navegador</b> con la misma cuenta, dispositivo y dirección. Revisa recepción y destino antes de reintentar. La cola local depende del almacenamiento del navegador; no es un respaldo. No borres datos del sitio ni cambies a otra URL antes de recuperar lo pendiente. Conserva los originales.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "galeria",
+    "categoria": "Fotografías",
+    "pregunta": "El contador dice cinco fotos pero solo veo una.",
+    "respuesta": "<p>El total guardado puede incluir otros SKU, clasificaciones o destinos. Limpia los filtros, revisa SKU y clasificación y actualiza la galería. No concluyas que se perdieron imágenes solo por el resultado del filtro.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "vista-previa",
+    "categoria": "Fotografías",
+    "pregunta": "Puedo abrir la app pero no una imagen en Drive.",
+    "respuesta": "<p>La vista previa local autenticada y el acceso a Google son permisos distintos. Abre Drive con la cuenta autorizada para la carpeta. Si falta permiso, el propietario debe compartirla según la política empresarial; no publiques la carpeta para cualquiera.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "organizar",
+    "categoria": "Fotografías",
+    "pregunta": "¿Qué hace Organizar fotos y qué conserva?",
+    "respuesta": "<p>Un supervisor revisa primero el plan de nombres y carpetas y confirma la organización. Conserva originales, identidad, secuencia, conteos y clasificación histórica; no envía correo. Si el plan quedó desactualizado, debe revisarlo de nuevo. No deduce por sí solo qué clasificación antigua estaba equivocada.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "reclasificar",
+    "categoria": "Fotografías",
+    "pregunta": "¿Cómo corrijo una foto que antes quedó mal clasificada?",
+    "respuesta": "<p>Consulta la imagen y su vínculo y usa <b>Corregir vínculo</b> con el destino correcto. Esta es una corrección explícita y auditable. No reclasifiques por el estado actual del SKU una evidencia que documentaba correctamente un faltante histórico.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "servidor-antiguo",
+    "categoria": "Fotografías",
+    "pregunta": "Google pide actualizar el puente para fotos auditables.",
+    "respuesta": "<p>Actualiza <code>Servidor.gs</code> en el mismo proyecto Apps Script de esa cuenta y publica una <b>Nueva versión</b> de su implementación. Conserva URL /exec, carpeta y SERVIDOR_HMAC. El servidor retiene archivos pendientes si el puente no anuncia la capacidad actual; guardar el editor sin publicar no actualiza /exec.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "cerrada",
+    "categoria": "Cierre y entrega",
+    "pregunta": "¿Una recepción cerrada ya tiene correo enviado?",
+    "respuesta": "<p>Son estados diferentes. Cerrada bloquea nuevos conteos; <b>entrega pendiente</b> significa que falta confirmar Drive o correo. El responsable revisa el último informe y el estado de entrega. Solo la confirmación correspondiente o una declaración manual autorizada resuelve el envío.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "encontrado-cerrado",
+    "categoria": "Cierre y entrega",
+    "pregunta": "La recepción está cerrada y encontré otra unidad.",
+    "respuesta": "<p>No intentes un conteo adicional en la recepción cerrada. Informa al supervisor para que valore una reapertura autorizada y revise informes y entrega previa. El cambio puede exigir una nueva revisión del correo final.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "revisar-correo",
+    "categoria": "Correo",
+    "pregunta": "¿Qué debo comprobar en Correo final antes de continuar?",
+    "respuesta": "<p>Revisa remitente, destinatarios, recepción y cliente; cantidades físicas, faltantes, sobrantes, PNC y observaciones; fotos y documentos finales. Edita la redacción y revisa los adjuntos antes de usar ese correo. No confíes únicamente en una captura de pantalla.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "manual",
+    "categoria": "Correo",
+    "pregunta": "No funciona el envío automático. ¿Puedo enviar desde Gmail u Outlook?",
+    "respuesta": "<p>Sí: revisa el correo completo generado, copia su contenido a tu cliente de correo y adjunta los documentos finales descargados. Comprueba destinatarios y permisos de evidencias. Copiar el cuerpo no adjunta archivos ni acredita el envío. Envía manualmente y revisa Enviados antes de declararlo en la app.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "declara-manual",
+    "categoria": "Cierre y entrega",
+    "pregunta": "Ya envié manualmente. ¿Cómo evito otro envío automático?",
+    "respuesta": "<p>En la entrega pendiente utiliza la opción de confirmación manual disponible para tu rol, comprueba el informe, remitente y destinatarios y registra la declaración. Esto resuelve esa entrega y detiene su automático. No pulses Reintentar antes de revisar Enviados si el resultado anterior es incierto.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "sin-correo",
+    "categoria": "Cierre y entrega",
+    "pregunta": "¿Puedo cerrar para enviar el correo después?",
+    "respuesta": "<p>Revisa primero requisitos, fotos e informe. Si corresponde, elige cerrar sin envío inmediato y continuar con entrega pendiente. Cerrar no elimina el pendiente: después confirma el envío automático o declara el manual. Si otra persona ya procesó esa entrega, recarga su estado antes de actuar.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "incierto",
+    "categoria": "Correo",
+    "pregunta": "Pulsé enviar y no recibí confirmación. ¿Reintento?",
+    "respuesta": "<p>Primero revisa el estado de la entrega y la carpeta Enviados de la cuenta remitente. Un corte puede ocurrir después de que Google acepte el correo. Si existe un envío, verifícalo y resuelve con el procedimiento manual; si no puedes confirmar, solicita revisión. No fuerces un nuevo correo para probar.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "fotos-no-correo",
+    "categoria": "Correo",
+    "pregunta": "Drive está confirmado. ¿Eso acredita que salió el correo?",
+    "respuesta": "<p>No. Drive y correo se confirman por separado. Abre Entregas y revisa el resultado de correo y sus destinatarios. Una carpeta accesible solo demuestra la disponibilidad de esos archivos.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "pendientes-varias",
+    "categoria": "Cierre y entrega",
+    "pregunta": "Hay una entrega anterior pendiente. ¿Debo repetir el cierre?",
+    "respuesta": "<p>Revisa la entrega existente, su versión y sus documentos. Usa la acción disponible para resolverla o continuar según el estado presentado; no crees otro cierre para quitar la advertencia. Verifica con el otro supervisor si está gestionándola.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "eliminar-historial",
+    "categoria": "Cierre y entrega",
+    "pregunta": "¿Puedo quitar registros de entregas enviadas?",
+    "respuesta": "<p>Usa solo la acción autorizada para historial ya resuelto y revisa su advertencia. Limpiar el historial de envíos no debe confundirse con borrar recepciones, conteos, evidencias o archivos. Nunca uses esa limpieza como sustituto de resolver una entrega pendiente.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "google-una-vez",
+    "categoria": "Google personal",
+    "pregunta": "¿Cada supervisor tiene que autorizar Google en cada correo?",
+    "respuesta": "<p>Se configura un puente propio y se autoriza la cuenta Google una vez, mientras los permisos y la conexión sigan vigentes. La app guarda /exec y la clave cifrada y comprueba el remitente al operar. Si Google revoca permisos o cambia el proyecto, puede requerir autorización de nuevo.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "mi-correo",
+    "categoria": "Google personal",
+    "pregunta": "¿Dónde configuro mi correo de informes?",
+    "respuesta": "<p>Con tu cuenta de supervisor entra a <b>Mi cuenta → Mi correo de informes</b>. El remitente está ligado a tu ficha. Registra tu URL /exec y la misma SERVIDOR_HMAC de tu proyecto; pulsa <b>Verificar y guardar mi conexión</b>. ADMIN puede hacerlo desde la ficha autorizada; el propietario debe autorizar Google.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "login-google",
+    "categoria": "Google personal",
+    "pregunta": "¿Entrar con Google ya permite enviar Gmail?",
+    "respuesta": "<p>No. El inicio de sesión identifica a la persona. El envío y Drive utilizan el despliegue Apps Script autorizado por el supervisor. No necesitas configurar el login Google para usar tu cuenta local y preparar informes.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "otro-remitente",
+    "categoria": "Google personal",
+    "pregunta": "¿Puedo usar el /exec de otro supervisor cambiando el correo?",
+    "respuesta": "<p>No. Google envía como la cuenta ejecutora del despliegue. El correo de tu ficha debe coincidir con esa cuenta y con la política habilitada por ADMIN. Cambiar un texto o replyTo no concede identidad de remitente.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "hmac",
+    "categoria": "Google personal",
+    "pregunta": "¿Qué hago si la clave compartida no coincide?",
+    "respuesta": "<p>Comprueba en los paneles privados que la conexión y <code>SERVIDOR_HMAC</code> del proyecto asociado a ese /exec sean la misma. Conserva la clave vigente si es correcta. Nunca la publiques, la pegues en capturas ni la cambies como primer intento ante un fallo de permisos Google.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "exec",
+    "categoria": "Google personal",
+    "pregunta": "¿Qué URL copio de Apps Script?",
+    "respuesta": "<p>La de la aplicación web publicada, terminada en <code>/exec</code>. No uses /dev, el editor, el ID del proyecto ni una hoja. Para actualizar, edita la implementación existente y publica Nueva versión manteniendo su URL.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "cuota",
+    "categoria": "Google personal",
+    "pregunta": "¿Qué pasa si Google bloquea permisos o agota la cuota?",
+    "respuesta": "<p>La app no debe dar el correo por enviado. Revisa el mensaje de Google con ADMIN o Workspace y conserva documentos y entrega pendiente. Puedes usar la salida manual si está permitida y declarar el envío solo después de comprobarlo. No cambies credenciales o carpeta sin diagnóstico.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "carpeta-compartida",
+    "categoria": "Google personal",
+    "pregunta": "¿Cada supervisor necesita otra carpeta de recepción?",
+    "respuesta": "<p>Cada uno necesita su propia conexión de remitente, pero puede usar la misma carpeta raíz empresarial si tiene permiso de editor y el proceso lo define. El ejecutivo debe tener acceso autorizado. Comprueba el nombre y enlace devueltos al verificar; no publiques las evidencias de forma abierta.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "etiqueta-general",
+    "categoria": "Etiquetas",
+    "pregunta": "¿Cómo imprimo una referencia sin abrir una recepción?",
+    "respuesta": "<p>Usa <b>Etiqueta por código</b> en el menú superior con un rol autorizado. Busca en el catálogo actualizado, verifica el producto y prepara copias. Esa búsqueda no registra un conteo. Revisa la vista previa antes de imprimir.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "unidades-copias",
+    "categoria": "Etiquetas",
+    "pregunta": "¿Unidades por etiqueta y número de copias son lo mismo?",
+    "respuesta": "<p>No. Unidades por etiqueta suele empezar en 1 y representa el contenido indicado; copias es cuántas etiquetas se imprimirán. Cambia cada valor solo si corresponde y comprueba código, serie, cliente y responsable en el formato de 100 × 50 mm.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "imprimir",
+    "categoria": "Etiquetas",
+    "pregunta": "La etiqueta sale pequeña o cortada. ¿Qué reviso?",
+    "respuesta": "<p>Selecciona el papel de 100 × 50 mm, escala 100 % y desactiva márgenes y encabezados del navegador según el controlador. Revisa la vista previa y haz una prueba física. El puente Zebra requiere una estación configurada; descargar ZPL no significa que se haya impreso.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "columna",
+    "categoria": "Informes y catálogo",
+    "pregunta": "¿Cómo elijo columnas para el informe final?",
+    "respuesta": "<p>Selecciona cada packing list, revisa encabezados y ejemplos de datos y asigna solo las columnas de resultado correspondientes. Sin asignar conserva la celda original según el formulario. La muestra sirve de guía; verifica el archivo exportado antes de enviarlo.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "catalogo",
+    "categoria": "Informes y catálogo",
+    "pregunta": "¿Actualizar catálogo modifica los conteos?",
+    "respuesta": "<p>Es una obtención de datos desde Depot para roles autorizados. Revisa su resultado antes de volver a buscar un código. No equivale a contar unidades ni a subir el archivo final a Depot. Un fallo de conexión requiere revisar esa integración con ADMIN.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "clientes",
+    "categoria": "Equipo",
+    "pregunta": "Hay dos nombres parecidos del mismo cliente. ¿Los uno sin revisar?",
+    "respuesta": "<p>Revisa los clientes y sus usos antes de corregirlos con tu permiso. No sustituyas a ciegas un histórico real. Confirma la identidad correcta para nuevas recepciones y solicita a ADMIN la revisión que afecte conexiones o reglas generales.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "roles",
+    "categoria": "Equipo",
+    "pregunta": "¿Qué gestiona SUPERVISOR y qué necesita ADMIN?",
+    "respuesta": "<p>El supervisor gestiona recepciones, evidencias, informes y entregas según sus permisos. ADMIN conserva conexiones generales, política de envío y gestión de administradores/usuarios. Una opción oculta no se habilita cambiando la URL; solicita el permiso adecuado.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "instalar",
+    "categoria": "Instalación",
+    "pregunta": "¿Debe cada supervisor instalar Docker o un servidor?",
+    "respuesta": "<p>No. Para usar ITSANET necesita navegador actualizado, enlace HTTPS y cuenta aprobada. Docker y el lanzador se preparan solo en la PC anfitriona del piloto. En producción el backend ya se ejecuta en el servidor empresarial.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "acceso-directo",
+    "categoria": "Instalación",
+    "pregunta": "¿Cómo dejo ITSANET como acceso directo?",
+    "respuesta": "<p>En Chrome o Edge usa Instalar aplicación si el navegador lo ofrece; en otro caso crea un acceso directo a la URL correcta. En Android puedes añadir a pantalla de inicio; en iPhone usa Safari → Compartir → Añadir a pantalla de inicio si está disponible. El acceso directo no hace que la app funcione sin servidor ni garantiza permisos de cámara.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "piloto-caido",
+    "categoria": "Pruebas desde casa",
+    "pregunta": "El enlace temporal dejó de funcionar. ¿Perdí mis registros de prueba?",
+    "respuesta": "<p>El responsable debe comprobar PC encendida, Docker y el túnel. La URL puede cambiar al reiniciar; solicita la vigente. Los datos siguen en sus volúmenes de pruebas mientras no se eliminen. No reemplaces el enlace por el servicio productivo para continuar un ensayo.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "firebase",
+    "categoria": "Pruebas desde casa",
+    "pregunta": "¿iv-itsanet.web.app es la versión actual de pruebas?",
+    "respuesta": "<p>Ese Hosting conserva la versión histórica con otra lógica y datos. No lo uses como equivalente automático de FastAPI/MySQL. Para probar el estado actual sin tocar producción, usa el piloto de PC indicado por el responsable. Estas guías descargables no publican ni actualizan Firebase.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "cuentas-iniciales",
+    "categoria": "Pruebas desde casa",
+    "pregunta": "¿Dónde obtiene el responsable las cuentas iniciales del piloto?",
+    "respuesta": "<p>En la PC anfitriona el lanzador conserva <code>.local\\pruebas-publicas\\accesos-iniciales.txt</code>. Es privado. El responsable entrega solo la cuenta que corresponda a cada persona; nunca comparte el archivo completo o las credenciales de ADMIN en un grupo.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "piloto-correo",
+    "categoria": "Pruebas desde casa",
+    "pregunta": "¿Puedo probar correos con la carpeta de producción?",
+    "respuesta": "<p>Usa datos ficticios, destinatarios de prueba y, si ensayas Drive, carpeta y conexión de pruebas claramente separadas. No reutilices credenciales productivas ni envíes reportes reales desde una recepción sintética.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "guia-offline",
+    "categoria": "Usar estas guías",
+    "pregunta": "¿Funcionan las demos y preguntas sin Internet?",
+    "respuesta": "<p>Sí. Extrae todo el ZIP y abre el HTML con un navegador. Prácticas, FAQ, estilos y logo están incluidos; la app y los enlaces externos sí necesitan conexión. El almacenamiento de avance depende de lo que permita el navegador. Ninguna práctica envía datos a ITSANET.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "instalacion-ficha",
+    "categoria": "Instalación",
+    "pregunta": "¿Qué debo registrar al incorporar a cada supervisor?",
+    "respuesta": "<p>Identidad, rol y cuenta aprobados en la app; entorno y enlace; permisos de dispositivo; conexión personal Google verificada si enviará; prueba controlada y responsable de habilitación. La lista descargable de esta guía guarda solo marcaciones de capacitación, sin contraseñas, /exec ni HMAC.</p>",
+    "roles": [
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "actualizar-doc",
+    "categoria": "Usar estas guías",
+    "pregunta": "¿Descargar estas guías actualiza el servidor?",
+    "respuesta": "<p>No. La edición 47 documenta las fotos auditables de la app 46 y el acceso al estado de Drive de la app 47. El responsable debe desplegar esa versión por el procedimiento de actualización y verificarla. Un manual actualizado no demuestra que el servidor o cada Apps Script ya se hayan actualizado.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  },
+  {
+    "id": "carpeta-no-confirmada",
+    "categoria": "Fotografías",
+    "pregunta": "Drive dice que la carpeta aún no está confirmada. ¿Por qué no abre?",
+    "respuesta": "<p>La app todavía no dispone de un enlace confirmado de esa recepción. Un supervisor puede abrir Gestionar → Drive para ver el estado de fotos y carpetas, incluso sin cierre ni entrega creada. Allí puedes usar Vista previa, leer el motivo de los pendientes y verificar la conexión responsable o copiar desde tu cuenta autorizada. No significa por sí solo que Google te haya denegado acceso. Crear/verificar carpetas no envía correo.</p>",
+    "roles": [
+      "operario",
+      "supervisor",
+      "instalacion-supervisor",
+      "tecnico"
+    ]
+  }
+]

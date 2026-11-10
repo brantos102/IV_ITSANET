@@ -1,0 +1,19 @@
+{
+  "name": "iv-itsanet",
+  "version": "1.0.0",
+  "description": "Validación física de recepciones — Itsanet",
+  "private": true,
+  "scripts": {
+    "test": "node pruebas.js",
+    "build:frontend": "node scripts/preparar_frontend.mjs"
+  },
+  "devDependencies": {
+    "@zxing/library": "0.21.3",
+    "esbuild": "0.28.2",
+    "firebase": "10.14.1",
+    "jsbarcode": "3.12.1",
+    "jspdf": "3.0.4",
+    "jspdf-autotable": "5.0.2",
+    "xlsx": "^0.18.5"
+  }
+}

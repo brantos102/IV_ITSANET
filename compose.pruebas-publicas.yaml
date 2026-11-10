@@ -1,0 +1,19 @@
+# Complementa compose.local.yaml. Proyecto, volúmenes y claves exclusivamente de pruebas.
+services:
+  app:
+    environment:
+      ITSANET_PRUEBAS_PUBLICAS: "1"
+      VAL_COOKIE_SECURE: "1"
+      ITSANET_PRUEBAS_SUP_PASSWORD: ${ITSANET_PRUEBAS_SUP_PASSWORD:?Ejecutar publicar_pruebas.sh}
+      ITSANET_PRUEBAS_OP_PASSWORD: ${ITSANET_PRUEBAS_OP_PASSWORD:?Ejecutar publicar_pruebas.sh}
+  enlace-https:
+    image: cloudflare/cloudflared@sha256:a15a3b50b8dabd57ac2090e9484c0247dba9dfa1f0df4d298d4317f9d69eb2d5
+    command: [tunnel, --no-autoupdate, --protocol, http2, --url, "http://app:3002"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    networks: [salida]
+    depends_on:
+      app:
+        condition: service_healthy

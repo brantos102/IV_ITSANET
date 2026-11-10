@@ -1,0 +1,39 @@
+rules_version = '2';
+
+/**
+ * Cloud Storage: packing lists subidos y fotos de producto no conforme.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function activo() {
+      return request.auth != null && request.auth.token.activo == true;
+    }
+    function esSupervisor() {
+      return activo() && (request.auth.token.rol == 'SUPERVISOR' || request.auth.token.rol == 'ADMIN');
+    }
+
+    // Packing list de origen. Lo sube el supervisor; dispara el importador.
+    match /packing-lists/{recepcionId}/{archivo} {
+      allow read: if activo();
+      allow write: if esSupervisor()
+                && request.resource.size < 25 * 1024 * 1024
+                && request.resource.contentType.matches(
+                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    // Fotos de evidencia. Las sube cualquier operario activo, max 8 MB.
+    match /evidencias/{recepcionId}/{sku}/{archivo} {
+      allow read: if activo();
+      allow write: if activo()
+                && request.resource.size < 8 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*');
+    }
+
+    // Archivos finales generados por las Functions: solo lectura.
+    match /informes/{recepcionId}/{archivo} {
+      allow read: if activo();
+      allow write: if false;
+    }
+  }
+}

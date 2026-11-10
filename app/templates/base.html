@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{% block titulo %}{{ APP_NAME }}{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" type="image/png" href="/app/icono.png">
+</head>
+<body>
+{% if operador %}
+<header>
+  <span class="marca"><img src="/app/logo-itsa.png" alt="ITSA" style="width:120px;vertical-align:middle"> IMS</span>
+  <nav>
+    <a href="/" class="{{ 'on' if activo == 'recepciones' }}">Recepciones</a>
+    <a href="/kpi" class="{{ 'on' if activo == 'kpi' }}">Indicadores</a>
+  </nav>
+  <span class="usuario">{{ operador.nombre }} · {{ operador.rol.value }}</span>
+  <button class="sec" onclick="salir()">Salir</button>
+</header>
+{% endif %}
+<main>{% block contenido %}{% endblock %}</main>
+<script src="/static/app.js"></script>
+<script>
+async function salir(){ await API.post('/api/auth/logout',{}); location.href='/login'; }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

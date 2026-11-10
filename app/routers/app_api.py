@@ -1,0 +1,750 @@
+"""La API que habla el idioma de la aplicación de los operarios.
+
+Las rutas de `recepciones.py` son del prototipo: identificadores numéricos,
+campos en snake_case, un modelo que no sabe de qué packing list viene cada
+línea. La aplicación que está en los handhelds lleva meses escribiendo otros
+documentos, y son los que entienden `informe.js`, `conteo.js` y `kpi.js`.
+
+Así que estas rutas devuelven exactamente esos documentos, con esos nombres de
+campo. La capa de datos del navegador cambia de destino —de Firestore a este
+servidor— sin que el resto de la aplicación se entere, que es lo único que
+permite migrar sin reescribir las pantallas y sin perder nada por el camino.
+
+Las dos conviven mientras dure la transición: `/api/recepciones` sigue sirviendo
+al prototipo y a sus KPIs.
+"""
+from __future__ import annotations
+from datetime import date
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi.responses import FileResponse, RedirectResponse, Response
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.db import get_db
+from app.models import AppArchivo, AppArchivoSku, AppConfig, AppEntrega, AppRecepcion, AppEvento, AppSku, Operador, Producto, ProductoCodigo, Rol, utcnow
+from app.security import requiere_supervisor, usuario_actual
+from app.services import app_modelo as m
+from app.services import depot as depot_svc
+from app.services import entregas
+from app.services import ajustes
+from app.services.fotos_identidad import pallet_evidencia
+from app.routers.integraciones import admin
+
+router = APIRouter(prefix="/api/app", tags=["app-operarios"])
+
+# El código de la recepción ES su identificador, como en Firestore. Las rutas
+# lo llevan tal cual: /api/app/recepciones/REC0260002.
+COLECCIONES = ("lineas", "skus", "adicionales", "eventos", "auditoria")
+
+
+@router.put('/recepciones/{codigo}/eventos/{ident}/posicion')
+def asignar_posicion_final(codigo:str,ident:str,datos:dict=Body(...),db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.ubicacion_final import asignar
+    return asignar(db,codigo,ident,datos,op.email or op.usuario)
+
+
+@router.get('/estado')
+def estado_local(db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    estado = {'destino': 'servidor',
+            'recepciones': db.scalar(select(func.count()).select_from(AppRecepcion)),
+            'productos': db.scalar(select(func.count()).select_from(Producto)),
+            'archivos': db.scalar(select(func.count()).select_from(AppArchivo)),
+            'firebase_requerido': False}
+    if op.rol == Rol.ADMIN:
+        estado.update(motor=db.get_bind().dialect.name, correo_configurado=entregas.configurado(db))
+    return estado
+
+
+@router.get('/entregas')
+def listar_entregas(archivadas: bool=False,db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    from app.services.integraciones import _clave_google
+    from app.models import AppConfig
+    from app.services.drive import resumen_fotos
+    email=(op.email or '').lower();propia=db.get(AppConfig,_clave_google(email)) if email else None
+    verificada=(propia.datos or {}).get('verificadoEn','') if propia else ''
+    from app.services.operacion import configuracion
+    if not configuracion(db)['correo']['permitirPersonal'] or not ajustes.permisos(db,op).get('cerrarRecepciones'):verificada=''
+    filas=[];fotos={}
+    recientes=entregas.recientes(db,incluir_archivadas=archivadas)
+    estados=dict(db.execute(select(AppRecepcion.codigo,AppRecepcion.estado).where(AppRecepcion.codigo.in_({e.recepcion for e in recientes}))).all())
+    ordenadas=select(AppEntrega.id,func.row_number().over(partition_by=AppEntrega.recepcion,
+        order_by=(AppEntrega.creado_en.desc(),AppEntrega.id.desc())).label('orden')).where(AppEntrega.recepcion.in_(estados)).subquery()
+    ultimas=set(db.scalars(select(ordenadas.c.id).where(ordenadas.c.orden==1)))
+    for e in recientes:
+        f=entregas.documento(e,tecnico=op.rol==Rol.ADMIN)
+        f['recepcionEstado']=estados.get(e.recepcion)
+        f['esUltima']=e.id in ultimas
+        if verificada and (f['remitente'].lower()==email and f['conexionRechazada'] or f.get('confirmarConCuenta')==email) and e.estado in ('PENDIENTE','REVISION'):
+            if e.recepcion not in fotos:fotos[e.recepcion]=resumen_fotos(db,e.recepcion)['pendientes']
+            f['confirmacionDisponible']=verificada if not fotos[e.recepcion] and verificada>str(e.datos.get('conexionFallidaEn') or '') else ''
+        filas.append(f)
+    return filas
+
+
+@router.post('/entregas/{ident}/manual-confirmado')
+def confirmar_manual(ident: str,datos: dict=Body(...),db: Session=Depends(get_db),
+                     op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.historial_entregas import declarar
+    return declarar(db,ident,datos,_quien(op))
+
+
+@router.post('/entregas/{ident}/historial')
+def archivar_entrega(ident: str,datos: dict=Body(...),db: Session=Depends(get_db),
+                     op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.historial_entregas import archivar
+    return archivar(db,ident,datos,_quien(op))
+
+
+@router.get('/recepciones/{codigo}/entregas')
+def entregas_recepcion(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    # Esta vista operativa no contiene errores de configuracion, tampoco para ADMIN.
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    return [entregas.documento(e) for e in entregas.recientes(db, 10, recepcion=r.codigo)]
+
+
+@router.get('/recepciones/{codigo}/destinatarios-recientes')
+def destinatarios_recientes(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    historial = entregas.recientes(db, cliente=r.cliente)
+    grupos, vistos = [], set()
+    for e in historial:
+        destinatarios = str(e.datos.get('destinatarios') or '').strip()
+        clave = ','.join(sorted(c.strip().lower() for c in destinatarios.split(',') if c.strip()))
+        if not clave or clave in vistos:
+            continue
+        vistos.add(clave)
+        grupos.append({'destinatarios': destinatarios, 'recepcion': e.recepcion, 'fecha': m._iso(e.creado_en)})
+        if len(grupos) == 8:
+            break
+    return grupos
+
+
+@router.get('/recepciones/{codigo}/remitentes')
+def remitentes_recepcion(codigo: str, db: Session = Depends(get_db),
+                        op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.remitentes import opciones
+    try:
+        m.obtener(db, codigo)
+        return opciones(db, codigo, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post('/recepciones/{codigo}/comprobar-envio')
+def comprobar_envio(codigo: str, datos: dict=Body(...), db: Session=Depends(get_db),
+                    op: Operador=Depends(ajustes.requiere('cerrarRecepciones'))):
+    from uuid import uuid4
+    from app.services import remitentes, operacion
+    if datos.get('correoEditable'):
+        from app.services.drive import resumen_fotos
+        pendientes=resumen_fotos(db,codigo)['pendientes']
+        if pendientes:raise HTTPException(409,f'{pendientes} foto(s) pendientes de confirmar en Drive. Espera la copia para enviar desde la app o prepara el envío manual; las fotos guardadas no se pierden.')
+    correo,_=remitentes.elegir(db,codigo,{'modoRemitente':'PERSONAL',
+        'remitenteConfirmado':datos.get('remitenteConfirmado')},_quien(op))
+    destino=operacion.destino_drive(db,codigo);db.rollback()
+    try:
+        r=entregas.llamar('estado',uuid4().hex,{'usuario':correo,'carpetaRaiz':destino['carpetaRaiz'],'verificarGmail':True})
+        if str(r.get('remitente') or '').lower()!=correo:
+            raise RuntimeError('Google no confirmó la cuenta que solicita el envío.')
+        if 'correoVerificado' not in r.get('capacidades',[]):
+            raise RuntimeError('Actualiza Proxy.gs y Servidor.gs juntos y publica una versión nueva del despliegue /exec; falta el contrato de envío confirmado.')
+        if datos.get('correoEditable') and 'correoEditable' not in r.get('capacidades',[]):
+            raise RuntimeError('Publica Proxy.gs y Servidor.gs actuales con una nueva versión del mismo /exec para enviar el correo editable revisado.')
+        return {'remitente':correo,'carpeta':r.get('carpeta'),'mensaje':'Conexión del supervisor verificada. No se envió correo.'}
+    except Exception as exc:
+        mensaje=str(exc) if type(exc) is RuntimeError else 'No se pudo comprobar la conexión guardada de este supervisor.'
+        raise HTTPException(502,mensaje+' ADMIN debe revisar esa conexión una vez. No se cerró ni envió la recepción.') from None
+
+
+@router.post('/entregas/{ident}/reintentar')
+def reintentar_entrega(ident: str, db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    e = db.get(AppEntrega, ident)
+    if not e:
+        raise HTTPException(404, 'Entrega no encontrada')
+    m.obtener(db, e.recepcion, bloquear=True)
+    grupo = entregas.activas(db, e.recepcion)
+    e = db.scalar(select(AppEntrega).where(AppEntrega.id == ident).with_for_update()
+                  .execution_options(populate_existing=True))
+    if entregas.conexion_rechazada(e.error) or e.datos.get('revisionMotivo')=='CONEXION_RECHAZADA':
+        raise HTTPException(409,'El envío necesita tu confirmación después de corregir la conexión. Autoriza Mi cuenta y correo y usa Revisar y confirmar envío. No se reintenta automáticamente.')
+    if len(grupo) > 1:
+        raise HTTPException(409, 'Hay varias entregas sin resolver. ADMIN debe revisar sus fechas e informes y anular las que no correspondan antes de reintentar.')
+    if e.estado == 'REVISION' and e.datos.get('revisionMotivo') == 'ENTREGAS_MULTIPLES':
+        e.estado = 'PENDIENTE'
+    if e.estado == 'PROCESANDO':
+        raise HTTPException(409, 'La entrega ya se está procesando. Actualiza el estado y espera su confirmación; no se creó otro envío.')
+    if e.estado != 'PENDIENTE':
+        raise HTTPException(409, 'Solo se reintentan entregas pendientes. Si requiere revisión, contacta al administrador.')
+    e.proximo_en = utcnow()
+    db.commit()
+    return entregas.documento(e, tecnico=op.rol == Rol.ADMIN)
+
+
+@router.get('/entregas/{ident}/recuperar')
+def vista_recuperar(ident: str, db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    from app.services.recuperar_entrega import vista
+    return vista(db, ident, _quien(op))
+
+
+@router.post('/entregas/{ident}/recuperar')
+def recuperar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(admin)):
+    from app.services.recuperar_entrega import recuperar
+    return recuperar(db, ident, datos, _quien(op))
+
+
+@router.get('/entregas/{ident}/solicitar')
+def vista_solicitar(ident: str, db: Session = Depends(get_db), op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.recuperar_entrega import comprobar_solicitud
+    return comprobar_solicitud(db,ident,_quien(op))
+
+
+@router.post('/entregas/{ident}/solicitar')
+def solicitar_envio(ident: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                   op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    from app.services.recuperar_entrega import recuperar
+    return recuperar(db, ident, {**datos, 'modoRemitente': 'PERSONAL'}, _quien(op))
+
+
+@router.post('/entregas/{ident}/cancelar')
+def cancelar_entrega(ident: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                     op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    e = db.get(AppEntrega, ident)
+    if not e: raise HTTPException(404, 'Entrega no encontrada')
+    m.obtener(db, e.recepcion, bloquear=True)
+    entregas.activas(db, e.recepcion)
+    e = db.scalar(select(AppEntrega).where(AppEntrega.id == ident).with_for_update()
+                  .execution_options(populate_existing=True))
+    if e.estado not in ('PENDIENTE', 'REVISION'):
+        raise HTTPException(409, 'Solo puedes anular un envío pendiente o en revisión; actualiza su estado.')
+    motivo = str(datos.get('motivo') or '').strip()
+    if not 10 <= len(motivo) <= 300:
+        raise HTTPException(422, 'Explica el motivo de anulación (10–300 caracteres)')
+    e.estado = 'CANCELADA'
+    e.datos = {**e.datos, 'anulacion': {'usuario': _quien(op), 'fecha': m._iso(utcnow()), 'motivo': motivo}}
+    ajustes.auditar(db, _quien(op), 'ENVIO_ANULADO', e.recepcion, {'entregaId': e.id, 'motivo': motivo})
+    if e.datos.get('informeId'):
+        from app.models import AppInforme
+        informe = db.get(AppInforme, e.datos['informeId'])
+        if informe and informe.datos.get('entregaId') == e.id:
+            informe.estado = 'CANCELADO'
+    db.commit()
+    return entregas.documento(e, tecnico=True)
+
+
+@router.post('/recepciones/{codigo}/entrega', status_code=201)
+def cerrar_con_entrega(codigo: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                      op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    try:
+        return entregas.preparar(db, codigo, datos, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get('/config/csv')
+def leer_csv(db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    config = db.get(AppConfig, 'csv')
+    return config.datos if config else {'formatos': []}
+
+
+@router.put('/config/csv')
+def guardar_csv(datos: dict = Body(...), db: Session = Depends(get_db),
+                op: Operador = Depends(requiere_supervisor)):
+    if op.rol != Rol.ADMIN:
+        raise HTTPException(403, 'Solo un administrador configura los formatos')
+    import json
+    if not isinstance(datos.get('formatos'), list) or len(json.dumps(datos)) > 100_000:
+        raise HTTPException(422, 'Formatos CSV invalidos o demasiado grandes')
+    config = db.get(AppConfig, 'csv') or AppConfig(clave='csv')
+    config.datos = {'formatos': datos['formatos']}
+    config.usuario, config.modificado_en = _quien(op), utcnow()
+    db.add(config)
+    db.commit()
+    return config.datos
+
+
+@router.post('/recepciones/{codigo}/archivos/{tipo}', status_code=201)
+def subir_archivo(codigo: str, tipo: str, datos: dict = Body(...), db: Session = Depends(get_db),
+                   op: Operador = Depends(usuario_actual)):
+    from app.services import archivos
+    from app.services import operacion, drive
+    if 'operadorOrigen' in datos and str(datos['operadorOrigen'])!=str(op.id):
+        raise HTTPException(409,'La sesión cambió desde que se preparó esta foto. Entra con la cuenta que la seleccionó para recuperar sus pendientes.')
+    if tipo == 'informe' and op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
+        raise HTTPException(403, 'Solo un supervisor archiva informes')
+    if tipo == 'foto':
+        try:
+            r = m.obtener(db, codigo, bloquear=True)
+        except m.ErrorApp as exc:
+            raise _traducir(exc) from None
+        if r.estado not in m.ABIERTAS:
+            final = datos.get('tipoEvidencia') == 'ESTADO_FINAL' and not str(datos.get('sku') or '').strip()
+            if not final:
+                raise HTTPException(409, 'Recepción cerrada: solo se pueden añadir fotos del estado final, sin modificar el informe emitido.')
+            if op.rol not in (Rol.ADMIN, Rol.SUPERVISOR):
+                raise HTTPException(403, 'Solo un supervisor añade evidencias posteriores al cierre')
+        operacion.validar_evidencia(db, codigo, datos)
+    a = None
+    try:
+        a = archivos.guardar(db, codigo, tipo, datos, _quien(op), confirmar=False)
+        if tipo == 'foto':
+            from app.services import fotos_identidad
+            # Un conflicto de contenido puede haber terminado la transacción
+            # inicial. Releer el estado y recuperar el bloqueo antes de numerar.
+            r=m.obtener(db,r.codigo,bloquear=True)
+            if r.estado not in m.ABIERTAS and not (datos.get('tipoEvidencia')=='ESTADO_FINAL' and not str(datos.get('sku') or '').strip() and op.rol in (Rol.ADMIN,Rol.SUPERVISOR)):
+                raise HTTPException(409,'La recepción se cerró. Actualiza antes de adjuntar esta foto.')
+            fotos_identidad.asegurar_archivo(db,a)
+            creada = operacion.vincular_evidencia(db, a, datos, _quien(op), confirmar=False)
+            drive.encolar(db, a)
+            from app.services.procesos import registrar as registrar_proceso
+            registrar_proceso(db,'FOTO','GUARDADA',a.id,_quien(op),archivoId=a.id,recepcion=codigo,etapa='SERVIDOR')
+            if r.estado not in m.ABIERTAS and creada:
+                operacion.auditoria(db, codigo, _quien(op), 'EVIDENCIA_POSTCIERRE', {'archivoId': a.id, 'tipo': 'ESTADO_FINAL'})
+        db.commit()
+    except Exception:
+        db.rollback()
+        if a is not None and db.get(AppArchivo, a.id) is None:
+            archivos.ruta(a).unlink(missing_ok=True)
+        raise
+    url = f'/api/app/archivos/{a.id}'
+    return {'id': a.id, 'nombre': a.nombre, 'url': url, 'enlace': url,
+            'bytes': a.bytes, 'sha256': a.sha256, 'destino': 'SERVIDOR'}
+
+
+@router.get('/recepciones/{codigo}/imagenes')
+def imagenes(codigo: str, sku: str = '', contexto: bool = False, unidadId: str = '', tipoEvidencia: str = '', categoriaEvidencia: str = '', offset: int = Query(0, ge=0),
+             limite: int = Query(40, ge=1, le=100), db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    from app.services import archivos
+    from app.services.normalize import normalizar_sku
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+    consulta = select(AppArchivo).where(AppArchivo.recepcion == r.codigo, AppArchivo.tipo == 'foto')
+    from app.models import AppCopiaDrive
+    retiradas = select(AppCopiaDrive.archivo_id).where(AppCopiaDrive.recepcion == r.codigo,
+        (AppCopiaDrive.estado == 'ELIMINADA') | (AppCopiaDrive.datos['accion'].as_string() == 'papelera'))
+    consulta = consulta.where(AppArchivo.id.not_in(retiradas))
+    if tipoEvidencia:
+        from app.models import AppEvidencia
+        from app.services.operacion import TIPOS
+        if tipoEvidencia not in TIPOS: raise HTTPException(422, 'Tipo de evidencia inválido')
+        consulta = consulta.where(AppArchivo.id.in_(select(AppEvidencia.archivo_id).where(
+            AppEvidencia.recepcion == r.codigo, AppEvidencia.tipo == tipoEvidencia, AppEvidencia.eliminado_en.is_(None))))
+    if unidadId:
+        from app.models import AppEvidencia, AppUnidadLogistica
+        unidad = db.get(AppUnidadLogistica, unidadId)
+        if not unidad or unidad.recepcion != r.codigo:
+            raise HTTPException(422, 'El bulto no pertenece a esta recepción')
+        ids_unidades = [unidad.id] + list(db.scalars(select(AppUnidadLogistica.id).where(
+            AppUnidadLogistica.padre_id == unidad.id, AppUnidadLogistica.recepcion == r.codigo)))
+        consulta = consulta.where(AppArchivo.id.in_(select(AppEvidencia.archivo_id).where(
+            AppEvidencia.recepcion == r.codigo, AppEvidencia.unidad_id.in_(ids_unidades), AppEvidencia.eliminado_en.is_(None))))
+    if sku:
+        normal = normalizar_sku(sku)
+        from app.services.fotos_sku import ids_sku
+        ids = ids_sku(db, r.codigo, normal)
+        if contexto:
+            from app.models import AppEvidencia, AppUnidadLogistica
+            todas = list(db.scalars(select(AppEvidencia).where(AppEvidencia.recepcion == r.codigo,
+                AppEvidencia.eliminado_en.is_(None))))
+            propias = [e for e in todas if e.sku == normal]
+            unidades = {e.unidad_id for e in propias if e.unidad_id}
+            origenes = {e.origen for e in propias if e.origen}
+            for uid in list(unidades):
+                u = db.get(AppUnidadLogistica, uid)
+                if u and u.padre_id: unidades.add(u.padre_id)
+            # Solo evidencia de contexto sin otro SKU: nunca mezclar productos distintos.
+            ids.update(e.archivo_id for e in todas if not e.sku and
+                (e.tipo == 'PACKING_INICIAL' or e.unidad_id in unidades or
+                 (e.origen and e.origen in origenes)))
+        consulta = consulta.where(AppArchivo.id.in_(ids))
+    if categoriaEvidencia:
+        from app.models import AppEvidencia
+        from app.services.operacion import CATEGORIAS
+        if categoriaEvidencia not in CATEGORIAS:raise HTTPException(422,'Clasificación de evidencia inválida')
+        consulta=consulta.where(AppArchivo.id.in_(select(AppEvidencia.archivo_id).where(AppEvidencia.recepcion==r.codigo,
+            AppEvidencia.eliminado_en.is_(None),AppEvidencia.categoria==categoriaEvidencia)))
+    total = db.scalar(select(func.count()).select_from(consulta.subquery()))
+    filas = list(db.scalars(consulta.order_by(AppArchivo.creado_en.desc(), AppArchivo.id).offset(offset).limit(limite)))
+    etiquetas = {}
+    if filas:
+        for aid, cod in db.execute(select(AppArchivoSku.archivo_id, AppArchivoSku.sku).where(AppArchivoSku.archivo_id.in_([a.id for a in filas]))):
+            etiquetas.setdefault(aid, []).append(cod)
+    resultado = []
+    from app.models import AppEvidencia, AppCopiaDrive, AppArchivoIdentidad
+    from app.services.drive import carpeta_sku,ubicacion_evidencia
+    from app.services.fotos_embarques import asignado, informacion
+    fuente_embarques=informacion(db,r.codigo) if filas else None
+    metadatos = {}
+    identidades={i.archivo_id:i for i in db.scalars(select(AppArchivoIdentidad).where(AppArchivoIdentidad.archivo_id.in_([a.id for a in filas])))} if filas else {}
+    if filas:
+        copias = {j.archivo_id: j for j in db.scalars(select(AppCopiaDrive).where(
+            AppCopiaDrive.archivo_id.in_([a.id for a in filas])))}
+        for e in db.scalars(select(AppEvidencia).where(AppEvidencia.archivo_id.in_([a.id for a in filas]),
+                AppEvidencia.eliminado_en.is_(None))):
+            metadatos.setdefault(e.archivo_id, []).append({'id':e.id,'protocolo':e.protocolo,'sku': e.sku, 'categoria': e.categoria,
+                'pallet':pallet_evidencia(db,e),'tipo': e.tipo, 'unidadId': e.unidad_id, 'origen': e.origen, 'embarque':asignado(db,e,fuente=fuente_embarques),
+                'rutaEsperada':ubicacion_evidencia(db,e,copias.get(e.archivo_id),fuente=fuente_embarques)['rutaEsperada'],
+                'estadoCarpeta':ubicacion_evidencia(db,e,copias.get(e.archivo_id),fuente=fuente_embarques)['estado'],
+                'carpetaDrive': carpeta_sku(copias.get(e.archivo_id), e,db=db,fuente=fuente_embarques) or ''})
+    for a in filas:
+        f = {'id': a.id, 'nombre': a.nombre, 'url': f'/api/app/archivos/{a.id}',
+             'skus': etiquetas.get(a.id, []), 'bytes': a.bytes, 'creadoEn': m._iso(a.creado_en),
+             'almacen': 'DRIVE' if a.drive_id else 'SERVIDOR', 'driveUrl': a.drive_url or '',
+             'evidencias': metadatos.get(a.id, [])}
+        identidad=identidades.get(a.id)
+        f.update(nombreOriginal=identidad.nombre_original if identidad else a.nombre,
+            secuencia=identidad.secuencia if identidad else None,registradaPor=a.usuario)
+        if op.rol == Rol.ADMIN:
+            f['rutaServidor'] = str(archivos.ruta(a)) if archivos.ruta(a).exists() else None
+        resultado.append(f)
+    entrega = next((e for e in entregas.recientes(db, 30, recepcion=r.codigo)
+        if (e.resultado or {}).get('carpeta')), None)
+    from app.services.drive import resumen_fotos
+    ids_filtrados = set(db.scalars(consulta.with_only_columns(AppArchivo.id))) if sku else None
+    return {'total': total, 'archivos': resultado, 'sincronizacion': resumen_fotos(db, r.codigo, ids=ids_filtrados) if sku else None,
+            'carpetaDrive': (entrega.resultado.get('carpetaFotos') or entrega.resultado.get('carpeta')) if entrega else ''}
+
+
+@router.get('/archivos/{archivo_id}')
+def archivo_local(archivo_id: str, miniatura: bool = False, db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    from app.services import archivos
+    a = db.get(AppArchivo, archivo_id)
+    if a is None:
+        raise HTTPException(404, 'Archivo no encontrado')
+    if a.tipo == 'informe' and not ajustes.permisos(db, op).get('exportarInformes'):
+        raise HTTPException(403, 'Solo los usuarios autorizados pueden descargar informes')
+    from app.models import AppCopiaDrive
+    copia = db.get(AppCopiaDrive, archivo_id)
+    if copia and (copia.estado == 'ELIMINADA' or copia.datos.get('accion') == 'papelera'):
+        raise HTTPException(410, 'Evidencia retirada por supervisión; se conserva su trazabilidad')
+    if miniatura and a.tipo=='foto':
+        try:
+            bruto=archivos.miniatura_drive(db,a)
+        except HTTPException as exc:
+            if exc.status_code not in (404,502,503):raise
+            # La miniatura es opcional: no presentar un 502 como si se hubiera
+            # perdido el registro o fallado el envío del correo.
+            return Response(status_code=204,headers={'Cache-Control':'private, no-store',
+                'X-ITSANET-Miniatura':'no-disponible','Retry-After':'30'})
+        mime='image/png' if bruto.startswith(b'\x89PNG') else 'image/webp' if bruto.startswith(b'RIFF') else 'image/jpeg'
+        return Response(bruto,media_type=mime,headers={'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff'})
+    if not archivos.ruta(a).is_file():
+        if a.drive_id:
+            return RedirectResponse(f'https://drive.google.com/uc?export=view&id={a.drive_id}', headers={'Cache-Control': 'private, no-store'})
+        raise HTTPException(404, 'Archivo no encontrado')
+    return FileResponse(archivos.ruta(a), media_type=a.mime, filename=a.nombre,
+        content_disposition_type='inline' if a.tipo == 'foto' else 'attachment',
+        headers={'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
+def _quien(op: Operador) -> str:
+    """Con qué nombre queda firmado un evento."""
+    return op.email or op.usuario
+
+
+def _traducir(exc: m.ErrorApp) -> HTTPException:
+    """Un error del modelo, con su código, en el sitio donde el handheld lo lee.
+
+    El código viaja en el cuerpo porque la pantalla decide con él: CONFIRMAR_SOBRANTE
+    abre el diálogo de confirmación, RECEPCION_CERRADA manda a elegir otra. Un
+    texto suelto no se puede programar.
+    """
+    estado = {
+        "NO_ENCONTRADA": 404, "NO_ENCONTRADO": 404,
+        "DUPLICADA": 409, "ORIGEN_DUPLICADO": 409, "YA_CERRADA": 409,
+        "NO_CERRADA": 409, "YA_ANULADO": 409, "RECEPCION_CERRADA": 409,
+        "CONFIRMAR_SOBRANTE": 409, "CLAVE_EN_CONFLICTO": 409,
+    }.get(exc.codigo, 422)
+    return HTTPException(estado, {"codigo": exc.codigo, "mensaje": str(exc)})
+
+
+# --------------------------------------------------------------------------- #
+# Recepciones
+# --------------------------------------------------------------------------- #
+@router.get("/recepciones")
+def listar(max: int = Query(50, ge=1, le=500), mias: bool = False,
+           db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    return m.listar_recepciones(db, max, usuario=_quien(op) if mias else None)
+
+
+@router.get('/recepciones-listado')
+def buscar_listado(texto:str=Query('',max_length=200),estado:str='',desde:date|None=None,hasta:date|None=None,
+                   orden:str='RECIENTES',offset:int=Query(0,ge=0),limite:int=Query(50,ge=1,le=100),mias:bool=False,
+                   db:Session=Depends(get_db),op:Operador=Depends(usuario_actual)):
+    from app.services.recepciones_listado import buscar
+    return buscar(db,usuario=_quien(op) if mias else None,texto=texto,estado=estado,desde=desde,hasta=hasta,
+        orden=orden,offset=offset,limite=limite)
+
+
+@router.get('/recepciones/{codigo}/catalogo-exportacion')
+def catalogo_exportacion(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+    productos = db.scalars(select(Producto).join(AppSku, AppSku.sku == Producto.sku)
+        .where(AppSku.recepcion == r.codigo))
+    return {p.sku: {'unidad': (p.unidad or '') if p.cliente == r.cliente else '',
+                    'familia': (p.familia or '') if p.cliente == r.cliente else '', 'existe': True,
+                    'cliente': p.cliente, 'ean': p.ean or ''} for p in productos}
+
+
+@router.get('/recepciones/{codigo}/codigos-barras')
+def codigos_de_recepcion(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(requiere_supervisor)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from None
+    filas = db.scalars(select(ProductoCodigo).join(AppSku, AppSku.sku == ProductoCodigo.sku)
+        .where(AppSku.recepcion == r.codigo, ProductoCodigo.exportar.is_(True))
+        .order_by(ProductoCodigo.sku, ProductoCodigo.codigo))
+    return [{'sku': f.sku, 'codigoBarras': f.valor, 'registradoPor': f.registrado_por,
+             'fecha': m._iso(f.creado_en)} for f in filas]
+
+
+@router.get('/recepciones-abiertas/por-codigo/{codigo}')
+def buscar_en_recepciones(codigo: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services.codigos import buscar
+    normal = m.normalizar_codigo(codigo)
+    producto = buscar(db, codigo)
+    sku = producto.sku if producto else normal
+    filas = db.scalars(select(AppRecepcion).join(AppSku, AppSku.recepcion == AppRecepcion.codigo)
+        .where(AppRecepcion.estado.in_(m.ABIERTAS), AppSku.sku == sku, AppSku.en_packing_list.is_(True))
+        .order_by(AppRecepcion.creado_en.desc())).all()
+    return {'sku': sku, 'recepciones': [m.doc_recepcion(r) for r in filas]}
+
+
+@router.post("/recepciones", status_code=201)
+def crear(datos: dict = Body(...), db: Session = Depends(get_db),
+          op: Operador = Depends(requiere_supervisor)):
+    try:
+        return m.crear_recepcion(db, datos, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get("/recepciones/{codigo}")
+def una(codigo: str, db: Session = Depends(get_db),
+        _: Operador = Depends(usuario_actual)):
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    return {**m.doc_recepcion(r, m.operarios_de(db, r.codigo)),'marca':m.marcas_recepciones(db,[r.codigo]).get(r.codigo,''),'nombresListas':m.nombres_listas(db,[r.codigo]).get(r.codigo,{})}
+
+
+@router.delete("/recepciones/{codigo}")
+def borrar(codigo: str, db: Session = Depends(get_db),
+           op: Operador = Depends(requiere_supervisor)):
+    """Irreversible: se lleva la bitácora y la auditoría. Solo un administrador."""
+    if op.rol != Rol.ADMIN:
+        raise HTTPException(403, "Solo un administrador puede borrar una recepción")
+    try:
+        return m.borrar_recepcion(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get("/recepciones/{codigo}/{coleccion}")
+def subcoleccion(codigo: str, coleccion: str, max: int = Query(0, ge=0, le=5000),
+                 db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    """Las subcolecciones que lee la aplicación: líneas, SKU, adicionales, eventos.
+
+    Una sola ruta para las cinco porque el navegador las lee con una sola
+    función (`leerColeccion`): cuantas menos formas haya de pedir lo mismo,
+    menos sitios donde puedan discrepar.
+    """
+    if coleccion not in COLECCIONES:
+        raise HTTPException(404, f"No existe la colección «{coleccion}»")
+    try:
+        return m.leer_coleccion(db, codigo, coleccion, max)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.get('/recepciones/{codigo}/estado-sku/{sku}')
+def estado_sku(codigo: str, sku: str, db: Session = Depends(get_db), _: Operador = Depends(usuario_actual)):
+    from app.services.normalize import normalizar_sku
+    try:
+        r = m.obtener(db, codigo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+    s = db.scalar(select(AppSku).where(AppSku.recepcion == r.codigo, AppSku.sku == normalizar_sku(sku)))
+    return m.doc_sku(s) if s else None
+
+
+# --------------------------------------------------------------------------- #
+# Packing list
+# --------------------------------------------------------------------------- #
+@router.post("/recepciones/{codigo}/packing-list")
+def cargar_packing_list(codigo: str, cuerpo: dict = Body(...),
+                        db: Session = Depends(get_db),
+                        op: Operador = Depends(requiere_supervisor)):
+    """Recibe el packing list YA LEÍDO por el navegador.
+
+    El archivo no se sube: lo lee el navegador con la rutina que conoce los
+    formatos reales de cada cliente y manda el resultado traducido. Dos lectores
+    de Excel, uno en cada lado, serían dos cosas que pueden discrepar sobre
+    cuántas unidades declara una fila.
+    """
+    try:
+        from app.services.operacion import configuracion, obtener_ingreso
+        from app.models import AppIngreso
+        if db.get(AppIngreso, codigo) and configuracion(db)['evidencias']['bloquear'] and obtener_ingreso(db, codigo)['avisos']:
+            raise HTTPException(409, 'Completa las evidencias exigidas por ADMIN antes de cargar el packing list')
+        return m.guardar_packing_list(
+            db, codigo,
+            resultado=cuerpo.get("resultado") or {},
+            origen=cuerpo.get("origen") or "PRINCIPAL",
+            archivo=cuerpo.get("archivo"),
+        )
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/packing-lists/parecidos")
+def parecidos(cuerpo: dict = Body(...), db: Session = Depends(get_db),
+              _: Operador = Depends(usuario_actual)):
+    """¿Este packing list ya se cargó antes? Se pregunta por contenido."""
+    return m.packing_lists_parecidos(
+        db, cuerpo.get("resumen") or {}, excluir=cuerpo.get("excluirRecepcion"))
+
+
+# --------------------------------------------------------------------------- #
+# Conteo
+# --------------------------------------------------------------------------- #
+@router.post("/recepciones/{codigo}/conteos")
+def contar(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+           op: Operador = Depends(usuario_actual)):
+    try:
+        return m.registrar_conteo(db, codigo, _quien(op), cuerpo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/no-encontrado")
+def no_encontrado(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+                  op: Operador = Depends(usuario_actual)):
+    try:
+        return m.declarar_no_encontrado(db, codigo, _quien(op), cuerpo)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/conteos/{evento_id}/anular")
+def anular(codigo: str, evento_id: str, cuerpo: dict = Body(default={}),
+           db: Session = Depends(get_db), op: Operador = Depends(usuario_actual)):
+    try:
+        return m.anular_conteo(db, codigo, _quien(op), evento_id,
+                               cuerpo.get("motivo") or "")
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/auditoria")
+def auditar(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+            op: Operador = Depends(usuario_actual)):
+    return m.registrar_auditoria(db, codigo, _quien(op),
+                                 cuerpo.get("tipo") or "AUDITORIA",
+                                 cuerpo.get("detalle") or {})
+
+
+@router.get("/recepciones/{codigo}/skus/{sku}/recalcular")
+def recalcular(codigo: str, sku: str, db: Session = Depends(get_db),
+               _: Operador = Depends(requiere_supervisor)):
+    """Vuelve a armar el agregado desde el libro mayor. La verdad son los eventos."""
+    try:
+        return m.recalcular_sku(db, codigo, sku)
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Cierre
+# --------------------------------------------------------------------------- #
+@router.post("/recepciones/{codigo}/cerrar")
+def cerrar(codigo: str, db: Session = Depends(get_db),
+           op: Operador = Depends(ajustes.requiere('cerrarRecepciones'))):
+    try:
+        return m.cerrar_recepcion(db, codigo, _quien(op))
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+@router.post("/recepciones/{codigo}/reabrir")
+def reabrir(codigo: str, cuerpo: dict = Body(default={}), db: Session = Depends(get_db),
+            op: Operador = Depends(requiere_supervisor)):
+    try:
+        return m.reabrir_recepcion(db, codigo, _quien(op), cuerpo.get("motivo") or "")
+    except m.ErrorApp as exc:
+        raise _traducir(exc) from exc
+
+
+# --------------------------------------------------------------------------- #
+# Catálogo
+# --------------------------------------------------------------------------- #
+@router.get("/catalogo/{codigo}")
+def catalogo(codigo: str, cliente: str | None = None, db: Session = Depends(get_db),
+             _: Operador = Depends(usuario_actual)):
+    """Lo que la pantalla necesita saber de un código escaneado."""
+    r = depot_svc.resolver_codigo(db, codigo, usar_api=False)
+    from app.services.catalogo_programado import posiciones_de
+    from app.services.codigos import buscar
+    producto=buscar(db,r.sku)
+    propietarios={producto.cliente} if producto else set()
+    from app.models import AppStockDepot
+    propietarios.update(db.scalars(select(AppStockDepot.cliente).where(AppStockDepot.sku==r.sku)))
+    return {
+        "sku": r.sku, "existe": r.existe, "descripcion": r.descripcion,
+        "ean": r.ean, "unidad": r.unidad, "inactivo": r.inactivo,
+        "fuente": r.fuente, "degradado": r.degradado,
+        "candidatos": r.candidatos, "mensaje": r.mensaje, "accion": r.accion,
+        **posiciones_de(db, r.sku, cliente),
+        'cliente':producto.cliente if producto else '', 'clientesCatalogo':sorted(propietarios),
+        'otroCliente':bool(cliente and propietarios and cliente.upper() not in {str(c).upper() for c in propietarios}),
+        'existeDepot':bool(producto and producto.existe_depot),
+    }
+
+
+@router.post("/catalogo/{codigo}/equivalencia")
+def equivalencia(codigo: str, cuerpo: dict = Body(...), db: Session = Depends(get_db),
+                 op: Operador = Depends(usuario_actual)):
+    """Apunta que un código escaneado corresponde a un SKU del maestro.
+
+    Pasa con las etiquetas del proveedor: el código del bulto no es el del
+    producto. La primera vez lo resuelve una persona; a partir de ahí lo resuelve
+    el escáner. Sin esto, cada operario vuelve a resolverlo desde cero.
+    """
+    from app.services.codigos import guardar
+    c = guardar(db, codigo, cuerpo.get('sku'), _quien(op))
+    return {'sku': c.sku, 'codigoAlternativo': c.codigo, 'codigoBarras': c.valor}
+
+
+@router.post('/catalogo/codigos/importar')
+def importar_codigos(datos: dict = Body(...), db: Session = Depends(get_db), op: Operador = Depends(requiere_supervisor)):
+    from app.services.codigos import guardar
+    filas = datos.get('filas')
+    if not isinstance(filas, list) or not 1 <= len(filas) <= 5000:
+        raise HTTPException(422, 'El archivo debe contener entre 1 y 5000 filas')
+    try:
+        for i, f in enumerate(filas, 2):
+            if not isinstance(f, dict):
+                raise HTTPException(422, f'Fila {i}: datos no válidos')
+            try:
+                guardar(db, f.get('codigoBarras'), f.get('sku'), _quien(op), confirmar=False)
+            except HTTPException as exc:
+                raise HTTPException(exc.status_code, f'Fila {i}: {exc.detail}') from None
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {'procesadas': len(filas), 'mensaje': 'Códigos asociados a productos existentes. No se crearon productos ni conteos.'}

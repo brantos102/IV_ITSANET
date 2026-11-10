@@ -1,0 +1,79 @@
+# Desarrollo independiente. Usar siempre con scripts/local.ps1 o el env-file documentado.
+name: iv-itsanet-desarrollo
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: itsanet_desarrollo
+      MYSQL_USER: itsanet_dev
+      MYSQL_PASSWORD: ${ITSANET_LOCAL_MYSQL_PASSWORD:?Ejecutar scripts/local.ps1}
+      MYSQL_ROOT_PASSWORD: ${ITSANET_LOCAL_ROOT_PASSWORD:?Ejecutar scripts/local.ps1}
+    volumes:
+      - mysql_pruebas:/var/lib/mysql
+    networks: [datos]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --user="$$MYSQL_USER" --database="$$MYSQL_DATABASE" --execute="SELECT 1" --silent > /dev/null']
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 15s
+  app:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: docker/local.Dockerfile
+    environment:
+      VAL_DATABASE_URL: mysql+pymysql://itsanet_dev:${ITSANET_LOCAL_MYSQL_PASSWORD:?Ejecutar scripts/local.ps1}@mysql:3306/itsanet_desarrollo?charset=utf8mb4
+      VAL_DATA_DIR: /var/lib/itsanet
+      VAL_SECRET_KEY: ${ITSANET_LOCAL_SESSION_KEY:?Ejecutar scripts/local.ps1}
+      ITSANET_LOCAL: "1"
+      ITSANET_LOCAL_ADMIN_PASSWORD: ${ITSANET_LOCAL_ADMIN_PASSWORD:?Ejecutar scripts/local.ps1}
+      VAL_GOOGLE_PROXY_URL: ""
+      VAL_GOOGLE_PROXY_SECRET: ""
+      DEPOT_USUARIO: ""
+      DEPOT_CLAVE: ""
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "127.0.0.1:${ITSANET_LOCAL_PORT:-3003}:3002"
+    volumes:
+      - type: bind
+        source: .
+        target: /opt/itsanet
+        read_only: true
+      - archivos_pruebas:/var/lib/itsanet
+    networks: [datos, salida]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: [python, scripts/iniciar_local.py]
+    healthcheck:
+      test: [CMD, python, -c, "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:3002/health', timeout=3))['ok'] is True"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+  agente-impresion:
+    profiles: [impresion]
+    restart: unless-stopped
+    image: iv-itsanet-desarrollo-app
+    command: [python, scripts/agente_impresion.py, --config, /run/puente/config.json, --registro, /var/lib/itsanet/agente]
+    volumes:
+      - type: bind
+        source: .
+        target: /opt/itsanet
+        read_only: true
+      - type: bind
+        source: ./.local/puente.json
+        target: /run/puente/config.json
+        read_only: true
+      - registro_impresion:/var/lib/itsanet
+    networks: [salida]
+volumes:
+  mysql_pruebas:
+  archivos_pruebas:
+  registro_impresion:
+networks:
+  datos:
+    internal: true
+  salida:
