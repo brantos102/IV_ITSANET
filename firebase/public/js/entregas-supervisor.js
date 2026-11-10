@@ -1,5 +1,5 @@
-import {pedir} from './local.js?v=20261110-73';
-import {pintarEntregas} from './admin-entregas.js?v=20261110-73';
+import {pedir} from './local.js?v=20261110-74';
+import {pintarEntregas} from './admin-entregas.js?v=20261110-74';
 
 export async function abrirEntregas(aviso,recepcion='',{pendientes=false}={}) {
   const d=document.createElement('dialog');d.className='modal-operativa entregas-dialogo';

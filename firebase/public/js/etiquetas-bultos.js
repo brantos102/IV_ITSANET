@@ -1,6 +1,6 @@
-import {pedir,nuevoIdentificador} from './local.js?v=20261110-73';
-import {esc} from './evidencias.js?v=20261110-73';
-import {tecladoDialogo} from './modal.js?v=20261110-73';
+import {pedir,nuevoIdentificador} from './local.js?v=20261110-74';
+import {esc} from './evidencias.js?v=20261110-74';
+import {tecladoDialogo} from './modal.js?v=20261110-74';
 
 const api=(ruta,opciones={})=>pedir(ruta,{...opciones,base:'/api/impresion'});
 /** Rangos de números físicos: seleccionar una parte nunca renumera los bultos. */
@@ -18,26 +18,58 @@ export function numerosDeEtiquetas(texto,total){
   }
   return [...numeros].sort((a,b)=>a-b);
 }
-function barras(serie){
+// Unidades SVG = puntos de impresora: 8 puntos/mm (Zebra de 203 dpi).
+// El ancho del módulo se conserva; no se estiran las barras hasta llenar la hoja.
+const PUNTOS_POR_MM=8;
+export function barrasBulto(serie,formato='100x50'){
   if(!globalThis.JsBarcode)throw new Error('Recarga la página para cargar el generador de etiquetas.');
+  const grande=formato==='100x150',modulo=grande?4:3;
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  JsBarcode(svg,serie,{format:'CODE128',displayValue:false,height:65,width:1,margin:10});
-  svg.setAttribute('viewBox',`0 0 ${parseFloat(svg.getAttribute('width'))} ${parseFloat(svg.getAttribute('height'))}`);
-  svg.setAttribute('preserveAspectRatio','none');
-  svg.style.width='100%';svg.style.height='100%';return svg.outerHTML;
+  JsBarcode(svg,serie,{format:'CODE128B',displayValue:false,height:grande?384:120,width:modulo,
+    margin:0,marginLeft:10*modulo,marginRight:10*modulo,marginTop:8,marginBottom:8});
+  const ancho=parseFloat(svg.getAttribute('width')),alto=parseFloat(svg.getAttribute('height'));
+  svg.setAttribute('viewBox',`0 0 ${ancho} ${alto}`);
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  svg.style.width=(ancho/PUNTOS_POR_MM)+'mm';svg.style.height=(alto/PUNTOS_POR_MM)+'mm';
+  svg.style.maxWidth='100%';svg.style.maxHeight='100%';
+  return svg.outerHTML;
 }
 
-export function htmlEtiquetasBultos(lote,dibujar=barras){
+function puntosRotulo(rotulo,grande){
+  const n=String(rotulo).length,base=n>4?(grande?86:36):(grande?104:42);
+  // Letras, dígitos y punto: reservar también el espaciado de 1 mm por carácter.
+  const disponible=(grande?90:94)-n;
+  return Math.floor(Math.min(base,disponible/(Math.max(1,n)*.72)*72/25.4)*100)/100;
+}
+
+export function htmlEtiquetasBultos(lote,dibujar=barrasBulto){
   if(!['100x50','100x150'].includes(lote.formato))throw new Error('Formato de etiqueta inválido.');
   const alto=lote.formato==='100x150'?150:50;
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Bultos ${esc(lote.recepcion)} · L${lote.lote}</title><style>
-    @page{size:100mm ${alto}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;color:#000;background:white;font-family:Arial,sans-serif}
-    .etiqueta-bulto{width:100mm;height:${alto}mm;padding:${alto===150?5:3}mm;overflow:hidden;break-after:page;break-inside:avoid;display:grid;grid-template-rows:${alto===150?'12mm 55mm 50mm':'4mm 17mm 17mm'};gap:${alto===150?8:2}mm;align-content:center;text-align:center;font-family:Arial,sans-serif}
-    .etiqueta-bulto>*{min-width:0}.etiqueta-bulto:last-child{break-after:auto}.cliente{font-size:${alto===150?16:9}pt;line-height:1.1;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center}
-    .rotulo{font-size:${alto===150?104:42}pt;line-height:1;font-weight:800;margin:0;letter-spacing:1mm;display:flex;align-items:center;justify-content:center}.rotulo-largo{font-size:${alto===150?86:36}pt}
-    .codigo{height:100%;width:100%;overflow:hidden}.codigo svg{display:block;width:100%;height:100%}
+    @page{size:100mm ${alto}mm;margin:0}*{box-sizing:border-box}html,body{width:100mm;margin:0;padding:0;color:#000;background:white;font-family:Arial,sans-serif}
+    .etiqueta-bulto{width:100mm;height:${alto}mm;padding:${alto===150?5:3}mm;overflow:hidden;break-after:page;break-inside:avoid;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:${alto===150?'12mm 55mm 50mm':'4mm 17mm 17mm'};gap:${alto===150?8:2}mm;align-content:center;justify-items:center;text-align:center;font-family:Arial,sans-serif}
+    .etiqueta-bulto>*{min-width:0;width:100%}.etiqueta-bulto:last-child{break-after:auto}.cliente{font-size:${alto===150?16:9}pt;line-height:1.1;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:center}
+    .rotulo{font-size:calc(var(--rotulo-pt,${alto===150?104:42})*1pt);line-height:1;font-weight:800;margin:0;letter-spacing:1mm;display:flex;align-items:center;justify-content:center}.rotulo-largo{font-size:calc(var(--rotulo-pt,${alto===150?86:36})*1pt)}
+    .codigo{height:100%;width:100%;display:flex;align-items:center;justify-content:center;overflow:visible}.codigo svg{display:block;flex:none;margin:0 auto}
     @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
-    </style></head><body>${lote.etiquetas.map(e=>`<article class="etiqueta-bulto"><div class="cliente">${esc(lote.cliente||'ITSANET')}</div><div class="rotulo${e.rotulo.length>4?' rotulo-largo':''}">${esc(e.rotulo)}</div><div class="codigo">${dibujar(e.rotulo)}</div></article>`).join('')}</body></html>`;
+    </style></head><body>${lote.etiquetas.map(e=>`<article class="etiqueta-bulto"><div class="cliente">${esc(lote.cliente||'ITSANET')}</div><div class="rotulo${e.rotulo.length>4?' rotulo-largo':''}" style="--rotulo-pt:${puntosRotulo(e.rotulo,alto===150)}">${esc(e.rotulo)}</div><div class="codigo">${dibujar(e.rotulo,lote.formato)}</div></article>`).join('')}</body></html>`;
+}
+
+export async function imprimirDocumentoBultos(ventana,html){
+  let tiempo;
+  try{
+    // document.open borra listeners anteriores; registrarlos sobre el documento nuevo.
+    ventana.document.open();
+    await new Promise((resolve,reject)=>{
+      tiempo=setTimeout(()=>reject(new Error('No se completó la preparación de impresión. Reintenta la misma solicitud.')),15000);
+      ventana.addEventListener('load',resolve,{once:true});
+      ventana.document.write(html);ventana.document.close();
+      if(ventana.document.readyState==='complete')resolve();
+    });
+    if(ventana.document.fonts)await ventana.document.fonts.ready;
+    if(ventana.closed)throw new Error('Se cerró la ventana de impresión. Reintenta la misma solicitud.');
+    ventana.focus();ventana.print();
+  }finally{clearTimeout(tiempo);}
 }
 
 export async function abrirEtiquetasBultos(codigo){
@@ -48,18 +80,18 @@ export async function abrirEtiquetasBultos(codigo){
   d.innerHTML=`<header class="acciones"><h2>Etiquetas de bultos</h2><button class="b-sec" data-cerrar>Cerrar</button></header><p>${esc(codigo)}</p>
     <div class="rejilla"><label class="campo"><span>Literal</span><input data-literal maxlength="1" pattern="[A-Za-z]" placeholder="A, B, C…"></label>
     <label class="campo"><span>Total confirmado de bultos</span><input data-total type="number" min="1" max="1000" step="1"><span class="mini">Este total pertenece a la recepción; para imprimir una parte usa la selección de abajo.</span></label>
-    <label class="campo"><span>Tamaño</span><select data-formato><option value="100x150">10 × 15 cm</option><option value="100x50">10 × 5 cm</option></select></label>
+    <label class="campo"><span>Tamaño físico de la etiqueta</span><select data-formato><option value="100x150">10 × 15 cm</option><option value="100x50">10 × 5 cm</option></select></label>
     <label class="campo"><span>Destino</span><select data-destino><option value="NAVEGADOR">Imprimir / PDF en esta PC</option><option value="ZPL">Descargar ZPL</option>${preferencias.impresoras.length?'<option value="ESTACION">Impresora mediante PC puente</option>':''}</select></label>
     <label class="campo" data-elegir-estacion hidden><span>Estación</span><select data-estacion>${preferencias.impresoras.map(p=>`<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('')}</select></label>
     <label class="campo"><span>Qué etiquetas imprimir</span><select data-alcance><option value="TODAS">Todas las del total confirmado</option><option value="SELECCION">Solo números o rangos seleccionados</option><option value="SUBBULTOS">Subbultos registrados · seleccionar etiquetas</option></select></label>
     <label class="campo" data-elegir-numeros hidden><span>Números de bulto</span><input data-numeros placeholder="Ej.: 1-10, 15, 20-25" maxlength="1000" inputmode="text"><span class="mini">Se conserva la numeración original. Ej.: seleccionar 15 imprime B15, no B01.</span></label></div>
-    <label class="campo" data-elegir-subbultos hidden><span>Subbultos registrados · selecciona uno o varios (Ctrl o Cmd en PC)</span><select data-subbultos multiple size="5">${(estado.subbultos||[]).map(u=>`<option value="${esc(u.id)}">${esc(u.rotulo)}</option>`).join('')}</select><span class="mini">Primero emite las etiquetas de los bultos padre. Se conserva el identificador real de cada caja registrada.</span></label><p data-resumen class="bultos-resumen" role="status"></p><p class="mini">1. Confirma total y selecciona qué bultos imprimir. 2. Revisa la etiqueta. 3. Imprime al 100 %, sin márgenes ni encabezados. Los rótulos ya emitidos conservan su literal.</p>
+    <label class="campo" data-elegir-subbultos hidden><span>Subbultos registrados · selecciona uno o varios (Ctrl o Cmd en PC)</span><select data-subbultos multiple size="5">${(estado.subbultos||[]).map(u=>`<option value="${esc(u.id)}">${esc(u.rotulo)}</option>`).join('')}</select><span class="mini">Primero emite las etiquetas de los bultos padre. Se conserva el identificador real de cada caja registrada.</span></label><p data-resumen class="bultos-resumen" role="status"></p><p class="mini">1. Confirma total y selecciona qué bultos imprimir. 2. Revisa la etiqueta. 3. En el controlador elige el mismo tamaño físico, una página por etiqueta y escala 100 %, sin ajustar a página, márgenes ni encabezados. Los rótulos ya emitidos conservan su literal.</p>
     <details><summary>Solicitudes anteriores</summary><div data-historial></div></details>
     <p data-estado role="status" aria-live="polite"></p><div class="acciones"><button class="b-primario" data-generar>Confirmar e imprimir</button><button class="b-sec" data-nuevo>Actualizar / nueva solicitud</button><button class="b-sec" data-ver-estado hidden>Consultar envío</button></div>
     <details open><summary>Vista previa · mismo diseño que se imprime</summary><p class="mini">Se muestran hasta 3 de las etiquetas seleccionadas. Solo esa selección se envía a imprimir.</p><div data-vista class="vista-etiquetas"></div></details>`;
   document.body.append(d);d.showModal();const $=s=>d.querySelector(s);
   const controles=()=>[...d.querySelectorAll('input,select')];
-  function pintarVista(lote){const grande=lote.formato==='100x150',html=htmlEtiquetasBultos({...lote,etiquetas:lote.etiquetas.slice(0,3)}),doc=new DOMParser().parseFromString(html,'text/html'),vista=$('[data-vista]');vista.replaceChildren();const host=document.createElement('div');host.className='bulto-preview';vista.append(host);const raiz=host.attachShadow({mode:'open'}),css=document.createElement('style');css.textContent=doc.querySelector('style').textContent+' .etiqueta-bulto{max-width:100%;height:auto;aspect-ratio:100/'+(grande?150:50)+';padding:'+(grande?5:3)+'cqw;gap:'+(grande?8:2)+'cqw;grid-template-rows:'+(grande?'12cqw 55cqw 50cqw':'4cqw 17cqw 17cqw')+';margin:10px auto;outline:1px solid #a3afbe;box-shadow:0 3px 10px #0002;background:white;color:black} .rotulo{font-size:'+(grande?36.69:14.82)+'cqw;letter-spacing:1cqw} .rotulo-largo{font-size:'+(grande?30.34:12.7)+'cqw} .cliente{font-size:'+(grande?5.64:3.18)+'cqw}';raiz.append(css,...[...doc.body.children].map(e=>document.importNode(e,true)));}
+  function pintarVista(lote){const grande=lote.formato==='100x150',html=htmlEtiquetasBultos({...lote,etiquetas:lote.etiquetas.slice(0,3)}),doc=new DOMParser().parseFromString(html,'text/html'),vista=$('[data-vista]');vista.replaceChildren();const host=document.createElement('div');host.className='bulto-preview';vista.append(host);const raiz=host.attachShadow({mode:'open'}),css=document.createElement('style');css.textContent=doc.querySelector('style').textContent+' .etiqueta-bulto{max-width:100%;height:auto;aspect-ratio:100/'+(grande?150:50)+';padding:'+(grande?5:3)+'cqw;gap:'+(grande?8:2)+'cqw;grid-template-rows:'+(grande?'12cqw 55cqw 50cqw':'4cqw 17cqw 17cqw')+';margin:10px auto;outline:1px solid #a3afbe;box-shadow:0 3px 10px #0002;background:white;color:black} .rotulo,.rotulo-largo{font-size:calc(var(--rotulo-pt)*.3527778cqw);letter-spacing:1cqw} .cliente{font-size:'+(grande?5.64:3.18)+'cqw}';raiz.append(css,...[...doc.body.children].map(e=>document.importNode(e,true)));}
   const hijos=()=>[...$('[data-subbultos]').selectedOptions].map(o=>estado.subbultos.find(u=>u.id===o.value));
   const seleccion=()=>{const total=Number($('[data-total]').value);return $('[data-alcance]').value==='SELECCION'?numerosDeEtiquetas($('[data-numeros]').value,total):Array.from({length:Number.isInteger(total)&&total>0&&total<=1000?total:0},(_,i)=>i+1);};
   const resumen=()=>{const literal=$('[data-literal]').value.trim().toUpperCase(),total=Number($('[data-total]').value);
@@ -90,7 +122,7 @@ export async function abrirEtiquetasBultos(codigo){
     try{
       const lote=await api(pendiente.unidadIds?ruta.replace(/bultos$/, 'subbultos'):ruta,{cuerpo:pendiente});ultimo=lote;
       const html=htmlEtiquetasBultos(lote);pintarVista(lote);
-      if(destino==='NAVEGADOR'){ventana.document.write(html);ventana.document.close();ventana.focus();ventana.print();}
+      if(destino==='NAVEGADOR')await imprimirDocumentoBultos(ventana,html);
       if(destino==='ZPL'){const url=URL.createObjectURL(new Blob([lote.zpl],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`bultos-${codigo.replace(/[^A-Za-z0-9_-]/g,'_')}-L${lote.lote}.zpl`;a.click();setTimeout(()=>URL.revokeObjectURL(url),4000);}
       $('[data-estado]').textContent=`Lote ${lote.lote} · ${lote.etiquetas.length} etiquetas seleccionadas de ${total} bultos · ${lote.estado==='PENDIENTE'?'Pendiente de envío por el puente':'Generadas; confirma el resultado en la impresora'}.`;
       $('[data-ver-estado]').hidden=destino!=='ESTACION';pendiente=null;

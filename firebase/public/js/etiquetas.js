@@ -1,5 +1,7 @@
-import {tecladoDialogo} from './modal.js?v=20261110-73';
+import {tecladoDialogo} from './modal.js?v=20261110-74';
 /** Zebra ZD421, 203 dpi. Formato de impresión 10 × 5. */
+export const DESCRIPCION_ETIQUETA_PT=8;
+const DESCRIPCION_ALTO_DOTS=Math.round(DESCRIPCION_ETIQUETA_PT*203/72);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function validarEtiqueta(d) {
   if (!/^[\x21-\x7e]{1,42}$/.test(String(d.sku || ''))) throw new Error('El código necesita de 1 a 42 caracteres imprimibles.');
@@ -29,7 +31,7 @@ export function generarZpl(datos) {
     texto(22,22,28,24,d.cliente.toUpperCase(),485),texto(22,54,17,15,'CODIGO:',736),
     `^FO32,76^BY2,2,94^BCN,94,N,N,N,A^FH\\^FD${hex(d.sku)}^FS`,
     texto(32,174,30,Math.min(26,Math.floor(736/d.sku.length)),d.sku,736),texto(22,217,18,16,'DESCRIPCION:',480),
-    texto(22,241,20,17,String(d.descripcion || '').slice(0,100),480,2),
+    texto(22,241,DESCRIPCION_ALTO_DOTS,DESCRIPCION_ALTO_DOTS-3,String(d.descripcion || '').slice(0,100),480,2),
     texto(22,300,19,17,'SERIE:',480),
     ...(d.serie ? [`^FO36,326^BY${String(d.serie).length > 20 ? 1 : 2},2,32^BCN,32,N,N,N,A^FH\\^FD${hex(d.serie)}^FS`,texto(22,367,18,15,d.serie,480)] : []),
     texto(534,27,24,20,String(d.categoria).slice(0,18),245),
@@ -44,7 +46,7 @@ export const ESTILO_ETIQUETA = `
 .etiqueta{width:100mm;height:50mm;padding:2mm;display:grid;grid-template-rows:5mm 2.5mm 14mm 4.5mm 1fr;background:#fff;color:#000;break-after:page;break-inside:avoid;overflow:hidden}
 .cabecera{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:2mm;align-items:start}.empresa{font-size:11pt;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.disponible{text-align:right;font-size:7pt;font-weight:bold;line-height:1.05;overflow:hidden;max-height:5mm}
 .codigo-titulo{font-size:7pt;font-weight:bold}.barras{height:14mm;width:100%;display:block}.codigo{font-size:12pt;line-height:4.5mm;font-weight:bold;text-align:center;white-space:nowrap;overflow:hidden}
-.datos{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:2mm;min-height:0}.izq{display:grid;grid-template-rows:7mm 1fr;min-width:0;min-height:0}.descripcion{font-size:6.7pt;line-height:1.05;max-height:7mm;overflow:hidden}.serie{font-size:6.5pt;overflow:hidden}.serie b{display:inline}.serie .barras{height:3.5mm}.numero-serie{font-size:6pt;text-align:center;white-space:nowrap}
+.datos{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:2mm;min-height:0}.izq{display:grid;grid-template-rows:7mm 1fr;min-width:0;min-height:0}.descripcion{font-size:${DESCRIPCION_ETIQUETA_PT}pt;line-height:1.05;max-height:7mm;overflow:hidden}.serie{font-size:6.5pt;overflow:hidden}.serie b{display:inline}.serie .barras{height:3.5mm}.numero-serie{font-size:6pt;text-align:center;white-space:nowrap}
 .der{min-width:0}.qty-estado{display:grid;grid-template-columns:1fr 1fr;gap:1mm;text-align:center;font-size:7pt}.qty-estado b{display:block;font-size:6.8pt}.qty-estado strong{font-size:11pt}.valor-unidad{display:flex;justify-content:center;align-items:baseline;gap:.5mm}.valor-unidad small{font-size:6pt}.responsable{font-size:6pt;line-height:1.1;margin-top:1mm;overflow:hidden;max-height:6mm}.responsable b{display:block}
 @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 `;
@@ -132,7 +134,7 @@ export function abrirEtiqueta(datos) {
   tecladoDialogo(dialogo,{accion:'[data-imprimir]',campos:'[name]'});
   dialogo.showModal(); actualizar();
   let pedirPuente=null,claveTrabajo=null,firmaTrabajo=null;
-  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261110-73').then(async({pedir})=>{
+  if(globalThis.location?.pathname?.startsWith('/app/')) import('./local.js?v=20261110-74').then(async({pedir})=>{
     pedirPuente=pedir;
     const p=await pedir('/preferencias',{base:'/api/operacion'});
     const lista=dialogo.querySelector('[data-estacion]');lista.replaceChildren();

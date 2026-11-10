@@ -47,7 +47,7 @@ def zpl(etiquetas, formato, recepcion, cliente, marca):
         # CODE128 B: 11 módulos por carácter/símbolo y 13 de parada.
         # Dejar zona muda a ambos lados y centrar también códigos de 4–5 signos.
         modulos = 11 * (len(e['rotulo']) + 2) + 13
-        modulo = min(8, 704 // modulos)
+        modulo = min(4 if grande else 3, 704 // (modulos + 20))
         izquierda = (800 - modulos * modulo) // 2
         partes += ['^XA','^CI28','^PW800',f'^LL{alto}','^LH0,0']
         # La instantánea conserva los datos logísticos; la etiqueta solo imprime

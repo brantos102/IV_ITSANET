@@ -1,0 +1,224 @@
+{
+  "bultos": [
+    {
+      "formato": "100x50",
+      "rotulo": "L11",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.96875762939453,
+        "anchoSVGmm": 32.99850260416667,
+        "zonaMudaIzq": 14.172592163085938,
+        "zonaMudaDer": 14.172576904296875,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "L11"
+        },
+        {
+          "dpi": 300,
+          "lectura": "L11"
+        }
+      ]
+    },
+    {
+      "formato": "100x50",
+      "rotulo": "A01.1",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.9765625,
+        "anchoSVGmm": 41.24606119791667,
+        "zonaMudaIzq": 14.171875,
+        "zonaMudaDer": 14.171875,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "A01.1"
+        },
+        {
+          "dpi": 300,
+          "lectura": "A01.1"
+        }
+      ]
+    },
+    {
+      "formato": "100x50",
+      "rotulo": "B1000",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.9765625,
+        "anchoSVGmm": 41.24606119791667,
+        "zonaMudaIzq": 14.171875,
+        "zonaMudaDer": 14.171875,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "B1000"
+        },
+        {
+          "dpi": 300,
+          "lectura": "B1000"
+        }
+      ]
+    },
+    {
+      "formato": "100x50",
+      "rotulo": "A1000.1000",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.96874237060547,
+        "anchoSVGmm": 61.87115885416666,
+        "zonaMudaIzq": 14.172348022460938,
+        "zonaMudaDer": 14.17236328125,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "A1000.1000"
+        },
+        {
+          "dpi": 300,
+          "lectura": "A1000.1000"
+        }
+      ]
+    },
+    {
+      "formato": "100x150",
+      "rotulo": "L11",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.9765625,
+        "anchoSVGmm": 43.99938151041667,
+        "zonaMudaIzq": 18.899063110351562,
+        "zonaMudaDer": 18.899063110351562,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "L11"
+        },
+        {
+          "dpi": 300,
+          "lectura": "L11"
+        }
+      ]
+    },
+    {
+      "formato": "100x150",
+      "rotulo": "A01.1",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.97656631469727,
+        "anchoSVGmm": 54.996126302083326,
+        "zonaMudaIzq": 18.89630889892578,
+        "zonaMudaDer": 18.89630126953125,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "A01.1"
+        },
+        {
+          "dpi": 300,
+          "lectura": "A01.1"
+        }
+      ]
+    },
+    {
+      "formato": "100x150",
+      "rotulo": "B1000",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.97656631469727,
+        "anchoSVGmm": 54.996126302083326,
+        "zonaMudaIzq": 18.89630889892578,
+        "zonaMudaDer": 18.89630126953125,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "B1000"
+        },
+        {
+          "dpi": 300,
+          "lectura": "B1000"
+        }
+      ]
+    },
+    {
+      "formato": "100x150",
+      "rotulo": "A1000.1000",
+      "medidas": {
+        "centroEtiqueta": 188.96875,
+        "centroCodigo": 188.97655868530273,
+        "anchoSVGmm": 82.49625651041667,
+        "zonaMudaIzq": 18.89678192138672,
+        "zonaMudaDer": 18.89678955078125,
+        "rotuloCompleto": true,
+        "elementos": 3
+      },
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "A1000.1000"
+        },
+        {
+          "dpi": 300,
+          "lectura": "A1000.1000"
+        }
+      ]
+    }
+  ],
+  "productos": [
+    {
+      "descripcion": "FILTRO DE COMBUSTIBLE DIESEL",
+      "fuenteAntes": "8.93333px",
+      "fuenteAhora": "10.6667px",
+      "posicionesConservadas": true,
+      "lecturas": [
+        {
+          "dpi": 203,
+          "lectura": "5Q0127177C"
+        },
+        {
+          "dpi": 300,
+          "lectura": "5Q0127177C"
+        }
+      ]
+    },
+    {
+      "descripcion": "PUENTE DEL MOTOR Y LA CAJA DE CAMBIOS",
+      "fuenteAntes": "8.93333px",
+      "fuenteAhora": "10.6667px",
+      "posicionesConservadas": true
+    },
+    {
+      "descripcion": "DESCRIPCION EXTENSA DESCRIPCION EXTENSA DESCRIPCION EXTENSA DESCRIPCION EXTENSA DESCRIPCION EXTENSA DESCRIPCION EXTENSA ",
+      "fuenteAntes": "8.93333px",
+      "fuenteAhora": "10.6667px",
+      "posicionesConservadas": true
+    }
+  ],
+  "errors": [],
+  "preparacionImpresion": {
+    "ready": "complete",
+    "fuentes": "loaded",
+    "barcodes": 1
+  }
+}

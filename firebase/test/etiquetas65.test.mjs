@@ -1,5 +1,5 @@
 import {cargar,test,eq,ok,resumen} from './cargador.mjs';
-const {numerosDeEtiquetas,htmlEtiquetasBultos}=await cargar('etiquetas-bultos.js');
+const {numerosDeEtiquetas,htmlEtiquetasBultos,imprimirDocumentoBultos}=await cargar('etiquetas-bultos.js');
 await test('65: rangos seleccionan números originales y deduplican sin copias extra',()=>{
  eq(numerosDeEtiquetas('02-05, 15, 4, 68–70',70),[2,3,4,5,15,68,69,70]);
  eq(numerosDeEtiquetas('70',70),[70]);
@@ -18,5 +18,22 @@ await test('66: 100x50 muestra los mismos tres elementos sin identificadores int
  const barras=[],html=htmlEtiquetasBultos({formato:'100x50',recepcion:'R',lote:1,cliente:'VENTURA',etiquetas:[{rotulo:'P51',numero:51,total:70,unidadId:'NO-ID',serie:'NO-SERIE'}]},s=>{barras.push(s);return '<svg></svg>';});
  eq(barras,['P51']);for(const s of ['size:100mm 50mm','VENTURA','P51'])ok(html.includes(s),s);
  for(const s of ['BULTO 51 DE 70','NO-ID','NO-SERIE'])ok(!html.includes(s),s);
+});
+await test('impresión espera documento y fuentes sin perder el evento al abrir la página',async()=>{
+ const listeners=new Map();let abrir=false,impresiones=0,liberar;
+ const doc={readyState:'loading',fonts:{ready:new Promise(r=>liberar=r)},
+   open(){abrir=true;listeners.clear();},
+   write(){if(!abrir)this.open();},
+   close(){this.readyState='complete';listeners.get('load')?.();}};
+ const ventana={document:doc,closed:false,addEventListener:(n,f)=>listeners.set(n,f),focus(){},print(){impresiones++;}};
+ const tarea=imprimirDocumentoBultos(ventana,'<html>Etiqueta</html>');
+ await Promise.resolve();eq(impresiones,0);liberar();await tarea;
+ eq(impresiones,1);ok(abrir);
+});
+await test('ventana cerrada no anuncia impresión completada',async()=>{
+ const doc={readyState:'complete',fonts:{ready:Promise.resolve()},open(){},write(){},close(){}};
+ let impresiones=0,fallo=false;
+ try{await imprimirDocumentoBultos({document:doc,closed:true,addEventListener(){},focus(){},print(){impresiones++;}},'<html/>');}catch{fallo=true;}
+ ok(fallo);eq(impresiones,0);
 });
 resumen();

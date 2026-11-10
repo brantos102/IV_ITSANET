@@ -1,5 +1,5 @@
-import {pedir,modoLocal} from './local.js?v=20261110-73';
-import {escucharCambiosRecepcion} from './cambios-recepcion.js?v=20261110-73';
+import {pedir,modoLocal} from './local.js?v=20261110-74';
+import {escucharCambiosRecepcion} from './cambios-recepcion.js?v=20261110-74';
 const texto=v=>String(v??'');
 const fecha=v=>v?new Date(v).toLocaleString('es-EC',{timeZone:'America/Guayaquil'}):'sin confirmar';
 export function iniciarAvisosOperativos({usuario,perfil,nav,abrirCatalogo}){

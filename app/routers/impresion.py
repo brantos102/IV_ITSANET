@@ -19,6 +19,8 @@ from app.security import usuario_actual, requiere_supervisor
 from app.services import app_modelo as m, operacion
 
 router = APIRouter(prefix='/api/impresion', tags=['impresion'])
+DESCRIPCION_ETIQUETA_PT = 8
+DESCRIPCION_ALTO_DOTS = round(DESCRIPCION_ETIQUETA_PT * 203 / 72)
 
 
 @router.get('/recepciones/{codigo}/bultos')
@@ -83,7 +85,7 @@ def zpl(datos, copias):
         texto(22,68,19,480,'CODIGO:'),
         f'^FO36,101^BY{1 if len(sku)>20 else 2},2,78^BCN,78,N,N,N,A^FH\\^FD{codigo}^FS',
         texto(70,180,30,440,sku,ancho_letra=min(27,440//len(sku))), texto(22,216,18,480,'DESCRIPCION:'),
-        texto(22,241,20,480,str(datos.get('descripcion') or '')[:100],2),
+        texto(22,241,DESCRIPCION_ALTO_DOTS,480,str(datos.get('descripcion') or '')[:100],2),
         texto(22,300,19,480,'SERIE:'),
         *([f'^FO36,326^BY{1 if len(str(datos["serie"])) > 20 else 2},2,32^BCN,32,N,N,N,A^FH\\^FD' + ''.join('\\' + format(b, '02X') for b in str(datos['serie'])[:42].encode()) + '^FS',
            texto(22,367,18,480,str(datos['serie'])[:42])] if datos.get('serie') else []),
