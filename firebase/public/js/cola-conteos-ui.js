@@ -1,7 +1,7 @@
-import {crearColaConteos} from './conteos-pendientes.js?v=20261110-74';
-import {pedir} from './local.js?v=20261110-74';
-import {comprimir} from './imagen.js?v=20261110-74';
-import {confirmar,pedirDatos} from './modal.js?v=20261110-74';
+import {crearColaConteos} from './conteos-pendientes.js?v=20261110-75';
+import {pedir} from './local.js?v=20261110-75';
+import {comprimir} from './imagen.js?v=20261110-75';
+import {confirmar,pedirDatos} from './modal.js?v=20261110-75';
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function solicitud(ruta,opciones={}){

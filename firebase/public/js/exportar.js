@@ -16,8 +16,8 @@
  */
 import {
   collection, getDocs, query, orderBy,
-} from '../vendor/firebase-sdk.js?v=20261110-74';
-import { db } from './auth.js?v=20261110-74';
+} from '../vendor/firebase-sdk.js?v=20261110-75';
+import { db } from './auth.js?v=20261110-75';
 
 export const VERSION = 1;
 

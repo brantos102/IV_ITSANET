@@ -1,4 +1,4 @@
-import {pedir} from './local.js?v=20261110-74';
+import {pedir} from './local.js?v=20261110-75';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function elegirHiloGmail(busqueda=''){
  const d=document.createElement('dialog');d.className='modal-operativa gmail-dialogo';

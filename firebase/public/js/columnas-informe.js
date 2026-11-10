@@ -1,9 +1,9 @@
-import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261110-74';
-import {pedir} from './local.js?v=20261110-74';
-import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261110-74';
-import {reunirInforme,previsualizarLista} from './informe.js?v=20261110-74';
-import {tecladoDialogo} from './modal.js?v=20261110-74';
-import {columnasDeSalida} from './orden-informe.js?v=20261110-74';
+import {destinosInforme,columnasSegurasInforme} from './datos.js?v=20261110-75';
+import {pedir} from './local.js?v=20261110-75';
+import {CAMPOS_SALIDA,letra} from './admin-politicas.js?v=20261110-75';
+import {reunirInforme,previsualizarLista} from './informe.js?v=20261110-75';
+import {tecladoDialogo} from './modal.js?v=20261110-75';
+import {columnasDeSalida} from './orden-informe.js?v=20261110-75';
 const api=(r,o={})=>pedir(r,{...o,base:'/api/operacion'});
 const EJEMPLOS={depot:'ok',marca:'MARCA',cliente:'CLIENTE',fisica:'8',validacion:'Faltante',desface:'-2',pallet:'B01.1-B02',posicion:'A-01-02-1',codigoBarra:'000123456789',cantidadIncidencia:'2',incidencia:'PNC',observacion:'Caja abierta; revisar 2 unidades',evidencia:'Enlace a la carpeta del SKU en Drive'};
 const GRUPOS=[['Conteo y ubicación',['fisica','validacion','desface','pallet','posicion']],['Incidencias y observaciones',['cantidadIncidencia','incidencia','observacion']],['Identificación y documentos',['depot','marca','cliente','codigoBarra','evidencia']]];

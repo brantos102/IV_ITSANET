@@ -1,4 +1,4 @@
-import {pedir} from './local.js?v=20261110-74';
+import {pedir} from './local.js?v=20261110-75';
 const api=(ruta,op={})=>pedir(ruta,{...op,base:'/api/auth/google/operacion'});
 export async function googleCentral(raiz){
  const s=document.createElement('section');s.className='panel';s.dataset.areaAdmin='conexiones';
