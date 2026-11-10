@@ -82,8 +82,11 @@ def carpeta(cuenta,padre,n):
     except RuntimeError as exc:
         if not str(exc).startswith('GOOGLE_NO_ENCONTRADO:'):raise
         try:g.peticion(cuenta,'drive','POST','files',params={'supportsAllDrives':'true'},json={'id':ident,'name':n,'mimeType':CARPETA,'parents':[padre]})
-        except RuntimeError:
-            f=ficha(cuenta,ident)
+        except RuntimeError as creacion:
+            # Si tampoco existe el ID reservado, conservar el rechazo de POST
+            # (p. ej. 403) en vez de ocultarlo con el 404 de confirmación.
+            try:f=ficha(cuenta,ident)
+            except RuntimeError:raise creacion from None
             if f.get('name')!=n or padre not in f.get('parents',[]):raise
     return ident
 
@@ -133,8 +136,10 @@ def atajo(cuenta,padre,archivo,n,clave):
         g.peticion(cuenta,'drive','POST','files',params={'supportsAllDrives':'true'},json={
             'id':ident,'name':nombre(n),'mimeType':ATAJO,'parents':[padre],
             'shortcutDetails':{'targetId':archivo},'appProperties':{'itsanetClave':clave}})
-    except RuntimeError:
-        comprobar(ficha(cuenta,ident))
+    except RuntimeError as creacion:
+        try:f=ficha(cuenta,ident)
+        except RuntimeError:raise creacion from None
+        comprobar(f)
 
 
 def subir(cuenta,clave,p):

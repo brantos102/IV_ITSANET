@@ -5,6 +5,7 @@ recibe tokens ni secretos; los puentes anteriores se conservan para compatibilid
 """
 import hashlib
 import json
+import re
 import time
 import httpx
 from sqlalchemy import select
@@ -111,7 +112,18 @@ def peticion(email,servicio,metodo,ruta,**opciones):
             codigo='GOOGLE_API_DESACTIVADA' if any(s in error for s in ('service_disabled','accessnotconfigured','is disabled','has not been used')) else 'GOOGLE_PERMISOS'
         elif r.status_code==404:codigo='GOOGLE_NO_ENCONTRADO'
         elif r.status_code in (429,503):codigo='GOOGLE_CUOTA'
-        raise RuntimeError(codigo+': Google no confirmó la operación (HTTP '+str(r.status_code)+'). Revisa el registro de procesos y los permisos de la cuenta.')
+        # No incluir el cuerpo remoto: puede contener correos, URLs o datos de
+        # la petición. El motivo estructurado permite distinguir la causa real.
+        razones=[]
+        try:
+            detalle=r.json().get('error',{})
+            for e in detalle.get('errors',[]):
+                razon=e.get('reason','')
+                if isinstance(razon,str) and re.fullmatch(r'[A-Za-z_]{1,80}',razon):razones.append(razon)
+        except (ValueError,AttributeError,TypeError):pass
+        motivo='; motivo '+','.join(dict.fromkeys(razones))[:90] if razones else ''
+        recurso=ruta.split('/')[0]
+        raise RuntimeError(codigo+': HTTP '+str(r.status_code)+' en '+metodo+' '+servicio+'/'+recurso+motivo+'. Revisa el destino y los permisos de la cuenta.')
     return r
 
 
