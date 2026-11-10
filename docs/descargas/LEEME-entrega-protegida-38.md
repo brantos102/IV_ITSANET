@@ -10,10 +10,12 @@ Se preparó esta vía para evitar el visor de artefactos de la conversación. Lo
 3. Abre el HTML extraído con Chrome o Edge. Introduce la clave entregada por el canal privado y pulsa **Mostrar archivos**.
 4. Descarga cada documento con su botón. No utiliza el visor de archivos del chat.
 
-El paquete PDF permite descargar además un borrador `.eml` con los dos PDF adjuntos. Completa destinatarios y firma antes de enviar. Para Gmail web, copia el texto mostrado y adjunta los dos PDF descargados.
+El paquete PDF permite descargar un borrador `.eml` con los dos manuales PDF, las imágenes incorporadas y el resumen CSV de las recepciones verificadas. Completa destinatarios y firma antes de enviar. Para Gmail web, copia el texto mostrado y adjunta los dos PDF descargados.
 
-El manual de usuario contiene **38 pasos**. El manual técnico describe Apache, FastAPI/Uvicorn, MySQL, las integraciones de Google, el mantenimiento y el diccionario de 31 tablas, 274 campos y 33 claves externas. Distingue las relaciones físicas de los vínculos resueltos por la aplicación. Las imágenes de referencia se identifican en el manual de usuario.
+El manual de usuario contiene **38 pasos**. El manual técnico describe Apache, FastAPI/Uvicorn, MySQL, las integraciones de Google, el mantenimiento y el diccionario de 31 tablas, 274 campos y 33 claves externas. Distingue las relaciones físicas de los vínculos resueltos por la aplicación. Las imágenes son finales: el manual no incluye controles para reemplazar ni añadir capturas. La identidad de Recepciones incorpora la marca corporativa ITSA.
 
 Todo el desbloqueo y la descarga se ejecutan localmente en el navegador. La clave no se envía por red. Los archivos descargados verifican su SHA-256. Se utiliza AES-256-GCM y PBKDF2-SHA256 con sal y nonce independientes por paquete.
 
 El correo es un borrador con destinatarios y firma por completar. La documentación se basa en el código y la evidencia técnica fechada del servidor. La verificación funcional se ejecuta en un entorno aislado; las mediciones de carga se presentan por separado. La publicación en el servidor sigue el [procedimiento documentado](../entrega-v72/README.md).
+
+El mantenedor puede publicar ambos manuales directamente desde estos paquetes de Git mediante `scripts/instalar_documentacion_protegida.py --repo /ruta/IV_ITSANET --revision COMMIT_COMPLETO`. Solicita la clave sin mostrarla, valida los cuatro archivos y reutiliza la publicación autenticada existente. No inicia la app, no consulta ni modifica MySQL y no reinicia servicios.

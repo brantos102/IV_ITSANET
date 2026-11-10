@@ -47,6 +47,7 @@ document.querySelector('#eml').onclick=()=>{
  for(const f of entrega.archivos.filter(f=>f.tipo.startsWith('image/'))){mensaje+='--'+relacionado+'\r\nContent-Type: '+f.tipo+'; name="'+f.nombre+'"\r\nContent-ID: <'+f.nombre+'>\r\nContent-Disposition: inline; filename="'+f.nombre+'"\r\nContent-Transfer-Encoding: base64\r\n\r\n'+lineas(f.base64)+'\r\n';}
  mensaje+='--'+relacionado+'--\r\n';
  for(const nombre of ['Manual-usuario-final-IV-ITSANET.pdf','Manual-tecnico-final-IV-ITSANET.pdf']){const f=entrega.archivos.find(f=>f.nombre===nombre);mensaje+='--'+limite+'\r\nContent-Type: application/pdf; name="'+nombre+'"\r\nContent-Disposition: attachment; filename="'+nombre+'"\r\nContent-Transfer-Encoding: base64\r\n\r\n'+lineas(f.base64)+'\r\n';}
+ for(const f of entrega.archivos.filter(f=>f.tipo.startsWith('text/csv'))){mensaje+='--'+limite+'\r\nContent-Type: '+f.tipo+'; name="'+f.nombre+'"\r\nContent-Disposition: attachment; filename="'+f.nombre+'"\r\nContent-Transfer-Encoding: base64\r\n\r\n'+lineas(f.base64)+'\r\n';}
  mensaje+='--'+limite+'--\r\n';guardar('Correo-entrega-IV-ITSANET.eml',mensaje,'message/rfc822');estado.textContent='Borrador .eml descargado con los manuales y las imágenes. Completa destinatarios y firma en tu cliente de correo. No se ha enviado.';
 };
 </script></body></html>'''.replace('\n+','\n')
@@ -65,7 +66,7 @@ def crear(archivos,correo,privado,salida,nombre,titulo):
     cuerpo_html='<html><body style="font:15px/1.6 Arial,sans-serif">'+cuerpo_html+'</body></html>'
     datos={'formato':DOMINIO,'asunto':asunto,'correoTexto':texto,'cuerpoTexto':cuerpo,'correoHtml':cuerpo_html,'archivos':[]}
     for path in archivos:
-        path=Path(path);b=path.read_bytes();tipo={'.pdf':'application/pdf','.html':'text/html;charset=utf-8','.txt':'text/plain;charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg'}[path.suffix]
+        path=Path(path);b=path.read_bytes();tipo={'.pdf':'application/pdf','.html':'text/html;charset=utf-8','.txt':'text/plain;charset=utf-8','.csv':'text/csv;charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg'}[path.suffix]
         datos['archivos'].append({'nombre':path.name,'tipo':tipo,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest(),'base64':base64.b64encode(b).decode()})
         if tipo.startswith('image/'):
             datos['correoHtml']=datos['correoHtml'].replace('data:'+tipo+';base64,'+base64.b64encode(b).decode(),'cid:'+path.name)
