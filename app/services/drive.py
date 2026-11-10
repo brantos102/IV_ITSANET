@@ -346,9 +346,12 @@ def procesar_uno():
                 nueva = descripcion(db,a)
                 if nueva.get('rutasVinculadas') != j.datos.get('rutasVinculadas'):
                     j.datos = {**nueva,'accion':'ubicar'};j.estado='PENDIENTE';j.proximo_en=utcnow();db.commit()
-            if a.drive_id and j.estado!='ELIMINADA':archivos.conservar_miniatura(a)
-            try: archivos.ruta(a).unlink(missing_ok=True)
-            except OSError: logging.getLogger(__name__).warning('Copia Drive confirmada; limpieza local pendiente')
+            # Si hubo que volver a encolar la organización, mantener también
+            # el original local hasta confirmar todas las rutas de la foto.
+            if j.estado in ('COPIADA','ELIMINADA'):
+                if a.drive_id and j.estado=='COPIADA':archivos.conservar_miniatura(a)
+                try: archivos.ruta(a).unlink(missing_ok=True)
+                except OSError: logging.getLogger(__name__).warning('Copia Drive confirmada; limpieza local pendiente')
         except Exception as exc:
             db.rollback()
             j = db.get(AppCopiaDrive, aid)

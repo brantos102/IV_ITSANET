@@ -24,6 +24,11 @@ locales mediante tamaño y SHA-256. Se limita a 100 pendientes y 30 recursos
 remotos, con un presupuesto de 45 segundos antes de iniciar otra consulta.
 Las lecturas en curso pueden terminar después de ese presupuesto.
 
+Con `--verificar-archivos`, también consulta los IDs de las fotos: visibilidad,
+papelera, tamaño y checksum informado por Google. El límite sube a 80 recursos
+con el mismo presupuesto de tiempo. El campo `tamanoRemotoCoincide` compara
+solo el tamaño con SQL; no es una validación binaria del SHA-256 original.
+
 El servicio sigue trabajando mientras se revisa: un original local ausente
 puede haber sido depurado al terminar su copia después de la captura SQL. Ese
 resultado requiere verificar el estado actualizado; no demuestra pérdida por
@@ -40,6 +45,29 @@ método, servicio y motivo estructurado de Google, sin copiar el cuerpo remoto.
 Esta corrección mejora el diagnóstico. No restaura por sí sola permisos,
 carpetas eliminadas ni almacenamiento agotado. La causa del incidente debe
 confirmarse con el estado real del servidor y de la cuenta operativa.
+
+## Identificadores de accesos directos
+
+`files.generateIds` admite dos tipos: `files` (valor predeterminado) y
+`shortcuts`. Para crear `application/vnd.google-apps.shortcut`, se debe pedir
+`type=shortcuts`. El adaptador anterior omitía ese parámetro al reservar atajos,
+por lo que reservaba IDs de archivos normales. El posterior error de creación
+podía terminar presentado como el 404 de confirmación explicado arriba.
+
+La corrección usa IDs de tipo `shortcuts` y reservas de atajos con una clave que
+incluye el tipo. Antes de generar uno nuevo, busca un atajo existente al mismo
+original en esa carpeta y lo adopta. Conserva las reservas anteriores para su
+trazabilidad y mantiene intactos los IDs de fotos y carpetas. No borra ni vuelve
+a subir el archivo original para resolver este problema.
+
+Contrato publicado por Google en su documento de descubrimiento:
+[files.generateIds, parámetro type](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/generateIds).
+La misma definición está en
+[google-api-go-client/drive/v3/drive-api.json](https://github.com/googleapis/google-api-go-client/blob/main/drive/v3/drive-api.json).
+
+Si una foto vuelve a la cola para terminar de organizar sus rutas después de
+confirmar su copia, ahora también conserva su original local. La limpieza se
+realiza al confirmar `COPIADA` o al completar una eliminación solicitada.
 
 ## Prevención y recuperación
 

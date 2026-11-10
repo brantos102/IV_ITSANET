@@ -94,6 +94,19 @@ def test_consulta_google_renueva_solo_en_memoria_y_hace_get_drive(tmp_path, monk
     assert json.dumps(configs) == copia and 'NO-MOSTRAR' not in json.dumps(r)
 
 
+def test_original_ausente_con_id_drive_se_verifica_sin_declarar_perdida(tmp_path):
+    f = {'archivo_id':'foto123','recepcion':'RECEP123','estado':'PENDIENTE','intentos':18,
+         'usuario':'drive@example.test','nombre':'foto.jpg','drive_id':'DRIVE123',
+         'sha256':'','bytes':123,'error':None,'datos':{'carpetaRecepcionId':'CARPETA123','ruta':['PRE-INGRESO']}}
+    class Remoto:
+        def ficha(self,cuenta,ident):
+            return {'estado':'VISIBLE','id':ident,'size':'123','trashed':False}
+    r = d.diagnosticar({},[f],{}, {},tmp_path,Remoto(),verificar_archivos=True)
+    assert r['originalesLocales']=={'AUSENTE':1} and r['archivosRemotos']=={'VISIBLE':1}
+    assert r['pendientes'][0]['tamanoRemotoCoincide'] is True
+    assert r['pendientes'][0]['archivoRemoto']['trashed'] is False
+
+
 @pytest.mark.parametrize('atajo', [False, True])
 def test_no_oculta_error_de_creacion_con_404_de_id_reservado(db, monkeypatch, atajo):
     monkeypatch.setattr(drive, 'listar', lambda *a: [])

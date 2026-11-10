@@ -99,9 +99,10 @@ def motivo(respuesta):
 
 
 class LecturaGoogle:
-    def __init__(self, configs, data_dir):
+    def __init__(self, configs, data_dir, max_recursos=30):
         self.configs, self.data_dir = configs, data_dir
         self.tokens, self.cache = {}, {}
+        self.max_recursos = max_recursos
         self.limite = time.monotonic() + 45
 
     def token(self, cuenta):
@@ -133,7 +134,7 @@ class LecturaGoogle:
         k = cuenta, ident
         if k in self.cache:
             return self.cache[k]
-        if time.monotonic() >= self.limite or len(self.cache) >= 30:
+        if time.monotonic() >= self.limite or len(self.cache) >= self.max_recursos:
             return {'estado': 'NO_CONSULTADO_LIMITE'}
         if not cuenta or not re.fullmatch(r'[A-Za-z0-9_-]{5,128}', str(ident or '')):
             return {'estado': 'CUENTA_O_ID_NO_CONFIGURADO'}
@@ -144,10 +145,10 @@ class LecturaGoogle:
                 r = http.get('https://www.googleapis.com/drive/v3/files/' + ident,
                     headers={'Authorization': 'Bearer ' + self.tokens[cuenta]}, params={
                         'supportsAllDrives': 'true',
-                        'fields': 'id,name,mimeType,trashed,parents,driveId,capabilities(canAddChildren,canEdit)'})
+                        'fields': 'id,name,mimeType,trashed,parents,driveId,size,md5Checksum,capabilities(canAddChildren,canEdit)'})
             if r.status_code == 200:
                 resultado = {'estado': 'VISIBLE', **{k: v for k, v in r.json().items() if k in
-                    ('id', 'name', 'mimeType', 'trashed', 'parents', 'driveId', 'capabilities')}}
+                    ('id', 'name', 'mimeType', 'trashed', 'parents', 'driveId', 'size', 'md5Checksum', 'capabilities')}}
             else:
                 resultado = {'estado': 'NO_CONFIRMADO', 'http': r.status_code, 'motivo': motivo(r)}
         except ValueError as exc:
@@ -159,12 +160,12 @@ class LecturaGoogle:
         return resultado
 
 
-def diagnosticar(estados, filas, configs, reservas, data_dir, remoto=None):
+def diagnosticar(estados, filas, configs, reservas, data_dir, remoto=None, verificar_archivos=False):
     central = configs.get('google_api', {})
     salida = {'consultadoEn': datetime.now(timezone.utc).isoformat(), 'soloLecturaSQL': True,
         'operacionesDrive': ['GET files/id'] if remoto else [], 'estadosFotos': estados,
         'cuentaOperativa': central.get('driveCuenta', ''), 'raizCentral': central.get('carpetaRaiz', ''),
-        'limite': '100 pendientes, 30 recursos remotos y 45 segundos; no es una auditoría completa de Drive.',
+        'limite': '100 pendientes, '+str(getattr(remoto,'max_recursos',30))+' recursos remotos y presupuesto de 45 segundos; no es una auditoría completa de Drive.',
         'interpretacion404': 'Un ID reservado todavía no creado puede dar 404 normalmente. En una carpeta existente, 404 también puede significar falta de acceso.',
         'destinos': [], 'pendientes': []}
     destinos = {}
@@ -176,6 +177,11 @@ def diagnosticar(estados, filas, configs, reservas, data_dir, remoto=None):
         item.update(cuentaDrive=cuenta, raiz=raiz, carpetaRecepcionId=p.get('carpetaRecepcionId', ''),
                     original=original_local(data_dir, f), proceso=p.get('proceso', {}),
                     codigoError=str(f.get('error') or '').split(':', 1)[0][:80], reservasRuta=[])
+        if verificar_archivos and remoto:
+            remoto_archivo = remoto.ficha(cuenta, f['drive_id']) if f['drive_id'] else {'estado': 'SIN_ID_DRIVE'}
+            item['archivoRemoto'] = remoto_archivo
+            if remoto_archivo.get('estado')=='VISIBLE':
+                item['tamanoRemotoCoincide'] = str(remoto_archivo.get('size')) == str(f['bytes'])
         partes = ([] if p.get('carpetaRecepcionId') else
                   [p.get('cliente'), p.get('marca'), p.get('carpetaRecepcion') or f['recepcion']])
         partes += p.get('ruta') or ['imagenes']
@@ -212,6 +218,9 @@ def diagnosticar(estados, filas, configs, reservas, data_dir, remoto=None):
         item['idArchivoReservado'] = reservas.get(k)
         salida['pendientes'].append(item)
     salida['originalesLocales'] = dict(Counter(x['original']['estado'] for x in salida['pendientes']))
+    if verificar_archivos:
+        salida['archivosRemotos'] = dict(Counter(x.get('archivoRemoto',{}).get('estado','NO_CONSULTADO') for x in salida['pendientes']))
+        salida['alcanceVerificacionArchivos'] = 'Consulta metadatos, tamaño y papelera; no descarga ni compara el contenido binario con el SHA-256 original.'
     return salida
 
 
@@ -220,6 +229,7 @@ def main():
     p.add_argument('--repo', type=Path, default=Path.cwd())
     p.add_argument('--recepcion', action='append', default=[])
     p.add_argument('--sin-red', action='store_true')
+    p.add_argument('--verificar-archivos', action='store_true', help='Consultar también los IDs remotos de las fotos; hasta 80 recursos, sin descargar ni modificar contenido.')
     p.add_argument('--salida', type=Path, required=True)
     a = p.parse_args()
     try:
@@ -228,7 +238,8 @@ def main():
         if not data.is_absolute():
             data = a.repo / data
         r = diagnosticar(estados, filas, configs, reservas, data,
-                         None if a.sin_red else LecturaGoogle(configs, data))
+                         None if a.sin_red else LecturaGoogle(configs, data,80 if a.verificar_archivos else 30),
+                         verificar_archivos=a.verificar_archivos)
         r['revisionInstalada'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=a.repo, text=True).strip()
         texto = json.dumps(r, ensure_ascii=False, indent=2)
         a.salida.parent.mkdir(parents=True, exist_ok=True, mode=0o700)

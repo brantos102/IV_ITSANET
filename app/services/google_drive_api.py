@@ -66,8 +66,11 @@ def reservado(cuenta,clave,crear):
         f.datos={'id':validar_id(valor)};db.commit();return valor
 
 
-def generar(cuenta):
-    return g.peticion(cuenta,'drive','GET','files/generateIds',params={'count':1,'space':'drive'}).json()['ids'][0]
+def generar(cuenta,tipo='files'):
+    # Drive genera espacios de IDs distintos para archivos y accesos directos.
+    # Un ID de tipo files no sirve para crear un mimeType shortcut.
+    if tipo not in ('files','shortcuts'):raise ValueError('Tipo de ID de Drive inválido')
+    return g.peticion(cuenta,'drive','GET','files/generateIds',params={'count':1,'space':'drive','type':tipo}).json()['ids'][0]
 
 
 def carpeta(cuenta,padre,n):
@@ -124,8 +127,11 @@ def atajo(cuenta,padre,archivo,n,clave):
     def elegir():
         existentes=listar(cuenta,"'"+padre+"' in parents and mimeType = '"+ATAJO+"'")
         mismos=[x for x in existentes if x.get('shortcutDetails',{}).get('targetId')==archivo]
-        return sorted(x['id'] for x in mismos)[0] if mismos else generar(cuenta)
-    ident=reservado(cuenta,'atajo:'+padre+'/'+archivo,elegir)
+        return sorted(x['id'] for x in mismos)[0] if mismos else generar(cuenta,'shortcuts')
+    # Las reservas anteriores podían contener un ID generado para files. La
+    # clave tipada conserva esos registros y adopta primero cualquier atajo
+    # existente al mismo original; las fotos y carpetas mantienen sus IDs.
+    ident=reservado(cuenta,'atajo-shortcuts:'+padre+'/'+archivo,elegir)
     def comprobar(f):
         if f.get('trashed') or f.get('mimeType')!=ATAJO or f.get('shortcutDetails',{}).get('targetId')!=archivo or padre not in f.get('parents',[]):
             raise RuntimeError('DRIVE_ATAJO: El vínculo reservado cambió. Revisa su destino sin duplicar la imagen.')
