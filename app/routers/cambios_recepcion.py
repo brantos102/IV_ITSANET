@@ -5,11 +5,16 @@ import time
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from app.db import get_db
-from app.security import usuario_actual
+from app.db import get_db, SessionLocal
+from app.security import usuario_actual, _operador_de_request
 from app.services import app_modelo as m, cambios_recepcion as cambios, ajustes
 
 router=APIRouter(prefix='/api/operacion',tags=['actualizacion'])
+
+
+def sesion_vigente(request):
+    with SessionLocal() as sesion:
+        return _operador_de_request(request,sesion) is not None
 
 
 def _validar(db,codigo):
@@ -49,10 +54,13 @@ async def escuchar(request:Request,codigo:str='',db:Session=Depends(get_db),op=D
         try:
             yield 'retry: 1000\n\n'
             while time.monotonic()<limite and not await request.is_disconnected():
+                if not sesion_vigente(request):return
                 try:aviso=await asyncio.wait_for(cola.get(),timeout=10)
                 except asyncio.TimeoutError:
+                    if not sesion_vigente(request):return
                     yield ': conexion activa\n\n';continue
                 if aviso is None:return
+                if not sesion_vigente(request):return
                 aviso=_visible(aviso,codigo,operador_id,ver_equipo)
                 yield 'event: cambio\ndata: '+json.dumps(aviso,ensure_ascii=False,separators=(',',':'))+'\n\n'
                 if not aviso['existe']:return

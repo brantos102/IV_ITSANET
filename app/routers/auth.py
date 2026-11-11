@@ -40,11 +40,16 @@ def login(datos: LoginIn, response: Response, request: Request, db: Session = De
     if not op.activo:
         raise HTTPException(403, {"codigo": "PENDIENTE_APROBACION",
                                  "mensaje": "Tu cuenta esta desactivada o espera aprobacion de un supervisor."})
-    token = crear_sesion(db, op)
+    token = crear_sesion(db, op, request)
     response.set_cookie(
         COOKIE, token, httponly=True, secure=request.url.scheme == "https" or os.getenv('VAL_COOKIE_SECURE')=='1', samesite="lax", max_age=SESSION_HOURS * 3600
     )
-    return {"token": token, "operador": {"id": op.id, "nombre": op.nombre, "rol": op.rol.value}}
+    from app.services import dispositivos
+    dispositivos.promover_cookie(db,op,response,request)
+    resultado={"operador": {"id": op.id, "nombre": op.nombre, "rol": op.rol.value}}
+    # Cuando el control está activo, el token solo viaja en la cookie HttpOnly.
+    if not dispositivos.politica(db)['activo']:resultado['token']=token
+    return resultado
 
 
 @router.post("/logout")

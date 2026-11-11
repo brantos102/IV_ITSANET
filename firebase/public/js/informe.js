@@ -10,17 +10,17 @@
  * los conteos uno a uno en BITACORA, para que Depot reciba la tabla limpia y el
  * auditor tenga el detalle en el mismo archivo.
  */
-import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261110-75';
-import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261110-75';
-import { db } from './auth.js?v=20261110-75';
-import * as local from './local.js?v=20261110-75';
-import {eventosActivos} from './conteo.js?v=20261110-75';
-import {fechaDe} from './fechas.js?v=20261110-75';
-import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261110-75';
-import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261110-75';
-import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261110-75';
-import {tiparHojaOriginal,formatoNumericoCalculado,validarLibroExcel} from './excel-formato.js?v=20261110-75';
-import {filaParaEjecutivo,anadirDetalleEjecutivo,COLUMNA_DETALLE_UNIDADES} from './ubicaciones-informe.js?v=20261110-75';
+import { collection, getDocs, query, orderBy } from '../vendor/firebase-sdk.js?v=20261111-76';
+import { nombreInformeOperativo, carpetaDeRecepcion, carpetaDeMes } from './nombres.js?v=20261111-76';
+import { db } from './auth.js?v=20261111-76';
+import * as local from './local.js?v=20261111-76';
+import {eventosActivos} from './conteo.js?v=20261111-76';
+import {fechaDe} from './fechas.js?v=20261111-76';
+import { aNumero, decodificarPallets, prefijoInforme } from './datos.js?v=20261111-76';
+import {CAMPOS_AMPLIADOS,prepararFormatoInforme,columnasDeSalida,organizarHojaInforme} from './orden-informe.js?v=20261111-76';
+import {repartirRegistrosEnFilas} from './detalle-registros.js?v=20261111-76';
+import {tiparHojaOriginal,formatoNumericoCalculado,validarLibroExcel} from './excel-formato.js?v=20261111-76';
+import {filaParaEjecutivo,anadirDetalleEjecutivo,COLUMNA_DETALLE_UNIDADES} from './ubicaciones-informe.js?v=20261111-76';
 
 const aFechaMs = v => fechaDe(v)?.getTime()||0;
 

@@ -1,8 +1,8 @@
-import {cargarMiniatura} from './miniaturas.js?v=20261110-75';
-import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261110-75';
-import {pedir} from './local.js?v=20261110-75';
-import {pedirDatos} from './modal.js?v=20261110-75';
-import {contextoFotos} from './fotos-embarques.js?v=20261110-75';
+import {cargarMiniatura} from './miniaturas.js?v=20261111-76';
+import {TIPOS_FOTOGRAFIA} from './tipos-foto.js?v=20261111-76';
+import {pedir} from './local.js?v=20261111-76';
+import {pedirDatos} from './modal.js?v=20261111-76';
+import {contextoFotos} from './fotos-embarques.js?v=20261111-76';
 
 /** Elección explícita por imagen; los códigos originales se conservan. */
 export async function elegirDestinoFoto(recepcion,actual={},nombre='Fotografía',archivo=null){

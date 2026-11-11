@@ -1,15 +1,17 @@
-import {mostrarCuentasSupervision} from './admin-correos.js?v=20261110-75';
-import {pedir} from './local.js?v=20261110-75';
-import {operacion,esc} from './evidencias.js?v=20261110-75';
-import {pedirDatos,confirmar} from './modal.js?v=20261110-75';
-import {googleCentral} from './google-central.js?v=20261110-75';
-import {procesosAdmin} from './procesos-admin.js?v=20261110-75';
+import {mostrarCuentasSupervision} from './admin-correos.js?v=20261111-76';
+import {pedir} from './local.js?v=20261111-76';
+import {operacion,esc} from './evidencias.js?v=20261111-76';
+import {pedirDatos,confirmar} from './modal.js?v=20261111-76';
+import {googleCentral} from './google-central.js?v=20261111-76';
+import {procesosAdmin} from './procesos-admin.js?v=20261111-76';
+import {configurarDispositivos} from './admin-dispositivos.js?v=20261111-76';
 
 export async function configurarOperacion(contenedor) {
   if(contenedor.querySelector('[data-config-operacion]'))return;
   const panel=document.createElement('section');panel.className='panel';panel.dataset.configOperacion='1';
   contenedor.prepend(panel);
   procesosAdmin(contenedor);
+  await configurarDispositivos(contenedor);
   await googleCentral(contenedor);
   let c=await operacion('/config'),ocupado=false,sucio=false;
   const input=(label,key,value,tipo='text')=>`<label class="campo"><span>${esc(label)}</span><input data-pref="${key}" type="${tipo}" value="${esc(value)}"></label>`;

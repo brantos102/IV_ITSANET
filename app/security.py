@@ -11,6 +11,7 @@ import secrets
 from datetime import timedelta
 
 from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import SESSION_HOURS
@@ -36,7 +37,14 @@ def verify_pin(pin: str, stored: str) -> bool:
         return False
 
 
-def crear_sesion(db: Session, operador: Operador) -> str:
+def crear_sesion(db: Session, operador: Operador, request: Request | None = None) -> str:
+    from app.services import dispositivos
+    from app.models import SesionDispositivo
+    # Serializa también los accesos Google de la misma cuenta.
+    operador=db.scalar(select(Operador).where(Operador.id==operador.id).with_for_update()
+                       .execution_options(populate_existing=True))
+    if not operador or not operador.activo:raise HTTPException(403,'La cuenta no está activa.')
+    equipo=dispositivos.antes_de_sesion(db,operador,request)
     token = secrets.token_urlsafe(32)
     db.add(
         Sesion(
@@ -45,6 +53,8 @@ def crear_sesion(db: Session, operador: Operador) -> str:
             expira_en=utcnow().replace(tzinfo=None) + timedelta(hours=SESSION_HOURS),
         )
     )
+    if equipo:
+        db.flush();db.add(SesionDispositivo(sesion_token=token,dispositivo_id=equipo.id))
     db.commit()
     return token
 
@@ -66,7 +76,9 @@ def _operador_de_request(request: Request, db: Session) -> Operador | None:
     if not ses or ses.expira_en < utcnow().replace(tzinfo=None):
         return None
     op = db.get(Operador, ses.operador_id)
-    return op if op and op.activo else None
+    if not op or not op.activo:return None
+    from app.services.dispositivos import sesion_valida
+    return op if sesion_valida(db,op,token,request) else None
 
 
 def usuario_actual(request: Request, db: Session = Depends(get_db)) -> Operador:

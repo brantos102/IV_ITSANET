@@ -109,10 +109,17 @@ def callback(request: Request, db: Session = Depends(get_db)):
         if not op.activo:
             r.headers['location'] = '/app/?google=pendiente'
             return r
-        token = crear_sesion(db, op)
+        token = crear_sesion(db, op, request)
         r.headers['location'] = '/app/'
         r.set_cookie(COOKIE, token, httponly=True, secure=c['redirectUri'].startswith('https:'), samesite='lax', max_age=SESSION_HOURS * 3600)
+        from app.services.dispositivos import promover_cookie
+        promover_cookie(db,op,r,request)
         return r
+    except HTTPException as exc:
+        db.rollback()
+        if exc.status_code==403 and isinstance(exc.detail,dict) and exc.detail.get('codigo')=='EQUIPO_NO_AUTORIZADO':
+            r.headers['location']='/app/?google=equipo';return r
+        raise
     except (InvalidToken, ValueError, KeyError, httpx.HTTPError):
         return r
     except IntegrityError:

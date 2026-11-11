@@ -21,7 +21,7 @@ from app.models import Operador, Rol
 from app.routers import app_api, auth, catalogo, google_auth, integraciones, kpi, recepciones, reportes, scans, ui
 from app.security import hash_pin
 from app.services.validation import ErrorValidacion
-from app.routers import operacion, impresion, gestion, manuales
+from app.routers import operacion, impresion, gestion, manuales, dispositivos
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("iv_itsanet")
@@ -90,6 +90,7 @@ if _APP_OPERARIOS.is_dir():
 
 app.include_router(ui.router)
 app.include_router(auth.router)
+app.include_router(dispositivos.router)
 app.include_router(recepciones.router)
 app.include_router(scans.router)
 app.include_router(catalogo.router)

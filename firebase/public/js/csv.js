@@ -1,5 +1,5 @@
-import {partesPosicion} from './posiciones.js?v=20261110-75';
-import {numeroParaExcel,formatoDeNumero,validarLibroExcel} from './excel-formato.js?v=20261110-75';
+import {partesPosicion} from './posiciones.js?v=20261111-76';
+import {numeroParaExcel,formatoDeNumero,validarLibroExcel} from './excel-formato.js?v=20261111-76';
 /**
  * CSV para la carga masiva hacia Depot.
  *
@@ -20,10 +20,10 @@ import {numeroParaExcel,formatoDeNumero,validarLibroExcel} from './excel-formato
 
 import {
   doc, getDoc, setDoc, serverTimestamp,
-} from '../vendor/firebase-sdk.js?v=20261110-75';
-import { db } from './auth.js?v=20261110-75';
-import * as local from './local.js?v=20261110-75';
-import { MODELOS_DEPOT } from './modelos-depot.js?v=20261110-75';
+} from '../vendor/firebase-sdk.js?v=20261111-76';
+import { db } from './auth.js?v=20261111-76';
+import * as local from './local.js?v=20261111-76';
+import { MODELOS_DEPOT } from './modelos-depot.js?v=20261111-76';
 
 /** Los campos que la aplicación sabe rellenar. Lo demás se deja en blanco. */
 export const CAMPOS = {

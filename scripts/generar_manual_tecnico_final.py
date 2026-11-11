@@ -16,6 +16,8 @@ FECHA = '28 de octubre de 2026'
 REF = B.REVISION
 
 USOS = {
+'app_dispositivos_usuario':'Equipos por cuenta: móvil y laptop, aprobación presencial, huella SHA-256 de credencial aleatoria y revocaciones.',
+'app_sesiones_dispositivo':'Vínculo entre una sesión y su equipo aprobado. Se elimina al cerrar la sesión y permite revalidar cada petición.',
 'producto_relaciones':'Relaciones SKU/código por cliente y unidades por empaque; no cambia conteos ni maestro global.',
 'operadores':'Identidad, hash de credencial, rol, habilitación y firma de registros.',
 'sesiones':'Sesiones locales y vencimiento; referencia al operador.',

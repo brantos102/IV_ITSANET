@@ -131,6 +131,27 @@ class Sesion(Base):
     operador: Mapped[Operador] = relationship()
 
 
+class DispositivoUsuario(Base):
+    """Registro de navegador aprobado; conserva revocaciones y reemplazos."""
+    __tablename__ = 'app_dispositivos_usuario'
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    operador_id: Mapped[int] = mapped_column(ForeignKey('operadores.id'), index=True)
+    tipo: Mapped[str] = mapped_column(String(12))
+    nombre: Mapped[str] = mapped_column(String(100))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    estado: Mapped[str] = mapped_column(String(16), default='PENDIENTE', index=True)
+    creado_en: Mapped[datetime] = mapped_column(FECHA, default=utcnow)
+    aprobado_en: Mapped[datetime | None] = mapped_column(FECHA)
+    aprobado_por: Mapped[str | None] = mapped_column(String(160))
+
+
+class SesionDispositivo(Base):
+    """Vínculo adicional: las sesiones históricas conservan su esquema."""
+    __tablename__ = 'app_sesiones_dispositivo'
+    sesion_token: Mapped[str] = mapped_column(String(64), ForeignKey('sesiones.token', ondelete='CASCADE'), primary_key=True)
+    dispositivo_id: Mapped[str] = mapped_column(String(32), ForeignKey('app_dispositivos_usuario.id'), index=True)
+
+
 # --------------------------------------------------------------------------- #
 # Catalogo (cache del maestro Depot)
 # --------------------------------------------------------------------------- #
