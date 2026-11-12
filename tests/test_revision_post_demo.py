@@ -2,7 +2,7 @@ from datetime import datetime
 import pymysql
 import pytest
 from app.models import AppRecepcion, AppEvento, AppSku
-from scripts.revisar_recepciones_post_demo import fecha_utc, revisar
+from scripts.revisar_recepciones_post_demo import fecha_utc, revisar, clasificar_operativa
 
 
 def test_fecha_de_la_reunion_utiliza_la_hora_de_quito():
@@ -56,3 +56,33 @@ def test_revision_incluye_recepciones_anteriores_con_actividad_y_no_escribe(db,m
     todas=revisar('mysql+pymysql://usuario:secreto@localhost/pruebas',
                   datetime(2026,10,30,16),datetime(2026,11,10),True)
     assert todas['historialCompleto'] and todas['totalRecepciones']==4
+    filtradas=revisar('mysql+pymysql://usuario:secreto@localhost/pruebas',datetime(2026,10,30,16),datetime(2026,11,10),True,True)
+    assert filtradas['totalRecepciones']==0 and len(filtradas['excluidasPruebaOEliminadas'])==4
+    assert filtradas['registrosConsultados']==4 and filtradas['soloLectura']
+    # Una descripción de un trabajo real no debe excluirse por mencionar una prueba.
+    operativa=db.get(AppRecepcion,'CON-ACTIVIDAD')
+    operativa.cliente='VENTURA'
+    operativa.descripcion='Repuestos para prueba de motor'
+    cerrada=db.get(AppRecepcion,'CERRADA')
+    cerrada.cliente='VENTURA'
+    db.commit()
+    mixtas=revisar('mysql+pymysql://usuario:secreto@localhost/pruebas',datetime(2026,10,30,16),datetime(2026,11,10),True,True)
+    assert mixtas['totalRecepciones']==2 and mixtas['registrosConsultados']==4
+    assert mixtas['totalRevisionFisicaCompleta']==1 and mixtas['totalCerradasOEntregadas']==1
+    assert [r['codigo'] for r in mixtas['descripcionesPorRevisar']]==['CON-ACTIVIDAD']
+    explicitas=revisar('mysql+pymysql://usuario:secreto@localhost/pruebas',datetime(2026,10,30,16),datetime(2026,11,10),True,True,['CERRADA'])
+    assert explicitas['totalRecepciones']==1 and explicitas['totalCerradasOEntregadas']==0
+    assert any(r['codigo']=='CERRADA' and r['motivo']=='EXCLUSION_EXPLICITA' for r in explicitas['excluidasPruebaOEliminadas'])
+    assert all(sql.startswith(('SELECT','SET SESSION','START TRANSACTION READ ONLY')) for sql in ejecutadas)
+
+
+@pytest.mark.parametrize('codigo,cliente,descripcion,motivo',[
+    ('DEMO-01','VENTURA','Ensayo','CODIGO_MARCADO_PRUEBA'),
+    ('PRUEBA2','VENTURA','','CODIGO_MARCADO_PRUEBA'),
+    ('VW-RA26836-09-11-2026','VENTURA','Repuestos para prueba de motor',None),
+    ('VW-RA26836-09-11-2026','VENTURA','PRUEBA DEL SISTEMA','DESCRIPCION_MARCADA_PRUEBA'),
+    ('REC-001','CLIENTE DE PRUEBA','','CLIENTE_MARCADO_PRUEBA'),
+    ('VW-RM55839-14-10-2026','VENTURA','Recepción operativa',None),
+])
+def test_clasifica_solo_marcas_explicitas(codigo,cliente,descripcion,motivo):
+    assert clasificar_operativa({'codigo':codigo,'cliente':cliente,'descripcion':descripcion,'estado':'CERRADA'})==motivo

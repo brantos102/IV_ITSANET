@@ -5,6 +5,24 @@ from decimal import Decimal
 import json
 import os
 from pathlib import Path
+import re
+import unicodedata
+
+
+def normalizar(texto):
+    return ''.join(c for c in unicodedata.normalize('NFD',str(texto or '').upper()) if not unicodedata.combining(c)).strip()
+
+
+def clasificar_operativa(r,excluir=()):
+    """No adivina por un SKU ni por una palabra dentro de una descripción real."""
+    codigo=normalizar(r['codigo']);cliente=normalizar(r.get('cliente'));descripcion=normalizar(r.get('descripcion'))
+    if codigo in {normalizar(x) for x in excluir}:return 'EXCLUSION_EXPLICITA'
+    if normalizar(r.get('estado')) in ('ELIMINADA','BORRADA'):return 'ESTADO_ELIMINADO'
+    marca=r'(^|[^A-Z0-9])(DEMO|PRUEBAS?|TEST|TESTING|SIMULACION|DEMOSTRACION|CAPACITACION)(?=$|[^A-Z])'
+    if re.search(marca,codigo):return 'CODIGO_MARCADO_PRUEBA'
+    if cliente in {'DEMO','PRUEBA','PRUEBAS','TEST','TESTING','CLIENTE DE PRUEBA','CLIENTE PRUEBA'}:return 'CLIENTE_MARCADO_PRUEBA'
+    if descripcion in {'DEMO','PRUEBA','PRUEBAS','TEST','TESTING','PRUEBA DEL SISTEMA','PRUEBA DEL APLICATIVO','PRUEBA APP','RECEPCION DE PRUEBA','RECEPCION DEMO'}:return 'DESCRIPCION_MARCADA_PRUEBA'
+    return None
 
 
 def fecha_utc(valor):
@@ -22,7 +40,7 @@ def serializar(valor):
     raise TypeError(type(valor).__name__)
 
 
-def revisar(url, desde, hasta, historial_completo=False):
+def revisar(url, desde, hasta, historial_completo=False, solo_operativas=False, excluir=()):
     import pymysql
     from sqlalchemy.engine import make_url
     u = make_url(url)
@@ -45,7 +63,7 @@ def revisar(url, desde, hasta, historial_completo=False):
             c.execute('SET SESSION max_statement_time=5' if 'mariadb' in version.lower()
                       else 'SET SESSION MAX_EXECUTION_TIME=5000')
             c.execute('START TRANSACTION READ ONLY')
-            sql = '''SELECT r.codigo, r.cliente, r.estado, r.creado_en, r.cerrada_en
+            sql = '''SELECT r.codigo, r.cliente, r.descripcion, r.estado, r.creado_en, r.cerrada_en
                 FROM app_recepciones r
                 WHERE (r.creado_en >= %s AND r.creado_en < %s)
                 OR (r.cerrada_en >= %s AND r.cerrada_en < %s)
@@ -57,13 +75,25 @@ def revisar(url, desde, hasta, historial_completo=False):
                     AND t.creado_en >= %s AND t.creado_en < %s)
                 ORDER BY r.creado_en, r.codigo LIMIT 1001'''
             if historial_completo:
-                c.execute('''SELECT codigo, cliente, estado, creado_en, cerrada_en
+                c.execute('''SELECT codigo, cliente, descripcion, estado, creado_en, cerrada_en
                     FROM app_recepciones ORDER BY creado_en, codigo LIMIT 1001''')
             else:
                 c.execute(sql, (desde, hasta)*5)
             filas = list(c.fetchall())
             if len(filas) > 1000:
                 raise ValueError('Más de 1000 recepciones: reducir el período de revisión.')
+            registros_consultados=len(filas);excluidas=[];por_revisar=[]
+            if solo_operativas:
+                operativas=[]
+                for r in filas:
+                    motivo=clasificar_operativa(r,excluir)
+                    if motivo:
+                        excluidas.append({**{k:r.get(k) for k in ('codigo','cliente','descripcion','estado')},'motivo':motivo})
+                    else:
+                        operativas.append(r)
+                        if re.search(r'\b(DEMO|PRUEBAS?|TEST|TESTING|SIMULACION|DEMOSTRACION|CAPACITACION)\b',normalizar(r.get('descripcion'))):
+                            por_revisar.append({k:r.get(k) for k in ('codigo','cliente','descripcion')})
+                filas=operativas
             por_codigo = {r['codigo']: {**r, 'drive': [], 'correos': []} for r in filas}
             if por_codigo:
                 codigos = tuple(por_codigo)
@@ -110,6 +140,9 @@ def revisar(url, desde, hasta, historial_completo=False):
                 'desdeInclusiveUTC': desde.replace(tzinfo=timezone.utc).isoformat(),
                 'hastaExclusivaUTC': hasta.replace(tzinfo=timezone.utc).isoformat(),
                 'soloLectura': True, 'totalRecepciones': len(filas),
+                'soloOperativas':solo_operativas,'registrosConsultados':registros_consultados,
+                'excluidasPruebaOEliminadas':excluidas,'descripcionesPorRevisar':por_revisar,
+                'criterioExclusion': 'Solo filas existentes de app_recepciones; las eliminadas físicamente no se consultan. En modo operativo se excluyen etiquetas explícitas de prueba en código, cliente o descripción y exclusiones solicitadas. Las descripciones ambiguas se muestran para revisión y no se descartan automáticamente.',
                 'criterio': ('Todo el historial disponible; los agregados de actividad usan el período indicado.'
                     if historial_completo else 'Recepciones con alta, cierre, conteo, archivo o entrega en el período.'),
                 'totalRevisionFisicaCompleta': sum(r['revisionFisicaCompleta'] for r in por_codigo.values()),
@@ -128,13 +161,15 @@ def main():
     p.add_argument('--desde', default='2026-10-30T11:00:00-05:00')
     p.add_argument('--hasta', default=datetime.now(timezone.utc).isoformat())
     p.add_argument('--todo-historial', action='store_true', help='Incluye todas las recepciones de la base, independientemente de su fecha.')
+    p.add_argument('--solo-operativas',action='store_true',help='Excluye registros marcados explícitamente como demo/prueba y estados eliminados; informa casos ambiguos.')
+    p.add_argument('--excluir',action='append',default=[],help='Código exacto confirmado como prueba; se puede repetir. No elimina datos.')
     p.add_argument('--salida', type=Path, required=True)
     a = p.parse_args()
     try:
         desde, hasta = fecha_utc(a.desde), fecha_utc(a.hasta)
         if desde >= hasta:
             raise ValueError('El período no es válido.')
-        resultado = revisar(os.environ['VAL_DATABASE_URL'], desde, hasta, a.todo_historial)
+        resultado = revisar(os.environ['VAL_DATABASE_URL'], desde, hasta, a.todo_historial,a.solo_operativas,a.excluir)
         texto = json.dumps(resultado, default=serializar, ensure_ascii=False, indent=2)
         a.salida.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with os.fdopen(os.open(a.salida, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as f:
